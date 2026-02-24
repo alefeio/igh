@@ -6,9 +6,14 @@ declare global {
 }
 
 function createAdapter() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString =
+    // Vercel Prisma Postgres / Data Proxy
+    process.env.POSTGRES_URL ??
+    process.env.PRISMA_DATABASE_URL ??
+    // fallback para dev local
+    process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error("DATABASE_URL não configurada");
+    throw new Error("URL de banco não configurada (POSTGRES_URL / PRISMA_DATABASE_URL / DATABASE_URL)");
   }
   return new PrismaPg({ connectionString });
 }

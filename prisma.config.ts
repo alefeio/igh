@@ -9,6 +9,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Usamos sempre a mesma URL (POSTGRES_URL) tanto local quanto na Vercel.
+    // Em dev, defina POSTGRES_URL no .env com a mesma string usada em produção.
+    url: process.env["POSTGRES_URL"] ?? process.env["DATABASE_URL"],
   },
 });
