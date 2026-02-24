@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  MASTER
+  ADMIN
+}
+
+enum CourseStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ClassGroupStatus {
+  PLANEJADA
+  ABERTA
+  EM_ANDAMENTO
+  ENCERRADA
+  CANCELADA
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs AuditLog[] @relation("UserAuditLogs")
+}
+
+model Teacher {
+  id        String    @id @default(uuid())
+  name      String
+  phone     String?
+  email     String?
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  classGroups ClassGroup[]
+}
+
+model Course {
+  id            String       @id @default(uuid())
+  name          String       @unique
+  description   String?
+  workloadHours Int?
+  status        CourseStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  classGroups ClassGroup[]
+}
+
+model ClassGroup {
+  id         String           @id @default(uuid())
+  courseId   String
+  teacherId  String
+  daysOfWeek String[]
+  startTime  String
+  endTime    String
+  capacity   Int
+  status     ClassGroupStatus @default(PLANEJADA)
+  location   String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  course  Course  @relation(fields: [courseId], references: [id])
+  teacher Teacher @relation(fields: [teacherId], references: [id])
+}
+
+model AuditLog {
+  id                String   @id @default(uuid())
+  entityType        String
+  entityId          String
+  action            String
+  diffJson          String
+  performedByUserId String?
+  createdAt         DateTime @default(now())
+
+  performedByUser User? @relation("UserAuditLogs", fields: [performedByUserId], references: [id])
+}
+
+// Futuras entidades (não implementadas neste MVP):
+// model Student { ... }
+// model Enrollment { ... }
+// model ChangeRequest { ... }
+
