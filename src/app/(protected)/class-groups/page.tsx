@@ -10,6 +10,11 @@ import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
+function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): string {
+  if (json && !json.ok) return json.error.message;
+  return fallback;
+}
+
 type Course = { id: string; name: string };
 type Teacher = { id: string; name: string };
 
@@ -159,7 +164,7 @@ export default function ClassGroupsPage() {
       const res = await fetch(`/api/class-groups/${classGroupId}/sessions`);
       const json = await parseJsonSafe<{ sessions: ClassSession[] }>(res);
       if (!res.ok || !json?.ok) {
-        throw new Error(json?.error?.message ?? "Falha ao carregar aulas geradas.");
+        throw new Error(apiErrorMessage(json, "Falha ao carregar aulas geradas."));
       }
       setSessions(json.data.sessions);
     } catch (e) {
@@ -247,7 +252,7 @@ export default function ClassGroupsPage() {
     });
     const json = await parseJsonSafe<{ classGroup: { id: string } }>(res);
     if (!res.ok || !json?.ok) {
-      toast.push("error", json?.error?.message ?? "Falha ao salvar turma.");
+      toast.push("error", apiErrorMessage(json, "Falha ao salvar turma."));
       return;
     }
     toast.push("success", isEditing ? "Turma atualizada." : "Turma criada.");
@@ -279,7 +284,7 @@ export default function ClassGroupsPage() {
     });
     const json = await parseJsonSafe<{ classGroup: ClassGroup }>(res);
     if (!res.ok || !json?.ok) {
-      toast.push("error", json?.error?.message ?? "Falha ao inativar turma.");
+      toast.push("error", apiErrorMessage(json, "Falha ao inativar turma."));
       return;
     }
     toast.push("success", "Turma cancelada.");
@@ -294,7 +299,7 @@ export default function ClassGroupsPage() {
     });
     const json = await parseJsonSafe<{ classGroup: ClassGroup }>(res);
     if (!res.ok || !json?.ok) {
-      toast.push("error", json?.error?.message ?? "Falha ao reativar turma.");
+      toast.push("error", apiErrorMessage(json, "Falha ao reativar turma."));
       return;
     }
     toast.push("success", "Turma reativada.");
@@ -306,7 +311,7 @@ export default function ClassGroupsPage() {
     const res = await fetch(`/api/class-groups/${cg.id}`, { method: "DELETE" });
     const json = await parseJsonSafe<{ deleted: boolean }>(res);
     if (!res.ok || !json?.ok) {
-      toast.push("error", json?.error?.message ?? "Falha ao excluir turma.");
+      toast.push("error", apiErrorMessage(json, "Falha ao excluir turma."));
       return;
     }
     toast.push("success", "Turma excluída.");
