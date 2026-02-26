@@ -18,6 +18,8 @@ type ClassGroup = {
   courseId: string;
   teacherId: string;
   daysOfWeek: string[];
+  startDate?: string;
+  endDate?: string | null;
   startTime: string;
   endTime: string;
   capacity: number;
@@ -26,6 +28,25 @@ type ClassGroup = {
   createdAt: string;
   course: Course;
   teacher: Teacher;
+  sessions?: ClassSession[];
+  totalSessions?: number;
+  totalHours?: number;
+};
+
+type ClassSession = {
+  id: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+  status: "SCHEDULED" | "CANCELED";
+};
+
+type TimeSlot = {
+  id: string;
+  startTime: string;
+  endTime: string;
+  name: string | null;
+  isActive: boolean;
 };
 
 const STATUS_TONE: Record<ClassGroup["status"], Parameters<typeof Badge>[0]["tone"]> = {
@@ -42,40 +63,66 @@ export default function ClassGroupsPage() {
   const [items, setItems] = useState<ClassGroup[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
 
   const [open, setOpen] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<ClassGroup | null>(null);
 
   const [courseId, setCourseId] = useState("");
   const [teacherId, setTeacherId] = useState("");
-  const [daysOfWeek, setDaysOfWeek] = useState<string[]>(["SEG", "QUA"]);
+  const [daysOfWeek, setDaysOfWeek] = useState<string[]>(["TER", "QUI"]);
+  const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("08:00");
   const [endTime, setEndTime] = useState("10:00");
   const [capacity, setCapacity] = useState("20");
   const [status, setStatus] = useState<ClassGroup["status"]>("PLANEJADA");
   const [location, setLocation] = useState("");
+  const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
+  const [selectedTimeSlotId, setSelectedTimeSlotId] = useState("");
+
+  const [sessions, setSessions] = useState<ClassSession[]>([]);
+
+  const locationSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((cg) => {
+      if (cg.location && cg.location.trim()) set.add(cg.location.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [items]);
+
+  const filteredLocationSuggestions = useMemo(() => {
+    const q = location.trim().toLowerCase();
+    if (!q) return locationSuggestions;
+    return locationSuggestions.filter((s) => s.toLowerCase().includes(q));
+  }, [locationSuggestions, location]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   const canSubmit = useMemo(() => {
     return (
       courseId.length > 0 &&
       teacherId.length > 0 &&
       daysOfWeek.length > 0 &&
+      startDate.trim().length > 0 &&
       startTime.trim().length > 0 &&
       endTime.trim().length > 0 &&
       Number(capacity) > 0
     );
-  }, [courseId, teacherId, daysOfWeek, startTime, endTime, capacity]);
+  }, [courseId, teacherId, daysOfWeek, startDate, startTime, endTime, capacity]);
 
   function resetForm() {
     setCourseId("");
     setTeacherId("");
-    setDaysOfWeek(["SEG", "QUA"]);
+    setDaysOfWeek(["TER", "QUI"]);
+    setStartDate("");
     setStartTime("08:00");
     setEndTime("10:00");
     setCapacity("20");
     setStatus("PLANEJADA");
     setLocation("");
+    setSelectedTimeSlotId("");
     setEditing(null);
+    setSessions([]);
   }
 
   function openCreate() {
@@ -88,43 +135,79 @@ export default function ClassGroupsPage() {
     setCourseId(cg.courseId);
     setTeacherId(cg.teacherId);
     setDaysOfWeek(cg.daysOfWeek);
+    setStartDate(cg.startDate ? String(cg.startDate).slice(0, 10) : "");
     setStartTime(cg.startTime);
     setEndTime(cg.endTime);
     setCapacity(String(cg.capacity));
     setStatus(cg.status);
     setLocation(cg.location ?? "");
+    const matchingSlot = timeSlots.find(
+      (s) => s.startTime === cg.startTime && s.endTime === cg.endTime
+    );
+    setSelectedTimeSlotId(matchingSlot?.id ?? "");
     setOpen(true);
+    if (cg.sessions?.length !== undefined) {
+      setSessions(cg.sessions);
+    } else {
+      void loadSessions(cg.id);
+    }
+  }
+
+  async function loadSessions(classGroupId: string) {
+    setSessionsLoading(true);
+    try {
+      const res = await fetch(`/api/class-groups/${classGroupId}/sessions`);
+      const json = await parseJsonSafe<{ sessions: ClassSession[] }>(res);
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error?.message ?? "Falha ao carregar aulas geradas.");
+      }
+      setSessions(json.data.sessions);
+    } catch (e) {
+      const err = e as Error;
+      toast.push("error", err.message);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }
+
+  async function parseJsonSafe<T>(res: Response): Promise<ApiResponse<T> | null> {
+    const text = await res.text();
+    if (!text.trim()) return null;
+    try {
+      return JSON.parse(text) as ApiResponse<T>;
+    } catch {
+      return null;
+    }
   }
 
   async function loadAll() {
     setLoading(true);
     try {
-      const [cgRes, cRes, tRes] = await Promise.all([
+      const [cgRes, cRes, tRes, tsRes] = await Promise.all([
         fetch("/api/class-groups"),
         fetch("/api/courses"),
         fetch("/api/teachers"),
+        fetch("/api/time-slots?activeOnly=true"),
       ]);
 
-      const [cgJson, cJson, tJson] = (await Promise.all([
-        cgRes.json(),
-        cRes.json(),
-        tRes.json(),
-      ])) as [
-        ApiResponse<{ classGroups: ClassGroup[] }>,
-        ApiResponse<{ courses: Course[] }>,
-        ApiResponse<{ teachers: Teacher[] }>,
-      ];
+      const [cgJson, cJson, tJson, tsJson] = await Promise.all([
+        parseJsonSafe<{ classGroups: ClassGroup[] }>(cgRes),
+        parseJsonSafe<{ courses: Course[] }>(cRes),
+        parseJsonSafe<{ teachers: Teacher[] }>(tRes),
+        parseJsonSafe<{ timeSlots: TimeSlot[] }>(tsRes),
+      ]);
 
-      if (!cgRes.ok || !cgJson.ok)
-        throw new Error(!cgJson.ok ? cgJson.error.message : "Falha ao carregar turmas.");
-      if (!cRes.ok || !cJson.ok)
-        throw new Error(!cJson.ok ? cJson.error.message : "Falha ao carregar cursos.");
-      if (!tRes.ok || !tJson.ok)
-        throw new Error(!tJson.ok ? tJson.error.message : "Falha ao carregar professores.");
+      if (!cgRes.ok || !cgJson?.ok)
+        throw new Error(cgJson?.error?.message ?? "Falha ao carregar turmas.");
+      if (!cRes.ok || !cJson?.ok)
+        throw new Error(cJson?.error?.message ?? "Falha ao carregar cursos.");
+      if (!tRes.ok || !tJson?.ok)
+        throw new Error(tJson?.error?.message ?? "Falha ao carregar professores.");
 
-      setItems(cgJson.data.classGroups);
-      setCourses(cJson.data.courses);
-      setTeachers(tJson.data.teachers);
+      setItems(cgJson!.data.classGroups);
+      setCourses(cJson!.data.courses);
+      setTeachers(tJson!.data.teachers);
+      setTimeSlots(tsJson?.ok ? tsJson.data.timeSlots : []);
     } catch (e: unknown) {
       toast.push("error", e instanceof Error ? e.message : "Falha ao carregar dados.");
     } finally {
@@ -141,10 +224,12 @@ export default function ClassGroupsPage() {
     e.preventDefault();
     if (!canSubmit) return;
 
+    const isEditing = editing != null;
     const payload = {
       courseId,
       teacherId,
       daysOfWeek,
+      startDate,
       startTime,
       endTime,
       capacity: Number(capacity),
@@ -152,37 +237,103 @@ export default function ClassGroupsPage() {
       location,
     };
 
-    const url = editing ? `/api/class-groups/${editing.id}` : "/api/class-groups";
-    const method = editing ? "PATCH" : "POST";
+    const url = isEditing ? `/api/class-groups/${editing!.id}` : "/api/class-groups";
+    const method = isEditing ? "PATCH" : "POST";
 
     const res = await fetch(url, {
       method,
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const json = (await res.json()) as ApiResponse<{ classGroup: { id: string } }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao salvar turma.");
+    const json = await parseJsonSafe<{ classGroup: { id: string } }>(res);
+    if (!res.ok || !json?.ok) {
+      toast.push("error", json?.error?.message ?? "Falha ao salvar turma.");
       return;
     }
-    toast.push("success", editing ? "Turma atualizada." : "Turma criada.");
+    toast.push("success", isEditing ? "Turma atualizada." : "Turma criada.");
     setOpen(false);
     resetForm();
     await loadAll();
   }
 
   function toggleDay(day: string) {
-    setDaysOfWeek((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+    setDaysOfWeek((prev) => {
+      const isSelected = prev.includes(day);
+      if (isSelected) {
+        return prev.filter((d) => d !== day);
+      }
+      const presetTerQui = prev.length === 2 && prev.includes("TER") && prev.includes("QUI");
+      const presetQuaSex = prev.length === 2 && prev.includes("QUA") && prev.includes("SEX");
+      if (presetTerQui && day === "QUA") return ["QUA", "SEX"];
+      if (presetQuaSex && day === "TER") return ["TER", "QUI"];
+      return [...prev, day];
+    });
   }
+
+  async function inactivateClassGroup(cg: ClassGroup) {
+    if (!confirm(`Inativar (cancelar) a turma de ${cg.course.name}?`)) return;
+    const res = await fetch(`/api/class-groups/${cg.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "CANCELADA" }),
+    });
+    const json = await parseJsonSafe<{ classGroup: ClassGroup }>(res);
+    if (!res.ok || !json?.ok) {
+      toast.push("error", json?.error?.message ?? "Falha ao inativar turma.");
+      return;
+    }
+    toast.push("success", "Turma cancelada.");
+    await loadAll();
+  }
+
+  async function reactivateClassGroup(cg: ClassGroup) {
+    const res = await fetch(`/api/class-groups/${cg.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "PLANEJADA" }),
+    });
+    const json = await parseJsonSafe<{ classGroup: ClassGroup }>(res);
+    if (!res.ok || !json?.ok) {
+      toast.push("error", json?.error?.message ?? "Falha ao reativar turma.");
+      return;
+    }
+    toast.push("success", "Turma reativada.");
+    await loadAll();
+  }
+
+  async function deleteClassGroup(cg: ClassGroup) {
+    if (!confirm(`Excluir definitivamente esta turma e todas as aulas geradas? Esta ação não pode ser desfeita.`)) return;
+    const res = await fetch(`/api/class-groups/${cg.id}`, { method: "DELETE" });
+    const json = await parseJsonSafe<{ deleted: boolean }>(res);
+    if (!res.ok || !json?.ok) {
+      toast.push("error", json?.error?.message ?? "Falha ao excluir turma.");
+      return;
+    }
+    toast.push("success", "Turma excluída.");
+    await loadAll();
+  }
+
+  const visibleItems = showInactive ? items : items.filter((cg) => cg.status !== "CANCELADA");
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-lg font-semibold">Turmas</div>
-          <div className="text-sm text-zinc-600">Turma pertence a um curso e tem 1 professor.</div>
+          <div className="text-sm text-zinc-600">
+            Por padrão, apenas ativas. Use &quot;Exibir inativos&quot; para reativar ou excluir turmas canceladas.
+          </div>
         </div>
-        <Button onClick={openCreate}>Nova</Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setShowInactive((prev) => !prev)}
+          >
+            {showInactive ? "Ocultar inativos" : "Exibir inativos"}
+          </Button>
+          <Button onClick={openCreate}>Nova</Button>
+        </div>
       </div>
 
       {loading ? (
@@ -192,14 +343,16 @@ export default function ClassGroupsPage() {
           <thead>
             <tr>
               <Th>Turma</Th>
+              <Th>Início</Th>
               <Th>Horário</Th>
+              <Th>Aulas / Horas</Th>
               <Th>Status</Th>
               <Th>Capacidade</Th>
               <Th />
             </tr>
           </thead>
           <tbody>
-            {items.map((cg) => (
+            {visibleItems.map((cg) => (
               <tr key={cg.id}>
                 <Td>
                   <div className="flex flex-col">
@@ -210,7 +363,16 @@ export default function ClassGroupsPage() {
                   </div>
                 </Td>
                 <Td>
+                  {cg.startDate ? String(cg.startDate).slice(0, 10).split("-").reverse().join("/") : "—"}
+                </Td>
+                <Td>
                   {cg.startTime} - {cg.endTime}
+                </Td>
+                <Td>
+                  <span className="text-zinc-700">
+                    {cg.totalSessions ?? cg.sessions?.length ?? 0} aulas
+                    {cg.totalHours != null && ` · ${cg.totalHours}h`}
+                  </span>
                 </Td>
                 <Td>
                   <Badge tone={STATUS_TONE[cg.status]}>{cg.status}</Badge>
@@ -221,19 +383,39 @@ export default function ClassGroupsPage() {
                     <Button variant="secondary" onClick={() => openEdit(cg)}>
                       Editar
                     </Button>
+                    {cg.status !== "CANCELADA" ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() => inactivateClassGroup(cg)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Inativar
+                      </Button>
+                    ) : (
+                      <>
+                        <Button variant="secondary" onClick={() => reactivateClassGroup(cg)}>
+                          Reativar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => deleteClassGroup(cg)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          Excluir
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </Td>
               </tr>
             ))}
-            {items.length === 0 ? (
+            {visibleItems.length === 0 ? (
               <tr>
-                <Td>
-                  <span className="text-zinc-600">Nenhuma turma cadastrada.</span>
+                <Td colSpan={7}>
+                  <span className="text-zinc-600">
+                    {showInactive ? "Nenhuma turma encontrada." : "Nenhuma turma ativa cadastrada."}
+                  </span>
                 </Td>
-                <Td />
-                <Td />
-                <Td />
-                <Td />
               </tr>
             ) : null}
           </tbody>
@@ -243,7 +425,7 @@ export default function ClassGroupsPage() {
       <Modal
         open={open}
         title={editing ? "Editar turma" : "Nova turma"}
-        onClose={() => setOpen(false)}
+        onClose={() => { setOpen(false); resetForm(); }}
       >
         <form className="flex flex-col gap-3" onSubmit={save}>
           <div>
@@ -299,19 +481,72 @@ export default function ClassGroupsPage() {
                 </button>
               ))}
             </div>
+            <p className="mt-1 text-xs text-zinc-500">
+              Padrão: Ter/Qui ou Qua/Sex. Clique em QUA para alternar para Qua/Sex; em TER para voltar a Ter/Qui. Clique em um dia já marcado para desmarcar e personalizar (ex.: SEG e SEX).
+            </p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Data de início</label>
+            <div className="mt-1">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Horário predefinido (opcional)</label>
+            <div className="mt-1">
+              <select
+                className="h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-900"
+                value={selectedTimeSlotId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setSelectedTimeSlotId(id);
+                  if (id) {
+                    const slot = timeSlots.find((s) => s.id === id);
+                    if (slot) {
+                      setStartTime(slot.startTime);
+                      setEndTime(slot.endTime);
+                    }
+                  }
+                }}
+              >
+                <option value="">Digitar manualmente</option>
+                {timeSlots.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name || `${s.startTime} - ${s.endTime}`}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-zinc-500">
+                Selecione um horário cadastrado em Horários para preencher início e fim automaticamente.
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium">Início</label>
+              <label className="text-sm font-medium">Hora de início</label>
               <div className="mt-1">
-                <Input value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                <Input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => { setStartTime(e.target.value); setSelectedTimeSlotId(""); }}
+                />
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium">Fim</label>
+              <label className="text-sm font-medium">Hora de fim</label>
               <div className="mt-1">
-                <Input value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                <Input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => { setEndTime(e.target.value); setSelectedTimeSlotId(""); }}
+                />
               </div>
             </div>
           </div>
@@ -347,13 +582,42 @@ export default function ClassGroupsPage() {
 
           <div>
             <label className="text-sm font-medium">Local/Sala (opcional)</label>
-            <div className="mt-1">
-              <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+            <div className="relative mt-1">
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                onFocus={() => setLocationDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setLocationDropdownOpen(false), 150)}
+                placeholder="Digite ou selecione um local"
+                className="h-10 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900"
+              />
+              {locationDropdownOpen && filteredLocationSuggestions.length > 0 && (
+                <ul
+                  className="absolute z-10 mt-0.5 max-h-40 w-full overflow-auto rounded-md border border-zinc-200 bg-white py-1 shadow-md"
+                  role="listbox"
+                >
+                  {filteredLocationSuggestions.map((s) => (
+                    <li
+                      key={s}
+                      role="option"
+                      className="cursor-pointer px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-100"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setLocation(s);
+                        setLocationDropdownOpen(false);
+                      }}
+                    >
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
             <Button type="submit" disabled={!canSubmit}>
@@ -361,6 +625,39 @@ export default function ClassGroupsPage() {
             </Button>
           </div>
         </form>
+
+        <div className="mt-6 border-t border-zinc-200 pt-4">
+          <div className="mb-2 text-sm font-semibold">Aulas geradas</div>
+          {!editing ? (
+            <p className="text-xs text-zinc-600">
+              As aulas serão geradas automaticamente após salvar a turma.
+            </p>
+          ) : sessionsLoading ? (
+            <p className="text-xs text-zinc-600">Carregando aulas...</p>
+          ) : sessions.length === 0 ? (
+            <p className="text-xs text-zinc-600">
+              Nenhuma aula gerada para esta turma.
+            </p>
+          ) : (
+            <div className="max-h-64 space-y-1 overflow-y-auto text-xs">
+              <p className="mb-1 text-zinc-600">
+                Total de aulas: <span className="font-semibold">{sessions.length}</span>
+                {editing?.totalHours != null && (
+                  <> · Total de horas: <span className="font-semibold">{editing.totalHours}h</span></>
+                )}
+              </p>
+              {sessions.map((s) => (
+                <div key={s.id} className="flex items-center justify-between rounded-md border border-zinc-200 px-2 py-1">
+                  <span>
+                    {s.sessionDate.slice(0, 10).split("-").reverse().join("/")} · {s.startTime} -{" "}
+                    {s.endTime}
+                  </span>
+                  <span className="text-[10px] uppercase text-zinc-500">{s.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );

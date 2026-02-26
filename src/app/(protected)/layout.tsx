@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { ToastProvider } from "@/components/feedback/ToastProvider";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { UserProvider } from "@/components/layout/UserProvider";
 import { getSessionUserFromCookie } from "@/lib/auth";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -12,12 +13,14 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
   return (
     <ToastProvider>
-      <div className="flex min-h-screen bg-zinc-50">
-        <Sidebar user={user} />
-        <main className="flex-1">
-          <div className="container-page">{children}</div>
-        </main>
-      </div>
+      <UserProvider user={user}>
+        <div className="flex min-h-screen bg-zinc-50">
+          <Sidebar user={user} />
+          <main className="flex-1">
+            <div className="container-page">{children}</div>
+          </main>
+        </div>
+      </UserProvider>
     </ToastProvider>
   );
 }

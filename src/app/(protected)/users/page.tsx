@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import type { ApiResponse } from "@/lib/api-types";
+import { formatDateTime } from "@/lib/format";
 
 type AdminUser = {
   id: string;
@@ -23,14 +24,26 @@ export default function UsersPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [showInactive, setShowInactive] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<AdminUser | null>(null);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editIsActive, setEditIsActive] = useState(true);
+
   const canSubmit = useMemo(
     () => name.trim().length >= 2 && email.includes("@") && password.length >= 8,
     [name, email, password],
+  );
+  const canSubmitEdit = useMemo(
+    () => editName.trim().length >= 2 && editEmail.includes("@") && (editPassword === "" || editPassword.length >= 8),
+    [editName, editEmail, editPassword],
   );
 
   async function load() {
@@ -52,6 +65,81 @@ export default function UsersPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function openEdit(u: AdminUser) {
+    setEditing(u);
+    setEditName(u.name);
+    setEditEmail(u.email);
+    setEditPassword("");
+    setEditIsActive(u.isActive);
+    setEditOpen(true);
+  }
+
+  async function updateAdmin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canSubmitEdit || !editing) return;
+
+    const payload: { name: string; email: string; isActive: boolean; password?: string } = {
+      name: editName,
+      email: editEmail,
+      isActive: editIsActive,
+    };
+    if (editPassword.trim() !== "") payload.password = editPassword;
+
+    const res = await fetch(`/api/admin/users/${editing.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = (await res.json()) as ApiResponse<{ user: AdminUser }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar usuário.");
+      return;
+    }
+    toast.push("success", "Usuário atualizado.");
+    setEditOpen(false);
+    setEditing(null);
+    await load();
+  }
+
+  async function deactivateUser(u: AdminUser) {
+    if (!confirm(`Desativar o usuário "${u.name}"? Ele não poderá mais fazer login.`)) return;
+    const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" });
+    const json = (await res.json()) as ApiResponse<{ user: AdminUser }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao desativar usuário.");
+      return;
+    }
+    toast.push("success", "Usuário desativado.");
+    await load();
+  }
+
+  async function reactivateUser(u: AdminUser) {
+    const res = await fetch(`/api/admin/users/${u.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ isActive: true }),
+    });
+    const json = (await res.json()) as ApiResponse<{ user: AdminUser }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao reativar usuário.");
+      return;
+    }
+    toast.push("success", "Usuário reativado.");
+    await load();
+  }
+
+  async function deleteUserPermanent(u: AdminUser) {
+    if (!confirm(`Excluir definitivamente o usuário "${u.name}"? Esta ação não pode ser desfeita.`)) return;
+    const res = await fetch(`/api/admin/users/${u.id}?permanent=true`, { method: "DELETE" });
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao excluir usuário.");
+      return;
+    }
+    toast.push("success", "Usuário excluído.");
+    await load();
+  }
 
   async function createAdmin(e: React.FormEvent) {
     e.preventDefault();
@@ -75,14 +163,27 @@ export default function UsersPage() {
     await load();
   }
 
+  const visibleUsers = showInactive ? users : users.filter((u) => u.isActive);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-lg font-semibold">Usuários (ADMIN)</div>
-          <div className="text-sm text-zinc-600">Apenas MASTER pode listar e criar ADMINs.</div>
+          <div className="text-sm text-zinc-600">
+            Por padrão, apenas ativos. Use &quot;Exibir inativos&quot; para reativar ou excluir.
+          </div>
         </div>
-        <Button onClick={() => setOpen(true)}>Novo ADMIN</Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setShowInactive((prev) => !prev)}
+          >
+            {showInactive ? "Ocultar inativos" : "Exibir inativos"}
+          </Button>
+          <Button onClick={() => setOpen(true)}>Novo ADMIN</Button>
+        </div>
       </div>
 
       {loading ? (
@@ -95,10 +196,11 @@ export default function UsersPage() {
               <Th>E-mail</Th>
               <Th>Status</Th>
               <Th>Criado em</Th>
+              <Th />
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {visibleUsers.map((u) => (
               <tr key={u.id}>
                 <Td>{u.name}</Td>
                 <Td>{u.email}</Td>
@@ -109,24 +211,100 @@ export default function UsersPage() {
                     <Badge tone="red">Inativo</Badge>
                   )}
                 </Td>
-                <Td>{new Date(u.createdAt).toLocaleString()}</Td>
+                <Td>{formatDateTime(u.createdAt)}</Td>
+                <Td>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="secondary" onClick={() => openEdit(u)}>
+                      Editar
+                    </Button>
+                    {u.isActive ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() => deactivateUser(u)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Inativar
+                      </Button>
+                    ) : (
+                      <>
+                        <Button variant="secondary" onClick={() => reactivateUser(u)}>
+                          Reativar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => deleteUserPermanent(u)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          Excluir
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </Td>
               </tr>
             ))}
-            {users.length === 0 ? (
+            {visibleUsers.length === 0 ? (
               <tr>
-                <Td>
-                  <span className="text-zinc-600">Nenhum ADMIN cadastrado.</span>
+                <Td colSpan={5}>
+                  <span className="text-zinc-600">
+                    {showInactive ? "Nenhum usuário encontrado." : "Nenhum ADMIN ativo cadastrado."}
+                  </span>
                 </Td>
-                <Td />
-                <Td />
-                <Td />
               </tr>
             ) : null}
           </tbody>
         </Table>
       )}
 
-      <Modal open={open} title="Criar usuário ADMIN" onClose={() => setOpen(false)}>
+      <Modal open={editOpen} title="Editar usuário" onClose={() => { setEditOpen(false); setEditing(null); setEditName(""); setEditEmail(""); setEditPassword(""); setEditIsActive(true); }}>
+        <form className="flex flex-col gap-3" onSubmit={updateAdmin}>
+          <div>
+            <label className="text-sm font-medium">Nome</label>
+            <div className="mt-1">
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">E-mail</label>
+            <div className="mt-1">
+              <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} type="email" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Nova senha (opcional)</label>
+            <div className="mt-1">
+              <Input
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                type="password"
+                placeholder="Deixe em branco para manter"
+              />
+            </div>
+            {editPassword.length > 0 && editPassword.length < 8 && (
+              <p className="mt-1 text-xs text-red-600">Mínimo 8 caracteres.</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="editIsActive"
+              type="checkbox"
+              checked={editIsActive}
+              onChange={(e) => setEditIsActive(e.target.checked)}
+            />
+            <label htmlFor="editIsActive" className="text-sm">Ativo</label>
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={() => { setEditOpen(false); setEditing(null); }}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={!canSubmitEdit}>
+              Salvar
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={open} title="Criar usuário ADMIN" onClose={() => { setOpen(false); setName(""); setEmail(""); setPassword(""); }}>
         <form className="flex flex-col gap-3" onSubmit={createAdmin}>
           <div>
             <label className="text-sm font-medium">Nome</label>
@@ -147,8 +325,16 @@ export default function UsersPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 type="password"
+                placeholder="Mínimo 8 caracteres"
               />
             </div>
+            <p
+              className={`mt-1 text-xs ${
+                password.length > 0 && password.length < 8 ? "text-red-600" : "text-zinc-500"
+              }`}
+            >
+              A senha deve ter pelo menos 8 caracteres.
+            </p>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>

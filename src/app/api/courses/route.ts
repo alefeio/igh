@@ -8,7 +8,7 @@ export async function GET() {
   await requireRole("MASTER");
 
   const courses = await prisma.course.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { name: "asc" },
   });
 
   return jsonOk({ courses });

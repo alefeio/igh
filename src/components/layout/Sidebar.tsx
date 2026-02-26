@@ -14,7 +14,9 @@ const ITEMS: Item[] = [
   { href: "/teachers", label: "Professores", masterOnly: true },
   { href: "/courses", label: "Cursos", masterOnly: true },
   { href: "/class-groups", label: "Turmas", masterOnly: true },
-  { href: "/students", label: "Alunos (em breve)" },
+  { href: "/time-slots", label: "Horários", masterOnly: true },
+  { href: "/holidays", label: "Feriados", masterOnly: true },
+  { href: "/students", label: "Alunos" },
 ];
 
 export function Sidebar({
@@ -35,7 +37,10 @@ export function Sidebar({
   return (
     <aside className="flex h-full w-64 flex-col border-r border-zinc-200 bg-white">
       <div className="border-b border-zinc-200 px-4 py-4">
-        <div className="text-sm font-semibold">Cadastro de Cursos</div>
+        <div className="flex justify-center">
+          <img src="/images/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
+        </div>
+        <div className="mt-3 text-sm font-semibold">Cadastro de Cursos</div>
         <div className="mt-2 text-xs text-zinc-600">{user.name}</div>
         <div className="text-xs text-zinc-500">{user.email}</div>
         <div className="mt-1 text-[11px] font-medium text-zinc-700">{user.role}</div>

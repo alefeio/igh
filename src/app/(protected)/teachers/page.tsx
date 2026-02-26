@@ -16,8 +16,11 @@ type Teacher = {
   email: string | null;
   phone: string | null;
   isActive: boolean;
+  deletedAt: string | null;
   createdAt: string;
 };
+
+type StatusFilter = "active" | "inactive" | "all";
 
 export default function TeachersPage() {
   const toast = useToast();
@@ -25,18 +28,32 @@ export default function TeachersPage() {
   const [items, setItems] = useState<Teacher[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  const canSubmit = useMemo(() => name.trim().length >= 2, [name]);
+  const canSubmit = useMemo(() => {
+    if (name.trim().length < 2) return false;
+    if (!email.trim()) return false;
+    if (!editing) {
+      if (password.length < 6) return false;
+      if (password !== passwordConfirm) return false;
+    } else if (password.length > 0 && password.length < 6) return false;
+    else if (password.length > 0 && password !== passwordConfirm) return false;
+    return true;
+  }, [name, email, password, passwordConfirm, editing]);
 
   function resetForm() {
     setName("");
     setEmail("");
     setPhone("");
+    setPassword("");
+    setPasswordConfirm("");
     setIsActive(true);
     setEditing(null);
   }
@@ -51,6 +68,8 @@ export default function TeachersPage() {
     setName(t.name);
     setEmail(t.email ?? "");
     setPhone(t.phone ?? "");
+    setPassword("");
+    setPasswordConfirm("");
     setIsActive(t.isActive);
     setOpen(true);
   }
@@ -58,7 +77,7 @@ export default function TeachersPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/teachers");
+      const res = await fetch(`/api/teachers?status=${statusFilter}`);
       const json = (await res.json()) as ApiResponse<{ teachers: Teacher[] }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao carregar professores.");
@@ -73,13 +92,23 @@ export default function TeachersPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [statusFilter]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
 
-    const payload = { name, email, phone, isActive };
+    const payload: Record<string, unknown> = {
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim() || undefined,
+      isActive,
+    };
+    if (editing) {
+      if (password.trim()) payload.password = password;
+    } else {
+      payload.password = password;
+    }
     const url = editing ? `/api/teachers/${editing.id}` : "/api/teachers";
     const method = editing ? "PATCH" : "POST";
 
@@ -99,10 +128,10 @@ export default function TeachersPage() {
     await load();
   }
 
-  async function softDelete(t: Teacher) {
-    if (!confirm(`Inativar/Excluir (soft delete) o professor "${t.name}"?`)) return;
+  async function inactivateTeacher(t: Teacher) {
+    if (!confirm(`Inativar o professor "${t.name}"?`)) return;
     const res = await fetch(`/api/teachers/${t.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ teacher: Teacher }>;
+    const json = (await res.json()) as ApiResponse<{ teacher?: Teacher; deleted?: boolean }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao inativar professor.");
       return;
@@ -111,14 +140,59 @@ export default function TeachersPage() {
     await load();
   }
 
+  async function deleteTeacherPermanent(t: Teacher) {
+    if (!confirm(`Excluir definitivamente o professor "${t.name}"? Esta ação não pode ser desfeita.`)) return;
+    const res = await fetch(`/api/teachers/${t.id}`, { method: "DELETE" });
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao excluir professor.");
+      return;
+    }
+    toast.push("success", "Professor excluído.");
+    await load();
+  }
+
+  async function reactivate(t: Teacher) {
+    const res = await fetch(`/api/teachers/${t.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ isActive: true }),
+    });
+    const json = (await res.json()) as ApiResponse<{ teacher: Teacher }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao reativar professor.");
+      return;
+    }
+    toast.push("success", "Professor reativado.");
+    await load();
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-lg font-semibold">Professores</div>
-          <div className="text-sm text-zinc-600">CRUD com soft delete (inativar).</div>
+          <div className="text-sm text-zinc-600">
+            Filtro: Ativos (padrão), Inativos ou Todos. Inativos podem ser reativados.
+          </div>
         </div>
-        <Button onClick={openCreate}>Novo</Button>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-md border border-zinc-300 bg-white p-0.5 text-sm">
+            {(["active", "inactive", "all"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatusFilter(s)}
+                className={`rounded px-3 py-1.5 ${
+                  statusFilter === s ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
+                }`}
+              >
+                {s === "active" ? "Ativos" : s === "inactive" ? "Inativos" : "Todos"}
+              </button>
+            ))}
+          </div>
+          <Button onClick={openCreate}>Novo</Button>
+        </div>
       </div>
 
       {loading ? (
@@ -155,9 +229,20 @@ export default function TeachersPage() {
                     <Button variant="secondary" onClick={() => openEdit(t)}>
                       Editar
                     </Button>
-                    <Button variant="danger" onClick={() => softDelete(t)}>
-                      Inativar
-                    </Button>
+                    {t.isActive && !t.deletedAt ? (
+                      <Button variant="secondary" onClick={() => inactivateTeacher(t)} className="text-red-600 hover:text-red-700">
+                        Inativar
+                      </Button>
+                    ) : (
+                      <>
+                        <Button variant="secondary" onClick={() => reactivate(t)}>
+                          Reativar
+                        </Button>
+                        <Button variant="secondary" onClick={() => deleteTeacherPermanent(t)} className="text-red-600 hover:text-red-700">
+                          Excluir
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </Td>
               </tr>
@@ -179,7 +264,7 @@ export default function TeachersPage() {
       <Modal
         open={open}
         title={editing ? "Editar professor" : "Novo professor"}
-        onClose={() => setOpen(false)}
+        onClose={() => { setOpen(false); resetForm(); }}
       >
         <form className="flex flex-col gap-3" onSubmit={save}>
           <div>
@@ -189,9 +274,37 @@ export default function TeachersPage() {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">E-mail (opcional)</label>
+            <label className="text-sm font-medium">E-mail</label>
             <div className="mt-1">
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">
+              Senha {editing && <span className="font-normal text-zinc-500">(deixar em branco para não alterar)</span>}
+            </label>
+            <div className="mt-1">
+              <Input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                minLength={editing ? undefined : 6}
+                required={!editing}
+                placeholder={editing ? "••••••••" : undefined}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Confirmar senha</label>
+            <div className="mt-1">
+              <Input
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                type="password"
+                minLength={editing ? undefined : 6}
+                required={!editing}
+                placeholder={editing ? "••••••••" : undefined}
+              />
             </div>
           </div>
           <div>
@@ -212,7 +325,7 @@ export default function TeachersPage() {
             </label>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
             <Button type="submit" disabled={!canSubmit}>

@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   await createAuditLog({
     entityType: "User",
     entityId: created.id,
-    action: "CREATE_ADMIN",
+    action: "ADMIN_CREATE",
     diff: { created: { id: created.id, email: created.email, role: created.role } },
     performedByUserId: master.id,
   });

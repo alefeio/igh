@@ -25,6 +25,7 @@ export default function CoursesPage() {
   const [items, setItems] = useState<Course[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Course | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -75,6 +76,54 @@ export default function CoursesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function inactivateCourse(c: Course) {
+    if (!confirm(`Inativar o curso "${c.name}"?`)) return;
+    const res = await fetch(`/api/courses/${c.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "INACTIVE" }),
+    });
+    const json = (await res.json()) as ApiResponse<{ course: Course }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error?.message ?? "Erro" : "Falha ao inativar.");
+      return;
+    }
+    toast.push("success", "Curso inativado.");
+    await load();
+  }
+
+  async function reactivateCourse(c: Course) {
+    const res = await fetch(`/api/courses/${c.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "ACTIVE" }),
+    });
+    const json = (await res.json()) as ApiResponse<{ course: Course }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error?.message ?? "Erro" : "Falha ao reativar.");
+      return;
+    }
+    toast.push("success", "Curso reativado.");
+    await load();
+  }
+
+  async function deleteCourse(c: Course) {
+    const msg = "Tem certeza que deseja excluir definitivamente este curso?";
+    if (!confirm(msg)) return;
+    const res = await fetch(`/api/courses/${c.id}`, { method: "DELETE" });
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; inactivated?: boolean; message?: string }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error?.message ?? "Erro" : "Falha ao excluir.");
+      return;
+    }
+    if (json.data?.inactivated) {
+      toast.push("success", json.data.message ?? "Curso possui turmas; foi inativado.");
+    } else {
+      toast.push("success", "Curso excluído.");
+    }
+    await load();
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
@@ -112,14 +161,27 @@ export default function CoursesPage() {
     await load();
   }
 
+  const visibleItems = showInactive ? items : items.filter((c) => c.status === "ACTIVE");
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-lg font-semibold">Cursos</div>
-          <div className="text-sm text-zinc-600">CRUD com status ativo/inativo.</div>
+          <div className="text-sm text-zinc-600">
+            Listagem em ordem alfabética. Por padrão, mostra apenas cursos ativos.
+          </div>
         </div>
-        <Button onClick={openCreate}>Novo</Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setShowInactive((prev) => !prev)}
+          >
+            {showInactive ? "Ocultar inativos" : "Exibir inativos"}
+          </Button>
+          <Button onClick={openCreate}>Novo</Button>
+        </div>
       </div>
 
       {loading ? (
@@ -135,7 +197,7 @@ export default function CoursesPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((c) => (
+            {visibleItems.map((c) => (
               <tr key={c.id}>
                 <Td>
                   <div className="flex flex-col">
@@ -156,14 +218,40 @@ export default function CoursesPage() {
                     <Button variant="secondary" onClick={() => openEdit(c)}>
                       Editar
                     </Button>
+                    {c.status === "ACTIVE" ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() => inactivateCourse(c)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Inativar
+                      </Button>
+                    ) : (
+                      <>
+                        <Button variant="secondary" onClick={() => reactivateCourse(c)}>
+                          Reativar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() => deleteCourse(c)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          Excluir
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </Td>
               </tr>
             ))}
-            {items.length === 0 ? (
+            {visibleItems.length === 0 ? (
               <tr>
                 <Td>
-                  <span className="text-zinc-600">Nenhum curso cadastrado.</span>
+                  <span className="text-zinc-600">
+                    {showInactive
+                      ? "Nenhum curso encontrado."
+                      : "Nenhum curso ativo cadastrado."}
+                  </span>
                 </Td>
                 <Td />
                 <Td />
@@ -177,7 +265,7 @@ export default function CoursesPage() {
       <Modal
         open={open}
         title={editing ? "Editar curso" : "Novo curso"}
-        onClose={() => setOpen(false)}
+        onClose={() => { setOpen(false); resetForm(); }}
       >
         <form className="flex flex-col gap-3" onSubmit={save}>
           <div>
@@ -216,7 +304,7 @@ export default function CoursesPage() {
             </div>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
             <Button type="submit" disabled={!canSubmit}>

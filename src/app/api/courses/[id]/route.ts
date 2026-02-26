@@ -39,3 +39,41 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   return jsonOk({ course: updated });
 }
+
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const user = await requireRole("MASTER");
+  const { id } = await context.params;
+
+  const existing = await prisma.course.findUnique({
+    where: { id },
+    include: { _count: { select: { classGroups: true } } },
+  });
+  if (!existing) {
+    return jsonErr("NOT_FOUND", "Curso não encontrado.", 404);
+  }
+
+  if (existing._count.classGroups > 0) {
+    await prisma.course.update({
+      where: { id },
+      data: { status: "INACTIVE" },
+    });
+    await createAuditLog({
+      entityType: "Course",
+      entityId: id,
+      action: "COURSE_INACTIVATE",
+      diff: { reason: "has_class_groups", courseId: id },
+      performedByUserId: user.id,
+    });
+    return jsonOk({ inactivated: true, message: "Curso possui turmas; foi inativado." });
+  }
+
+  await prisma.course.delete({ where: { id } });
+  await createAuditLog({
+    entityType: "Course",
+    entityId: id,
+    action: "COURSE_DELETE",
+    diff: { before: existing },
+    performedByUserId: user.id,
+  });
+  return jsonOk({ deleted: true });
+}

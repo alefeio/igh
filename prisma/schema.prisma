@@ -7,9 +7,121 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id                     String              @id @default(uuid())
+  name                   String
+  email                  String              @unique
+  passwordHash           String
+  role                   UserRole
+  isActive               Boolean             @default(true)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  auditLogs              AuditLog[]          @relation("UserAuditLogs")
+  studentsDeleted        Student[]          @relation("StudentDeletedBy")
+  studentAttachments     StudentAttachment[] @relation("StudentAttachmentUploadedBy")
+  teacher                Teacher?
+  student                Student?
+}
+
+model Teacher {
+  id          String       @id @default(uuid())
+  name        String
+  phone       String?
+  email       String?
+  isActive    Boolean      @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  userId     String?      @unique
+  user       User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  classGroups ClassGroup[]
+}
+
+model Course {
+  id            String       @id @default(uuid())
+  name          String       @unique
+  description   String?
+  workloadHours Int?
+  status        CourseStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  classGroups   ClassGroup[]
+}
+
+enum ClassSessionStatus {
+  SCHEDULED
+  CANCELED
+}
+
+model ClassGroup {
+  id                  String           @id @default(uuid())
+  courseId            String
+  teacherId           String
+  daysOfWeek          String[]
+  startDate           DateTime         @db.Date
+  endDate             DateTime?        @db.Date
+  startTime           String
+  endTime             String
+  capacity            Int
+  status              ClassGroupStatus @default(PLANEJADA)
+  location            String?
+  preventAutoClose    Boolean          @default(false)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  course              Course           @relation(fields: [courseId], references: [id])
+  teacher             Teacher          @relation(fields: [teacherId], references: [id])
+  sessions            ClassSession[]
+}
+
+model ClassSession {
+  id           String             @id @default(uuid())
+  classGroupId String
+  sessionDate  DateTime           @db.Date
+  startTime    String
+  endTime      String
+  status       ClassSessionStatus @default(SCHEDULED)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  classGroup   ClassGroup         @relation(fields: [classGroupId], references: [id])
+  @@unique([classGroupId, sessionDate])
+}
+
+model TimeSlot {
+  id        String   @id @default(uuid())
+  startTime String
+  endTime   String
+  name      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Holiday {
+  id        String   @id @default(uuid())
+  date      DateTime @db.Date
+  recurring Boolean  @default(false)
+  name      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id                String   @id @default(uuid())
+  entityType        String
+  entityId          String
+  action            String
+  diffJson          String
+  performedByUserId String?
+  createdAt         DateTime @default(now())
+  performedByUser   User?    @relation("UserAuditLogs", fields: [performedByUserId], references: [id])
+}
+
 enum UserRole {
   MASTER
   ADMIN
+  TEACHER
+  STUDENT
 }
 
 enum CourseStatus {
@@ -25,75 +137,85 @@ enum ClassGroupStatus {
   CANCELADA
 }
 
-model User {
-  id           String    @id @default(uuid())
-  name         String
-  email        String    @unique
-  passwordHash String
-  role         UserRole
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  auditLogs AuditLog[] @relation("UserAuditLogs")
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_SAY
 }
 
-model Teacher {
-  id        String    @id @default(uuid())
-  name      String
-  phone     String?
-  email     String?
-  isActive  Boolean   @default(true)
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  classGroups ClassGroup[]
+enum StudyShift {
+  MORNING
+  AFTERNOON
+  EVENING
+  FULL
 }
 
-model Course {
-  id            String       @id @default(uuid())
-  name          String       @unique
-  description   String?
-  workloadHours Int?
-  status        CourseStatus @default(ACTIVE)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  classGroups ClassGroup[]
+enum EducationLevel {
+  NONE
+  ELEMENTARY_INCOMPLETE
+  ELEMENTARY_COMPLETE
+  HIGH_INCOMPLETE
+  HIGH_COMPLETE
+  COLLEGE_INCOMPLETE
+  COLLEGE_COMPLETE
+  OTHER
 }
 
-model ClassGroup {
-  id         String           @id @default(uuid())
-  courseId   String
-  teacherId  String
-  daysOfWeek String[]
-  startTime  String
-  endTime    String
-  capacity   Int
-  status     ClassGroupStatus @default(PLANEJADA)
-  location   String?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-
-  course  Course  @relation(fields: [courseId], references: [id])
-  teacher Teacher @relation(fields: [teacherId], references: [id])
+enum AttachmentType {
+  ID_DOCUMENT
+  ADDRESS_PROOF
 }
 
-model AuditLog {
-  id                String   @id @default(uuid())
-  entityType        String
-  entityId          String
-  action            String
-  diffJson          String
-  performedByUserId String?
-  createdAt         DateTime @default(now())
-
-  performedByUser User? @relation("UserAuditLogs", fields: [performedByUserId], references: [id])
+model Student {
+  id                    String              @id @default(uuid())
+  name                  String
+  birthDate             DateTime            @db.Date
+  cpf                   String              @unique
+  rg                    String
+  email                 String?
+  phone                 String
+  cep                   String?
+  street                String              @default("")
+  number                String              @default("")
+  complement            String?
+  neighborhood          String              @default("")
+  city                  String              @default("Belém")
+  state                 String              @default("PA")
+  gender                Gender
+  hasDisability         Boolean             @default(false)
+  disabilityDescription String?
+  educationLevel        EducationLevel
+  isStudying            Boolean             @default(false)
+  studyShift            StudyShift?
+  guardianName          String?
+  guardianCpf           String?
+  guardianRg            String?
+  guardianPhone         String?
+  guardianRelationship  String?
+  deletedAt             DateTime?
+  deletedByUserId       String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  userId                String?             @unique
+  user                  User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  deletedByUser         User?               @relation("StudentDeletedBy", fields: [deletedByUserId], references: [id])
+  attachments           StudentAttachment[]
 }
 
-// Futuras entidades (não implementadas neste MVP):
-// model Student { ... }
-// model Enrollment { ... }
-// model ChangeRequest { ... }
-
+model StudentAttachment {
+  id               String         @id @default(cuid())
+  studentId        String
+  type             AttachmentType
+  fileName         String?
+  mimeType         String?
+  sizeBytes        Int?
+  publicId         String
+  url              String
+  createdAt        DateTime       @default(now())
+  uploadedByUserId String?
+  deletedAt        DateTime?
+  student          Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  uploadedByUser   User?          @relation("StudentAttachmentUploadedBy", fields: [uploadedByUserId], references: [id])
+  @@index([studentId, type])
+}

@@ -28,9 +28,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // RBAC simples por rota (por enquanto apenas MASTER acessa os módulos base)
+  // Rotas apenas MASTER
   if (["/users", "/teachers", "/courses", "/class-groups"].some((p) => pathname.startsWith(p))) {
     if (role !== "MASTER") {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Rotas MASTER ou ADMIN (alunos)
+  if (pathname.startsWith("/students")) {
+    if (role !== "MASTER" && role !== "ADMIN") {
       const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
     }
@@ -46,5 +54,6 @@ export const config = {
     "/teachers/:path*",
     "/courses/:path*",
     "/class-groups/:path*",
+    "/students/:path*",
   ],
 };

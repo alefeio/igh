@@ -5,10 +5,11 @@ Sistema web em **Next.js (App Router) + TypeScript + Prisma + PostgreSQL (Vercel
 - **Autenticação** via cookie HttpOnly + **JWT (HMAC)** (`jose`)
 - **RBAC**: `MASTER` e `ADMIN`
 - **Bootstrap**: o primeiro usuário criado vira `MASTER` em `/setup` e depois o `/setup` fica bloqueado
-- **Módulos base (MASTER)**: Usuários Admin, Professores (soft delete), Cursos, Turmas
-- **Auditoria mínima** (`AuditLog`) para criação/edição/inativação e criação de Admin
+- **Módulos base (MASTER)**: Usuários Admin, Professores (soft delete), Cursos, Turmas, Feriados
+- **Geração automática de aulas de Turma** até completar a **carga horária do curso** (ex.: 20h), a partir da data de início + dias da semana; **não gera aula em feriados** cadastrados
+- **Auditoria mínima** (`AuditLog`) para criação/edição/inativação, criação de Admin, geração de sessões, exclusão/inativação de curso, reativação de professor, edição/desativação de admin
 
-> O módulo de **Alunos** não está implementado no MVP 1, mas a estrutura já está preparada para evoluir.
+- **Alunos**: CRUD (ADMIN e MASTER); apenas MASTER pode excluir (soft delete) e reativar. **Anexos** (documento RG/CPF/CNH e comprovante de endereço) via **Cloudinary** (upload assinado; nunca expor API secret no frontend).
 
 ---
 
@@ -42,14 +43,24 @@ cp .env.example .env
 
 2. Ajuste:
 
-- **`DATABASE_URL`**: string de conexão do Postgres
-- **`AUTH_SECRET`**: segredo forte (em produção é obrigatório)
+- **`DATABASE_URL`** (ou **`POSTGRES_URL`**): string de conexão do Postgres. Use **`sslmode=verify-full`** na URL para evitar aviso de segurança do driver `pg` (em vez de `require`).
+- **`AUTH_SECRET`**: segredo forte (em produção é obrigatório).
+- **Cloudinary** (para anexos do aluno): crie conta em [cloudinary.com](https://cloudinary.com) (plano gratuito) e preencha:
+  - **`CLOUDINARY_CLOUD_NAME`**
+  - **`CLOUDINARY_API_KEY`**
+  - **`CLOUDINARY_API_SECRET`** (nunca expor no frontend)
+  - **`CLOUDINARY_UPLOAD_FOLDER`** (opcional; padrão: `igh/students`)
 
 Exemplo:
 
 ```env
 DATABASE_URL="postgresql://user:password@localhost:5432/cadastro_cursos?schema=public"
 AUTH_SECRET="coloque-um-segredo-forte-aqui"
+
+CLOUDINARY_CLOUD_NAME=seu_cloud_name
+CLOUDINARY_API_KEY=sua_api_key
+CLOUDINARY_API_SECRET=sua_api_secret
+CLOUDINARY_UPLOAD_FOLDER=igh/students
 ```
 
 Para gerar `AUTH_SECRET`:
@@ -62,14 +73,15 @@ openssl rand -hex 32
 
 ## Banco de dados (Prisma)
 
-Após configurar `DATABASE_URL`:
+Após configurar as variáveis de ambiente:
 
 ```bash
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate dev --name init           # primeira vez
+npx prisma migrate dev --name add_class_sessions  # quando aplicar o módulo de sessões
 ```
 
-> Isso cria as tabelas e o Prisma Client em `src/generated/prisma`.
+> Isso cria/atualiza as tabelas e o Prisma Client em `src/generated/prisma`.
 
 ---
 
@@ -92,10 +104,12 @@ Acesse `http://localhost:3000`.
 - **`/setup`**: cria o primeiro usuário como `MASTER` (apenas quando não existe usuário)
 - **`/login`**: login
 - **`/dashboard`**: área logada (MASTER/ADMIN)
-- **`/users`**: listar/criar Admin (somente MASTER)
-- **`/teachers`**: CRUD (somente MASTER) com soft delete
-- **`/courses`**: CRUD (somente MASTER) com status
-- **`/class-groups`**: CRUD (somente MASTER) com vínculo curso/professor
+- **`/users`**: listar/criar/editar/desativar Admin (somente MASTER)
+- **`/teachers`**: CRUD (somente MASTER), filtro Ativos/Inativos/Todos, reativar inativos
+- **`/courses`**: CRUD (somente MASTER) com status; excluir (hard delete se sem turmas, inativar se tiver turmas)
+- **`/class-groups`**: CRUD (somente MASTER) com vínculo curso/professor; aulas geradas por carga horária do curso
+- **`/holidays`**: CRUD de feriados (somente MASTER); datas em que não são geradas aulas
+- **`/students`**: CRUD de alunos (ADMIN e MASTER); anexos (documento e comprovante de endereço) via Cloudinary; apenas MASTER pode excluir aluno ou remover anexo
 
 ---
 
@@ -106,10 +120,40 @@ Acesse `http://localhost:3000`.
   - acessa tudo do MVP
   - cria `ADMIN` (via `/users` e `POST /api/admin/users`)
 - **ADMIN**:
-  - acessa `/dashboard`
-  - (módulo aluno virá depois)
+  - acessa `/dashboard`, `/students` (criar/editar alunos e anexar documentos; não pode excluir aluno nem remover anexo)
 
 > O middleware valida o JWT no Edge e aplica restrição por rota. As APIs também reforçam RBAC no backend.
+
+---
+
+## Feriados e geração de aulas
+
+### Cadastro de feriados
+
+- Acesse **Feriados** no menu (somente MASTER).
+- Dois tipos de feriado:
+  - **Todo ano (mesmo dia e mês)**: informe apenas **dia e mês** (ex.: 01/01 para Ano Novo). O feriado se repete em todos os anos; o ano não é armazenado.
+  - **Data específica (com ano)**: informe **data completa** (ex.: segundo domingo de outubro de 2025 para Círio de Nazaré). Use para feriados que mudam de data a cada ano.
+- Opcionalmente informe o **nome** do feriado.
+- Feriados **ativos** são considerados na geração de aulas (nenhuma aula é criada nessas datas).
+- É possível **inativar** um feriado (sem excluir) ou **excluir** definitivamente.
+
+### Anexos do aluno (Cloudinary)
+
+- No cadastro do aluno (ao **editar**), a seção **Anexos** permite enviar **Documento (RG/CPF/CNH)** e **Comprovante de endereço**.
+- Formatos: PDF, JPG, PNG. Tamanho máximo: 5MB. Upload é feito com assinatura gerada no backend; a API secret do Cloudinary nunca é exposta no frontend.
+- Apenas um arquivo ativo por tipo; ao enviar outro, o anterior é marcado como removido (soft delete). Apenas MASTER pode remover anexos.
+- Para testar: configure `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (e opcionalmente `CLOUDINARY_UPLOAD_FOLDER`) no `.env`.
+
+### Como funciona a geração de aulas (turmas)
+
+1. **Curso** deve ter **carga horária** definida (ex.: 20h). Sem isso, não é possível criar/atualizar turma com geração de aulas.
+2. Ao **criar** ou **editar** uma turma (alterando data de início, dias da semana, horário de início/fim ou curso), o sistema:
+   - Gera datas de aula apenas nos **dias da semana** configurados (ex.: SEG, QUA), a partir da **data de início**.
+   - **Não cria aula** em datas que estejam cadastradas como feriado (ativo).
+   - **Interrompe** a geração quando o total de horas das aulas geradas atinge (ou ultrapassa levemente) a **carga horária do curso**.
+3. A **duração de cada aula** é calculada pelo horário de início e fim da turma (ex.: 08:00–10:00 = 2h).
+4. Na listagem e no detalhe da turma são exibidos **total de aulas** e **total de horas** geradas.
 
 ---
 

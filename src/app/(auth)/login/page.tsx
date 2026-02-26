@@ -11,6 +11,9 @@ export default async function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md">
+      <div className="mb-6 flex justify-center">
+        <img src="/images/logo.png" alt="Logo" className="h-20 w-auto object-contain" />
+      </div>
       <div className="card">
         <div className="card-header">
           <div className="text-lg font-semibold">Entrar</div>

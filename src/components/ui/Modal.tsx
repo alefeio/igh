@@ -24,19 +24,21 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-lg bg-white shadow-lg">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
-          <div className="text-sm font-semibold">{title}</div>
-          <button
-            className="rounded-md px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100"
-            onClick={onClose}
-            type="button"
-          >
-            Fechar
-          </button>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4">
+      <div className="flex min-h-full items-start justify-center py-6">
+        <div className="my-0 w-full max-w-lg flex-shrink-0 rounded-lg bg-white shadow-lg">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3">
+            <div className="text-sm font-semibold">{title}</div>
+            <button
+              className="cursor-pointer rounded-md px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100"
+              onClick={onClose}
+              type="button"
+            >
+              Fechar
+            </button>
+          </div>
+          <div className="max-h-[calc(100vh-8rem)] overflow-y-auto px-4 py-4">{children}</div>
         </div>
-        <div className="px-4 py-4">{children}</div>
       </div>
     </div>
   );

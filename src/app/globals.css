@@ -24,6 +24,14 @@ body {
   color: var(--foreground);
 }
 
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 .container-page {
   @apply mx-auto w-full max-w-6xl px-4 py-6;
 }
