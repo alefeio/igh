@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { SortableTableRows } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -102,6 +103,24 @@ export default function FaqPage() {
     await load();
   }
 
+  const handleReorder = useCallback(
+    async (ids: string[]) => {
+      const res = await fetch("/api/admin/site/faq", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const json = (await res.json()) as ApiResponse<{ items: FaqItem[] }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error?.message ?? "Falha ao reordenar." : "Falha ao reordenar.");
+        return;
+      }
+      toast.push("success", "Ordem atualizada.");
+      setItems(json.data.items);
+    },
+    [toast]
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -118,15 +137,16 @@ export default function FaqPage() {
         <Table>
           <thead>
             <tr>
+              <Th className="w-8" />
               <Th>Ordem</Th>
               <Th>Pergunta</Th>
               <Th>Status</Th>
               <Th />
             </tr>
           </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
+          <SortableTableRows items={items} onReorder={handleReorder} emptyMessage="Nenhum item no FAQ.">
+            {(item) => (
+              <>
                 <Td>{item.order + 1}</Td>
                 <Td>
                   <div className="font-medium text-zinc-900">{item.question}</div>
@@ -138,14 +158,9 @@ export default function FaqPage() {
                     <Button variant="secondary" className="text-red-600" onClick={() => remove(item)}>Excluir</Button>
                   </div>
                 </Td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <Td colSpan={4} className="text-zinc-600">Nenhum item no FAQ.</Td>
-              </tr>
+              </>
             )}
-          </tbody>
+          </SortableTableRows>
         </Table>
       )}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -136,6 +137,12 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => setForm((f) => ({ ...f, logoUrl: e.target.value }))}
                 placeholder="https://..."
               />
+              <CloudinaryImageUpload
+                kind="logo"
+                currentUrl={form.logoUrl || undefined}
+                onUploaded={(url) => setForm((f) => ({ ...f, logoUrl: url }))}
+                label="Ou envie uma imagem"
+              />
             </div>
             <div>
               <label className="text-sm font-medium">URL do favicon</label>
@@ -144,6 +151,12 @@ export default function ConfiguracoesPage() {
                 value={form.faviconUrl ?? ""}
                 onChange={(e) => setForm((f) => ({ ...f, faviconUrl: e.target.value }))}
                 placeholder="https://..."
+              />
+              <CloudinaryImageUpload
+                kind="favicon"
+                currentUrl={form.faviconUrl || undefined}
+                onUploaded={(url) => setForm((f) => ({ ...f, faviconUrl: url }))}
+                label="Ou envie uma imagem"
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

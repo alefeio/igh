@@ -24,6 +24,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     data: {
       name: parsed.data.name ?? undefined,
       description: parsed.data.description === "" ? null : (parsed.data.description ?? undefined),
+      content: parsed.data.content === "" ? null : (parsed.data.content ?? undefined),
+      imageUrl: parsed.data.imageUrl === "" ? null : (parsed.data.imageUrl ?? undefined),
       workloadHours: parsed.data.workloadHours ?? undefined,
       status: parsed.data.status ?? undefined,
     },

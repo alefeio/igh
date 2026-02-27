@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -14,6 +15,8 @@ type Course = {
   id: string;
   name: string;
   description: string | null;
+  content: string | null;
+  imageUrl: string | null;
   workloadHours: number | null;
   status: "ACTIVE" | "INACTIVE";
   createdAt: string;
@@ -29,6 +32,8 @@ export default function CoursesPage() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [content, setContent] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [workloadHours, setWorkloadHours] = useState<string>("");
   const [status, setStatus] = useState<Course["status"]>("ACTIVE");
 
@@ -37,6 +42,8 @@ export default function CoursesPage() {
   function resetForm() {
     setName("");
     setDescription("");
+    setContent("");
+    setImageUrl("");
     setWorkloadHours("");
     setStatus("ACTIVE");
     setEditing(null);
@@ -51,6 +58,8 @@ export default function CoursesPage() {
     setEditing(c);
     setName(c.name);
     setDescription(c.description ?? "");
+    setContent(c.content ?? "");
+    setImageUrl(c.imageUrl ?? "");
     setWorkloadHours(c.workloadHours?.toString() ?? "");
     setStatus(c.status);
     setOpen(true);
@@ -131,11 +140,15 @@ export default function CoursesPage() {
     const payload: {
       name: string;
       description: string;
+      content: string;
+      imageUrl: string;
       status: Course["status"];
       workloadHours?: number;
     } = {
       name,
       description,
+      content,
+      imageUrl,
       status,
     };
     if (workloadHours.trim() !== "") {
@@ -190,6 +203,7 @@ export default function CoursesPage() {
         <Table>
           <thead>
             <tr>
+              <Th>Foto</Th>
               <Th>Nome</Th>
               <Th>Status</Th>
               <Th>Carga horária</Th>
@@ -199,6 +213,13 @@ export default function CoursesPage() {
           <tbody>
             {visibleItems.map((c) => (
               <tr key={c.id}>
+                <Td>
+                  {c.imageUrl ? (
+                    <img src={c.imageUrl} alt="" className="h-10 w-10 rounded object-cover" />
+                  ) : (
+                    <span className="text-xs text-zinc-400">—</span>
+                  )}
+                </Td>
                 <Td>
                   <div className="flex flex-col">
                     <span className="font-medium text-zinc-900">{c.name}</span>
@@ -246,6 +267,7 @@ export default function CoursesPage() {
             ))}
             {visibleItems.length === 0 ? (
               <tr>
+                <Td />
                 <Td>
                   <span className="text-zinc-600">
                     {showInactive
@@ -279,6 +301,32 @@ export default function CoursesPage() {
             <div className="mt-1">
               <Input value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Conteúdo (rich text, opcional)</label>
+            <div className="mt-1">
+              <textarea
+                className="min-h-[120px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="HTML ou texto longo..."
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">URL da foto (opcional)</label>
+            <div className="mt-1">
+              <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
+              <CloudinaryImageUpload
+                kind="formations"
+                currentUrl={imageUrl || undefined}
+                onUploaded={setImageUrl}
+                label="Ou envie uma imagem"
+              />
+            </div>
+            {imageUrl && (
+              <img src={imageUrl} alt="Preview" className="mt-2 h-20 rounded object-cover" />
+            )}
           </div>
           <div>
             <label className="text-sm font-medium">Carga horária (opcional)</label>

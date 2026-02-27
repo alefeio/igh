@@ -78,6 +78,8 @@ model Course {
   id            String       @id @default(uuid())
   name          String       @unique
   description   String?
+  content       String?      // rich text (HTML ou markdown)
+  imageUrl      String?      // foto/capa do curso
   workloadHours Int?
   status        CourseStatus @default(ACTIVE)
   createdAt     DateTime     @default(now())

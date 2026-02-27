@@ -15,9 +15,9 @@ import {
   parceiros,
   faqItems,
   depoimentos,
-  formaçõesDestaque,
   posts,
 } from "@/content";
+import { getFormationsForHome } from "@/lib/site-data";
 
 export const metadata = {
   title: "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital",
@@ -30,8 +30,11 @@ export const metadata = {
   },
 };
 
-export default function HomePage() {
-  const recentPosts = posts.slice(0, 3);
+export default async function HomePage() {
+  const [formationsDestaque, recentPosts] = await Promise.all([
+    getFormationsForHome(4),
+    Promise.resolve(posts.slice(0, 3)),
+  ]);
 
   return (
     <>
@@ -68,22 +71,36 @@ export default function HomePage() {
         title="Formações em destaque"
         subtitle="Trilhas técnicas com projeto integrador e foco em carreira."
       >
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {formaçõesDestaque.map((f) => (
-            <Card key={f.id} as="article">
-              <h3 className="text-lg font-semibold text-[var(--igh-secondary)]">{f.name}</h3>
-              <p className="mt-2 text-sm text-[var(--igh-muted)]">{f.shortDesc}</p>
-              <Button as="link" href="/formacoes" variant="outline" size="sm" className="mt-4 w-full">
-                Saiba mais
+        {formationsDestaque.length === 0 ? (
+          <p className="text-center text-[var(--igh-muted)]">Nenhuma formação em destaque no momento.</p>
+        ) : (
+          <>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {formationsDestaque.map((f) => (
+                <Card key={f.id} as="article">
+                  <h3 className="text-lg font-semibold text-[var(--igh-secondary)]">{f.title}</h3>
+                  <p className="mt-2 text-sm text-[var(--igh-muted)]">
+                    {f.summary
+                      ? f.summary.length > 100
+                        ? `${f.summary.slice(0, 100)}...`
+                        : f.summary
+                      : f.audience
+                        ? `${f.audience.slice(0, 80)}...`
+                        : "Saiba mais sobre esta formação."}
+                  </p>
+                  <Button as="link" href="/formacoes" variant="outline" size="sm" className="mt-4 w-full">
+                    Saiba mais
+                  </Button>
+                </Card>
+              ))}
+            </div>
+            <div className="mt-8 text-center">
+              <Button as="link" href="/formacoes" variant="primary" size="lg">
+                Ver todas as formações
               </Button>
-            </Card>
-          ))}
-        </div>
-        <div className="mt-8 text-center">
-          <Button as="link" href="/formacoes" variant="primary" size="lg">
-            Ver todas as formações
-          </Button>
-        </div>
+            </div>
+          </>
+        )}
       </Section>
 
       {/* Projetos e sustentabilidade */}

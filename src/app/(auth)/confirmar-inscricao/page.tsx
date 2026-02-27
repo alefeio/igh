@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
@@ -16,7 +16,7 @@ type ConfirmDetails = {
   location: string | null;
 };
 
-export default function ConfirmarInscricaoPage() {
+function ConfirmarInscricaoContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
@@ -173,5 +173,13 @@ export default function ConfirmarInscricaoPage() {
         </p>
       )}
     </div>
+  );
+}
+
+export default function ConfirmarInscricaoPage() {
+  return (
+    <Suspense fallback={<div className="w-full max-w-md px-2 text-center sm:px-0"><p className="text-zinc-600">Carregando...</p></div>}>
+      <ConfirmarInscricaoContent />
+    </Suspense>
   );
 }

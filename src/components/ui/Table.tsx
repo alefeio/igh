@@ -6,9 +6,9 @@ export function Table({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Th({ children }: { children?: React.ReactNode }) {
+export function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className="whitespace-nowrap border-b border-zinc-200 bg-zinc-50 px-2 py-2 text-left font-medium sm:px-3">
+    <th className={`whitespace-nowrap border-b border-zinc-200 bg-zinc-50 px-2 py-2 text-left font-medium sm:px-3 ${className ?? ""}`}>
       {children}
     </th>
   );

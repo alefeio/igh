@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { SortableTableRows } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -117,6 +119,24 @@ export default function BannersPage() {
     void load();
   }
 
+  const handleReorder = useCallback(
+    async (ids: string[]) => {
+      const res = await fetch("/api/admin/site/banners", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const json = (await res.json()) as ApiResponse<{ items: Banner[] }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error?.message ?? "Falha ao reordenar." : "Falha ao reordenar.");
+        return;
+      }
+      toast.push("success", "Ordem atualizada.");
+      setItems(json.data.items);
+    },
+    [toast]
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -133,15 +153,16 @@ export default function BannersPage() {
         <Table>
           <thead>
             <tr>
+              <Th className="w-8" />
               <Th>Ordem</Th>
               <Th>Título</Th>
               <Th>Status</Th>
               <Th />
             </tr>
           </thead>
-          <tbody>
-            {items.map((b) => (
-              <tr key={b.id}>
+          <SortableTableRows items={items} onReorder={handleReorder} emptyMessage="Nenhum banner cadastrado.">
+            {(b) => (
+              <>
                 <Td>{b.order + 1}</Td>
                 <Td>
                   <div className="font-medium text-zinc-900">{b.title || "(sem título)"}</div>
@@ -154,14 +175,9 @@ export default function BannersPage() {
                     <Button variant="secondary" className="text-red-600" onClick={() => remove(b)}>Excluir</Button>
                   </div>
                 </Td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <Td colSpan={4} className="text-zinc-600">Nenhum banner cadastrado.</Td>
-              </tr>
+              </>
             )}
-          </tbody>
+          </SortableTableRows>
         </Table>
       )}
 
@@ -186,6 +202,13 @@ export default function BannersPage() {
           <div>
             <label className="text-sm font-medium">URL da imagem</label>
             <Input className="mt-1" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
+            <CloudinaryImageUpload
+              kind="banners"
+              id={editing?.id}
+              currentUrl={imageUrl || undefined}
+              onUploaded={setImageUrl}
+              label="Ou envie uma imagem"
+            />
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="isActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />

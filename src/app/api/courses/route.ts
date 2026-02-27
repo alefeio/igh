@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { name, description, workloadHours, status } = parsed.data;
+  const { name, description, content, imageUrl, workloadHours, status } = parsed.data;
   const existing = await prisma.course.findUnique({ where: { name }, select: { id: true } });
   if (existing) {
     return jsonErr("DUPLICATE_NAME", "Já existe um curso com este nome.", 409);
@@ -33,6 +33,8 @@ export async function POST(request: Request) {
     data: {
       name,
       description: description || null,
+      content: content || null,
+      imageUrl: imageUrl || null,
       workloadHours: workloadHours ?? null,
       status: status ?? "ACTIVE",
     },

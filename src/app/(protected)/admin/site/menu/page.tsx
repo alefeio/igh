@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { SortableTableRows } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -82,6 +83,24 @@ export default function MenuPage() {
     }
   }
 
+  const handleReorder = useCallback(
+    async (ids: string[]) => {
+      const res = await fetch("/api/admin/site/menu", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const json = (await res.json()) as ApiResponse<{ items: MenuItem[] }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error?.message ?? "Falha ao reordenar." : "Falha ao reordenar.");
+        return;
+      }
+      toast.push("success", "Ordem atualizada.");
+      setItems(json.data.items);
+    },
+    [toast]
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -97,15 +116,16 @@ export default function MenuPage() {
         <Table>
           <thead>
             <tr>
+              <Th className="w-8" />
               <Th>Ordem</Th>
               <Th>Label</Th>
               <Th>Link</Th>
               <Th />
             </tr>
           </thead>
-          <tbody>
-            {items.map((m) => (
-              <tr key={m.id}>
+          <SortableTableRows items={items} onReorder={handleReorder} emptyMessage="Nenhum item.">
+            {(m) => (
+              <>
                 <Td>{m.order + 1}</Td>
                 <Td className="font-medium">{m.label}</Td>
                 <Td className="text-sm text-zinc-600">{m.href}</Td>
@@ -113,10 +133,9 @@ export default function MenuPage() {
                   <Button variant="secondary" onClick={() => openEdit(m)}>Editar</Button>
                   <Button variant="secondary" className="ml-2 text-red-600" onClick={() => remove(m)}>Excluir</Button>
                 </Td>
-              </tr>
-            ))}
-            {items.length === 0 && <tr><Td colSpan={4} className="text-zinc-600">Nenhum item.</Td></tr>}
-          </tbody>
+              </>
+            )}
+          </SortableTableRows>
         </Table>
       )}
       <Modal open={open} title={editing ? "Editar item" : "Novo item"} onClose={() => setOpen(false)}>
