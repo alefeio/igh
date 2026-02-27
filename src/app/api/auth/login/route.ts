@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       email: true,
       role: true,
       isActive: true,
+      mustChangePassword: true,
       passwordHash: true,
     },
   });
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     email: user.email,
     role: user.role,
     isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword ?? false,
   } as const;
 
   await createSessionCookie(sessionUser);

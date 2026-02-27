@@ -31,15 +31,14 @@ export default function UsersPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
 
   const canSubmit = useMemo(
-    () => name.trim().length >= 2 && email.includes("@") && password.length >= 8,
-    [name, email, password],
+    () => name.trim().length >= 2 && email.includes("@"),
+    [name, email],
   );
   const canSubmitEdit = useMemo(
     () => editName.trim().length >= 2 && editEmail.includes("@") && (editPassword === "" || editPassword.length >= 8),
@@ -148,18 +147,17 @@ export default function UsersPage() {
     const res = await fetch("/api/admin/users", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email }),
     });
     const json = (await res.json()) as ApiResponse<{ user: { id: string } }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao criar admin.");
       return;
     }
-    toast.push("success", "Admin criado.");
+    toast.push("success", "Admin criado. E-mail de boas-vindas enviado.");
     setOpen(false);
     setName("");
     setEmail("");
-    setPassword("");
     await load();
   }
 
@@ -167,14 +165,14 @@ export default function UsersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="text-lg font-semibold">Usuários (ADMIN)</div>
           <div className="text-sm text-zinc-600">
             Por padrão, apenas ativos. Use &quot;Exibir inativos&quot; para reativar ou excluir.
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Button
             type="button"
             variant="secondary"
@@ -182,7 +180,7 @@ export default function UsersPage() {
           >
             {showInactive ? "Ocultar inativos" : "Exibir inativos"}
           </Button>
-          <Button onClick={() => setOpen(true)}>Novo ADMIN</Button>
+          <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">Novo ADMIN</Button>
         </div>
       </div>
 
@@ -304,7 +302,7 @@ export default function UsersPage() {
         </form>
       </Modal>
 
-      <Modal open={open} title="Criar usuário ADMIN" onClose={() => { setOpen(false); setName(""); setEmail(""); setPassword(""); }}>
+      <Modal open={open} title="Criar usuário ADMIN" onClose={() => { setOpen(false); setName(""); setEmail(""); }}>
         <form className="flex flex-col gap-3" onSubmit={createAdmin}>
           <div>
             <label className="text-sm font-medium">Nome</label>
@@ -318,24 +316,9 @@ export default function UsersPage() {
               <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
             </div>
           </div>
-          <div>
-            <label className="text-sm font-medium">Senha</label>
-            <div className="mt-1">
-              <Input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                placeholder="Mínimo 8 caracteres"
-              />
-            </div>
-            <p
-              className={`mt-1 text-xs ${
-                password.length > 0 && password.length < 8 ? "text-red-600" : "text-zinc-500"
-              }`}
-            >
-              A senha deve ter pelo menos 8 caracteres.
-            </p>
-          </div>
+          <p className="text-xs text-zinc-500">
+            Uma senha temporária será gerada e enviada por e-mail ao usuário. Ele deverá trocá-la no primeiro acesso.
+          </p>
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancelar

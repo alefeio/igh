@@ -50,6 +50,10 @@ cp .env.example .env
   - **`CLOUDINARY_API_KEY`**
   - **`CLOUDINARY_API_SECRET`** (nunca expor no frontend)
   - **`CLOUDINARY_UPLOAD_FOLDER`** (opcional; padrão: `igh/students`)
+- **E-mail (Resend)** – boas-vindas e confirmação de inscrição do aluno:
+  - **`RESEND_API_KEY`**: API Key em [resend.com](https://resend.com) (free tier)
+  - **`APP_URL`**: URL base do app (ex.: `http://localhost:3000` ou `https://seu-dominio.vercel.app`) para links nos e-mails
+  - **`EMAIL_FROM`**: remetente (use `onboarding@resend.dev` para testes; em produção use domínio verificado no Resend)
 
 Exemplo:
 
@@ -110,6 +114,9 @@ Acesse `http://localhost:3000`.
 - **`/class-groups`**: CRUD (somente MASTER) com vínculo curso/professor; aulas geradas por carga horária do curso
 - **`/holidays`**: CRUD de feriados (somente MASTER); datas em que não são geradas aulas
 - **`/students`**: CRUD de alunos (ADMIN e MASTER); anexos (documento e comprovante de endereço) via Cloudinary; apenas MASTER pode excluir aluno ou remover anexo
+- **`/enrollments`**: Matrículas (MASTER); ao matricular aluno em uma turma, envia e-mail de boas-vindas com link de confirmação e senha temporária
+- **`/confirmar-inscricao`**: Página pública; o aluno acessa pelo link do e-mail, aceita os termos e confirma a inscrição
+- **`/trocar-senha`**: Troca de senha obrigatória no primeiro acesso (senha temporária)
 
 ---
 
@@ -154,6 +161,18 @@ Acesse `http://localhost:3000`.
    - **Interrompe** a geração quando o total de horas das aulas geradas atinge (ou ultrapassa levemente) a **carga horária do curso**.
 3. A **duração de cada aula** é calculada pelo horário de início e fim da turma (ex.: 08:00–10:00 = 2h).
 4. Na listagem e no detalhe da turma são exibidos **total de aulas** e **total de horas** geradas.
+
+---
+
+## E-mail e confirmação de inscrição
+
+- **Admin e Professor**: ao criar usuário, o sistema gera uma **senha temporária**, envia por e-mail (Resend) e define **troca obrigatória no primeiro login**.
+- **Aluno**: ao criar uma **matrícula** (Menu **Matrículas** → Nova matrícula: selecionar aluno com e-mail e turma), o sistema envia um e-mail com:
+  - Dados da turma/curso (nome, início, dias, horário, local)
+  - **Senha temporária** de acesso ao sistema
+  - **Link "Confirme sua inscrição"** que leva a `/confirmar-inscricao?token=...`
+- Na página de confirmação o aluno marca "Li e aceito os termos" e clica em **Confirmar**; o sistema registra `enrollmentConfirmedAt`, `termsAcceptedAt` e redireciona para o login.
+- **Como testar**: (1) Crie um aluno com e-mail. (2) Em **Matrículas**, clique em **Nova matrícula**, selecione o aluno e uma turma, envie. (3) Verifique o e-mail (ou logs em desenvolvimento se `RESEND_API_KEY` não estiver definida). (4) Abra o link de confirmação no e-mail (ou use o link gerado com o token que você pode obter do banco na tabela `VerificationToken` para testes). (5) Aceite os termos e confirme. (6) No banco, a matrícula (`Enrollment`) deve ter `enrollmentConfirmedAt` e `termsAcceptedAt` preenchidos.
 
 ---
 

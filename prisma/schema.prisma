@@ -14,6 +14,7 @@ model User {
   passwordHash           String
   role                   UserRole
   isActive               Boolean             @default(true)
+  mustChangePassword     Boolean             @default(false)
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
   auditLogs              AuditLog[]          @relation("UserAuditLogs")
@@ -21,6 +22,42 @@ model User {
   studentAttachments     StudentAttachment[] @relation("StudentAttachmentUploadedBy")
   teacher                Teacher?
   student                Student?
+  verificationTokens     VerificationToken[]
+  sentEmails             SentEmail[]         @relation("SentEmailPerformedBy")
+}
+
+model SentEmail {
+  id                String   @id @default(uuid())
+  to                String
+  subject           String
+  messageId         String?
+  emailType         String
+  entityType        String?
+  entityId          String?
+  sentAt            DateTime @default(now())
+  performedByUserId String?
+  performedByUser   User?    @relation("SentEmailPerformedBy", fields: [performedByUserId], references: [id], onDelete: SetNull)
+}
+
+model VerificationToken {
+  id          String               @id @default(cuid())
+  userId      String
+  studentId   String?
+  enrollmentId String?
+  type        VerificationTokenType
+  tokenHash   String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime             @default(now())
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student     Student?             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  enrollment  Enrollment?          @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+}
+
+enum VerificationTokenType {
+  ENROLLMENT_CONFIRMATION
+  FIRST_ACCESS
+  PASSWORD_RESET
 }
 
 model Teacher {
@@ -46,6 +83,7 @@ model Course {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   classGroups   ClassGroup[]
+  siteFormations SiteFormationCourse[]
 }
 
 enum ClassSessionStatus {
@@ -71,6 +109,7 @@ model ClassGroup {
   course              Course           @relation(fields: [courseId], references: [id])
   teacher             Teacher          @relation(fields: [teacherId], references: [id])
   sessions            ClassSession[]
+  enrollments         Enrollment[]
 }
 
 model ClassSession {
@@ -201,6 +240,29 @@ model Student {
   user                  User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   deletedByUser         User?               @relation("StudentDeletedBy", fields: [deletedByUserId], references: [id])
   attachments           StudentAttachment[]
+  verificationTokens    VerificationToken[]
+  enrollments           Enrollment[]
+}
+
+model Enrollment {
+  id                     String     @id @default(uuid())
+  studentId              String
+  classGroupId           String
+  enrolledAt             DateTime   @default(now())
+  status                 String     @default("ACTIVE")
+  enrollmentConfirmedAt  DateTime?
+  termsAcceptedAt       DateTime?
+  termsVersion          String?
+  confirmationMethod    String?
+  confirmedIp           String?
+  certificateUrl         String?
+  certificatePublicId    String?
+  certificateFileName    String?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+  student                Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup             ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  verificationTokens     VerificationToken[]
 }
 
 model StudentAttachment {
@@ -218,4 +280,175 @@ model StudentAttachment {
   student          Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   uploadedByUser   User?          @relation("StudentAttachmentUploadedBy", fields: [uploadedByUserId], references: [id])
   @@index([studentId, type])
+}
+
+// --- CMS Site Institucional (somente ADMIN) ---
+
+model SiteSettings {
+  id                    String   @id @default(uuid())
+  siteName              String?
+  logoUrl               String?
+  faviconUrl            String?
+  primaryColor          String?
+  secondaryColor        String?
+  contactEmail          String?
+  contactPhone          String?
+  contactWhatsapp       String?
+  addressLine           String?
+  addressCity           String?
+  addressState          String?
+  addressZip            String?
+  businessHours         String?
+  socialInstagram       String?
+  socialFacebook        String?
+  socialYoutube         String?
+  socialLinkedin        String?
+  seoTitleDefault       String?
+  seoDescriptionDefault String?
+  updatedAt             DateTime @updatedAt
+}
+
+model SiteMenuItem {
+  id         String         @id @default(uuid())
+  label      String
+  href       String
+  order      Int            @default(0)
+  parentId   String?
+  parent     SiteMenuItem?  @relation("MenuItemsHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children   SiteMenuItem[] @relation("MenuItemsHierarchy")
+  isExternal Boolean        @default(false)
+  isVisible  Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+model SiteBanner {
+  id        String   @id @default(uuid())
+  title     String?
+  subtitle  String?
+  ctaLabel  String?
+  ctaHref   String?
+  imageUrl  String?
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SiteFormation {
+  id            String    @id @default(uuid())
+  title         String
+  slug          String    @unique
+  summary       String?
+  audience      String?
+  outcomes      String[]  @default([])
+  finalProject  String?
+  prerequisites String?
+  order         Int       @default(0)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  courses       SiteFormationCourse[]
+}
+
+model SiteFormationCourse {
+  formationId String
+  courseId    String
+  order       Int              @default(0)
+  formation   SiteFormation    @relation(fields: [formationId], references: [id], onDelete: Cascade)
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  @@id([formationId, courseId])
+}
+
+model SiteProject {
+  id            String   @id @default(uuid())
+  title         String
+  slug          String   @unique
+  summary       String?
+  content       String?
+  coverImageUrl String?
+  galleryImages String[] @default([])
+  order         Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SiteTestimonial {
+  id            String   @id @default(uuid())
+  name          String
+  roleOrContext String?
+  quote         String
+  photoUrl      String?
+  order         Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SitePartner {
+  id         String   @id @default(uuid())
+  name       String
+  logoUrl    String?
+  websiteUrl String?
+  order      Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model SiteNewsCategory {
+  id        String         @id @default(uuid())
+  name      String
+  slug      String         @unique
+  order     Int            @default(0)
+  isActive  Boolean        @default(true)
+  posts     SiteNewsPost[]
+}
+
+model SiteNewsPost {
+  id            String            @id @default(uuid())
+  title         String
+  slug          String            @unique
+  excerpt       String?
+  content       String?
+  coverImageUrl String?
+  categoryId    String?
+  category      SiteNewsCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  publishedAt   DateTime?
+  isPublished   Boolean           @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model SiteFaqItem {
+  id        String   @id @default(uuid())
+  question  String
+  answer    String
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model SiteTransparencyCategory {
+  id        String                     @id @default(uuid())
+  name      String
+  slug      String                     @unique
+  order     Int                        @default(0)
+  isActive  Boolean                    @default(true)
+  documents SiteTransparencyDocument[]
+}
+
+model SiteTransparencyDocument {
+  id          String                     @id @default(uuid())
+  categoryId  String
+  category    SiteTransparencyCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  date        DateTime?                 @db.Date
+  fileUrl     String?
+  isActive    Boolean                   @default(true)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
 }

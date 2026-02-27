@@ -10,11 +10,11 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md">
-      <div className="mb-6 flex justify-center">
-        <img src="/images/logo.png" alt="Logo" className="h-20 w-auto object-contain" />
+    <div className="w-full max-w-md px-2 sm:px-0">
+      <div className="mb-4 flex justify-center sm:mb-6">
+        <img src="/images/logo.png" alt="Logo" className="h-16 w-auto object-contain sm:h-20" />
       </div>
-      <div className="card">
+      <div className="card w-full">
         <div className="card-header">
           <div className="text-lg font-semibold">Entrar</div>
           <div className="mt-1 text-sm text-zinc-600">Acesse com seu e-mail e senha.</div>

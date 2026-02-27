@@ -3,6 +3,9 @@ import { requireRole, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createStudentSchema, normalizeDigits } from "@/lib/validators/students";
 import { createAuditLog } from "@/lib/audit";
+import { generateTempPassword } from "@/lib/password";
+import { sendEmailAndRecord } from "@/lib/email/send-and-record";
+import { templateStudentRegistered } from "@/lib/email/templates";
 
 export async function GET(request: Request) {
   const user = await requireRole(["ADMIN", "MASTER"]);
@@ -103,8 +106,11 @@ export async function POST(request: Request) {
     },
   });
 
+  let tempPasswordForEmail: string | null = null;
   if (emailTrimmed) {
-    const passwordHash = await hashPassword(data.cpf);
+    const tempPassword = generateTempPassword();
+    tempPasswordForEmail = tempPassword;
+    const passwordHash = await hashPassword(tempPassword);
     const createdUser = await prisma.user.create({
       data: {
         name: student.name,
@@ -112,6 +118,7 @@ export async function POST(request: Request) {
         passwordHash,
         role: "STUDENT",
         isActive: true,
+        mustChangePassword: true,
       },
     });
     await prisma.student.update({
@@ -119,6 +126,23 @@ export async function POST(request: Request) {
       data: { userId: createdUser.id },
     });
     student.userId = createdUser.id;
+  }
+
+  if (emailTrimmed && tempPasswordForEmail) {
+    const { subject, html } = templateStudentRegistered({
+      name: student.name,
+      email: emailTrimmed,
+      tempPassword: tempPasswordForEmail,
+    });
+    await sendEmailAndRecord({
+      to: emailTrimmed,
+      subject,
+      html,
+      emailType: "student_registered",
+      entityType: "Student",
+      entityId: student.id,
+      performedByUserId: user.id,
+    });
   }
 
   await createAuditLog({

@@ -176,14 +176,14 @@ export default function HolidaysPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="text-lg font-semibold">Feriados</div>
           <div className="text-sm text-zinc-600">
             Feriados não geram aulas nas turmas. Por padrão, apenas ativos são exibidos.
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Button
             type="button"
             variant="secondary"
@@ -191,7 +191,7 @@ export default function HolidaysPage() {
           >
             {showInactive ? "Ocultar inativos" : "Exibir inativos"}
           </Button>
-          <Button onClick={openCreate}>Novo feriado</Button>
+          <Button onClick={openCreate} className="w-full sm:w-auto">Novo feriado</Button>
         </div>
       </div>
 

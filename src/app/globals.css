@@ -3,11 +3,24 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* IGH institucional */
+  --igh-primary: #0066b3;
+  --igh-primary-hover: #005090;
+  --igh-secondary: #1a365d;
+  --igh-accent: #e87500;
+  --igh-accent-hover: #d16900;
+  --igh-surface: #f5f7fa;
+  --igh-border: #e2e8f0;
+  --igh-muted: #64748b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-igh-primary: var(--igh-primary);
+  --color-igh-secondary: var(--igh-secondary);
+  --color-igh-accent: var(--igh-accent);
+  --color-igh-surface: var(--igh-surface);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -33,7 +46,7 @@ button:disabled {
 }
 
 .container-page {
-  @apply mx-auto w-full max-w-6xl px-4 py-6;
+  @apply mx-auto w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6 min-w-0;
 }
 
 .card {
@@ -41,9 +54,17 @@ button:disabled {
 }
 
 .card-header {
-  @apply border-b border-zinc-200 px-4 py-3;
+  @apply border-b border-zinc-200 px-3 py-3 sm:px-4;
 }
 
 .card-body {
-  @apply px-4 py-4;
+  @apply px-3 py-3 sm:px-4 sm:py-4;
+}
+
+/* Evitar overflow horizontal em telas pequenas */
+html {
+  overflow-x: hidden;
+}
+body {
+  overflow-x: hidden;
 }

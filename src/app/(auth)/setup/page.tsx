@@ -12,8 +12,8 @@ export default async function SetupPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md">
-      <div className="card">
+    <div className="w-full max-w-md px-2 sm:px-0">
+      <div className="card w-full">
         <div className="card-header">
           <div className="text-lg font-semibold">Configurar usuário MASTER</div>
           <div className="mt-1 text-sm text-zinc-600">

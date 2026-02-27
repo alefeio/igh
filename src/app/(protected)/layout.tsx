@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 
 import { ToastProvider } from "@/components/feedback/ToastProvider";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { RequireChangePassword } from "@/components/layout/RequireChangePassword";
+import { ResponsiveShell } from "@/components/layout/ResponsiveShell";
 import { UserProvider } from "@/components/layout/UserProvider";
 import { getSessionUserFromCookie } from "@/lib/auth";
 
@@ -11,15 +12,17 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
+  const sessionUser = {
+    ...user,
+    mustChangePassword: (user as { mustChangePassword?: boolean }).mustChangePassword ?? false,
+  };
+
   return (
     <ToastProvider>
-      <UserProvider user={user}>
-        <div className="flex min-h-screen bg-zinc-50">
-          <Sidebar user={user} />
-          <main className="flex-1">
-            <div className="container-page">{children}</div>
-          </main>
-        </div>
+      <UserProvider user={sessionUser}>
+        <RequireChangePassword>
+          <ResponsiveShell user={user}>{children}</ResponsiveShell>
+        </RequireChangePassword>
       </UserProvider>
     </ToastProvider>
   );

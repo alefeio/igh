@@ -3,6 +3,9 @@ import { requireRole, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateTeacherSchema } from "@/lib/validators/teachers";
 import { createAuditLog } from "@/lib/audit";
+import { generateTempPassword } from "@/lib/password";
+import { sendEmailAndRecord } from "@/lib/email/send-and-record";
+import { templateProfessorWelcome } from "@/lib/email/templates";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await requireRole("MASTER");
@@ -33,11 +36,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
   }
 
-  const passwordToSet =
-    parsed.data.password && parsed.data.password !== ""
-      ? await hashPassword(parsed.data.password)
-      : undefined;
-
   let teacherUserId: string | null = existing.userId;
   if (existing.userId && existing.user) {
     await prisma.user.update({
@@ -45,20 +43,36 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       data: {
         ...(parsed.data.name != null && { name: parsed.data.name }),
         ...(newEmail != null && { email: newEmail }),
-        ...(passwordToSet != null && { passwordHash: passwordToSet }),
       },
     });
-  } else if (!existing.userId && newEmail && passwordToSet) {
+  } else if (!existing.userId && newEmail) {
+    const tempPassword = generateTempPassword();
+    const passwordHash = await hashPassword(tempPassword);
     const createdUser = await prisma.user.create({
       data: {
         name: parsed.data.name ?? existing.name,
         email: newEmail,
-        passwordHash: passwordToSet,
+        passwordHash,
         role: "TEACHER",
         isActive: true,
+        mustChangePassword: true,
       },
     });
     teacherUserId = createdUser.id;
+    const { subject, html } = templateProfessorWelcome({
+      name: existing.name,
+      email: newEmail,
+      tempPassword,
+    });
+    await sendEmailAndRecord({
+      to: newEmail,
+      subject,
+      html,
+      emailType: "welcome_professor",
+      entityType: "Teacher",
+      entityId: id,
+      performedByUserId: user.id,
+    });
   }
 
   const isReactivating =
@@ -75,6 +89,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       ...(parsed.data.isActive === true ? { deletedAt: null } : {}),
     },
   });
+
+  if (isReactivating && existing.userId) {
+    await prisma.user.update({
+      where: { id: existing.userId },
+      data: { isActive: true },
+    });
+  }
 
   await createAuditLog({
     entityType: "Teacher",
@@ -97,7 +118,11 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   }
 
   if (existing.deletedAt) {
+    const userIdToDelete = existing.userId;
     await prisma.teacher.delete({ where: { id } });
+    if (userIdToDelete) {
+      await prisma.user.delete({ where: { id: userIdToDelete } });
+    }
     await createAuditLog({
       entityType: "Teacher",
       entityId: id,
@@ -112,6 +137,13 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     where: { id },
     data: { deletedAt: new Date(), isActive: false },
   });
+
+  if (existing.userId) {
+    await prisma.user.update({
+      where: { id: existing.userId },
+      data: { isActive: false },
+    });
+  }
 
   await createAuditLog({
     entityType: "Teacher",

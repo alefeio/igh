@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       role: "MASTER",
       isActive: true,
     },
-    select: { id: true, name: true, email: true, role: true, isActive: true },
+    select: { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true },
   });
 
   await createAuditLog({

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { jwtVerify } from "jose";
 
-const PUBLIC_PATHS = ["/login", "/setup"];
+const PUBLIC_PATHS = ["/login", "/setup", "/confirmar-inscricao", "/esqueci-senha", "/redefinir-senha"];
 const AUTH_COOKIE_NAME = "auth_token";
 
 export async function middleware(request: NextRequest) {
@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Rotas apenas MASTER
-  if (["/users", "/teachers", "/courses", "/class-groups"].some((p) => pathname.startsWith(p))) {
+  if (["/users", "/teachers", "/courses", "/class-groups", "/enrollments"].some((p) => pathname.startsWith(p))) {
     if (role !== "MASTER") {
       const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
@@ -38,6 +38,22 @@ export async function middleware(request: NextRequest) {
 
   // Rotas MASTER ou ADMIN (alunos)
   if (pathname.startsWith("/students")) {
+    if (role !== "MASTER" && role !== "ADMIN") {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Rotas apenas STUDENT (minhas turmas)
+  if (pathname.startsWith("/minhas-turmas")) {
+    if (role !== "STUDENT") {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Rotas CMS Site (apenas ADMIN e MASTER)
+  if (pathname.startsWith("/admin/site")) {
     if (role !== "MASTER" && role !== "ADMIN") {
       const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
@@ -54,6 +70,9 @@ export const config = {
     "/teachers/:path*",
     "/courses/:path*",
     "/class-groups/:path*",
+    "/enrollments/:path*",
     "/students/:path*",
+    "/minhas-turmas/:path*",
+    "/admin/site/:path*",
   ],
 };

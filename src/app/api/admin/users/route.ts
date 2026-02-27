@@ -3,6 +3,9 @@ import { requireRole, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAdminSchema } from "@/lib/validators/users";
 import { createAuditLog } from "@/lib/audit";
+import { generateTempPassword } from "@/lib/password";
+import { sendEmailAndRecord } from "@/lib/email/send-and-record";
+import { templateAdminWelcome } from "@/lib/email/templates";
 
 export async function GET() {
   await requireRole("MASTER");
@@ -33,13 +36,14 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { name, email, password } = parsed.data;
+  const { name, email } = parsed.data;
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) {
     return jsonErr("EMAIL_IN_USE", "Já existe um usuário com este e-mail.", 409);
   }
 
-  const passwordHash = await hashPassword(password);
+  const tempPassword = generateTempPassword();
+  const passwordHash = await hashPassword(tempPassword);
   const created = await prisma.user.create({
     data: {
       name,
@@ -47,6 +51,7 @@ export async function POST(request: Request) {
       passwordHash,
       role: "ADMIN",
       isActive: true,
+      mustChangePassword: true,
     },
     select: { id: true, name: true, email: true, role: true, isActive: true },
   });
@@ -54,10 +59,35 @@ export async function POST(request: Request) {
   await createAuditLog({
     entityType: "User",
     entityId: created.id,
-    action: "ADMIN_CREATE",
+    action: "USER_CREATED",
     diff: { created: { id: created.id, email: created.email, role: created.role } },
     performedByUserId: master.id,
   });
 
-  return jsonOk({ user: created }, { status: 201 });
+  const { subject, html } = templateAdminWelcome({
+    name: created.name,
+    email: created.email,
+    tempPassword,
+  });
+  const emailResult = await sendEmailAndRecord({
+    to: created.email,
+    subject,
+    html,
+    emailType: "welcome_admin",
+    entityType: "User",
+    entityId: created.id,
+    performedByUserId: master.id,
+  });
+  await createAuditLog({
+    entityType: "User",
+    entityId: created.id,
+    action: "EMAIL_SENT",
+    diff: { type: "welcome_admin", success: emailResult.success, messageId: emailResult.messageId },
+    performedByUserId: master.id,
+  });
+
+  return jsonOk(
+    { user: created, emailSent: emailResult.success },
+    { status: 201 }
+  );
 }

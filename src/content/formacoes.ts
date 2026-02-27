@@ -1,0 +1,88 @@
+export const formaçõesDestaque = [
+  { id: "programacao", name: "Programação", slug: "programacao", shortDesc: "Desenvolvimento web e lógica de programação." },
+  { id: "dados-ia", name: "Dados e IA", slug: "dados-e-ia", shortDesc: "Análise de dados, BI e introdução à inteligência artificial." },
+  { id: "marketing", name: "Marketing e Tráfego", slug: "marketing-trafego", shortDesc: "Marketing digital, redes sociais e tráfego pago." },
+  { id: "ux-ui", name: "UX/UI", slug: "ux-ui", shortDesc: "Experiência e interface do usuário." },
+] as const;
+
+export const formaçõesPorAfinidade = [
+  {
+    id: "programacao",
+    name: "Programação",
+    slug: "programacao",
+    paraQuem: "Quem quer desenvolver sites, sistemas e aplicações.",
+    oQueAprende: ["Lógica de programação", "HTML, CSS e JavaScript", "Back-end e bancos de dados", "Versionamento (Git)"],
+    entregaFinal: "Projeto de aplicação ou site publicado.",
+    cta: "Quero me inscrever",
+  },
+  {
+    id: "dados",
+    name: "Dados, BI e IA",
+    slug: "dados-bi-ia",
+    paraQuem: "Quem quer analisar dados e trabalhar com inteligência artificial.",
+    oQueAprende: ["Análise de dados e planilhas", "Visualização e dashboards", "Noções de BI", "Introdução à IA e ferramentas"],
+    entregaFinal: "Projeto de análise ou relatório com dados reais.",
+    cta: "Quero me inscrever",
+  },
+  {
+    id: "ux-ui",
+    name: "UX/UI",
+    slug: "ux-ui",
+    paraQuem: "Quem quer desenhar experiências e interfaces digitais.",
+    oQueAprende: ["Pesquisa com usuários", "Wireframes e protótipos", "Design de interfaces", "Ferramentas (Figma)"],
+    entregaFinal: "Portfólio com projetos de UX/UI.",
+    cta: "Quero me inscrever",
+  },
+  {
+    id: "marketing",
+    name: "Marketing e Tráfego",
+    slug: "marketing-trafego",
+    paraQuem: "Quem quer atuar em marketing digital e mídias pagas.",
+    oQueAprende: ["Marketing digital", "Redes sociais e conteúdo", "Tráfego pago (Meta, Google)", "Métricas e análise"],
+    entregaFinal: "Campanha ou plano de marketing documentado.",
+    cta: "Quero me inscrever",
+  },
+  {
+    id: "suporte",
+    name: "Suporte e Infraestrutura",
+    slug: "suporte-infra",
+    paraQuem: "Quem quer atuar em suporte técnico e infraestrutura de TI.",
+    oQueAprende: ["Sistemas operacionais", "Redes e conectividade", "Suporte ao usuário", "Segurança da informação"],
+    entregaFinal: "Documentação de processos ou projeto de infraestrutura.",
+    cta: "Quero me inscrever",
+  },
+  {
+    id: "robotica",
+    name: "Robótica e IoT",
+    slug: "robotica-iot",
+    paraQuem: "Quem quer explorar hardware, robótica e internet das coisas.",
+    oQueAprende: ["Eletrônica básica", "Programação de microcontroladores", "Sensores e atuadores", "Projetos IoT"],
+    entregaFinal: "Projeto físico de robótica ou IoT.",
+    cta: "Quero me inscrever",
+  },
+  {
+    id: "design-3d",
+    name: "Design 3D",
+    slug: "design-3d",
+    paraQuem: "Quem quer criar modelos e visualizações em 3D.",
+    oQueAprende: ["Modelagem 3D", "Texturização e iluminação", "Renderização", "Ferramentas (Blender ou similar)"],
+    entregaFinal: "Portfólio com modelos e cenas 3D.",
+    cta: "Quero me inscrever",
+  },
+  {
+    id: "empreendedorismo",
+    name: "Empreendedorismo e Negócios Digitais",
+    slug: "empreendedorismo",
+    paraQuem: "Quem quer empreender ou atuar em negócios digitais.",
+    oQueAprende: ["Modelo de negócios", "Validação e MVP", "Vendas e marketing digital", "Gestão financeira básica"],
+    entregaFinal: "Pitch e plano do negócio ou projeto.",
+    cta: "Quero me inscrever",
+  },
+] as const;
+
+export const comoFuncionaFormacao = [
+  { titulo: "Núcleo Comum", descricao: "Conteúdo base em tecnologia e competências transversais para todas as trilhas." },
+  { titulo: "Trilha Técnica", descricao: "Módulos específicos da área escolhida, com foco em prática e ferramentas atuais." },
+  { titulo: "Projeto Integrador", descricao: "Projeto real desenvolvido ao longo da formação, que compõe seu portfólio." },
+  { titulo: "Carreira e Demo Day", descricao: "Preparação para o mercado, networking e apresentação dos projetos." },
+];

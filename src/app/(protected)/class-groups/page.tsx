@@ -203,11 +203,11 @@ export default function ClassGroupsPage() {
       ]);
 
       if (!cgRes.ok || !cgJson?.ok)
-        throw new Error(cgJson?.error?.message ?? "Falha ao carregar turmas.");
+        throw new Error(cgJson && "error" in cgJson ? cgJson.error.message : "Falha ao carregar turmas.");
       if (!cRes.ok || !cJson?.ok)
-        throw new Error(cJson?.error?.message ?? "Falha ao carregar cursos.");
+        throw new Error(cJson && "error" in cJson ? cJson.error.message : "Falha ao carregar cursos.");
       if (!tRes.ok || !tJson?.ok)
-        throw new Error(tJson?.error?.message ?? "Falha ao carregar professores.");
+        throw new Error(tJson && "error" in tJson ? tJson.error.message : "Falha ao carregar professores.");
 
       setItems(cgJson!.data.classGroups);
       setCourses(cJson!.data.courses);
@@ -322,14 +322,14 @@ export default function ClassGroupsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="text-lg font-semibold">Turmas</div>
           <div className="text-sm text-zinc-600">
             Por padrão, apenas ativas. Use &quot;Exibir inativos&quot; para reativar ou excluir turmas canceladas.
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Button
             type="button"
             variant="secondary"
@@ -337,7 +337,7 @@ export default function ClassGroupsPage() {
           >
             {showInactive ? "Ocultar inativos" : "Exibir inativos"}
           </Button>
-          <Button onClick={openCreate}>Nova</Button>
+          <Button onClick={openCreate} className="w-full sm:w-auto">Nova</Button>
         </div>
       </div>
 

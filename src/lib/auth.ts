@@ -10,7 +10,7 @@ import type { User, UserRole } from "@/generated/prisma/client";
 const AUTH_COOKIE_NAME = "auth_token";
 const AUTH_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
-export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActive">;
+export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActive" | "mustChangePassword">;
 
 interface JwtPayload {
   sub: string;
@@ -71,6 +71,7 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
         email: true,
         role: true,
         isActive: true,
+        mustChangePassword: true,
       },
     });
 

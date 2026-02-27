@@ -3,6 +3,7 @@ import { requireRole, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateStudentSchema } from "@/lib/validators/students";
 import { createAuditLog } from "@/lib/audit";
+import { generateTempPassword } from "@/lib/password";
 
 export async function GET(
   _request: Request,
@@ -38,6 +39,12 @@ export async function PATCH(
       where: { id },
       data: { deletedAt: null, deletedByUserId: null },
     });
+    if (existing.userId) {
+      await prisma.user.update({
+        where: { id: existing.userId },
+        data: { isActive: true },
+      });
+    }
     await createAuditLog({
       entityType: "Student",
       entityId: id,
@@ -123,20 +130,19 @@ export async function PATCH(
     data: updateData,
   });
 
-  const cpfForPassword = updated.cpf;
   if (updated.email) {
-    const passwordHash = await hashPassword(cpfForPassword);
     if (existing.userId) {
       await prisma.user.update({
         where: { id: existing.userId },
         data: {
           name: updated.name,
           email: updated.email,
-          passwordHash,
           isActive: true,
         },
       });
     } else {
+      const tempPassword = generateTempPassword();
+      const passwordHash = await hashPassword(tempPassword);
       const createdUser = await prisma.user.create({
         data: {
           name: updated.name,
@@ -144,6 +150,7 @@ export async function PATCH(
           passwordHash,
           role: "STUDENT",
           isActive: true,
+          mustChangePassword: true,
         },
       });
       await prisma.student.update({
@@ -196,13 +203,32 @@ export async function DELETE(
     return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
   }
   if (existing.deletedAt) {
-    return jsonOk({ student: existing });
+    const userIdToDelete = existing.userId;
+    await prisma.student.delete({ where: { id } });
+    if (userIdToDelete) {
+      await prisma.user.delete({ where: { id: userIdToDelete } });
+    }
+    await createAuditLog({
+      entityType: "Student",
+      entityId: id,
+      action: "STUDENT_DELETE",
+      diff: { before: existing },
+      performedByUserId: user.id,
+    });
+    return jsonOk({ deleted: true });
   }
 
   const updated = await prisma.student.update({
     where: { id },
     data: { deletedAt: new Date(), deletedByUserId: user.id },
   });
+
+  if (existing.userId) {
+    await prisma.user.update({
+      where: { id: existing.userId },
+      data: { isActive: false },
+    });
+  }
 
   await createAuditLog({
     entityType: "Student",

@@ -167,14 +167,14 @@ export default function TimeSlotsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="text-lg font-semibold">Horários predefinidos</div>
           <div className="text-sm text-zinc-600">
             Cadastre horários (início e fim) para usar ao criar turmas e evitar erros de digitação.
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Button
             type="button"
             variant="secondary"
@@ -182,7 +182,7 @@ export default function TimeSlotsPage() {
           >
             {showInactive ? "Ocultar inativos" : "Exibir inativos"}
           </Button>
-          <Button onClick={openCreate}>Novo horário</Button>
+          <Button onClick={openCreate} className="w-full sm:w-auto">Novo horário</Button>
         </div>
       </div>
 

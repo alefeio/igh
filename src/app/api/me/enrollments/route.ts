@@ -1,0 +1,40 @@
+import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
+import { jsonOk } from "@/lib/http";
+
+export async function GET() {
+  const user = await requireRole("STUDENT");
+
+  const student = await prisma.student.findFirst({
+    where: { userId: user.id },
+    select: { id: true },
+  });
+  if (!student) {
+    return jsonOk({ enrollments: [] });
+  }
+
+  const enrollments = await prisma.enrollment.findMany({
+    where: { studentId: student.id, status: "ACTIVE" },
+    orderBy: { enrolledAt: "desc" },
+    include: {
+      classGroup: {
+        include: {
+          course: { select: { id: true, name: true } },
+          teacher: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+
+  return jsonOk({
+    enrollments: enrollments.map((e) => ({
+      id: e.id,
+      classGroupId: e.classGroupId,
+      courseName: e.classGroup.course.name,
+      teacherName: e.classGroup.teacher.name,
+      startDate: e.classGroup.startDate,
+      status: e.classGroup.status,
+      location: e.classGroup.location,
+    })),
+  });
+}

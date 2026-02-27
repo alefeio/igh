@@ -6,7 +6,8 @@ export type SessionUser = {
   id: string;
   name: string;
   email: string;
-  role: "MASTER" | "ADMIN";
+  role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+  mustChangePassword?: boolean;
 };
 
 const UserContext = createContext<SessionUser | null>(null);

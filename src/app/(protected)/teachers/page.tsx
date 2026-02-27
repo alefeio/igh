@@ -10,6 +10,21 @@ import { Table, Td, Th } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import type { ApiResponse } from "@/lib/api-types";
 
+async function parseResponseJson<T>(res: Response): Promise<ApiResponse<T> | null> {
+  const text = await res.text();
+  if (!text.trim()) return null;
+  try {
+    return JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    return null;
+  }
+}
+
+function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): string {
+  if (json && !json.ok) return json.error.message;
+  return fallback;
+}
+
 type Teacher = {
   id: string;
   name: string;
@@ -33,27 +48,16 @@ export default function TeachersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   const canSubmit = useMemo(() => {
-    if (name.trim().length < 2) return false;
-    if (!email.trim()) return false;
-    if (!editing) {
-      if (password.length < 6) return false;
-      if (password !== passwordConfirm) return false;
-    } else if (password.length > 0 && password.length < 6) return false;
-    else if (password.length > 0 && password !== passwordConfirm) return false;
-    return true;
-  }, [name, email, password, passwordConfirm, editing]);
+    return name.trim().length >= 2 && email.trim().length > 0;
+  }, [name, email]);
 
   function resetForm() {
     setName("");
     setEmail("");
     setPhone("");
-    setPassword("");
-    setPasswordConfirm("");
     setIsActive(true);
     setEditing(null);
   }
@@ -68,8 +72,6 @@ export default function TeachersPage() {
     setName(t.name);
     setEmail(t.email ?? "");
     setPhone(t.phone ?? "");
-    setPassword("");
-    setPasswordConfirm("");
     setIsActive(t.isActive);
     setOpen(true);
   }
@@ -78,9 +80,9 @@ export default function TeachersPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/teachers?status=${statusFilter}`);
-      const json = (await res.json()) as ApiResponse<{ teachers: Teacher[] }>;
-      if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao carregar professores.");
+      const json = await parseResponseJson<{ teachers: Teacher[] }>(res);
+      if (!res.ok || !json?.ok) {
+        toast.push("error", apiErrorMessage(json, "Falha ao carregar professores."));
         return;
       }
       setItems(json.data.teachers);
@@ -98,17 +100,12 @@ export default function TeachersPage() {
     e.preventDefault();
     if (!canSubmit) return;
 
-    const payload: Record<string, unknown> = {
+    const payload = {
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim() || undefined,
       isActive,
     };
-    if (editing) {
-      if (password.trim()) payload.password = password;
-    } else {
-      payload.password = password;
-    }
     const url = editing ? `/api/teachers/${editing.id}` : "/api/teachers";
     const method = editing ? "PATCH" : "POST";
 
@@ -117,9 +114,9 @@ export default function TeachersPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const json = (await res.json()) as ApiResponse<{ teacher: Teacher }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao salvar professor.");
+    const json = await parseResponseJson<{ teacher: Teacher }>(res);
+    if (!res.ok || !json?.ok) {
+      toast.push("error", apiErrorMessage(json, "Falha ao salvar professor."));
       return;
     }
     toast.push("success", editing ? "Professor atualizado." : "Professor criado.");
@@ -131,9 +128,9 @@ export default function TeachersPage() {
   async function inactivateTeacher(t: Teacher) {
     if (!confirm(`Inativar o professor "${t.name}"?`)) return;
     const res = await fetch(`/api/teachers/${t.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ teacher?: Teacher; deleted?: boolean }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao inativar professor.");
+    const json = await parseResponseJson<{ teacher?: Teacher; deleted?: boolean }>(res);
+    if (!res.ok || !json?.ok) {
+      toast.push("error", apiErrorMessage(json, "Falha ao inativar professor."));
       return;
     }
     toast.push("success", "Professor inativado.");
@@ -143,9 +140,9 @@ export default function TeachersPage() {
   async function deleteTeacherPermanent(t: Teacher) {
     if (!confirm(`Excluir definitivamente o professor "${t.name}"? Esta ação não pode ser desfeita.`)) return;
     const res = await fetch(`/api/teachers/${t.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted?: boolean }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao excluir professor.");
+    const json = await parseResponseJson<{ deleted?: boolean }>(res);
+    if (!res.ok || !json?.ok) {
+      toast.push("error", apiErrorMessage(json, "Falha ao excluir professor."));
       return;
     }
     toast.push("success", "Professor excluído.");
@@ -158,9 +155,9 @@ export default function TeachersPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ isActive: true }),
     });
-    const json = (await res.json()) as ApiResponse<{ teacher: Teacher }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao reativar professor.");
+    const json = await parseResponseJson<{ teacher: Teacher }>(res);
+    if (!res.ok || !json?.ok) {
+      toast.push("error", apiErrorMessage(json, "Falha ao reativar professor."));
       return;
     }
     toast.push("success", "Professor reativado.");
@@ -169,21 +166,21 @@ export default function TeachersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="text-lg font-semibold">Professores</div>
           <div className="text-sm text-zinc-600">
             Filtro: Ativos (padrão), Inativos ou Todos. Inativos podem ser reativados.
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <div className="flex rounded-md border border-zinc-300 bg-white p-0.5 text-sm">
             {(["active", "inactive", "all"] as const).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setStatusFilter(s)}
-                className={`rounded px-3 py-1.5 ${
+                className={`rounded px-3 py-1.5 touch-manipulation ${
                   statusFilter === s ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
@@ -191,7 +188,7 @@ export default function TeachersPage() {
               </button>
             ))}
           </div>
-          <Button onClick={openCreate}>Novo</Button>
+          <Button onClick={openCreate} className="w-full sm:w-auto">Novo</Button>
         </div>
       </div>
 
@@ -279,34 +276,9 @@ export default function TeachersPage() {
               <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
             </div>
           </div>
-          <div>
-            <label className="text-sm font-medium">
-              Senha {editing && <span className="font-normal text-zinc-500">(deixar em branco para não alterar)</span>}
-            </label>
-            <div className="mt-1">
-              <Input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                minLength={editing ? undefined : 6}
-                required={!editing}
-                placeholder={editing ? "••••••••" : undefined}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium">Confirmar senha</label>
-            <div className="mt-1">
-              <Input
-                value={passwordConfirm}
-                onChange={(e) => setPasswordConfirm(e.target.value)}
-                type="password"
-                minLength={editing ? undefined : 6}
-                required={!editing}
-                placeholder={editing ? "••••••••" : undefined}
-              />
-            </div>
-          </div>
+          <p className="text-xs text-zinc-500">
+            Uma senha temporária será gerada e enviada por e-mail ao professor.
+          </p>
           <div>
             <label className="text-sm font-medium">Telefone (opcional)</label>
             <div className="mt-1">

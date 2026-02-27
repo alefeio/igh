@@ -39,3 +39,21 @@ export function getStudentUploadFolder(studentId: string): string {
   const { uploadFolder } = getCloudinaryConfig();
   return `${uploadFolder}/${studentId}`.replace(/\/+/g, "/");
 }
+
+/**
+ * Folder para certificado de matrícula: uploadFolder/enrollments/enrollmentId
+ */
+export function getEnrollmentCertificateFolder(enrollmentId: string): string {
+  const { uploadFolder } = getCloudinaryConfig();
+  return `${uploadFolder}/enrollments/${enrollmentId}`.replace(/\/+/g, "/");
+}
+
+const SITE_UPLOAD_PREFIX = "igh/site";
+
+export function getSiteUploadFolder(kind: "logo" | "favicon" | "banners" | "partners" | "formations" | "projects" | "testimonials" | "news" | "transparency"): string {
+  return `${SITE_UPLOAD_PREFIX}/${kind}`.replace(/\/+/g, "/");
+}
+
+export function getSiteUploadFolderWithId(kind: "banners" | "projects" | "news" | "transparency", id: string): string {
+  return `${SITE_UPLOAD_PREFIX}/${kind}/${id}`.replace(/\/+/g, "/");
+}

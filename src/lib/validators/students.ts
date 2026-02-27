@@ -94,7 +94,7 @@ export const createStudentSchema = baseStudentSchema
     { message: "Se possui deficiência, informe qual (mín. 3 caracteres).", path: ["disabilityDescription"] }
   )
   .refine(
-    (data) => !data.isStudying || (data.studyShift != null && data.studyShift !== ""),
+    (data) => !data.isStudying || data.studyShift != null,
     { message: "Se está estudando, informe o turno.", path: ["studyShift"] }
   )
   .refine(
@@ -131,7 +131,7 @@ export const updateStudentSchema = partialBase
     { message: "Se possui deficiência, informe qual (mín. 3 caracteres).", path: ["disabilityDescription"] }
   )
   .refine(
-    (data) => data.isStudying !== true || (data.studyShift != null && data.studyShift !== ""),
+    (data) => data.isStudying !== true || data.studyShift != null,
     { message: "Se está estudando, informe o turno.", path: ["studyShift"] }
   )
   .refine(

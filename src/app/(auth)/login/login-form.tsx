@@ -31,12 +31,16 @@ export function LoginForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const json = (await res.json()) as ApiResponse<{ user: { id: string } }>;
+      const json = (await res.json()) as ApiResponse<{ user: { id: string; mustChangePassword?: boolean } }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha no login.");
         return;
       }
-      router.replace("/dashboard");
+      if (json.data?.user?.mustChangePassword) {
+        router.replace("/trocar-senha");
+      } else {
+        router.replace("/dashboard");
+      }
     } finally {
       setLoading(false);
     }
@@ -59,6 +63,11 @@ export function LoginForm() {
       <Button type="submit" disabled={loading}>
         {loading ? "Entrando..." : "Entrar"}
       </Button>
+      <div className="text-center">
+        <Link className="text-xs text-zinc-500 hover:text-zinc-700" href="/esqueci-senha">
+          Esqueci minha senha
+        </Link>
+      </div>
 
       {setupHint ? (
         <div className="pt-2 text-xs text-zinc-600">
