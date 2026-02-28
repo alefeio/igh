@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
@@ -305,11 +306,12 @@ export default function CoursesPage() {
           <div>
             <label className="text-sm font-medium">Conteúdo (rich text, opcional)</label>
             <div className="mt-1">
-              <textarea
-                className="min-h-[120px] w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900"
+              <RichTextEditor
+                key={editing?.id ?? "new"}
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="HTML ou texto longo..."
+                onChange={setContent}
+                placeholder="Digite o conteúdo do curso..."
+                minHeight="160px"
               />
             </div>
           </div>

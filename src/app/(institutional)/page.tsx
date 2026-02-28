@@ -12,12 +12,14 @@ import {
 } from "@/components/site";
 import {
   statsImpact,
-  parceiros,
-  faqItems,
-  depoimentos,
   posts,
 } from "@/content";
-import { getFormationsForHome } from "@/lib/site-data";
+import {
+  getFormationsForHome,
+  getPartners,
+  getFaqItems,
+  getTestimonials,
+} from "@/lib/site-data";
 
 export const metadata = {
   title: "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital",
@@ -31,10 +33,21 @@ export const metadata = {
 };
 
 export default async function HomePage() {
-  const [formationsDestaque, recentPosts] = await Promise.all([
+  const [formationsDestaque, partners, faqItemsFromDb, testimonialsFromDb, recentPosts] = await Promise.all([
     getFormationsForHome(4),
+    getPartners(),
+    getFaqItems(),
+    getTestimonials(),
     Promise.resolve(posts.slice(0, 3)),
   ]);
+
+  const faqItems = faqItemsFromDb.map((i) => ({ pergunta: i.question, resposta: i.answer }));
+  const depoimentos = testimonialsFromDb.map((t) => ({
+    nome: t.name,
+    role: t.roleOrContext ?? "",
+    texto: t.quote,
+    avatar: t.photoUrl ?? undefined,
+  }));
 
   return (
     <>
@@ -137,20 +150,24 @@ export default async function HomePage() {
       </Section>
 
       {/* Depoimentos */}
-      <Testimonials items={depoimentos} />
+      {depoimentos.length > 0 && <Testimonials items={depoimentos} />}
 
       {/* Parceiros */}
       <Section title="Parceiros e apoio" background="muted">
         <div className="flex flex-wrap items-center justify-center gap-8">
-          {parceiros.map((p, i) => (
-            <div
-              key={i}
-              className="flex h-16 w-32 items-center justify-center rounded-lg bg-white border border-[var(--igh-border)] text-[var(--igh-muted)] text-sm"
-              title={p.name}
-            >
-              {p.name}
-            </div>
-          ))}
+          {partners.length === 0 ? (
+            <p className="text-center text-[var(--igh-muted)]">Nenhum parceiro cadastrado.</p>
+          ) : (
+            partners.map((p) => (
+              <div
+                key={p.id}
+                className="flex h-16 w-32 items-center justify-center rounded-lg bg-white border border-[var(--igh-border)] text-[var(--igh-muted)] text-sm"
+                title={p.name}
+              >
+                {p.name}
+              </div>
+            ))
+          )}
         </div>
       </Section>
 
@@ -169,7 +186,7 @@ export default async function HomePage() {
       </Section>
 
       {/* FAQ */}
-      <FAQ items={faqItems} />
+      {faqItems.length > 0 && <FAQ items={faqItems} />}
 
       {/* CTA final */}
       <CTASection

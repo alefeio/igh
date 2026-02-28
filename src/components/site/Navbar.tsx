@@ -3,28 +3,30 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import type { MenuItemPublic } from "@/lib/site-types";
 
-const links = [
-  { label: "Início", href: "/" },
-  { label: "Sobre", href: "/sobre" },
-  { label: "Formações", href: "/formacoes" },
-  { label: "Projetos", href: "/projetos" },
-  { label: "Notícias", href: "/noticias" },
-  { label: "Transparência", href: "/transparencia" },
-  { label: "Contato", href: "/contato" },
+const FALLBACK_LINKS: MenuItemPublic[] = [
+  { id: "1", label: "Início", href: "/", order: 0, isExternal: false, children: [] },
+  { id: "2", label: "Sobre", href: "/sobre", order: 1, isExternal: false, children: [] },
+  { id: "3", label: "Formações", href: "/formacoes", order: 2, isExternal: false, children: [] },
+  { id: "4", label: "Projetos", href: "/projetos", order: 3, isExternal: false, children: [
+    { id: "4a", label: "Computadores para Inclusão", href: "/projetos/computadores-para-inclusao", order: 0, isExternal: false, children: [] },
+    { id: "4b", label: "CRC", href: "/projetos/crc", order: 1, isExternal: false, children: [] },
+    { id: "4c", label: "Doações Recebidas", href: "/projetos/doacoes-recebidas", order: 2, isExternal: false, children: [] },
+    { id: "4d", label: "Entregas", href: "/projetos/entregas", order: 3, isExternal: false, children: [] },
+  ]},
+  { id: "5", label: "Notícias", href: "/noticias", order: 4, isExternal: false, children: [] },
+  { id: "6", label: "Transparência", href: "/transparencia", order: 5, isExternal: false, children: [] },
+  { id: "7", label: "Contato", href: "/contato", order: 6, isExternal: false, children: [] },
 ];
 
-const subProjetos = [
-  { label: "Computadores para Inclusão", href: "/projetos/computadores-para-inclusao" },
-  { label: "CRC", href: "/projetos/crc" },
-  { label: "Doações Recebidas", href: "/projetos/doacoes-recebidas" },
-  { label: "Entregas", href: "/projetos/entregas" },
-];
+type NavbarProps = { menuItems?: MenuItemPublic[] | null };
 
-export function Navbar() {
+export function Navbar({ menuItems: propItems }: NavbarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [projetosOpen, setProjetosOpen] = useState(false);
+  const links = (propItems && propItems.length > 0) ? propItems : FALLBACK_LINKS;
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--igh-border)] bg-white/95 backdrop-blur">
@@ -34,21 +36,21 @@ export function Navbar() {
         </Link>
         <div className="hidden md:flex md:items-center md:gap-1">
           {links.map((l) => (
-            l.href === "/projetos" ? (
-              <div key={l.href} className="relative">
+            l.children && l.children.length > 0 ? (
+              <div key={l.id} className="relative">
                 <button
                   type="button"
                   onClick={() => setProjetosOpen(!projetosOpen)}
                   className="flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-[var(--igh-secondary)] hover:text-[var(--igh-primary)]"
                   aria-expanded={projetosOpen}
                 >
-                  Projetos
+                  {l.label}
                   <span className={projetosOpen ? "rotate-180" : ""}>▼</span>
                 </button>
                 {projetosOpen && (
                   <div className="absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-lg border border-[var(--igh-border)] bg-white py-2 shadow-lg">
-                    {subProjetos.map((s) => (
-                      <Link key={s.href} href={s.href} className="block px-4 py-2 text-sm text-[var(--igh-secondary)] hover:bg-[var(--igh-surface)]" onClick={() => setProjetosOpen(false)}>
+                    {l.children.map((s) => (
+                      <Link key={s.id} href={s.href} className="block px-4 py-2 text-sm text-[var(--igh-secondary)] hover:bg-[var(--igh-surface)]" onClick={() => setProjetosOpen(false)}>
                         {s.label}
                       </Link>
                     ))}
@@ -57,7 +59,7 @@ export function Navbar() {
               </div>
             ) : (
               <Link
-                key={l.href}
+                key={l.id}
                 href={l.href}
                 className={`rounded-md px-3 py-2 text-sm font-medium ${pathname === l.href ? "text-[var(--igh-primary)]" : "text-[var(--igh-secondary)] hover:text-[var(--igh-primary)]"}`}
               >
@@ -76,10 +78,10 @@ export function Navbar() {
       {open && (
         <div className="border-t border-[var(--igh-border)] bg-white px-4 py-4 md:hidden">
           {links.map((l) => (
-            <div key={l.href}>
+            <div key={l.id}>
               <Link href={l.href} className="block py-2 text-[var(--igh-secondary)]" onClick={() => setOpen(false)}>{l.label}</Link>
-              {l.href === "/projetos" && subProjetos.map((s) => (
-                <Link key={s.href} href={s.href} className="ml-4 block py-1 text-sm text-[var(--igh-muted)]" onClick={() => setOpen(false)}>{s.label}</Link>
+              {l.children && l.children.length > 0 && l.children.map((s) => (
+                <Link key={s.id} href={s.href} className="ml-4 block py-1 text-sm text-[var(--igh-muted)]" onClick={() => setOpen(false)}>{s.label}</Link>
               ))}
             </div>
           ))}
