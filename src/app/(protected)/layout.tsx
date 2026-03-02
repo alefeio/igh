@@ -5,9 +5,13 @@ import { RequireChangePassword } from "@/components/layout/RequireChangePassword
 import { ResponsiveShell } from "@/components/layout/ResponsiveShell";
 import { UserProvider } from "@/components/layout/UserProvider";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { getSiteSettings } from "@/lib/site-data";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const user = await getSessionUserFromCookie();
+  const [user, settings] = await Promise.all([
+    getSessionUserFromCookie(),
+    getSiteSettings(),
+  ]);
   if (!user) {
     redirect("/login");
   }
@@ -21,7 +25,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     <ToastProvider>
       <UserProvider user={sessionUser}>
         <RequireChangePassword>
-          <ResponsiveShell user={user}>{children}</ResponsiveShell>
+          <ResponsiveShell user={user} logoUrl={settings?.logoUrl ?? null}>{children}</ResponsiveShell>
         </RequireChangePassword>
       </UserProvider>
     </ToastProvider>

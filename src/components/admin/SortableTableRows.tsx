@@ -55,13 +55,16 @@ export type SortableTableRowsProps<T extends { id: string }> = {
   onReorder: (ids: string[]) => Promise<void>;
   children: (item: T) => React.ReactNode;
   emptyMessage?: React.ReactNode;
+  /** Use true when inside <table> so DndContext is not rendered (parent must wrap with SortableTableDndWrapper). */
+  noDndWrapper?: boolean;
 };
 
-export function SortableTableRows<T extends { id: string }>({
+function SortableTableRowsInner<T extends { id: string }>({
   items,
   onReorder,
   children,
   emptyMessage = "Nenhum item.",
+  noDndWrapper,
 }: SortableTableRowsProps<T>) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -78,29 +81,73 @@ export function SortableTableRows<T extends { id: string }>({
     await onReorder(reordered.map((i) => i.id));
   }
 
-  if (items.length === 0) {
-    return (
-      <tbody>
-        <tr>
-          <td colSpan={10} className="border-b border-zinc-200 p-4 text-center text-zinc-600">
-            {emptyMessage}
-          </td>
-        </tr>
-      </tbody>
-    );
+  const body = (
+    <>
+      {items.length === 0 ? (
+        <tbody>
+          <tr>
+            <td colSpan={10} className="border-b border-zinc-200 p-4 text-center text-zinc-600">
+              {emptyMessage}
+            </td>
+          </tr>
+        </tbody>
+      ) : (
+        <tbody>
+          <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            {items.map((item) => (
+              <SortableRow key={item.id} id={item.id} item={item}>
+                {children(item)}
+              </SortableRow>
+            ))}
+          </SortableContext>
+        </tbody>
+      )}
+    </>
+  );
+
+  if (noDndWrapper) {
+    return body;
   }
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-        <tbody>
-          {items.map((item) => (
-            <SortableRow key={item.id} id={item.id} item={item}>
-              {children(item)}
-            </SortableRow>
-          ))}
-        </tbody>
-      </SortableContext>
+      {body}
     </DndContext>
   );
+}
+
+/** Wrap the whole <Table> with this when using SortableTableRows with noDndWrapper inside a table (avoids invalid <div> inside <table>). */
+export function SortableTableDndWrapper<T extends { id: string }>({
+  items,
+  onReorder,
+  children,
+}: {
+  items: T[];
+  onReorder: (ids: string[]) => Promise<void>;
+  children: React.ReactNode;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(items, oldIndex, newIndex);
+    await onReorder(reordered.map((i) => i.id));
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      {children}
+    </DndContext>
+  );
+}
+
+export function SortableTableRows<T extends { id: string }>(props: SortableTableRowsProps<T>) {
+  return <SortableTableRowsInner {...props} />;
 }

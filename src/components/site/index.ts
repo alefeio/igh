@@ -11,3 +11,5 @@ export { Stats } from "./Stats";
 export { Testimonials } from "./Testimonials";
 export { FAQ } from "./FAQ";
 export { BlogCard } from "./BlogCard";
+export { NoticiasList } from "./NoticiasList";
+export { FormacoesSection } from "./FormacoesSection";

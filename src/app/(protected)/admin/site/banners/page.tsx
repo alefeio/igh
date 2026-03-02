@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
-import { SortableTableRows } from "@/components/admin/SortableTableRows";
+import { SortableTableRows, SortableTableDndWrapper } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -150,17 +150,18 @@ export default function BannersPage() {
       {loading ? (
         <div className="text-sm text-zinc-600">Carregando...</div>
       ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th className="w-8" />
-              <Th>Ordem</Th>
-              <Th>Título</Th>
-              <Th>Status</Th>
-              <Th />
-            </tr>
-          </thead>
-          <SortableTableRows items={items} onReorder={handleReorder} emptyMessage="Nenhum banner cadastrado.">
+        <SortableTableDndWrapper items={items} onReorder={handleReorder}>
+          <Table>
+            <thead>
+              <tr>
+                <Th className="w-8" />
+                <Th>Ordem</Th>
+                <Th>Título</Th>
+                <Th>Status</Th>
+                <Th />
+              </tr>
+            </thead>
+            <SortableTableRows items={items} onReorder={handleReorder} noDndWrapper emptyMessage="Nenhum banner cadastrado.">
             {(b) => (
               <>
                 <Td>{b.order + 1}</Td>
@@ -177,8 +178,9 @@ export default function BannersPage() {
                 </Td>
               </>
             )}
-          </SortableTableRows>
-        </Table>
+            </SortableTableRows>
+          </Table>
+        </SortableTableDndWrapper>
       )}
 
       <Modal open={open} title={editing ? "Editar banner" : "Novo banner"} onClose={() => { setOpen(false); resetForm(); }}>

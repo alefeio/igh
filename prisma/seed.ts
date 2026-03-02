@@ -59,6 +59,14 @@ async function main() {
   }
 
   // --- Cursos (garantir existência para vincular às formações) ---
+  const slugify = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "");
+
   const courseNames = [
     "Programação Web",
     "Dados e IA",
@@ -69,10 +77,12 @@ async function main() {
     "Back-end e Bancos de Dados",
   ];
   for (const name of courseNames) {
+    const slug = slugify(name) || name.toLowerCase().replace(/\s+/g, "-");
     await prisma.course.upsert({
       where: { name },
       create: {
         name,
+        slug,
         description: `Curso: ${name}. Conteúdo disponível no site.`,
         status: "ACTIVE",
       },
@@ -227,6 +237,95 @@ async function main() {
       ],
     });
     console.log("Depoimentos criados (3 itens).");
+  }
+
+  // --- Projetos (conteúdo que estava em content/projetos.ts) ---
+  const projectCount = await prisma.siteProject.count();
+  if (projectCount === 0) {
+    const projects = [
+      { title: "Computadores para Inclusão", slug: "computadores-para-inclusao", summary: "Recondicionamento de equipamentos de informática para doação a projetos de inclusão digital.", content: "O programa recebe computadores usados de empresas e cidadãos, recondiciona os equipamentos e os destina a escolas, telecentros e iniciativas de inclusão digital em todo o país.", order: 0 },
+      { title: "CRC - Centro de Recondicionamento de Computadores", slug: "crc", summary: "Unidades físicas onde ocorrem a triagem, recondicionamento e destinação dos equipamentos.", content: "Os CRCs são espaços equipados para receber, testar, recondicionar e preparar computadores para doação. Funcionam em parceria com governos e organizações da sociedade civil.", order: 1 },
+      { title: "Doações Recebidas", slug: "doacoes-recebidas", summary: "Transparência sobre doações de equipamentos e recursos recebidos pelo IGH.", content: "Registro público das doações de equipamentos de informática e de recursos que permitem a manutenção dos projetos e das formações oferecidas gratuitamente.", order: 2 },
+      { title: "Entregas", slug: "entregas", summary: "Destinação dos equipamentos recondicionados a laboratórios e beneficiários.", content: "Os computadores recondicionados são entregues a escolas, telecentros, ONGs e projetos que promovem inclusão digital e educação tecnológica.", order: 3 },
+    ];
+    for (const p of projects) {
+      await prisma.siteProject.create({ data: p });
+    }
+    console.log("Projetos criados (4 itens).");
+  }
+
+  // --- Categorias de Notícias e Posts (conteúdo que estava em content/posts.ts) ---
+  let catCursos: { id: string } | null = null;
+  let catProjetos: { id: string } | null = null;
+  let catEventos: { id: string } | null = null;
+  let catParcerias: { id: string } | null = null;
+  const newsCategoryCount = await prisma.siteNewsCategory.count();
+  if (newsCategoryCount === 0) {
+    const c1 = await prisma.siteNewsCategory.create({ data: { name: "Cursos", slug: "cursos", order: 0 } });
+    const c2 = await prisma.siteNewsCategory.create({ data: { name: "Projetos", slug: "projetos", order: 1 } });
+    const c3 = await prisma.siteNewsCategory.create({ data: { name: "Eventos", slug: "eventos", order: 2 } });
+    const c4 = await prisma.siteNewsCategory.create({ data: { name: "Parcerias", slug: "parcerias", order: 3 } });
+    catCursos = c1;
+    catProjetos = c2;
+    catEventos = c3;
+    catParcerias = c4;
+    console.log("Categorias de notícias criadas (4 itens).");
+  } else {
+    catCursos = await prisma.siteNewsCategory.findFirst({ where: { slug: "cursos" }, select: { id: true } });
+    catProjetos = await prisma.siteNewsCategory.findFirst({ where: { slug: "projetos" }, select: { id: true } });
+    catEventos = await prisma.siteNewsCategory.findFirst({ where: { slug: "eventos" }, select: { id: true } });
+    catParcerias = await prisma.siteNewsCategory.findFirst({ where: { slug: "parcerias" }, select: { id: true } });
+  }
+
+  const newsPostCount = await prisma.siteNewsPost.count();
+  if (newsPostCount === 0 && (catCursos || catProjetos || catEventos || catParcerias)) {
+    const posts = [
+      { title: "Nova turma de Programação abre inscrições em março", slug: "nova-turma-programacao-2025", excerpt: "Inscrições para a formação em Programação do IGH estarão abertas a partir do dia 3 de março. São 120 vagas com aulas presenciais.", categoryId: catCursos?.id ?? null, publishedAt: new Date("2025-02-20"), isPublished: true },
+      { title: "Parceiro doa 500 computadores para recondicionamento", slug: "doacao-equipamentos-parceiro", excerpt: "Empresa parceira destinou equipamentos ao programa Computadores para Inclusão. Equipamentos serão recondicionados e doados a laboratórios.", categoryId: catProjetos?.id ?? null, publishedAt: new Date("2025-02-15"), isPublished: true },
+      { title: "Demo Day da trilha de Dados reúne projetos de análise", slug: "demo-day-trilha-dados", excerpt: "Alunos da formação em Dados e BI apresentaram projetos de análise de dados e dashboards no Demo Day realizado no último sábado.", categoryId: catEventos?.id ?? null, publishedAt: new Date("2025-02-10"), isPublished: true },
+      { title: "IGH firma parceria com prefeitura para capacitação", slug: "parceria-prefeitura-capacitacao", excerpt: "Acordo prevê oferta de formações gratuitas para jovens e adultos em situação de vulnerabilidade no município.", categoryId: catParcerias?.id ?? null, publishedAt: new Date("2025-02-05"), isPublished: true },
+      { title: "Inscrições abertas para a trilha UX/UI", slug: "inscricoes-ux-ui-abertas", excerpt: "Formação em Experiência e Interface do usuário está com vagas abertas. Pré-requisito: Informática Básica.", categoryId: catCursos?.id ?? null, publishedAt: new Date("2025-01-28"), isPublished: true },
+      { title: "Novo CRC inaugurado em estado da região Nordeste", slug: "crc-novo-estado", excerpt: "Centro de Recondicionamento de Computadores amplia atuação e passa a receber doações em mais um estado.", categoryId: catProjetos?.id ?? null, publishedAt: new Date("2025-01-22"), isPublished: true },
+    ];
+    for (const p of posts) {
+      await prisma.siteNewsPost.create({ data: p });
+    }
+    console.log("Posts de notícias criados (6 itens).");
+  }
+
+  // --- Transparência: categorias e documentos (conteúdo que estava em content/transparencia.ts) ---
+  let catEditais: { id: string } | null = null;
+  let catConvenios: { id: string } | null = null;
+  let catRelatorios: { id: string } | null = null;
+  let catOutros: { id: string } | null = null;
+  const transparencyCategoryCount = await prisma.siteTransparencyCategory.count();
+  if (transparencyCategoryCount === 0) {
+    catEditais = await prisma.siteTransparencyCategory.create({ data: { name: "Editais", slug: "editais", order: 0 } });
+    catConvenios = await prisma.siteTransparencyCategory.create({ data: { name: "Convênios", slug: "convenios", order: 1 } });
+    catRelatorios = await prisma.siteTransparencyCategory.create({ data: { name: "Relatórios", slug: "relatorios", order: 2 } });
+    catOutros = await prisma.siteTransparencyCategory.create({ data: { name: "Outros", slug: "outros", order: 3 } });
+    console.log("Categorias de transparência criadas (4 itens).");
+  } else {
+    catEditais = await prisma.siteTransparencyCategory.findFirst({ where: { slug: "editais" }, select: { id: true } });
+    catConvenios = await prisma.siteTransparencyCategory.findFirst({ where: { slug: "convenios" }, select: { id: true } });
+    catRelatorios = await prisma.siteTransparencyCategory.findFirst({ where: { slug: "relatorios" }, select: { id: true } });
+    catOutros = await prisma.siteTransparencyCategory.findFirst({ where: { slug: "outros" }, select: { id: true } });
+  }
+
+  const transparencyDocCount = await prisma.siteTransparencyDocument.count();
+  if (transparencyDocCount === 0 && catEditais && catConvenios && catRelatorios && catOutros) {
+    const docs = [
+      { categoryId: catEditais.id, title: "Edital de seleção de alunos - 2025/1", description: "Processo seletivo para as turmas do primeiro semestre de 2025.", date: new Date("2025-01-15"), fileUrl: "/docs/edital-2025-1.pdf" },
+      { categoryId: catConvenios.id, title: "Convênio com instituição parceira - Termo de cooperação", description: "Termo de cooperação técnica para oferta de formações.", date: new Date("2024-12-10"), fileUrl: "/docs/convenio-parceiro.pdf" },
+      { categoryId: catRelatorios.id, title: "Relatório de atividades - 2024", description: "Prestação de contas e resultados do ano de 2024.", date: new Date("2024-11-30"), fileUrl: "/docs/relatorio-2024.pdf" },
+      { categoryId: catEditais.id, title: "Edital de doação de equipamentos", description: "Regras para doação de equipamentos ao programa Computadores para Inclusão.", date: new Date("2024-10-01"), fileUrl: "/docs/edital-doacao.pdf" },
+      { categoryId: catRelatorios.id, title: "Prestação de contas - Projeto XYZ", description: "Demonstrativo de execução do projeto.", date: new Date("2024-09-15"), fileUrl: "/docs/prestacao-xyz.pdf" },
+      { categoryId: catOutros.id, title: "Estatuto do IGH", description: "Estatuto social do Instituto Gustavo Hessel.", date: new Date("2020-05-20"), fileUrl: "/docs/estatuto.pdf" },
+    ];
+    for (const d of docs) {
+      await prisma.siteTransparencyDocument.create({ data: d });
+    }
+    console.log("Documentos de transparência criados (6 itens).");
   }
 }
 

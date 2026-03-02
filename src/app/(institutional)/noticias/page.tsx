@@ -1,66 +1,42 @@
-"use client";
+import { PageHeader, NoticiasList } from "@/components/site";
+import type { PostForCard } from "@/components/site/NoticiasList";
+import { getNewsCategoriesForSite, getNewsPostsForSite } from "@/lib/site-data";
 
-import { useState, useMemo } from "react";
-import { PageHeader, Section, BlogCard, Button } from "@/components/site";
-import { posts, postCategories } from "@/content";
+export const metadata = {
+  title: "Notícias | Instituto Gustavo Hessel",
+  description: "Acompanhe as novidades do IGH.",
+  openGraph: { title: "Notícias | IGH", description: "Acompanhe as novidades do IGH." },
+};
 
-const PAGE_SIZE = 6;
+function toPostForCard(p: {
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  coverImageUrl: string | null;
+  categoryName: string | null;
+  publishedAt: Date | null;
+}): PostForCard {
+  return {
+    slug: p.slug,
+    title: p.title,
+    excerpt: p.excerpt ?? "",
+    category: p.categoryName ?? "Sem categoria",
+    date: p.publishedAt ? p.publishedAt.toISOString().slice(0, 10) : "",
+    image: p.coverImageUrl ?? undefined,
+  };
+}
 
-export default function NoticiasPage() {
-  const [filter, setFilter] = useState<string>("Todas");
-  const [page, setPage] = useState(1);
-
-  const filtered = useMemo(() => {
-    if (filter === "Todas") return [...posts];
-    return posts.filter((p) => p.category === filter);
-  }, [filter]);
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
-  const paginated = useMemo(
-    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filtered, page]
-  );
+export default async function NoticiasPage() {
+  const [categories, posts] = await Promise.all([
+    getNewsCategoriesForSite(),
+    getNewsPostsForSite(),
+  ]);
+  const postsForCard: PostForCard[] = posts.map(toPostForCard);
 
   return (
     <>
       <PageHeader title="Notícias" subtitle="Acompanhe as novidades do IGH." />
-      <Section>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => { setFilter("Todas"); setPage(1); }}
-            className={`rounded-full px-4 py-2 text-sm font-medium ${filter === "Todas" ? "bg-[var(--igh-primary)] text-white" : "bg-[var(--igh-surface)] text-[var(--igh-muted)]"}`}
-          >
-            Todas
-          </button>
-          {postCategories.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => { setFilter(cat); setPage(1); }}
-              className={`rounded-full px-4 py-2 text-sm font-medium ${filter === cat ? "bg-[var(--igh-primary)] text-white" : "bg-[var(--igh-surface)] text-[var(--igh-muted)]"}`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {paginated.map((post) => (
-            <BlogCard key={post.slug} post={post} />
-          ))}
-        </div>
-        {totalPages > 1 && (
-          <div className="mt-10 flex items-center justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-              Anterior
-            </Button>
-            <span className="text-sm text-[var(--igh-muted)]">Página {page} de {totalPages}</span>
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-              Próxima
-            </Button>
-          </div>
-        )}
-      </Section>
+      <NoticiasList posts={postsForCard} categories={categories} />
     </>
   );
 }

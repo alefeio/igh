@@ -12,14 +12,20 @@ export type MenuItemPublic = {
 export type SiteSettingsPublic = {
   siteName: string | null;
   logoUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
-  socialInstagram: string | null;
-  socialFacebook: string | null;
-  socialYoutube: string | null;
-  socialLinkedin: string | null;
+  contactWhatsapp: string | null;
   addressLine: string | null;
   addressCity: string | null;
   addressState: string | null;
   addressZip: string | null;
+  businessHours: string | null;
+  socialInstagram: string | null;
+  socialFacebook: string | null;
+  socialYoutube: string | null;
+  socialLinkedin: string | null;
+  seoTitleDefault: string | null;
+  seoDescriptionDefault: string | null;
 };

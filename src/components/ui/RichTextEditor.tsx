@@ -22,6 +22,7 @@ export function RichTextEditor({
   const editor = useEditor({
     extensions: [StarterKit],
     content: value || "",
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         class: "min-h-[120px] px-3 py-2 text-sm focus:outline-none [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-2",

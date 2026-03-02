@@ -77,6 +77,7 @@ model Teacher {
 model Course {
   id            String       @id @default(uuid())
   name          String       @unique
+  slug          String       @unique // para URL pública /cursos/[slug]
   description   String?
   content       String?      // rich text (HTML ou markdown)
   imageUrl      String?      // foto/capa do curso

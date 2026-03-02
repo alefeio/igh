@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { SortableTableRows } from "@/components/admin/SortableTableRows";
+import { SortableTableRows, SortableTableDndWrapper } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -134,17 +134,18 @@ export default function FaqPage() {
       {loading ? (
         <div className="text-sm text-zinc-600">Carregando...</div>
       ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th className="w-8" />
-              <Th>Ordem</Th>
-              <Th>Pergunta</Th>
-              <Th>Status</Th>
-              <Th />
-            </tr>
-          </thead>
-          <SortableTableRows items={items} onReorder={handleReorder} emptyMessage="Nenhum item no FAQ.">
+        <SortableTableDndWrapper items={items} onReorder={handleReorder}>
+          <Table>
+            <thead>
+              <tr>
+                <Th className="w-8" />
+                <Th>Ordem</Th>
+                <Th>Pergunta</Th>
+                <Th>Status</Th>
+                <Th />
+              </tr>
+            </thead>
+            <SortableTableRows items={items} onReorder={handleReorder} noDndWrapper emptyMessage="Nenhum item no FAQ.">
             {(item) => (
               <>
                 <Td>{item.order + 1}</Td>
@@ -160,8 +161,9 @@ export default function FaqPage() {
                 </Td>
               </>
             )}
-          </SortableTableRows>
-        </Table>
+            </SortableTableRows>
+          </Table>
+        </SortableTableDndWrapper>
       )}
 
       <Modal open={open} title={editing ? "Editar item" : "Novo item"} onClose={() => { setOpen(false); resetForm(); }}>

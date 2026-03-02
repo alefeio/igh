@@ -57,6 +57,7 @@ export const siteFormationSchema = z.object({
   prerequisites: z.string().optional(),
   order: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
+  courseIds: z.array(z.string().uuid()).optional(),
 });
 
 export const siteFormationCourseSchema = z.object({

@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { PageHeader, Section, Card, Button } from "@/components/site";
-import { projetosList } from "@/content";
+import { getProjectsForSite } from "@/lib/site-data";
 
 export const metadata = {
   title: "Projetos | Instituto Gustavo Hessel",
@@ -8,7 +7,9 @@ export const metadata = {
   openGraph: { title: "Projetos | IGH", description: "CRC, Computadores para Inclusão, Doações e Entregas." },
 };
 
-export default function ProjetosPage() {
+export default async function ProjetosPage() {
+  const projects = await getProjectsForSite();
+
   return (
     <>
       <PageHeader
@@ -16,22 +17,24 @@ export default function ProjetosPage() {
         subtitle="Inclusão digital, recondicionamento de equipamentos e sustentabilidade."
       />
       <Section>
-        <div className="grid gap-6 sm:grid-cols-2">
-          {projetosList.map((p) => (
-            <Card key={p.slug} as="article" className="flex flex-col">
-              <h2 className="text-xl font-semibold text-[var(--igh-secondary)]">{p.title}</h2>
-              <p className="mt-2 text-[var(--igh-muted)]">{p.shortDescription}</p>
-              <ul className="mt-3 list-inside list-disc text-sm text-[var(--igh-muted)]">
-                {p.highlights.map((h, i) => (
-                  <li key={i}>{h}</li>
-                ))}
-              </ul>
-              <Button as="link" href={`/projetos/${p.slug}`} variant="primary" size="sm" className="mt-4 w-full sm:w-auto">
-                Saiba mais
-              </Button>
-            </Card>
-          ))}
-        </div>
+        {projects.length === 0 ? (
+          <p className="text-center text-[var(--igh-muted)]">Nenhum projeto cadastrado no momento.</p>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2">
+            {projects.map((p) => (
+              <Card key={p.id} as="article" className="flex flex-col">
+                {p.coverImageUrl && (
+                  <img src={p.coverImageUrl} alt="" className="mb-3 h-40 w-full rounded-lg object-cover" />
+                )}
+                <h2 className="text-xl font-semibold text-[var(--igh-secondary)]">{p.title}</h2>
+                <p className="mt-2 text-[var(--igh-muted)]">{p.summary ?? "Sem resumo."}</p>
+                <Button as="link" href={`/projetos/${p.slug}`} variant="primary" size="sm" className="mt-4 w-full sm:w-auto">
+                  Saiba mais
+                </Button>
+              </Card>
+            ))}
+          </div>
+        )}
       </Section>
     </>
   );

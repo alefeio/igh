@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { SortableTableRows } from "@/components/admin/SortableTableRows";
+import { SortableTableRows, SortableTableDndWrapper } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -113,17 +113,18 @@ export default function MenuPage() {
       {loading ? (
         <div className="text-sm text-zinc-600">Carregando...</div>
       ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th className="w-8" />
-              <Th>Ordem</Th>
-              <Th>Label</Th>
-              <Th>Link</Th>
-              <Th />
-            </tr>
-          </thead>
-          <SortableTableRows items={items} onReorder={handleReorder} emptyMessage="Nenhum item.">
+        <SortableTableDndWrapper items={items} onReorder={handleReorder}>
+          <Table>
+            <thead>
+              <tr>
+                <Th className="w-8" />
+                <Th>Ordem</Th>
+                <Th>Label</Th>
+                <Th>Link</Th>
+                <Th />
+              </tr>
+            </thead>
+            <SortableTableRows items={items} onReorder={handleReorder} noDndWrapper emptyMessage="Nenhum item.">
             {(m) => (
               <>
                 <Td>{m.order + 1}</Td>
@@ -135,8 +136,9 @@ export default function MenuPage() {
                 </Td>
               </>
             )}
-          </SortableTableRows>
-        </Table>
+            </SortableTableRows>
+          </Table>
+        </SortableTableDndWrapper>
       )}
       <Modal open={open} title={editing ? "Editar item" : "Novo item"} onClose={() => setOpen(false)}>
         <form className="flex flex-col gap-3" onSubmit={save}>

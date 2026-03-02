@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import type { MenuItemPublic } from "@/lib/site-types";
+import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
 
 const FALLBACK_LINKS: MenuItemPublic[] = [
   { id: "1", label: "Início", href: "/", order: 0, isExternal: false, children: [] },
@@ -20,19 +20,27 @@ const FALLBACK_LINKS: MenuItemPublic[] = [
   { id: "7", label: "Contato", href: "/contato", order: 6, isExternal: false, children: [] },
 ];
 
-type NavbarProps = { menuItems?: MenuItemPublic[] | null };
+type NavbarProps = {
+  menuItems?: MenuItemPublic[] | null;
+  settings?: SiteSettingsPublic | null;
+};
 
-export function Navbar({ menuItems: propItems }: NavbarProps) {
+export function Navbar({ menuItems: propItems, settings }: NavbarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [projetosOpen, setProjetosOpen] = useState(false);
   const links = (propItems && propItems.length > 0) ? propItems : FALLBACK_LINKS;
+  const logoUrl = settings?.logoUrl;
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--igh-border)] bg-white/95 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Menu principal">
-        <Link href="/" className="text-xl font-bold text-[var(--igh-primary)] rounded focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2">
-          IGH
+        <Link href="/" className="flex shrink-0 items-center rounded focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2">
+          {logoUrl ? (
+            <img src={logoUrl} alt={settings?.siteName ?? "Logo"} className="h-10 w-auto object-contain sm:h-12" />
+          ) : (
+            <span className="text-xl font-bold text-[var(--igh-primary)]">IGH</span>
+          )}
         </Link>
         <div className="hidden md:flex md:items-center md:gap-1">
           {links.map((l) => (

@@ -33,6 +33,24 @@ export async function PATCH(request: Request, ctx: Ctx) {
     const dup = await prisma.siteFormation.findUnique({ where: { slug } });
     if (dup) return jsonErr("DUPLICATE_SLUG", "Já existe uma formação com este slug.", 409);
   }
+
+  if (parsed.data.courseIds !== undefined) {
+    await prisma.siteFormationCourse.deleteMany({ where: { formationId: id } });
+    const courseIds = parsed.data.courseIds;
+    if (courseIds.length > 0) {
+      const existingCourses = await prisma.course.findMany({
+        where: { id: { in: courseIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existingCourses.map((c) => c.id));
+      const validIds = courseIds.filter((cid) => existingIds.has(cid));
+      await prisma.siteFormationCourse.createMany({
+        data: validIds.map((courseId, index) => ({ formationId: id, courseId, order: index })),
+        skipDuplicates: true,
+      });
+    }
+  }
+
   const item = await prisma.siteFormation.update({
     where: { id },
     data: {
@@ -47,7 +65,11 @@ export async function PATCH(request: Request, ctx: Ctx) {
       isActive: parsed.data.isActive ?? undefined,
     },
   });
-  return jsonOk({ item });
+  const withCourses = await prisma.siteFormation.findUnique({
+    where: { id },
+    include: { courses: { include: { course: true }, orderBy: [{ order: "asc" }] } },
+  });
+  return jsonOk({ item: withCourses ?? item });
 }
 
 export async function DELETE(_r: Request, ctx: Ctx) {

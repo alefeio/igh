@@ -6,9 +6,11 @@ import { Sidebar } from "./Sidebar";
 
 export function ResponsiveShell({
   user,
+  logoUrl = null,
   children,
 }: {
   user: { name: string; email: string; role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT" };
+  logoUrl?: string | null;
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -26,6 +28,7 @@ export function ResponsiveShell({
       )}
       <Sidebar
         user={user}
+        logoUrl={logoUrl}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
       />

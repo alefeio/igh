@@ -21,7 +21,11 @@ export function BlogCard({ post }: { post: Post }) {
   return (
     <Card as="article" className="h-full flex flex-col">
       <div className="aspect-video w-full overflow-hidden rounded-lg bg-[var(--igh-surface)] -mx-6 -mt-6 mb-4">
-        {/* placeholder: image or colored block */}
+        {post.image ? (
+          <img src={post.image} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="h-full w-full bg-[var(--igh-surface)]" aria-hidden />
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         <Badge tone="primary">{post.category}</Badge>

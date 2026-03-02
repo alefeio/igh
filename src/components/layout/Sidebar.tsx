@@ -21,13 +21,14 @@ const ITEMS: Item[] = [
   { href: "/minhas-turmas", label: "Minhas turmas", studentOnly: true, category: "Aluno" },
   { href: "/users", label: "Usuários (Admin)", masterOnly: true, category: "Administração" },
   { href: "/teachers", label: "Professores", masterOnly: true, category: "Administração" },
+  { href: "/admin/site/formacoes", label: "Formações", adminOrMaster: true, category: "Administração" },
   { href: "/courses", label: "Cursos", masterOnly: true, category: "Administração" },
   { href: "/class-groups", label: "Turmas", masterOnly: true, category: "Administração" },
   { href: "/enrollments", label: "Matrículas", masterOnly: true, category: "Administração" },
+  { href: "/students", label: "Alunos", category: "Administração" },
   { href: "/admin/site/configuracoes", label: "Configurações", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/menu", label: "Menu", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/banners", label: "Banners", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/formacoes", label: "Formações", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/projetos", label: "Projetos", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/depoimentos", label: "Depoimentos", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/parceiros", label: "Parceiros", adminOrMaster: true, category: "Site" },
@@ -36,15 +37,16 @@ const ITEMS: Item[] = [
   { href: "/admin/site/transparencia", label: "Transparência", adminOrMaster: true, category: "Site" },
   { href: "/time-slots", label: "Horários", masterOnly: true, category: "Configurações" },
   { href: "/holidays", label: "Feriados", masterOnly: true, category: "Configurações" },
-  { href: "/students", label: "Alunos", category: "Cadastro" },
 ];
 
 export function Sidebar({
   user,
+  logoUrl = null,
   mobileOpen = false,
   onMobileClose,
 }: {
   user: { name: string; email: string; role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT" };
+  logoUrl?: string | null;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }) {
@@ -72,7 +74,7 @@ export function Sidebar({
     acc[cat].push(item);
     return acc;
   }, {});
-  const categoryOrder = ["Início", "Aluno", "Administração", "Site", "Configurações", "Cadastro", "Menu"];
+  const categoryOrder = ["Início", "Aluno", "Administração", "Site", "Configurações", "Menu"];
 
   const navContent = (
     <ul className="flex flex-col gap-4">
@@ -108,7 +110,11 @@ export function Sidebar({
     <>
       <div className="shrink-0 border-b border-zinc-200 px-4 py-4">
         <div className="flex justify-center">
-          <img src="/images/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" className="h-12 w-auto object-contain" />
+          ) : (
+            <img src="/images/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
+          )}
         </div>
         <div className="mt-3 text-sm font-semibold">Cadastro de Cursos</div>
         <div className="mt-2 text-xs text-zinc-600">{user.name}</div>

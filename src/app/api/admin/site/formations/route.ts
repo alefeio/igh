@@ -43,7 +43,22 @@ export async function POST(request: Request) {
       isActive: parsed.data.isActive ?? true,
     },
   });
-  return jsonOk({ item }, { status: 201 });
+  const courseIds = parsed.data.courseIds ?? [];
+  if (courseIds.length > 0) {
+    await prisma.siteFormationCourse.createMany({
+      data: courseIds.map((courseId, index) => ({
+        formationId: item.id,
+        courseId,
+        order: index,
+      })),
+      skipDuplicates: true,
+    });
+  }
+  const withCourses = await prisma.siteFormation.findUnique({
+    where: { id: item.id },
+    include: { courses: { include: { course: true }, orderBy: [{ order: "asc" }] } },
+  });
+  return jsonOk({ item: withCourses ?? item }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {

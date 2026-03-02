@@ -39,16 +39,22 @@ export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
   return {
     siteName: s.siteName,
     logoUrl: s.logoUrl,
+    primaryColor: s.primaryColor,
+    secondaryColor: s.secondaryColor,
     contactEmail: s.contactEmail,
     contactPhone: s.contactPhone,
-    socialInstagram: s.socialInstagram,
-    socialFacebook: s.socialFacebook,
-    socialYoutube: s.socialYoutube,
-    socialLinkedin: s.socialLinkedin,
+    contactWhatsapp: s.contactWhatsapp,
     addressLine: s.addressLine,
     addressCity: s.addressCity,
     addressState: s.addressState,
     addressZip: s.addressZip,
+    businessHours: s.businessHours,
+    socialInstagram: s.socialInstagram,
+    socialFacebook: s.socialFacebook,
+    socialYoutube: s.socialYoutube,
+    socialLinkedin: s.socialLinkedin,
+    seoTitleDefault: s.seoTitleDefault,
+    seoDescriptionDefault: s.seoDescriptionDefault,
   };
 }
 
@@ -139,6 +145,7 @@ export type FormationWithCourses = {
     course: {
       id: string;
       name: string;
+      slug: string;
       description: string | null;
       content: string | null;
       imageUrl: string | null;
@@ -172,6 +179,7 @@ export async function getFormationsWithCourses(): Promise<FormationWithCourses[]
             select: {
               id: true,
               name: true,
+              slug: true,
               description: true,
               content: true,
               imageUrl: true,
@@ -211,4 +219,323 @@ export async function getFormationsForHome(limit = 4): Promise<FormationWithCour
 
 export function getComoFuncionaFormacao(): HowFormationWorksItem[] {
   return COMO_FUNCIONA_FALLBACK;
+}
+
+// --- Formações como filtro (lista para botões) ---
+export type FormationFilterItem = { id: string; title: string; slug: string };
+
+export async function getFormationsForFilter(): Promise<FormationFilterItem[]> {
+  const list = await prisma.siteFormation.findMany({
+    where: {
+      isActive: true,
+      courses: { some: {} },
+    },
+    orderBy: [{ order: "asc" }],
+    select: { id: true, title: true, slug: true },
+  });
+  return list;
+}
+
+// --- Cursos para o site (com filtro por formação) ---
+export type CourseForSite = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  content: string | null;
+  imageUrl: string | null;
+  workloadHours: number | null;
+  formationId: string | null;
+  formationTitle: string | null;
+  formationSlug: string | null;
+};
+
+export async function getCoursesForSite(formationSlug?: string): Promise<CourseForSite[]> {
+  if (formationSlug) {
+    const formation = await prisma.siteFormation.findFirst({
+      where: { slug: formationSlug, isActive: true },
+      include: {
+        courses: {
+          orderBy: { order: "asc" },
+          include: {
+            course: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                description: true,
+                content: true,
+                imageUrl: true,
+                workloadHours: true,
+                status: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!formation) return [];
+    return formation.courses
+      .filter((fc) => fc.course != null && fc.course.status === "ACTIVE")
+      .map((fc) => ({
+        id: fc.course!.id,
+        name: fc.course!.name,
+        slug: fc.course!.slug,
+        description: fc.course!.description,
+        content: fc.course!.content,
+        imageUrl: fc.course!.imageUrl,
+        workloadHours: fc.course!.workloadHours,
+        formationId: formation.id,
+        formationTitle: formation.title,
+        formationSlug: formation.slug,
+      }));
+  }
+
+  const courses = await prisma.course.findMany({
+    where: { status: "ACTIVE" },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      content: true,
+      imageUrl: true,
+      workloadHours: true,
+      siteFormations: {
+        take: 1,
+        orderBy: { order: "asc" },
+        select: { formation: { select: { id: true, title: true, slug: true } } },
+      },
+    },
+  });
+
+  return courses.map((c) => {
+    const first = c.siteFormations[0]?.formation;
+    return {
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      description: c.description,
+      content: c.content,
+      imageUrl: c.imageUrl,
+      workloadHours: c.workloadHours,
+      formationId: first?.id ?? null,
+      formationTitle: first?.title ?? null,
+      formationSlug: first?.slug ?? null,
+    };
+  });
+}
+
+// --- Projetos (site público) ---
+export type ProjectForSite = {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string | null;
+  content: string | null;
+  coverImageUrl: string | null;
+  order: number;
+};
+
+export async function getProjectsForSite(): Promise<ProjectForSite[]> {
+  const list = await prisma.siteProject.findMany({
+    where: { isActive: true },
+    orderBy: [{ order: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      summary: true,
+      content: true,
+      coverImageUrl: true,
+      order: true,
+    },
+  });
+  return list;
+}
+
+export async function getProjectBySlug(slug: string): Promise<ProjectForSite | null> {
+  const p = await prisma.siteProject.findFirst({
+    where: { slug, isActive: true },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      summary: true,
+      content: true,
+      coverImageUrl: true,
+      order: true,
+    },
+  });
+  return p;
+}
+
+// --- Notícias (site público) ---
+export type NewsCategoryForSite = { id: string; name: string; slug: string };
+
+export type NewsPostForSite = {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string | null;
+  coverImageUrl: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  publishedAt: Date | null;
+};
+
+export async function getNewsCategoriesForSite(): Promise<NewsCategoryForSite[]> {
+  const list = await prisma.siteNewsCategory.findMany({
+    where: { isActive: true },
+    orderBy: [{ order: "asc" }],
+    select: { id: true, name: true, slug: true },
+  });
+  return list;
+}
+
+export async function getNewsPostsForSite(categorySlug?: string): Promise<NewsPostForSite[]> {
+  const where: { isPublished: true; category?: { slug: string } } = { isPublished: true };
+  if (categorySlug) {
+    where.category = { slug: categorySlug };
+  }
+  const list = await prisma.siteNewsPost.findMany({
+    where,
+    orderBy: [{ publishedAt: "desc" }],
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      excerpt: true,
+      content: true,
+      coverImageUrl: true,
+      categoryId: true,
+      publishedAt: true,
+      category: { select: { name: true } },
+    },
+  });
+  return list.map((p) => ({
+    id: p.id,
+    title: p.title,
+    slug: p.slug,
+    excerpt: p.excerpt,
+    content: p.content,
+    coverImageUrl: p.coverImageUrl,
+    categoryId: p.categoryId,
+    categoryName: p.category?.name ?? null,
+    publishedAt: p.publishedAt,
+  }));
+}
+
+export async function getNewsPostBySlug(slug: string): Promise<NewsPostForSite | null> {
+  const p = await prisma.siteNewsPost.findFirst({
+    where: { slug, isPublished: true },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      excerpt: true,
+      content: true,
+      coverImageUrl: true,
+      categoryId: true,
+      publishedAt: true,
+      category: { select: { name: true } },
+    },
+  });
+  if (!p) return null;
+  return {
+    id: p.id,
+    title: p.title,
+    slug: p.slug,
+    excerpt: p.excerpt,
+    content: p.content,
+    coverImageUrl: p.coverImageUrl,
+    categoryId: p.categoryId,
+    categoryName: p.category?.name ?? null,
+    publishedAt: p.publishedAt,
+  };
+}
+
+// --- Transparência (site público) ---
+export type TransparencyCategoryForSite = {
+  id: string;
+  name: string;
+  slug: string;
+  order: number;
+  documents: {
+    id: string;
+    title: string;
+    description: string | null;
+    date: Date | null;
+    fileUrl: string | null;
+  }[];
+};
+
+export async function getTransparencyForSite(): Promise<TransparencyCategoryForSite[]> {
+  const list = await prisma.siteTransparencyCategory.findMany({
+    where: { isActive: true },
+    orderBy: [{ order: "asc" }],
+    include: {
+      documents: {
+        where: { isActive: true },
+        orderBy: [{ date: "desc" }],
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          date: true,
+          fileUrl: true,
+        },
+      },
+    },
+  });
+  return list.map((c) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    order: c.order,
+    documents: c.documents.map((d) => ({
+      id: d.id,
+      title: d.title,
+      description: d.description,
+      date: d.date,
+      fileUrl: d.fileUrl,
+    })),
+  }));
+}
+
+// --- Curso por slug (detalhe para modal/página) ---
+export async function getCourseBySlug(slug: string): Promise<CourseForSite | null> {
+  const course = await prisma.course.findFirst({
+    where: { slug, status: "ACTIVE" },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      content: true,
+      imageUrl: true,
+      workloadHours: true,
+      siteFormations: {
+        take: 1,
+        orderBy: { order: "asc" },
+        select: { formation: { select: { id: true, title: true, slug: true } } },
+      },
+    },
+  });
+  if (!course) return null;
+  const first = course.siteFormations[0]?.formation;
+  return {
+    id: course.id,
+    name: course.name,
+    slug: course.slug,
+    description: course.description,
+    content: course.content,
+    imageUrl: course.imageUrl,
+    workloadHours: course.workloadHours,
+    formationId: first?.id ?? null,
+    formationTitle: first?.title ?? null,
+    formationSlug: first?.slug ?? null,
+  };
 }

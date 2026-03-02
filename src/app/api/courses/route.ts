@@ -4,8 +4,32 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { createCourseSchema } from "@/lib/validators/courses";
 import { createAuditLog } from "@/lib/audit";
 
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function ensureUniqueSlug(base: string, excludeId?: string): Promise<string> {
+  return (async () => {
+    let slug = base;
+    let n = 0;
+    for (;;) {
+      const existing = await prisma.course.findUnique({
+        where: { slug },
+        select: { id: true },
+      });
+      if (!existing || (excludeId && existing.id === excludeId)) return slug;
+      slug = `${base}-${++n}`;
+    }
+  })();
+}
+
 export async function GET() {
-  await requireRole("MASTER");
+  await requireRole(["MASTER", "ADMIN"]);
 
   const courses = await prisma.course.findMany({
     orderBy: { name: "asc" },
@@ -23,15 +47,19 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { name, description, content, imageUrl, workloadHours, status } = parsed.data;
+  const { name, description, content, imageUrl, workloadHours, status, slug: slugInput } = parsed.data;
   const existing = await prisma.course.findUnique({ where: { name }, select: { id: true } });
   if (existing) {
     return jsonErr("DUPLICATE_NAME", "Já existe um curso com este nome.", 409);
   }
 
+  const baseSlug = slugInput || slugify(name);
+  const slug = await ensureUniqueSlug(baseSlug);
+
   const course = await prisma.course.create({
     data: {
       name,
+      slug,
       description: description || null,
       content: content || null,
       imageUrl: imageUrl || null,

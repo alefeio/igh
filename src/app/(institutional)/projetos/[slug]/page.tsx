@@ -1,45 +1,52 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { PageHeader, Section, Button } from "@/components/site";
-import { getProjetoBySlug } from "@/content";
+import { getProjectBySlug, getProjectsForSite } from "@/lib/site-data";
 
 type Props = { params: Promise<{ slug: string }> };
 
+export async function generateStaticParams() {
+  const projects = await getProjectsForSite();
+  return projects.map((p) => ({ slug: p.slug }));
+}
+
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
-  const p = getProjetoBySlug(slug);
+  const p = await getProjectBySlug(slug);
   if (!p) return { title: "Projeto | IGH" };
   return {
     title: `${p.title} | Instituto Gustavo Hessel`,
-    description: p.shortDescription,
-    openGraph: { title: `${p.title} | IGH`, description: p.shortDescription },
+    description: p.summary ?? undefined,
+    openGraph: { title: `${p.title} | IGH`, description: p.summary ?? undefined },
   };
 }
 
 export default async function ProjetoSlugPage({ params }: Props) {
   const { slug } = await params;
-  const projeto = getProjetoBySlug(slug);
+  const projeto = await getProjectBySlug(slug);
   if (!projeto) notFound();
 
   return (
     <>
-      <PageHeader title={projeto.title} subtitle={projeto.shortDescription} />
+      <PageHeader title={projeto.title} subtitle={projeto.summary ?? undefined} />
       <Section>
-        <p className="max-w-2xl text-[var(--igh-muted)]">{projeto.description}</p>
-        <ul className="mt-6 list-inside list-disc text-[var(--igh-muted)]">
-          {projeto.highlights.map((h, i) => (
-            <li key={i}>{h}</li>
-          ))}
-        </ul>
+        {projeto.coverImageUrl && (
+          <img src={projeto.coverImageUrl} alt="" className="mb-6 h-64 w-full rounded-lg object-cover" />
+        )}
+        {projeto.content ? (
+          <div
+            className="prose prose-lg max-w-none text-[var(--igh-muted)]"
+            dangerouslySetInnerHTML={{ __html: projeto.content }}
+          />
+        ) : (
+          <p className="max-w-2xl text-[var(--igh-muted)]">{projeto.summary ?? "Conteúdo em breve."}</p>
+        )}
         <div className="mt-8 flex flex-wrap gap-4">
           <Button as="link" href="/projetos" variant="outline">
             Voltar aos projetos
           </Button>
-          {projeto.slug === "doacoes-recebidas" && (
-            <Button as="link" href="/contato" variant="primary">
-              Entrar em contato
-            </Button>
-          )}
+          <Button as="link" href="/contato" variant="primary">
+            Entrar em contato
+          </Button>
         </div>
       </Section>
     </>

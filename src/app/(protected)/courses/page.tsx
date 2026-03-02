@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -15,6 +15,7 @@ import type { ApiResponse } from "@/lib/api-types";
 type Course = {
   id: string;
   name: string;
+  slug: string;
   description: string | null;
   content: string | null;
   imageUrl: string | null;
@@ -69,13 +70,13 @@ export default function CoursesPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/courses");
-      const json = (await res.json()) as ApiResponse<{ courses: Course[] }>;
-      if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao carregar cursos.");
+      const coursesRes = await fetch("/api/courses");
+      const coursesJson = (await coursesRes.json()) as ApiResponse<{ courses: Course[] }>;
+      if (!coursesRes.ok || !coursesJson.ok) {
+        toast.push("error", coursesJson.error?.message ?? "Falha ao carregar cursos.");
         return;
       }
-      setItems(json.data.courses);
+      setItems(coursesJson.data.courses);
     } finally {
       setLoading(false);
     }
@@ -176,6 +177,11 @@ export default function CoursesPage() {
   }
 
   const visibleItems = showInactive ? items : items.filter((c) => c.status === "ACTIVE");
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (open) formRef.current?.scrollTo?.({ top: 0 });
+  }, [open]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -290,7 +296,7 @@ export default function CoursesPage() {
         title={editing ? "Editar curso" : "Novo curso"}
         onClose={() => { setOpen(false); resetForm(); }}
       >
-        <form className="flex flex-col gap-3" onSubmit={save}>
+        <form ref={formRef} className="flex max-h-[85vh] flex-col gap-3 overflow-y-auto" onSubmit={save}>
           <div>
             <label className="text-sm font-medium">Nome</label>
             <div className="mt-1">

@@ -19,16 +19,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return jsonErr("NOT_FOUND", "Curso não encontrado.", 404);
   }
 
+  const data: Parameters<typeof prisma.course.update>[0]["data"] = {
+    name: parsed.data.name ?? undefined,
+    description: parsed.data.description === "" ? null : (parsed.data.description ?? undefined),
+    content: parsed.data.content === "" ? null : (parsed.data.content ?? undefined),
+    imageUrl: parsed.data.imageUrl === "" ? null : (parsed.data.imageUrl ?? undefined),
+    workloadHours: parsed.data.workloadHours ?? undefined,
+    status: parsed.data.status ?? undefined,
+  };
+  if (parsed.data.slug !== undefined) {
+    const slug = parsed.data.slug.trim();
+    if (slug) {
+      const dup = await prisma.course.findFirst({ where: { slug, NOT: { id } }, select: { id: true } });
+      if (dup) return jsonErr("DUPLICATE_SLUG", "Já existe um curso com este slug.", 409);
+      data.slug = slug;
+    }
+  }
+
   const updated = await prisma.course.update({
     where: { id },
-    data: {
-      name: parsed.data.name ?? undefined,
-      description: parsed.data.description === "" ? null : (parsed.data.description ?? undefined),
-      content: parsed.data.content === "" ? null : (parsed.data.content ?? undefined),
-      imageUrl: parsed.data.imageUrl === "" ? null : (parsed.data.imageUrl ?? undefined),
-      workloadHours: parsed.data.workloadHours ?? undefined,
-      status: parsed.data.status ?? undefined,
-    },
+    data,
   });
 
   await createAuditLog({

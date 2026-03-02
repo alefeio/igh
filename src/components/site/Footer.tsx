@@ -33,9 +33,20 @@ export function Footer({ menuItems, settings }: FooterProps) {
       ? [...flattenMenu(menuItems), { label: "Área do Aluno", href: "/login" }]
       : FALLBACK_LINKS;
 
-  const contactEmail = settings?.contactEmail ?? "contato@igh.org.br";
-  const contactPhone = settings?.contactPhone ?? "(11) 1234-5678";
   const siteName = settings?.siteName ?? "Instituto Gustavo Hessel";
+  const hasContact =
+    settings?.contactEmail ||
+    settings?.contactPhone ||
+    settings?.contactWhatsapp ||
+    settings?.addressLine ||
+    settings?.addressCity ||
+    settings?.businessHours;
+  const contactLines: string[] = [];
+  if (settings?.contactEmail) contactLines.push(settings.contactEmail);
+  if (settings?.contactPhone) contactLines.push(settings.contactPhone);
+  if (settings?.contactWhatsapp) contactLines.push(`WhatsApp: ${settings.contactWhatsapp}`);
+  const addressParts = [settings?.addressLine, settings?.addressCity, settings?.addressState, settings?.addressZip].filter(Boolean);
+  const addressLine = addressParts.length > 0 ? addressParts.join(", ") : null;
 
   const socials = [
     { name: "Instagram", href: settings?.socialInstagram ?? "#", icon: "instagram" },
@@ -49,7 +60,10 @@ export function Footer({ menuItems, settings }: FooterProps) {
       <Container className="py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-xl font-bold text-white">{siteName}</p>
+            {settings?.logoUrl ? (
+              <img src={settings.logoUrl} alt={siteName} className="h-12 w-auto object-contain" />
+            ) : null}
+            <p className={`text-xl font-bold text-white ${settings?.logoUrl ? "mt-2" : ""}`}>{siteName}</p>
             <p className="mt-2 text-sm text-white/80">
               Formação em tecnologia e inclusão digital para transformar vidas.
             </p>
@@ -69,18 +83,18 @@ export function Footer({ menuItems, settings }: FooterProps) {
               ))}
             </ul>
           </div>
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-white/90">Contato</h3>
-            <p className="mt-4 text-sm text-white/80">
-              {contactEmail}
-              {contactPhone && (
-                <>
-                  <br />
-                  {contactPhone}
-                </>
-              )}
-            </p>
-          </div>
+          {hasContact ? (
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-white/90">Contato</h3>
+              <div className="mt-4 space-y-1 text-sm text-white/80">
+                {contactLines.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+                {addressLine && <p>{addressLine}</p>}
+                {settings?.businessHours && <p>Horário: {settings.businessHours}</p>}
+              </div>
+            </div>
+          ) : null}
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white/90">Redes sociais</h3>
             <ul className="mt-4 flex gap-4">

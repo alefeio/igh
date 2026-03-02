@@ -1,38 +1,62 @@
 import { PageHeader, Section, Card } from "@/components/site";
-import { documentos, categoriasTransparencia } from "@/content";
+import { getTransparencyForSite } from "@/lib/site-data";
 
 export const metadata = {
   title: "Transparência | IGH",
   description: "Editais, convênios e relatórios do IGH.",
 };
 
-export default function TransparenciaPage() {
-  const byCategory = categoriasTransparencia.map((cat) => ({
-    categoria: cat,
-    items: documentos.filter((d) => d.categoria === cat),
-  }));
+function formatDate(d: Date | null): string {
+  if (!d) return "";
+  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+export default async function TransparenciaPage() {
+  const categories = await getTransparencyForSite();
 
   return (
     <>
       <PageHeader title="Transparência" subtitle="Prestação de contas: editais, convênios e relatórios." />
       <Section>
-        {byCategory.map(({ categoria, items }) => (
-          <div key={categoria} className="mb-12">
-            <h2 className="text-xl font-semibold text-[var(--igh-secondary)] mb-4">{categoria}</h2>
-            <div className="space-y-4">
-              {items.map((doc) => (
-                <Card key={doc.id} as="article" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div>
-                    <h3 className="font-medium text-[var(--igh-secondary)]">{doc.titulo}</h3>
-                    <p className="mt-1 text-sm text-[var(--igh-muted)]">{doc.data}</p>
-                    <p className="mt-2 text-sm text-[var(--igh-muted)]">{doc.descricao}</p>
-                  </div>
-                  <a href={doc.arquivo} download className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--igh-primary-hover)]">Baixar PDF</a>
-                </Card>
-              ))}
+        {categories.length === 0 ? (
+          <p className="text-center text-[var(--igh-muted)]">Nenhum documento cadastrado no momento.</p>
+        ) : (
+          categories.map((cat) => (
+            <div key={cat.id} className="mb-12">
+              <h2 className="mb-4 text-xl font-semibold text-[var(--igh-secondary)]">{cat.name}</h2>
+              <div className="space-y-4">
+                {cat.documents.length === 0 ? (
+                  <p className="text-sm text-[var(--igh-muted)]">Nenhum documento nesta categoria.</p>
+                ) : (
+                  cat.documents.map((doc) => (
+                    <Card key={doc.id} as="article" className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="font-medium text-[var(--igh-secondary)]">{doc.title}</h3>
+                        {doc.date && (
+                          <p className="mt-1 text-sm text-[var(--igh-muted)]">{formatDate(doc.date)}</p>
+                        )}
+                        {doc.description && (
+                          <p className="mt-2 text-sm text-[var(--igh-muted)]">{doc.description}</p>
+                        )}
+                      </div>
+                      {doc.fileUrl && (
+                        <a
+                          href={doc.fileUrl}
+                          download
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--igh-primary-hover)]"
+                        >
+                          Baixar PDF
+                        </a>
+                      )}
+                    </Card>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </Section>
     </>
   );
