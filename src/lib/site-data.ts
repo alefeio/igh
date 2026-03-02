@@ -6,6 +6,7 @@ import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
 export type { MenuItemPublic, SiteSettingsPublic };
 
 export async function getMenuItems(): Promise<MenuItemPublic[]> {
+  try {
   const items = await prisma.siteMenuItem.findMany({
     where: { isVisible: true, parentId: null },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
@@ -31,13 +32,17 @@ export async function getMenuItems(): Promise<MenuItemPublic[]> {
       children: [],
     })),
   }));
+  } catch {
+    return [];
+  }
 }
 
 // --- Settings (para Footer e SEO) ---
 export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
-  const s = await prisma.siteSettings.findFirst();
-  if (!s) return null;
-  return {
+  try {
+    const s = await prisma.siteSettings.findFirst();
+    if (!s) return null;
+    return {
     siteName: s.siteName,
     logoUrl: s.logoUrl,
     faviconUrl: s.faviconUrl,
@@ -58,6 +63,9 @@ export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
     seoTitleDefault: s.seoTitleDefault,
     seoDescriptionDefault: s.seoDescriptionDefault,
   };
+  } catch {
+    return null;
+  }
 }
 
 // --- Sobre (página institucional) ---
