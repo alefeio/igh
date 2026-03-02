@@ -26,7 +26,13 @@ export function CTASection({
           {children}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             {primaryCTA && (
-              <Button as="link" href={primaryCTA.href} variant={primaryCTA.variant ?? "accent"} size="lg" className="bg-white text-[var(--igh-primary)] hover:bg-white/90">
+              <Button
+                as="link"
+                href={primaryCTA.href}
+                variant={primaryCTA.variant ?? "primary"}
+                size="lg"
+                className="bg-[var(--igh-secondary)] text-white hover:opacity-90 focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--igh-primary)]"
+              >
                 {primaryCTA.label}
               </Button>
             )}

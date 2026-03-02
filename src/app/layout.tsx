@@ -15,6 +15,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Cadastro de Cursos",
   description: "Sistema de cadastro de cursos, turmas e professores.",
+  icons: {
+    icon: [
+      { url: "/images/favicon.ico", type: "image/x-icon" },
+      { url: "/images/favicon.png", type: "image/png" },
+    ],
+    shortcut: ["/images/favicon.ico"],
+    apple: [{ url: "/images/favicon.png", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
