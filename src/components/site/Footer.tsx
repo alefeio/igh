@@ -13,13 +13,8 @@ const FALLBACK_LINKS = [
   { label: "Área do Aluno", href: "/login" },
 ];
 
-function flattenMenu(items: MenuItemPublic[]): { label: string; href: string }[] {
-  const out: { label: string; href: string }[] = [];
-  for (const i of items) {
-    out.push({ label: i.label, href: i.href });
-    for (const c of i.children || []) out.push({ label: c.label, href: c.href });
-  }
-  return out;
+function hasSubItems(items: MenuItemPublic[]): boolean {
+  return items.some((i) => i.children && i.children.length > 0);
 }
 
 type FooterProps = {
@@ -28,10 +23,7 @@ type FooterProps = {
 };
 
 export function Footer({ menuItems, settings }: FooterProps) {
-  const footerLinks =
-    menuItems && menuItems.length > 0
-      ? [...flattenMenu(menuItems), { label: "Área do Aluno", href: "/login" }]
-      : FALLBACK_LINKS;
+  const showHierarchy = menuItems && menuItems.length > 0 && hasSubItems(menuItems);
 
   const siteName = settings?.siteName ?? "Instituto Gustavo Hessel";
   const hasContact =
@@ -61,7 +53,9 @@ export function Footer({ menuItems, settings }: FooterProps) {
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             {settings?.logoUrl ? (
-              <img src={settings.logoUrl} alt={siteName} className="h-12 w-auto object-contain" />
+              <div className="inline-block rounded-lg bg-white p-2">
+                <img src={settings.logoUrl} alt={siteName} className="h-12 w-auto object-contain" />
+              </div>
             ) : null}
             <p className={`text-xl font-bold text-white ${settings?.logoUrl ? "mt-2" : ""}`}>{siteName}</p>
             <p className="mt-2 text-sm text-white/80">
@@ -71,16 +65,56 @@ export function Footer({ menuItems, settings }: FooterProps) {
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white/90">Links</h3>
             <ul className="mt-4 space-y-2">
-              {footerLinks.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-white/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
+              {showHierarchy && menuItems ? (
+                <>
+                  {menuItems.map((item) => (
+                    <li key={item.id}>
+                      <Link
+                        href={item.href}
+                        className="text-sm font-medium text-white/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
+                      >
+                        {item.label}
+                      </Link>
+                      {item.children && item.children.length > 0 && (
+                        <ul className="ml-3 mt-1 space-y-0.5">
+                          {item.children.map((child) => (
+                            <li key={child.id}>
+                              <Link
+                                href={child.href}
+                                className="text-xs text-white/70 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
+                              >
+                                {child.label}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                  <li>
+                    <Link
+                      href="/login"
+                      className="text-sm font-medium text-white/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
+                    >
+                      Área do Aluno
+                    </Link>
+                  </li>
+                </>
+              ) : (
+                (menuItems && menuItems.length > 0
+                  ? [...menuItems.flatMap((i) => [i, ...(i.children || [])]), { label: "Área do Aluno", href: "/login", id: "login", order: 999, isExternal: false, children: [] } as MenuItemPublic]
+                  : FALLBACK_LINKS.map((link) => ({ ...link, id: link.href, order: 0, isExternal: false, children: [] } as MenuItemPublic))
+                ).map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className="text-sm text-white/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))
+              )}
             </ul>
           </div>
           {hasContact ? (

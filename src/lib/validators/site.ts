@@ -2,6 +2,13 @@ import { z } from "zod";
 
 const slugSchema = z.string().min(1, "Slug é obrigatório").regex(/^[a-z0-9-]+$/, "Slug: apenas letras minúsculas, números e hífens");
 
+// SiteAboutPage (singleton)
+export const siteAboutPageSchema = z.object({
+  title: z.string().optional().nullable(),
+  subtitle: z.string().optional().nullable(),
+  content: z.string().optional().nullable(),
+});
+
 // SiteSettings (singleton)
 export const siteSettingsSchema = z.object({
   siteName: z.string().optional(),

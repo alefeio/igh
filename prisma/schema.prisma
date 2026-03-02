@@ -311,6 +311,15 @@ model SiteSettings {
   updatedAt             DateTime @updatedAt
 }
 
+model SiteAboutPage {
+  id        String   @id @default(uuid())
+  title     String?
+  subtitle  String?
+  content   String?  // HTML (rich text)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model SiteMenuItem {
   id         String         @id @default(uuid())
   label      String

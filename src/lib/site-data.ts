@@ -58,6 +58,15 @@ export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
   };
 }
 
+// --- Sobre (página institucional) ---
+export type AboutForSite = { title: string | null; subtitle: string | null; content: string | null };
+
+export async function getAboutForSite(): Promise<AboutForSite | null> {
+  const row = await prisma.siteAboutPage.findFirst({ orderBy: { updatedAt: "desc" } });
+  if (!row) return null;
+  return { title: row.title, subtitle: row.subtitle, content: row.content };
+}
+
 // --- Banners ---
 export type BannerPublic = { id: string; title: string | null; subtitle: string | null; ctaLabel: string | null; ctaHref: string | null; imageUrl: string | null; order: number };
 

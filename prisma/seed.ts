@@ -312,6 +312,19 @@ async function main() {
     catOutros = await prisma.siteTransparencyCategory.findFirst({ where: { slug: "outros" }, select: { id: true } });
   }
 
+  // --- Página Sobre (conteúdo que estava estático em /sobre) ---
+  const aboutCount = await prisma.siteAboutPage.count();
+  if (aboutCount === 0) {
+    await prisma.siteAboutPage.create({
+      data: {
+        title: "Sobre o IGH",
+        subtitle: "Conheça nossa missão e nosso compromisso com a inclusão digital.",
+        content: "<p>O Instituto Gustavo Hessel (IGH) é uma organização dedicada à formação em tecnologia e à inclusão digital. Nossa missão é oferecer oportunidades de qualificação profissional em áreas como programação, dados, UX/UI e marketing digital.</p><p>Além das formações, atuamos em projetos de recondicionamento de computadores, doação de equipamentos e montagem de laboratórios em parceria com instituições em todo o país.</p>",
+      },
+    });
+    console.log("Página Sobre criada.");
+  }
+
   const transparencyDocCount = await prisma.siteTransparencyDocument.count();
   if (transparencyDocCount === 0 && catEditais && catConvenios && catRelatorios && catOutros) {
     const docs = [
