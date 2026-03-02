@@ -185,13 +185,26 @@ export default async function HomePage({ searchParams }: Props) {
             <p className="text-center text-[var(--igh-muted)]">Nenhum parceiro cadastrado.</p>
           ) : (
             partners.map((p) => (
-              <div
+              <a
                 key={p.id}
-                className="flex h-16 w-32 items-center justify-center rounded-lg bg-white border border-[var(--igh-border)] text-[var(--igh-muted)] text-sm"
+                href={p.websiteUrl || undefined}
+                target={p.websiteUrl ? "_blank" : undefined}
+                rel={p.websiteUrl ? "noreferrer noopener" : undefined}
+                className="group flex h-16 w-36 items-center justify-center rounded-lg border border-[var(--igh-border)] bg-white px-3 text-[var(--igh-muted)] text-sm transition hover:border-zinc-300 hover:shadow-sm"
                 title={p.name}
+                aria-label={p.websiteUrl ? `Abrir site do parceiro: ${p.name}` : p.name}
               >
-                {p.name}
-              </div>
+                {p.logoUrl ? (
+                  <img
+                    src={p.logoUrl}
+                    alt={p.name}
+                    className="max-h-10 w-full object-contain opacity-90 transition group-hover:opacity-100"
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="line-clamp-2 text-center">{p.name}</span>
+                )}
+              </a>
             ))
           )}
         </div>
