@@ -2,18 +2,42 @@ import { Navbar } from "@/components/site";
 import { Footer } from "@/components/site";
 import { getMenuItems, getSiteSettings } from "@/lib/site-data";
 
+function absoluteUrl(pathOrUrl: string, baseUrl: string): string {
+  if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) return pathOrUrl;
+  const base = baseUrl.replace(/\/$/, "");
+  const path = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+  return `${base}${path}`;
+}
+
 export async function generateMetadata() {
   const settings = await getSiteSettings();
+  const siteName = settings?.siteName ?? "IGH";
+  const defaultTitle = "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital";
+  const defaultDescription = "Formações gratuitas em programação, dados, UX/UI e mais. Inclusão digital e recondicionamento de computadores.";
+  const title = settings?.seoTitleDefault ?? defaultTitle;
+  const description = settings?.seoDescriptionDefault ?? defaultDescription;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
+
+  const openGraph: { title: string; description: string; images?: { url: string; width?: number; height?: number; alt?: string }[] } = {
+    title: settings?.seoTitleDefault ?? "Instituto Gustavo Hessel",
+    description: settings?.seoDescriptionDefault ?? defaultDescription,
+  };
+  const logoUrl = settings?.logoUrl?.trim();
+  if (logoUrl) {
+    const imageUrl = logoUrl.startsWith("http") ? logoUrl : (baseUrl ? absoluteUrl(logoUrl, baseUrl) : null);
+    if (imageUrl) {
+      openGraph.images = [{ url: imageUrl, width: 1200, height: 630, alt: siteName }];
+    }
+  }
+
   return {
     title: {
-      default: settings?.seoTitleDefault ?? "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital",
-      template: `%s | ${settings?.siteName ?? "IGH"}`,
+      default: title,
+      template: `%s | ${siteName}`,
     },
-    description: settings?.seoDescriptionDefault ?? "Formações gratuitas em programação, dados, UX/UI e mais. Inclusão digital e recondicionamento de computadores.",
-    openGraph: {
-      title: settings?.seoTitleDefault ?? "Instituto Gustavo Hessel",
-      description: settings?.seoDescriptionDefault ?? "Formações gratuitas em programação, dados, UX/UI e mais.",
-    },
+    description,
+    openGraph,
+    twitter: { card: "summary_large_image", title: openGraph.title, description: openGraph.description },
   };
 }
 

@@ -12,6 +12,7 @@ export type MenuItemPublic = {
 export type SiteSettingsPublic = {
   siteName: string | null;
   logoUrl: string | null;
+  faviconUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
   contactEmail: string | null;

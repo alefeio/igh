@@ -40,6 +40,7 @@ export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
   return {
     siteName: s.siteName,
     logoUrl: s.logoUrl,
+    faviconUrl: s.faviconUrl,
     primaryColor: s.primaryColor,
     secondaryColor: s.secondaryColor,
     contactEmail: s.contactEmail,
