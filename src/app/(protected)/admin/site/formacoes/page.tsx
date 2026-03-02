@@ -79,7 +79,7 @@ export default function FormacoesPage() {
       const formationsJson = (await formationsRes.json()) as ApiResponse<{ items: Formation[] }>;
       const coursesJson = (await coursesRes.json()) as ApiResponse<{ courses: CourseOption[] }>;
       if (!formationsRes.ok || !formationsJson.ok) {
-        toast.push("error", formationsJson.error?.message ?? "Falha ao carregar formações.");
+        toast.push("error", !formationsJson.ok ? formationsJson.error.message : "Falha ao carregar formações.");
         return;
       }
       setItems(formationsJson.data.items);

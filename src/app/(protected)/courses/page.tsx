@@ -228,7 +228,7 @@ export default function CoursesPage() {
       const coursesRes = await fetch("/api/courses");
       const coursesJson = (await coursesRes.json()) as ApiResponse<{ courses: Course[] }>;
       if (!coursesRes.ok || !coursesJson.ok) {
-        toast.push("error", coursesJson.error?.message ?? "Falha ao carregar cursos.");
+        toast.push("error", !coursesJson.ok ? coursesJson.error.message : "Falha ao carregar cursos.");
         return;
       }
       setItems(coursesJson.data.courses);
@@ -518,7 +518,7 @@ export default function CoursesPage() {
             <div className="border-t border-zinc-200 pt-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-zinc-700">Módulos e aulas</span>
-                <Button type="button" variant="secondary" size="sm" onClick={openModuleCreate}>
+                <Button type="button" variant="secondary" onClick={openModuleCreate}>
                   Novo módulo
                 </Button>
               </div>
@@ -533,13 +533,13 @@ export default function CoursesPage() {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium text-zinc-800">Módulo {mod.order + 1}: {mod.title}</span>
                         <div className="flex gap-1">
-                          <Button type="button" variant="secondary" size="sm" onClick={() => openModuleEdit(mod)}>
+                          <Button type="button" variant="secondary" onClick={() => openModuleEdit(mod)}>
                             Editar
                           </Button>
-                          <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => deleteModule(mod)}>
+                          <Button type="button" variant="secondary" className="text-red-600" onClick={() => deleteModule(mod)}>
                             Excluir
                           </Button>
-                          <Button type="button" variant="secondary" size="sm" onClick={() => openLessonCreate(mod)}>
+                          <Button type="button" variant="secondary" onClick={() => openLessonCreate(mod)}>
                             Nova aula
                           </Button>
                         </div>

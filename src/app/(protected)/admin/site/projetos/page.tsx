@@ -60,7 +60,7 @@ export default function ProjetosPage() {
       const res = await fetch("/api/admin/site/projects");
       const json = (await res.json()) as ApiResponse<{ items: Project[] }>;
       if (!res.ok || !json.ok) {
-        toast.push("error", json.error?.message ?? "Falha ao carregar.");
+        toast.push("error", !json.ok ? json.error.message : "Falha ao carregar.");
         return;
       }
       setItems(json.data.items);
@@ -117,7 +117,7 @@ export default function ProjetosPage() {
     });
     const json = (await res.json()) as ApiResponse<{ item: Project }>;
     if (!res.ok || !json.ok) {
-      toast.push("error", json.error?.message ?? "Falha ao salvar.");
+      toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
       return;
     }
     toast.push("success", editing ? "Projeto atualizado." : "Projeto criado.");
@@ -131,7 +131,7 @@ export default function ProjetosPage() {
     const res = await fetch(`/api/admin/site/projects/${p.id}`, { method: "DELETE" });
     const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
     if (!res.ok || !json.ok) {
-      toast.push("error", json.error?.message ?? "Falha ao excluir.");
+      toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
       return;
     }
     toast.push("success", "Projeto excluído.");
@@ -147,7 +147,7 @@ export default function ProjetosPage() {
       });
       const json = (await res.json()) as ApiResponse<{ items: Project[] }>;
       if (!res.ok || !json.ok) {
-        toast.push("error", json.error?.message ?? "Falha ao reordenar.");
+        toast.push("error", !json.ok ? json.error.message : "Falha ao reordenar.");
         return;
       }
       toast.push("success", "Ordem atualizada.");

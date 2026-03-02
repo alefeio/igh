@@ -48,7 +48,7 @@ export default function DepoimentosPage() {
       const res = await fetch("/api/admin/site/testimonials");
       const json = (await res.json()) as ApiResponse<{ items: Testimonial[] }>;
       if (!res.ok || !json.ok) {
-        toast.push("error", json.error?.message ?? "Falha ao carregar.");
+        toast.push("error", !json.ok ? json.error.message : "Falha ao carregar.");
         return;
       }
       setItems(json.data.items);
@@ -101,7 +101,7 @@ export default function DepoimentosPage() {
     });
     const json = (await res.json()) as ApiResponse<{ item: Testimonial }>;
     if (!res.ok || !json.ok) {
-      toast.push("error", json.error?.message ?? "Falha ao salvar.");
+      toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
       return;
     }
     toast.push("success", editing ? "Depoimento atualizado." : "Depoimento criado.");
@@ -115,7 +115,7 @@ export default function DepoimentosPage() {
     const res = await fetch(`/api/admin/site/testimonials/${t.id}`, { method: "DELETE" });
     const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
     if (!res.ok || !json.ok) {
-      toast.push("error", json.error?.message ?? "Falha ao excluir.");
+      toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
       return;
     }
     toast.push("success", "Depoimento excluído.");
@@ -131,7 +131,7 @@ export default function DepoimentosPage() {
       });
       const json = (await res.json()) as ApiResponse<{ items: Testimonial[] }>;
       if (!res.ok || !json.ok) {
-        toast.push("error", json.error?.message ?? "Falha ao reordenar.");
+        toast.push("error", !json.ok ? json.error.message : "Falha ao reordenar.");
         return;
       }
       toast.push("success", "Ordem atualizada.");
