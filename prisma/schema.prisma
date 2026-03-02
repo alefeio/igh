@@ -87,6 +87,33 @@ model Course {
   updatedAt     DateTime     @updatedAt
   classGroups   ClassGroup[]
   siteFormations SiteFormationCourse[]
+  modules       CourseModule[]
+}
+
+model CourseModule {
+  id          String        @id @default(uuid())
+  courseId    String
+  title       String
+  description String?
+  order       Int           @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  course      Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons     CourseLesson[]
+  @@unique([courseId, order])
+}
+
+model CourseLesson {
+  id               String      @id @default(uuid())
+  moduleId         String
+  title            String
+  order            Int         @default(0)
+  durationMinutes  Int?
+  contentRich      String?     // HTML (formato TipTap/RichText do projeto)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  module           CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  @@unique([moduleId, order])
 }
 
 enum ClassSessionStatus {

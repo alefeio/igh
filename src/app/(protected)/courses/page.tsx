@@ -24,6 +24,9 @@ type Course = {
   createdAt: string;
 };
 
+type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; contentRich?: string | null };
+type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
+
 export default function CoursesPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -38,6 +41,12 @@ export default function CoursesPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [workloadHours, setWorkloadHours] = useState<string>("");
   const [status, setStatus] = useState<Course["status"]>("ACTIVE");
+  const [modules, setModules] = useState<ModuleWithLessons[]>([]);
+  const [modulesLoading, setModulesLoading] = useState(false);
+  const [moduleModal, setModuleModal] = useState<{ type: "create" | "edit"; module?: ModuleWithLessons } | null>(null);
+  const [lessonModal, setLessonModal] = useState<{ type: "create" | "edit"; module: ModuleWithLessons; lesson?: Lesson } | null>(null);
+  const [moduleForm, setModuleForm] = useState({ title: "", description: "", order: 0 });
+  const [lessonForm, setLessonForm] = useState({ title: "", order: 0, durationMinutes: "" as string | number, contentRich: "" });
 
   const canSubmit = useMemo(() => name.trim().length >= 2, [name]);
 
@@ -49,6 +58,9 @@ export default function CoursesPage() {
     setWorkloadHours("");
     setStatus("ACTIVE");
     setEditing(null);
+    setModules([]);
+    setModuleModal(null);
+    setLessonModal(null);
   }
 
   function openCreate() {
@@ -64,7 +76,150 @@ export default function CoursesPage() {
     setImageUrl(c.imageUrl ?? "");
     setWorkloadHours(c.workloadHours?.toString() ?? "");
     setStatus(c.status);
+    setModules([]);
+    setModuleModal(null);
+    setLessonModal(null);
     setOpen(true);
+    setModulesLoading(true);
+    fetch(`/api/courses/${c.id}/modules`)
+      .then(async (r) => {
+        const text = await r.text();
+        if (!text.trim()) return { ok: false as const, data: { modules: [] as ModuleWithLessons[] } };
+        try {
+          return JSON.parse(text) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+        } catch {
+          return { ok: false as const, data: { modules: [] as ModuleWithLessons[] } };
+        }
+      })
+      .then((json) => {
+        if (json.ok && json.data?.modules) setModules(json.data.modules);
+      })
+      .catch(() => setModules([]))
+      .finally(() => setModulesLoading(false));
+  }
+
+  async function refetchModules() {
+    if (!editing?.id) return;
+    setModulesLoading(true);
+    try {
+      const r = await fetch(`/api/courses/${editing.id}/modules`);
+      const text = await r.text();
+      if (!text.trim()) return;
+      const json = JSON.parse(text) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+      if (json.ok && json.data?.modules) setModules(json.data.modules);
+    } catch {
+      setModules([]);
+    } finally {
+      setModulesLoading(false);
+    }
+  }
+
+  function openModuleCreate() {
+    setModuleForm({ title: "", description: "", order: modules.length });
+    setModuleModal({ type: "create" });
+  }
+
+  function openModuleEdit(mod: ModuleWithLessons) {
+    setModuleForm({ title: mod.title, description: mod.description ?? "", order: mod.order });
+    setModuleModal({ type: "edit", module: mod });
+  }
+
+  async function saveModule(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editing?.id || !moduleForm.title.trim()) return;
+    const isEdit = moduleModal?.type === "edit" && moduleModal?.module;
+    const url = isEdit
+      ? `/api/courses/${editing.id}/modules/${moduleModal!.module!.id}`
+      : `/api/courses/${editing.id}/modules`;
+    const method = isEdit ? "PATCH" : "POST";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: moduleForm.title.trim(),
+        description: moduleForm.description.trim() || undefined,
+        order: moduleForm.order,
+      }),
+    });
+    const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao salvar módulo.");
+      return;
+    }
+    toast.push("success", isEdit ? "Módulo atualizado." : "Módulo criado.");
+    if (json.data?.modules) setModules(json.data.modules);
+    setModuleModal(null);
+  }
+
+  async function deleteModule(mod: ModuleWithLessons) {
+    if (!editing?.id || !confirm(`Excluir o módulo "${mod.title}" e todas as suas aulas?`)) return;
+    const res = await fetch(`/api/courses/${editing.id}/modules/${mod.id}`, { method: "DELETE" });
+    const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao excluir.");
+      return;
+    }
+    toast.push("success", "Módulo excluído.");
+    if (json.data?.modules) setModules(json.data.modules);
+    setModuleModal(null);
+  }
+
+  function openLessonCreate(mod: ModuleWithLessons) {
+    setLessonForm({ title: "", order: mod.lessons.length, durationMinutes: "", contentRich: "" });
+    setLessonModal({ type: "create", module: mod });
+  }
+
+  function openLessonEdit(mod: ModuleWithLessons, les: Lesson) {
+    setLessonForm({
+      title: les.title,
+      order: les.order,
+      durationMinutes: les.durationMinutes ?? "",
+      contentRich: les.contentRich ?? "",
+    });
+    setLessonModal({ type: "edit", module: mod, lesson: les });
+  }
+
+  async function saveLesson(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editing?.id || !lessonModal || !lessonForm.title.trim()) return;
+    const mod = lessonModal.module;
+    const isEdit = lessonModal.type === "edit" && lessonModal.lesson;
+    const url = isEdit
+      ? `/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson!.id}`
+      : `/api/courses/${editing.id}/modules/${mod.id}/lessons`;
+    const method = isEdit ? "PATCH" : "POST";
+    const duration = lessonForm.durationMinutes === "" ? null : Number(lessonForm.durationMinutes);
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: lessonForm.title.trim(),
+        order: Number(lessonForm.order) || 0,
+        durationMinutes: duration,
+        contentRich: lessonForm.contentRich?.trim() || null,
+      }),
+    });
+    const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao salvar aula.");
+      return;
+    }
+    toast.push("success", isEdit ? "Aula atualizada." : "Aula criada.");
+    if (json.data?.modules) setModules(json.data.modules);
+    setLessonModal(null);
+  }
+
+  async function deleteLesson(mod: ModuleWithLessons, les: Lesson) {
+    if (!editing?.id || !confirm(`Excluir a aula "${les.title}"?`)) return;
+    const res = await fetch(`/api/courses/${editing.id}/modules/${mod.id}/lessons/${les.id}`, { method: "DELETE" });
+    const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao excluir.");
+      return;
+    }
+    toast.push("success", "Aula excluída.");
+    if (json.data?.modules) setModules(json.data.modules);
+    setLessonModal(null);
   }
 
   async function load() {
@@ -359,6 +514,71 @@ export default function CoursesPage() {
               </select>
             </div>
           </div>
+          {editing && (
+            <div className="border-t border-zinc-200 pt-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-zinc-700">Módulos e aulas</span>
+                <Button type="button" variant="secondary" size="sm" onClick={openModuleCreate}>
+                  Novo módulo
+                </Button>
+              </div>
+              {modulesLoading ? (
+                <p className="mt-1 text-xs text-zinc-500">Carregando...</p>
+              ) : modules.length === 0 ? (
+                <p className="mt-1 text-xs text-zinc-500">Nenhum módulo. Clique em &quot;Novo módulo&quot; para adicionar.</p>
+              ) : (
+                <ul className="mt-2 max-h-64 space-y-3 overflow-y-auto text-sm">
+                  {modules.map((mod) => (
+                    <li key={mod.id} className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium text-zinc-800">Módulo {mod.order + 1}: {mod.title}</span>
+                        <div className="flex gap-1">
+                          <Button type="button" variant="secondary" size="sm" onClick={() => openModuleEdit(mod)}>
+                            Editar
+                          </Button>
+                          <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => deleteModule(mod)}>
+                            Excluir
+                          </Button>
+                          <Button type="button" variant="secondary" size="sm" onClick={() => openLessonCreate(mod)}>
+                            Nova aula
+                          </Button>
+                        </div>
+                      </div>
+                      {mod.description && <p className="mt-0.5 text-xs text-zinc-500">{mod.description}</p>}
+                      <ul className="mt-2 space-y-1 pl-2">
+                        {mod.lessons.map((les) => (
+                          <li key={les.id} className="flex flex-wrap items-center justify-between gap-1 rounded py-0.5">
+                            <span className="text-zinc-700">
+                              Aula {les.order + 1}: {les.title}
+                              {les.durationMinutes != null && (
+                                <span className="text-zinc-400"> ({les.durationMinutes} min)</span>
+                              )}
+                            </span>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                className="text-xs text-blue-600 hover:underline"
+                                onClick={() => openLessonEdit(mod, les)}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                className="text-xs text-red-600 hover:underline"
+                                onClick={() => deleteLesson(mod, les)}
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
@@ -369,6 +589,70 @@ export default function CoursesPage() {
           </div>
         </form>
       </Modal>
+
+      {moduleModal && (
+        <Modal
+          open={!!moduleModal}
+          title={moduleModal.type === "edit" ? "Editar módulo" : "Novo módulo"}
+          onClose={() => setModuleModal(null)}
+        >
+          <form className="flex flex-col gap-3" onSubmit={saveModule}>
+            <div>
+              <label className="text-sm font-medium">Título</label>
+              <Input className="mt-1" value={moduleForm.title} onChange={(e) => setModuleForm((f) => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Descrição (opcional)</label>
+              <Input className="mt-1" value={moduleForm.description} onChange={(e) => setModuleForm((f) => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Ordem</label>
+              <Input type="number" min={0} className="mt-1" value={moduleForm.order} onChange={(e) => setModuleForm((f) => ({ ...f, order: parseInt(e.target.value, 10) || 0 }))} />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => setModuleModal(null)}>Cancelar</Button>
+              <Button type="submit">Salvar</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {lessonModal && (
+        <Modal
+          open={!!lessonModal}
+          title={lessonModal.type === "edit" ? "Editar aula" : "Nova aula"}
+          onClose={() => setLessonModal(null)}
+        >
+          <form className="flex max-h-[80vh] flex-col gap-3 overflow-y-auto" onSubmit={saveLesson}>
+            <div>
+              <label className="text-sm font-medium">Título</label>
+              <Input className="mt-1" value={lessonForm.title} onChange={(e) => setLessonForm((f) => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Ordem</label>
+              <Input type="number" min={0} className="mt-1" value={lessonForm.order} onChange={(e) => setLessonForm((f) => ({ ...f, order: parseInt(e.target.value, 10) || 0 }))} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Duração (minutos, opcional)</label>
+              <Input type="number" min={0} className="mt-1" value={lessonForm.durationMinutes} onChange={(e) => setLessonForm((f) => ({ ...f, durationMinutes: e.target.value }))} placeholder="Ex: 75" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Conteúdo (rich text)</label>
+              <RichTextEditor
+                key={lessonModal.type === "edit" ? lessonModal.lesson?.id : "new"}
+                value={lessonForm.contentRich}
+                onChange={(v) => setLessonForm((f) => ({ ...f, contentRich: v }))}
+                minHeight="180px"
+                className="mt-1"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => setLessonModal(null)}>Cancelar</Button>
+              <Button type="submit">Salvar</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
 
 export type { MenuItemPublic, SiteSettingsPublic };
@@ -246,6 +247,21 @@ export async function getFormationsForFilter(): Promise<FormationFilterItem[]> {
 }
 
 // --- Cursos para o site (com filtro por formação) ---
+export type LessonForSiteDetail = {
+  id: string;
+  title: string;
+  order: number;
+  durationMinutes: number | null;
+};
+
+export type ModuleForSiteDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  order: number;
+  lessons: LessonForSiteDetail[];
+};
+
 export type CourseForSite = {
   id: string;
   name: string;
@@ -257,6 +273,8 @@ export type CourseForSite = {
   formationId: string | null;
   formationTitle: string | null;
   formationSlug: string | null;
+  /** Preenchido apenas em getCourseBySlug (detalhe). */
+  modules?: ModuleForSiteDetail[];
 };
 
 export async function getCoursesForSite(formationSlug?: string): Promise<CourseForSite[]> {
@@ -535,6 +553,19 @@ export async function getCourseBySlug(slug: string): Promise<CourseForSite | nul
   });
   if (!course) return null;
   const first = course.siteFormations[0]?.formation;
+  const modulesWithLessons = await getModulesWithLessonsByCourseId(course.id);
+  const modules: ModuleForSiteDetail[] = modulesWithLessons.map((m) => ({
+    id: m.id,
+    title: m.title,
+    description: m.description,
+    order: m.order,
+    lessons: m.lessons.map((l) => ({
+      id: l.id,
+      title: l.title,
+      order: l.order,
+      durationMinutes: l.durationMinutes,
+    })),
+  }));
   return {
     id: course.id,
     name: course.name,
@@ -546,5 +577,6 @@ export async function getCourseBySlug(slug: string): Promise<CourseForSite | nul
     formationId: first?.id ?? null,
     formationTitle: first?.title ?? null,
     formationSlug: first?.slug ?? null,
+    modules,
   };
 }

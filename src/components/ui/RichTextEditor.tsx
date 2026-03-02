@@ -4,6 +4,21 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect } from "react";
 
+/** Conteúdo pode ser HTML (string) ou JSON TipTap/ProseMirror (string com type "doc"). */
+function parseContent(value: string): string | Record<string, unknown> {
+  const s = (value || "").trim();
+  if (!s) return "";
+  if (s.startsWith("{") && s.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(s) as { type?: string };
+      if (parsed?.type === "doc") return parsed as Record<string, unknown>;
+    } catch {
+      // não é JSON válido, trata como HTML
+    }
+  }
+  return s;
+}
+
 type RichTextEditorProps = {
   value: string;
   onChange: (html: string) => void;
@@ -21,7 +36,7 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [StarterKit],
-    content: value || "",
+    content: parseContent(value) || "",
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -35,8 +50,14 @@ export function RichTextEditor({
 
   // Sincronizar valor externo (ex.: ao abrir edição de outro curso)
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value || "", { emitUpdate: false });
+    if (!editor) return;
+    const content = parseContent(value);
+    const alreadyEqual =
+      typeof content === "string"
+        ? (value || "") === editor.getHTML()
+        : JSON.stringify(editor.getJSON()) === (value || "").trim();
+    if (!alreadyEqual) {
+      editor.commands.setContent(content || "", { emitUpdate: false });
     }
   }, [value, editor]);
 

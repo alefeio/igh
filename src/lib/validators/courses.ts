@@ -13,3 +13,16 @@ export const createCourseSchema = z.object({
 });
 
 export const updateCourseSchema = createCourseSchema.partial();
+
+export const courseModuleSchema = z.object({
+  title: z.string().min(1, "Título é obrigatório"),
+  description: z.string().optional().or(z.literal("")),
+  order: z.number().int().min(0),
+});
+
+export const courseLessonSchema = z.object({
+  title: z.string().min(1, "Título é obrigatório"),
+  order: z.number().int().min(0),
+  durationMinutes: z.number().int().positive().optional().nullable(),
+  contentRich: z.string().optional().nullable().or(z.literal("")),
+});

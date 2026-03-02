@@ -75,9 +75,30 @@ async function main() {
     "Lógica de Programação",
     "HTML, CSS e JavaScript",
     "Back-end e Bancos de Dados",
+    "Computação",
+    "Fotografia Mobile",
+    "IA para Criadores e Estudantes",
+    "Introdução ao Tráfego Pago",
+    "Introdução à Informática",
+    "Manutenção de Celular",
+    "Manutenção de Computador",
+    "Programador Web (Frontend e Backend)",
+    "Social Media - Inicialização",
   ];
+  const courseWorkload: Record<string, number> = {
+    "Computação": 20,
+    "Fotografia Mobile": 20,
+    "IA para Criadores e Estudantes": 20,
+    "Introdução ao Tráfego Pago": 20,
+    "Introdução à Informática": 20,
+    "Manutenção de Celular": 32,
+    "Manutenção de Computador": 20,
+    "Programador Web (Frontend e Backend)": 20,
+    "Social Media - Inicialização": 20,
+  };
   for (const name of courseNames) {
     const slug = slugify(name) || name.toLowerCase().replace(/\s+/g, "-");
+    const workloadHours = courseWorkload[name];
     await prisma.course.upsert({
       where: { name },
       create: {
@@ -85,11 +106,93 @@ async function main() {
         slug,
         description: `Curso: ${name}. Conteúdo disponível no site.`,
         status: "ACTIVE",
+        workloadHours: workloadHours ?? undefined,
       },
-      update: {},
+      update: workloadHours !== undefined ? { workloadHours } : {},
     });
   }
   console.log("Cursos garantidos.");
+
+  // --- Módulos e aulas do curso Computação (16 aulas, 20h) ---
+  try {
+    const { seedComputacaoModulesAndLessons } = await import("./seeds/seed-computacao-modules");
+    await seedComputacaoModulesAndLessons(prisma);
+  } catch (e) {
+    console.error("Erro ao seed módulos/aulas Computação:", e);
+    throw e;
+  }
+
+  // --- Módulos e aulas do curso Fotografia Mobile (5 módulos, 16 aulas, 20h) ---
+  try {
+    const { seedFotografiaMobileModulesAndLessons } = await import("./seeds/seed-fotografia-mobile");
+    await seedFotografiaMobileModulesAndLessons(prisma);
+  } catch (e) {
+    console.error("Erro ao seed módulos/aulas Fotografia Mobile:", e);
+    throw e;
+  }
+
+  // --- Módulos e aulas do curso IA para Criadores e Estudantes (6 módulos, 16 aulas, 20h) ---
+  try {
+    const { seedIACriadoresEstudantesModulesAndLessons } = await import("./seeds/seed-ia-criadores-estudantes");
+    await seedIACriadoresEstudantesModulesAndLessons(prisma);
+  } catch (e) {
+    console.error("Erro ao seed módulos/aulas IA para Criadores e Estudantes:", e);
+    throw e;
+  }
+
+  // --- Módulos e aulas do curso Introdução ao Tráfego Pago (6 módulos, 16 aulas, 20h) ---
+  try {
+    const { seedIntroducaoTrafegoPagoModulesAndLessons } = await import("./seeds/seed-introducao-trafego-pago");
+    await seedIntroducaoTrafegoPagoModulesAndLessons(prisma);
+  } catch (e) {
+    console.error("Erro ao seed módulos/aulas Introdução ao Tráfego Pago:", e);
+    throw e;
+  }
+
+  // --- Módulos e aulas do curso Introdução à Informática (6 módulos, 16 aulas, 20h) ---
+  try {
+    const { seedIntroducaoInformaticaModulesAndLessons } = await import("./seeds/seed-introducao-informatica");
+    await seedIntroducaoInformaticaModulesAndLessons(prisma);
+  } catch (e) {
+    console.error("Erro ao seed módulos/aulas Introdução à Informática:", e);
+    throw e;
+  }
+
+  // --- Módulos e aulas do curso Manutenção de Celular (6 módulos, 16 aulas, 32h) ---
+  try {
+    const { seedManutencaoCelularModulesAndLessons } = await import("./seeds/seed-manutencao-celular");
+    await seedManutencaoCelularModulesAndLessons(prisma);
+  } catch (e) {
+    console.error("Erro ao seed módulos/aulas Manutenção de Celular:", e);
+    throw e;
+  }
+
+  // --- Módulos e aulas do curso Manutenção de Computador (6 módulos, 16 aulas, 20h) ---
+  try {
+    const { seedManutencaoComputadorModulesAndLessons } = await import("./seeds/seed-manutencao-computador");
+    await seedManutencaoComputadorModulesAndLessons(prisma);
+  } catch (e) {
+    console.error("Erro ao seed módulos/aulas Manutenção de Computador:", e);
+    throw e;
+  }
+
+  // --- Módulos e aulas do curso Programador Web (Frontend e Backend) (6 módulos, 16 aulas, 20h) ---
+  try {
+    const { seedProgramadorWebModulesAndLessons } = await import("./seeds/seed-programador-web");
+    await seedProgramadorWebModulesAndLessons(prisma);
+  } catch (e) {
+    console.error("Erro ao seed módulos/aulas Programador Web (Frontend e Backend):", e);
+    throw e;
+  }
+
+  // --- Módulos e aulas do curso Social Media - Inicialização (6 módulos, 16 aulas, 20h) ---
+  try {
+    const { seedSocialMediaInicializacaoModulesAndLessons } = await import("./seeds/seed-social-media-inicializacao");
+    await seedSocialMediaInicializacaoModulesAndLessons(prisma);
+  } catch (e) {
+    console.error("Erro ao seed módulos/aulas Social Media - Inicialização:", e);
+    throw e;
+  }
 
   // --- Formações (SiteFormation + vínculo com cursos existentes) ---
   const formationCount = await prisma.siteFormation.count();

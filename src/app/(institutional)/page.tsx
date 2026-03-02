@@ -14,7 +14,6 @@ import { statsImpact, posts } from "@/content";
 import {
   getFormationsForFilter,
   getCoursesForSite,
-  getCourseBySlug,
   getBanners,
   getPartners,
   getFaqItems,
@@ -32,16 +31,15 @@ export const metadata = {
   },
 };
 
-type Props = { searchParams: Promise<{ formacao?: string; curso?: string }> };
+type Props = { searchParams: Promise<{ formacao?: string }> };
 
 export default async function HomePage({ searchParams }: Props) {
-  const { formacao: formacaoSlug, curso: cursoSlug } = await searchParams;
+  const { formacao: formacaoSlug } = await searchParams;
 
-  const [formations, coursesFull, courseDetail, banners, partners, faqItemsFromDb, testimonialsFromDb, recentPosts] =
+  const [formations, coursesFull, banners, partners, faqItemsFromDb, testimonialsFromDb, recentPosts] =
     await Promise.all([
       getFormationsForFilter(),
       getCoursesForSite(formacaoSlug),
-      cursoSlug ? getCourseBySlug(cursoSlug) : Promise.resolve(null),
       getBanners(),
       getPartners(),
       getFaqItems(),
@@ -135,7 +133,6 @@ export default async function HomePage({ searchParams }: Props) {
           formations={formations}
           courses={courses}
           formacaoSlug={formacaoSlug}
-          courseDetail={courseDetail}
           basePath="/"
         />
         <div className="mt-8 text-center">

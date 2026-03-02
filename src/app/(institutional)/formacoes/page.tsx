@@ -2,7 +2,6 @@ import { PageHeader, Section, FormacoesSection, Card } from "@/components/site";
 import {
   getFormationsForFilter,
   getCoursesForSite,
-  getCourseBySlug,
   getComoFuncionaFormacao,
 } from "@/lib/site-data";
 
@@ -11,15 +10,14 @@ export const metadata = {
   description: "Trilhas em Programação, Dados, UX/UI, Marketing. Pré-requisito: Informática Básica.",
 };
 
-type Props = { searchParams: Promise<{ formacao?: string; curso?: string }> };
+type Props = { searchParams: Promise<{ formacao?: string }> };
 
 export default async function FormacoesPage({ searchParams }: Props) {
-  const { formacao: formacaoSlug, curso: cursoSlug } = await searchParams;
+  const { formacao: formacaoSlug } = await searchParams;
 
-  const [formations, courses, courseDetail, comoFunciona] = await Promise.all([
+  const [formations, courses, comoFunciona] = await Promise.all([
     getFormationsForFilter(),
     getCoursesForSite(formacaoSlug),
-    cursoSlug ? getCourseBySlug(cursoSlug) : Promise.resolve(null),
     Promise.resolve(getComoFuncionaFormacao()),
   ]);
 
@@ -32,7 +30,6 @@ export default async function FormacoesPage({ searchParams }: Props) {
           formations={formations}
           courses={courses}
           formacaoSlug={formacaoSlug}
-          courseDetail={courseDetail}
         />
       </Section>
 
