@@ -19,10 +19,16 @@ export const siteSettingsSchema = z.object({
   contactEmail: z.string().email().optional().or(z.literal("")),
   contactPhone: z.string().optional(),
   contactWhatsapp: z.string().optional(),
-  addressLine: z.string().optional(),
-  addressCity: z.string().optional(),
-  addressState: z.string().optional(),
-  addressZip: z.string().optional(),
+  addresses: z
+    .array(
+      z.object({
+        line: z.string(),
+        city: z.string(),
+        state: z.string(),
+        zip: z.string(),
+      })
+    )
+    .optional(),
   businessHours: z.string().optional(),
   socialInstagram: z.string().optional(),
   socialFacebook: z.string().optional(),

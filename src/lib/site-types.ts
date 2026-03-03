@@ -18,10 +18,7 @@ export type SiteSettingsPublic = {
   contactEmail: string | null;
   contactPhone: string | null;
   contactWhatsapp: string | null;
-  addressLine: string | null;
-  addressCity: string | null;
-  addressState: string | null;
-  addressZip: string | null;
+  addresses: { line: string; city: string; state: string; zip: string }[];
   businessHours: string | null;
   socialInstagram: string | null;
   socialFacebook: string | null;

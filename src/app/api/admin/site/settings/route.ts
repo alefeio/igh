@@ -5,33 +5,41 @@ import { siteSettingsSchema } from "@/lib/validators/site";
 
 export async function GET() {
   await requireRole(["ADMIN", "MASTER"]);
-  let settings = await prisma.siteSettings.findFirst();
-  if (!settings) {
-    settings = await prisma.siteSettings.create({ data: {} });
+  try {
+    let settings = await prisma.siteSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.siteSettings.create({ data: {} });
+    }
+    return jsonOk({ settings });
+  } catch (e) {
+    return jsonErr("SERVER_ERROR", "Erro ao carregar configurações.", 500);
   }
-  return jsonOk({ settings });
 }
 
 export async function PATCH(request: Request) {
   await requireRole(["ADMIN", "MASTER"]);
-  const body = await request.json().catch(() => null);
-  const parsed = siteSettingsSchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+  try {
+    const body = await request.json().catch(() => null);
+    const parsed = siteSettingsSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+    }
+    const data = parsed.data as Record<string, unknown>;
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) {
+      clean[k] = v === "" || v === undefined ? null : v;
+    }
+    let settings = await prisma.siteSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.siteSettings.create({ data: clean as never });
+    } else {
+      settings = await prisma.siteSettings.update({
+        where: { id: settings.id },
+        data: clean as never,
+      });
+    }
+    return jsonOk({ settings });
+  } catch (e) {
+    return jsonErr("SERVER_ERROR", "Erro ao salvar configurações.", 500);
   }
-  const data = parsed.data as Record<string, unknown>;
-  const clean: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(data)) {
-    clean[k] = v === "" || v === undefined ? null : v;
-  }
-  let settings = await prisma.siteSettings.findFirst();
-  if (!settings) {
-    settings = await prisma.siteSettings.create({ data: clean as never });
-  } else {
-    settings = await prisma.siteSettings.update({
-      where: { id: settings.id },
-      data: clean as never,
-    });
-  }
-  return jsonOk({ settings });
 }

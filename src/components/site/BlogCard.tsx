@@ -19,12 +19,12 @@ export function BlogCard({ post }: { post: Post }) {
   });
 
   return (
-    <Card as="article" className="h-full flex flex-col">
-      <div className="aspect-video w-full overflow-hidden rounded-lg bg-[var(--igh-surface)] -mx-6 -mt-6 mb-4">
+    <Card as="article" className="h-full flex flex-col overflow-hidden">
+      <div className="aspect-video w-[calc(100%+3rem)] -mx-6 -mt-6 mb-4 overflow-hidden rounded-t-xl bg-[var(--igh-surface)]">
         {post.image ? (
-          <img src={post.image} alt="" className="h-full w-full object-cover" />
+          <img src={post.image} alt="" className="block size-full object-cover" />
         ) : (
-          <div className="h-full w-full bg-[var(--igh-surface)]" aria-hidden />
+          <div className="size-full bg-[var(--igh-surface)]" aria-hidden />
         )}
       </div>
       <div className="flex flex-wrap gap-2">

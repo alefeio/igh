@@ -33,30 +33,32 @@ export default async function NoticiaSlugPage({ params }: Props) {
 
   return (
     <article className="py-12">
-      <Container className="max-w-4xl">
-        <Link href="/noticias" className="text-sm font-medium text-[var(--igh-primary)] hover:underline">
-          Voltar às notícias
-        </Link>
-        <header className="mt-4">
-          <span className="text-sm text-[var(--igh-muted)]">
-            {post.categoryName ?? "Notícia"}
-            {dateFormatted ? ` - ${dateFormatted}` : ""}
-          </span>
-          <h1 className="mt-2 text-3xl font-bold text-[var(--igh-secondary)]">{post.title}</h1>
-        </header>
-        {carouselImages.length > 0 && (
-          <ImageCarousel images={carouselImages} className="mt-4" />
-        )}
-        <div className="mt-6 w-full text-[var(--igh-muted)]">
-          {post.excerpt && <p className="text-lg">{post.excerpt}</p>}
-          {post.content ? (
-            <div
-              className="prose prose-lg mt-4 max-w-none"
-              dangerouslySetInnerHTML={{ __html: post.content }}
-            />
-          ) : (
-            post.excerpt && <p className="mt-4">{post.excerpt}</p>
+      <Container>
+        <div className="mx-auto max-w-2xl">
+          <Link href="/noticias" className="text-sm font-medium text-[var(--igh-primary)] hover:underline">
+            Voltar às notícias
+          </Link>
+          <header className="mt-4">
+            <span className="text-sm text-[var(--igh-muted)]">
+              {post.categoryName ?? "Notícia"}
+              {dateFormatted ? ` - ${dateFormatted}` : ""}
+            </span>
+            <h1 className="mt-2 text-3xl font-bold text-[var(--igh-secondary)]">{post.title}</h1>
+          </header>
+          {carouselImages.length > 0 && (
+            <ImageCarousel images={carouselImages} className="mt-4" />
           )}
+          <div className="mt-6 w-full text-[var(--igh-muted)]">
+            {post.excerpt && <p className="text-lg">{post.excerpt}</p>}
+            {post.content ? (
+              <div
+                className="prose prose-lg mt-4 max-w-none"
+                dangerouslySetInnerHTML={{ __html: post.content }}
+              />
+            ) : (
+              post.excerpt && <p className="mt-4">{post.excerpt}</p>
+            )}
+          </div>
         </div>
       </Container>
     </article>

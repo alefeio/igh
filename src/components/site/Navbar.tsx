@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
 
 const FALLBACK_LINKS: MenuItemPublic[] = [
@@ -29,11 +29,23 @@ export function Navbar({ menuItems: propItems, settings }: NavbarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [projetosOpen, setProjetosOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const links = (propItems && propItems.length > 0) ? propItems : FALLBACK_LINKS;
   const logoUrl = settings?.logoUrl;
 
+  useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > 8);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--igh-border)] bg-white/95 backdrop-blur">
+    <header
+      className={`sticky top-0 z-40 border-b border-[var(--igh-border)] bg-white/95 backdrop-blur transition-shadow ${scrolled ? "shadow-md" : ""}`}
+    >
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Menu principal">
         <Link href="/" className="flex shrink-0 items-center rounded focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2">
           {logoUrl ? (

@@ -10,7 +10,7 @@ import {
   BlogCard,
   FormacoesSection,
 } from "@/components/site";
-import { statsImpact, posts } from "@/content";
+import { statsImpact } from "@/content";
 import {
   getFormationsForFilter,
   getCoursesForSite,
@@ -18,6 +18,7 @@ import {
   getPartners,
   getFaqItems,
   getTestimonials,
+  getNewsPostsForSite,
 } from "@/lib/site-data";
 
 export const metadata = {
@@ -36,7 +37,7 @@ type Props = { searchParams: Promise<{ formacao?: string }> };
 export default async function HomePage({ searchParams }: Props) {
   const { formacao: formacaoSlug } = await searchParams;
 
-  const [formations, coursesFull, banners, partners, faqItemsFromDb, testimonialsFromDb, recentPosts] =
+  const [formations, coursesFull, banners, partners, faqItemsFromDb, testimonialsFromDb, newsPosts] =
     await Promise.all([
       getFormationsForFilter(),
       getCoursesForSite(formacaoSlug),
@@ -44,8 +45,17 @@ export default async function HomePage({ searchParams }: Props) {
       getPartners(),
       getFaqItems(),
       getTestimonials(),
-      Promise.resolve(posts.slice(0, 3)),
+      getNewsPostsForSite(),
     ]);
+
+  const recentPosts = newsPosts.slice(0, 4).map((p) => ({
+    slug: p.slug,
+    title: p.title,
+    excerpt: p.excerpt ?? "",
+    category: p.categoryName ?? "Notícia",
+    date: p.publishedAt ? p.publishedAt.toISOString().slice(0, 10) : "",
+    image: p.coverImageUrl ?? undefined,
+  }));
 
   const courses = coursesFull.slice(0, 6);
 
@@ -212,7 +222,7 @@ export default async function HomePage({ searchParams }: Props) {
 
       {/* Blog / Notícias */}
       <Section title="Notícias" subtitle="Acompanhe as novidades do IGH.">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {recentPosts.map((post) => (
             <BlogCard key={post.slug} post={post} />
           ))}

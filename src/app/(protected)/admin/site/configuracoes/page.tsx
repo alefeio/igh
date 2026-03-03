@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
 
+type AddressEntry = { line: string; city: string; state: string; zip: string };
+
 type Settings = {
   id: string;
   siteName: string | null;
@@ -17,10 +19,7 @@ type Settings = {
   contactEmail: string | null;
   contactPhone: string | null;
   contactWhatsapp: string | null;
-  addressLine: string | null;
-  addressCity: string | null;
-  addressState: string | null;
-  addressZip: string | null;
+  addresses: AddressEntry[];
   businessHours: string | null;
   socialInstagram: string | null;
   socialFacebook: string | null;
@@ -31,6 +30,7 @@ type Settings = {
 };
 
 const empty = (s: string | null | undefined) => s ?? "";
+const emptyAddress = (): AddressEntry => ({ line: "", city: "", state: "", zip: "" });
 
 export default function ConfiguracoesPage() {
   const toast = useToast();
@@ -38,18 +38,46 @@ export default function ConfiguracoesPage() {
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [addresses, setAddresses] = useState<AddressEntry[]>([emptyAddress()]);
+
+  async function parseJson<T>(res: Response): Promise<T | null> {
+    const text = await res.text();
+    if (!text?.trim()) return null;
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      return null;
+    }
+  }
 
   async function load() {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/site/settings");
-      const json = (await res.json()) as ApiResponse<{ settings: Settings }>;
+      const json = await parseJson<ApiResponse<{ settings: Settings }>>(res);
+      if (!json) {
+        toast.push("error", res.ok ? "Resposta inválida do servidor." : "Falha ao carregar. Verifique se está logado.");
+        return;
+      }
       if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao carregar.");
+        toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Falha ao carregar." : "Falha ao carregar.");
         return;
       }
       const s = json.data.settings;
       setSettings(s);
+      const raw = (s as { addresses?: unknown }).addresses;
+      const addrs =
+        Array.isArray(raw) && raw.length > 0
+          ? raw.map((a: unknown) => {
+              const x = a && typeof a === "object" && "line" in a ? (a as AddressEntry) : null;
+              return {
+                line: x?.line ?? "",
+                city: x?.city ?? "",
+                state: x?.state ?? "",
+                zip: x?.zip ?? "",
+              };
+            })
+          : [emptyAddress()];
       setForm({
         siteName: empty(s.siteName),
         logoUrl: empty(s.logoUrl),
@@ -59,10 +87,6 @@ export default function ConfiguracoesPage() {
         contactEmail: empty(s.contactEmail),
         contactPhone: empty(s.contactPhone),
         contactWhatsapp: empty(s.contactWhatsapp),
-        addressLine: empty(s.addressLine),
-        addressCity: empty(s.addressCity),
-        addressState: empty(s.addressState),
-        addressZip: empty(s.addressZip),
         businessHours: empty(s.businessHours),
         socialInstagram: empty(s.socialInstagram),
         socialFacebook: empty(s.socialFacebook),
@@ -71,6 +95,7 @@ export default function ConfiguracoesPage() {
         seoTitleDefault: empty(s.seoTitleDefault),
         seoDescriptionDefault: empty(s.seoDescriptionDefault),
       });
+      setAddresses(addrs.map((a: AddressEntry) => ({ ...a })));
     } finally {
       setLoading(false);
     }
@@ -87,15 +112,31 @@ export default function ConfiguracoesPage() {
       const res = await fetch("/api/admin/site/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, addresses }),
       });
-      const json = (await res.json()) as ApiResponse<{ settings: Settings }>;
+      const json = await parseJson<ApiResponse<{ settings: Settings }>>(res);
+      if (!json) {
+        toast.push("error", res.ok ? "Resposta inválida do servidor." : "Falha ao salvar. Verifique se está logado.");
+        return;
+      }
       if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
+        toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Falha ao salvar." : "Falha ao salvar.");
         return;
       }
       toast.push("success", "Configurações salvas.");
-      setSettings(json.data.settings);
+      const next = json.data.settings as Settings;
+      setSettings(next);
+      const raw = next?.addresses;
+      setAddresses(
+        Array.isArray(raw) && raw.length > 0
+          ? raw.map((a: AddressEntry) => ({
+              line: a?.line ?? "",
+              city: a?.city ?? "",
+              state: a?.state ?? "",
+              zip: a?.zip ?? "",
+            }))
+          : [emptyAddress()]
+      );
     } finally {
       setSaving(false);
     }
@@ -213,37 +254,82 @@ export default function ConfiguracoesPage() {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium">Endereço (linha)</label>
-              <Input
-                className="mt-1"
-                value={form.addressLine ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, addressLine: e.target.value }))}
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <label className="text-sm font-medium">Cidade</label>
-                <Input
-                  className="mt-1"
-                  value={form.addressCity ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, addressCity: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Estado</label>
-                <Input
-                  className="mt-1"
-                  value={form.addressState ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, addressState: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">CEP</label>
-                <Input
-                  className="mt-1"
-                  value={form.addressZip ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, addressZip: e.target.value }))}
-                />
+              <label className="text-sm font-medium">Endereços (unidades)</label>
+              <p className="mt-1 text-xs text-zinc-500">Adicione um endereço por unidade.</p>
+              <div className="mt-2 space-y-4">
+                {addresses.map((addr, idx) => (
+                  <div key={idx} className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-medium text-zinc-700">Unidade {idx + 1}</span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="text-red-600"
+                        onClick={() => setAddresses((prev) => prev.filter((_, i) => i !== idx))}
+                        disabled={addresses.length <= 1}
+                      >
+                        Remover
+                      </Button>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <label className="text-xs text-zinc-500">Logradouro / número / complemento</label>
+                        <Input
+                          className="mt-1"
+                          value={addr.line}
+                          onChange={(e) =>
+                            setAddresses((prev) =>
+                              prev.map((a, i) => (i === idx ? { ...a, line: e.target.value } : a))
+                            )
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-500">Cidade</label>
+                        <Input
+                          className="mt-1"
+                          value={addr.city}
+                          onChange={(e) =>
+                            setAddresses((prev) =>
+                              prev.map((a, i) => (i === idx ? { ...a, city: e.target.value } : a))
+                            )
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-500">Estado</label>
+                        <Input
+                          className="mt-1"
+                          value={addr.state}
+                          onChange={(e) =>
+                            setAddresses((prev) =>
+                              prev.map((a, i) => (i === idx ? { ...a, state: e.target.value } : a))
+                            )
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-500">CEP</label>
+                        <Input
+                          className="mt-1"
+                          value={addr.zip}
+                          onChange={(e) =>
+                            setAddresses((prev) =>
+                              prev.map((a, i) => (i === idx ? { ...a, zip: e.target.value } : a))
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setAddresses((prev) => [...prev, emptyAddress()])}
+                >
+                  Adicionar unidade
+                </Button>
               </div>
             </div>
             <div>

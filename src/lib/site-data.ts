@@ -38,6 +38,21 @@ export async function getMenuItems(): Promise<MenuItemPublic[]> {
 }
 
 // --- Settings (para Footer e SEO) ---
+function parseAddresses(value: unknown): { line: string; city: string; state: string; zip: string }[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (x): x is Record<string, unknown> =>
+        x != null && typeof x === "object" && "line" in x && "city" in x && "state" in x && "zip" in x
+    )
+    .map((x) => ({
+      line: String(x.line ?? ""),
+      city: String(x.city ?? ""),
+      state: String(x.state ?? ""),
+      zip: String(x.zip ?? ""),
+    }));
+}
+
 export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
   try {
     const s = await prisma.siteSettings.findFirst();
@@ -51,10 +66,7 @@ export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
     contactEmail: s.contactEmail,
     contactPhone: s.contactPhone,
     contactWhatsapp: s.contactWhatsapp,
-    addressLine: s.addressLine,
-    addressCity: s.addressCity,
-    addressState: s.addressState,
-    addressZip: s.addressZip,
+    addresses: parseAddresses(s.addresses),
     businessHours: s.businessHours,
     socialInstagram: s.socialInstagram,
     socialFacebook: s.socialFacebook,

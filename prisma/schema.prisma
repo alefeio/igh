@@ -324,10 +324,7 @@ model SiteSettings {
   contactEmail          String?
   contactPhone          String?
   contactWhatsapp       String?
-  addressLine           String?
-  addressCity           String?
-  addressState          String?
-  addressZip            String?
+  addresses             Json?    // array of { line, city, state, zip }
   businessHours         String?
   socialInstagram       String?
   socialFacebook        String?

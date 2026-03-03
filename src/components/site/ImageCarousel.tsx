@@ -18,7 +18,7 @@ export function ImageCarousel({ images, className = "" }: ImageCarouselProps) {
   if (n === 1) {
     return (
       <div className={className}>
-        <img src={images[0]} alt="" className="h-64 w-full rounded-lg object-cover sm:h-80" />
+        <img src={images[0]} alt="" className="w-full rounded-lg" />
       </div>
     );
   }
@@ -29,7 +29,7 @@ export function ImageCarousel({ images, className = "" }: ImageCarouselProps) {
         <img
           src={images[index]}
           alt=""
-          className="h-64 w-full object-cover sm:h-80"
+          className="w-full rounded-lg"
         />
       </div>
       <button
