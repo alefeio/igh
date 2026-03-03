@@ -527,7 +527,7 @@ export default function CoursesPage() {
               ) : modules.length === 0 ? (
                 <p className="mt-1 text-xs text-zinc-500">Nenhum módulo. Clique em &quot;Novo módulo&quot; para adicionar.</p>
               ) : (
-                <ul className="mt-2 max-h-64 space-y-3 overflow-y-auto text-sm">
+                <ul className="mt-2 max-h-64 overflow-y-auto text-sm">
                   {modules.map((mod) => (
                     <li key={mod.id} className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -545,7 +545,7 @@ export default function CoursesPage() {
                         </div>
                       </div>
                       {mod.description && <p className="mt-0.5 text-xs text-zinc-500">{mod.description}</p>}
-                      <ul className="mt-2 space-y-1 pl-2">
+                      <ul className="mt-2 pl-2">
                         {mod.lessons.map((les) => (
                           <li key={les.id} className="flex flex-wrap items-center justify-between gap-1 rounded py-0.5">
                             <span className="text-zinc-700">

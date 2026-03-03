@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       excerpt: parsed.data.excerpt ?? null,
       content: parsed.data.content ?? null,
       coverImageUrl: parsed.data.coverImageUrl || null,
+      imageUrls: parsed.data.imageUrls ?? [],
       categoryId: parsed.data.categoryId ?? null,
       publishedAt: parsed.data.publishedAt ? new Date(parsed.data.publishedAt) : null,
       isPublished: parsed.data.isPublished ?? false,

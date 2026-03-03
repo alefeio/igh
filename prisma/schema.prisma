@@ -452,6 +452,7 @@ model SiteNewsPost {
   excerpt       String?
   content       String?
   coverImageUrl String?
+  imageUrls     String[]          @default([])
   categoryId    String?
   category      SiteNewsCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   publishedAt   DateTime?

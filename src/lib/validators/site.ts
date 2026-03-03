@@ -124,6 +124,7 @@ export const siteNewsPostSchema = z.object({
   excerpt: z.string().optional(),
   content: z.string().optional(),
   coverImageUrl: z.string().url().optional().or(z.literal("")),
+  imageUrls: z.array(z.string().url()).optional(),
   categoryId: z.string().uuid().nullable().optional(),
   publishedAt: z.string().optional().nullable(),
   isPublished: z.boolean().optional(),

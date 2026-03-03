@@ -36,6 +36,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
       excerpt: parsed.data.excerpt ?? undefined,
       content: parsed.data.content ?? undefined,
       coverImageUrl: parsed.data.coverImageUrl === "" ? null : parsed.data.coverImageUrl ?? undefined,
+      imageUrls: parsed.data.imageUrls ?? undefined,
       categoryId: parsed.data.categoryId ?? undefined,
       publishedAt: parsed.data.publishedAt ? new Date(parsed.data.publishedAt) : undefined,
       isPublished: parsed.data.isPublished ?? undefined,

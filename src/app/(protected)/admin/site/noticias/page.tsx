@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
@@ -26,6 +27,7 @@ type Post = {
   excerpt: string | null;
   content: string | null;
   coverImageUrl: string | null;
+  imageUrls: string[];
   categoryId: string | null;
   publishedAt: string | null;
   isPublished: boolean;
@@ -69,6 +71,7 @@ export default function NoticiasPage() {
   const [postExcerpt, setPostExcerpt] = useState("");
   const [postContent, setPostContent] = useState("");
   const [postCoverUrl, setPostCoverUrl] = useState("");
+  const [postImageUrls, setPostImageUrls] = useState<string[]>([]);
   const [postCategoryId, setPostCategoryId] = useState("");
   const [postPublishedAt, setPostPublishedAt] = useState("");
   const [postIsPublished, setPostIsPublished] = useState(false);
@@ -87,6 +90,7 @@ export default function NoticiasPage() {
     setPostExcerpt("");
     setPostContent("");
     setPostCoverUrl("");
+    setPostImageUrls([]);
     setPostCategoryId("");
     setPostPublishedAt("");
     setPostIsPublished(false);
@@ -216,6 +220,7 @@ export default function NoticiasPage() {
     setPostExcerpt(p.excerpt ?? "");
     setPostContent(p.content ?? "");
     setPostCoverUrl(p.coverImageUrl ?? "");
+    setPostImageUrls(p.imageUrls ?? []);
     setPostCategoryId(p.categoryId ?? "");
     setPostPublishedAt(dateToInput(p.publishedAt));
     setPostIsPublished(p.isPublished);
@@ -247,6 +252,7 @@ export default function NoticiasPage() {
         excerpt: postExcerpt.trim() || undefined,
         content: postContent.trim() || undefined,
         coverImageUrl: postCoverUrl.trim() || undefined,
+        imageUrls: postImageUrls,
         categoryId: postCategoryId || null,
         publishedAt: postPublishedAt || null,
         isPublished: postIsPublished,
@@ -441,18 +447,36 @@ export default function NoticiasPage() {
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Conteúdo</label>
-            <textarea
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
-              rows={4}
-              value={postContent}
-              onChange={(e) => setPostContent(e.target.value)}
-            />
+            <label className="text-sm font-medium">Conteúdo (rich text)</label>
+            <div className="mt-1">
+              <RichTextEditor
+                value={postContent}
+                onChange={setPostContent}
+                placeholder="Digite o conteúdo da notícia..."
+                minHeight="160px"
+              />
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium">URL da imagem de capa</label>
             <Input className="mt-1" value={postCoverUrl} onChange={(e) => setPostCoverUrl(e.target.value)} placeholder="https://..." />
             <CloudinaryImageUpload kind="news" currentUrl={postCoverUrl || undefined} onUploaded={setPostCoverUrl} label="Ou envie uma imagem" />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Imagens adicionais (galeria / carrossel)</label>
+            <p className="mt-1 text-xs text-zinc-500">Ordem da lista = ordem no carrossel. Use a imagem de capa acima ou adicione aqui.</p>
+            <ul className="mt-2 list-none space-y-2 pl-0">
+              {postImageUrls.map((url, idx) => (
+                <li key={idx} className="flex items-center gap-2 rounded border border-zinc-200 bg-zinc-50/50 p-2">
+                  <img src={url} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
+                  <Input className="min-w-0 flex-1 text-sm" value={url} onChange={(e) => setPostImageUrls((prev) => prev.map((u, i) => (i === idx ? e.target.value : u)))} placeholder="URL" />
+                  <Button type="button" variant="secondary" className="shrink-0 text-red-600" onClick={() => setPostImageUrls((prev) => prev.filter((_, i) => i !== idx))}>Remover</Button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-2">
+              <CloudinaryImageUpload kind="news" currentUrl={undefined} onUploaded={(url) => setPostImageUrls((prev) => [...prev, url])} label="Adicionar imagem" />
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium">Data de publicação</label>

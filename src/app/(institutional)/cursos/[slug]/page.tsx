@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader, Section, Button } from "@/components/site";
+import { Container, Section, Button } from "@/components/site";
 import { getCourseBySlug } from "@/lib/site-data";
 import { CourseCtaFloating } from "./CourseCtaFloating";
 
@@ -25,18 +25,39 @@ export default async function CursoSlugPage({ params }: Props) {
   const course = await getCourseBySlug(slug);
   if (!course) notFound();
 
+  const subtitle =
+    course.formationTitle
+      ? `${course.formationTitle}${course.workloadHours != null ? ` • ${course.workloadHours}h` : ""}`
+      : course.workloadHours != null
+        ? `Carga horária: ${course.workloadHours}h`
+        : undefined;
+
   return (
     <>
-      <PageHeader
-        title={course.name}
-        subtitle={
-          course.formationTitle
-            ? `${course.formationTitle}${course.workloadHours != null ? ` • ${course.workloadHours}h` : ""}`
-            : course.workloadHours != null
-              ? `Carga horária: ${course.workloadHours}h`
-              : undefined
-        }
-      />
+      {/* Hero com foto do curso como fundo (mesmo tom do banner da home) */}
+      <section className="relative overflow-hidden bg-[var(--igh-surface)]">
+        {course.imageUrl && (
+          <div className="absolute inset-0 z-0">
+            <img
+              src={course.imageUrl}
+              alt=""
+              className="h-full w-full object-cover opacity-30"
+            />
+          </div>
+        )}
+        <Container className="relative z-10 py-16 sm:py-24">
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--igh-secondary)] sm:text-4xl lg:text-5xl">
+              {course.name}
+            </h1>
+            {subtitle && (
+              <p className="mt-4 text-lg text-[var(--igh-muted)]">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </Container>
+      </section>
 
       <Section className="pb-24">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -60,23 +81,9 @@ export default async function CursoSlugPage({ params }: Props) {
 
         <CourseCtaFloating />
 
-        {course.imageUrl && (
-          <img
-            src={course.imageUrl}
-            alt=""
-            className="mb-8 h-56 w-full rounded-xl object-cover sm:h-72"
-          />
-        )}
-
         {course.description && (
           <p className="mb-8 w-full text-lg text-[var(--igh-muted)]">
             {course.description}
-          </p>
-        )}
-
-        {course.workloadHours != null && (
-          <p className="mb-8 text-sm font-medium text-[var(--igh-secondary)]">
-            Carga horária: {course.workloadHours}h
           </p>
         )}
 
@@ -108,7 +115,7 @@ export default async function CursoSlugPage({ params }: Props) {
                       {mod.description}
                     </p>
                   )}
-                  <ul className="mt-4 space-y-2">
+                  <ul className="mt-4">
                     {mod.lessons.map((aula) => (
                       <li
                         key={aula.id}

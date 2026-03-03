@@ -417,6 +417,7 @@ export type NewsPostForSite = {
   excerpt: string | null;
   content: string | null;
   coverImageUrl: string | null;
+  imageUrls: string[];
   categoryId: string | null;
   categoryName: string | null;
   publishedAt: Date | null;
@@ -446,6 +447,7 @@ export async function getNewsPostsForSite(categorySlug?: string): Promise<NewsPo
       excerpt: true,
       content: true,
       coverImageUrl: true,
+      imageUrls: true,
       categoryId: true,
       publishedAt: true,
       category: { select: { name: true } },
@@ -458,6 +460,7 @@ export async function getNewsPostsForSite(categorySlug?: string): Promise<NewsPo
     excerpt: p.excerpt,
     content: p.content,
     coverImageUrl: p.coverImageUrl,
+    imageUrls: p.imageUrls ?? [],
     categoryId: p.categoryId,
     categoryName: p.category?.name ?? null,
     publishedAt: p.publishedAt,
@@ -474,6 +477,7 @@ export async function getNewsPostBySlug(slug: string): Promise<NewsPostForSite |
       excerpt: true,
       content: true,
       coverImageUrl: true,
+      imageUrls: true,
       categoryId: true,
       publishedAt: true,
       category: { select: { name: true } },
@@ -487,6 +491,7 @@ export async function getNewsPostBySlug(slug: string): Promise<NewsPostForSite |
     excerpt: p.excerpt,
     content: p.content,
     coverImageUrl: p.coverImageUrl,
+    imageUrls: p.imageUrls ?? [],
     categoryId: p.categoryId,
     categoryName: p.category?.name ?? null,
     publishedAt: p.publishedAt,

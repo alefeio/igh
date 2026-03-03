@@ -64,7 +64,7 @@ export function Footer({ menuItems, settings }: FooterProps) {
           </div>
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white/90">Links</h3>
-            <ul className="mt-4 space-y-2">
+            <ul className="mt-4 list-none pl-0">
               {showHierarchy && menuItems ? (
                 <>
                   {menuItems.map((item) => (
@@ -76,7 +76,7 @@ export function Footer({ menuItems, settings }: FooterProps) {
                         {item.label}
                       </Link>
                       {item.children && item.children.length > 0 && (
-                        <ul className="ml-3 mt-1 space-y-0.5">
+                        <ul className="ml-3 mt-1 list-none pl-0">
                           {item.children.map((child) => (
                             <li key={child.id}>
                               <Link
@@ -131,7 +131,7 @@ export function Footer({ menuItems, settings }: FooterProps) {
           ) : null}
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white/90">Redes sociais</h3>
-            <ul className="mt-4 flex gap-4">
+            <ul className="mt-4 flex list-none gap-4 pl-0">
               {socials.length > 0 ? (
                 socials.map((s) => (
                   <li key={s.icon}>

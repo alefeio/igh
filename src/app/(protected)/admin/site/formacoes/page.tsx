@@ -329,7 +329,7 @@ export default function FormacoesPage() {
             {selectedCourseIds.length > 0 && (
               <div className="mt-3">
                 <span className="text-xs font-medium text-zinc-600">Ordem dos cursos (primeiro = início da trilha):</span>
-                <ul className="mt-1 space-y-1 rounded border border-zinc-200 bg-zinc-50/50 p-2">
+                <ul className="mt-1 rounded border border-zinc-200 bg-zinc-50/50 p-2">
                   {selectedCourseIds.map((courseId, index) => {
                     const course = allCourses.find((c) => c.id === courseId);
                     const name = course?.name ?? courseId;

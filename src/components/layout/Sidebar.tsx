@@ -78,13 +78,13 @@ export function Sidebar({
   const categoryOrder = ["Início", "Aluno", "Administração", "Site", "Configurações", "Menu"];
 
   const navContent = (
-    <ul className="flex flex-col gap-4">
+    <ul className="flex list-none flex-col gap-4 pl-0">
       {categoryOrder.filter((cat) => byCategory[cat]?.length).map((cat) => (
         <li key={cat}>
           <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
             {cat}
           </div>
-          <ul className="flex flex-col gap-0.5">
+          <ul className="flex list-none flex-col gap-0.5 pl-0">
             {byCategory[cat].map((item) => {
               const active = pathname === item.href;
               return (
