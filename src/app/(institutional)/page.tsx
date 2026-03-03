@@ -73,7 +73,7 @@ export default async function HomePage({ searchParams }: Props) {
     <>
       {/* Hero / Banner do banco */}
       {heroBanner ? (
-        <section className="relative bg-[var(--igh-surface)] overflow-hidden">
+        <section className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-[var(--igh-surface)]">
           {heroBanner.imageUrl && (
             <div className="absolute inset-0 z-0">
               <img
@@ -106,7 +106,7 @@ export default async function HomePage({ searchParams }: Props) {
           </Container>
         </section>
       ) : (
-        <section className="bg-[var(--igh-surface)] py-16 sm:py-24">
+        <section className="flex min-h-screen flex-col justify-center bg-[var(--igh-surface)] py-16 sm:py-24">
           <Container>
             <div className="mx-auto max-w-3xl text-center">
               <h1 className="text-3xl font-bold tracking-tight text-[var(--igh-secondary)] sm:text-4xl lg:text-5xl">

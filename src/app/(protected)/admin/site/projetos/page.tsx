@@ -7,6 +7,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
@@ -216,8 +217,8 @@ export default function ProjetosPage() {
             <Input className="mt-1" value={summary} onChange={(e) => setSummary(e.target.value)} />
           </div>
           <div>
-            <label className="text-sm font-medium">Conteúdo</label>
-            <textarea className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" rows={4} value={content} onChange={(e) => setContent(e.target.value)} />
+            <label className="text-sm font-medium">Conteúdo (rich text)</label>
+            <RichTextEditor value={content} onChange={setContent} minHeight="200px" className="mt-1" />
           </div>
           <div>
             <label className="text-sm font-medium">URL da imagem de capa</label>

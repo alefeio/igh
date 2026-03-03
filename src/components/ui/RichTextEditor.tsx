@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import Link from "@tiptap/extension-link";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -37,13 +38,19 @@ export function RichTextEditor({
   const [blockType, setBlockType] = useState<"paragraph" | "title">("paragraph");
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: { target: "_blank", rel: "noopener noreferrer" },
+      }),
+    ],
     content: parseContent(value) || "",
     immediatelyRender: false,
     editorProps: {
       attributes: {
         class:
-          "min-h-[120px] px-3 py-2 text-sm focus:outline-none [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-2 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2",
+          "min-h-[120px] px-3 py-2 text-sm focus:outline-none [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-2 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2 [&_a]:text-blue-600 [&_a]:underline [&_a]:cursor-pointer",
       },
     },
     onUpdate: ({ editor }) => {
@@ -78,6 +85,22 @@ export function RichTextEditor({
   const setItalic = useCallback(() => editor?.chain().focus().toggleItalic().run(), [editor]);
   const setBulletList = useCallback(() => editor?.chain().focus().toggleBulletList().run(), [editor]);
   const setOrderedList = useCallback(() => editor?.chain().focus().toggleOrderedList().run(), [editor]);
+
+  const setLink = useCallback(() => {
+    if (!editor) return;
+    const previousHref = editor.getAttributes("link").href;
+    const url = window.prompt("URL do link", previousHref || "https://");
+    if (url == null) return;
+    const href = url.trim();
+    if (href === "") {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      return;
+    }
+    const withProtocol = /^[a-zA-Z]+:/.test(href) ? href : `https://${href}`;
+    editor.chain().focus().extendMarkRange("link").setLink({ href: withProtocol }).run();
+  }, [editor]);
+
+  const unsetLink = useCallback(() => editor?.chain().focus().unsetLink().run(), [editor]);
 
   const onBlockTypeChange = useCallback(
     (next: "paragraph" | "title") => {
@@ -149,6 +172,24 @@ export function RichTextEditor({
         >
           1. Lista
         </button>
+        <button
+          type="button"
+          onClick={setLink}
+          className="rounded px-2 py-1 text-sm text-blue-600 hover:bg-zinc-200"
+          title="Inserir ou editar link"
+        >
+          Link
+        </button>
+        {editor.isActive("link") && (
+          <button
+            type="button"
+            onClick={unsetLink}
+            className="rounded px-2 py-1 text-sm text-red-600 hover:bg-zinc-200"
+            title="Remover link"
+          >
+            Remover link
+          </button>
+        )}
       </div>
       <EditorContent editor={editor} />
     </div>

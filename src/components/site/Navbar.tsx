@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
 
 const FALLBACK_LINKS: MenuItemPublic[] = [
@@ -30,6 +30,8 @@ export function Navbar({ menuItems: propItems, settings }: NavbarProps) {
   const [open, setOpen] = useState(false);
   const [projetosOpen, setProjetosOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const headerRef = useRef<HTMLElement>(null);
   const links = (propItems && propItems.length > 0) ? propItems : FALLBACK_LINKS;
   const logoUrl = settings?.logoUrl;
 
@@ -42,10 +44,22 @@ export function Navbar({ menuItems: propItems, settings }: NavbarProps) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const el = headerRef.current;
+    const ro = new ResizeObserver(() => setHeaderHeight(el.offsetHeight));
+    ro.observe(el);
+    setHeaderHeight(el.offsetHeight);
+    return () => ro.disconnect();
+  }, [open]);
+
   return (
-    <header
-      className={`sticky top-0 z-40 border-b border-[var(--igh-border)] bg-white/95 backdrop-blur transition-shadow ${scrolled ? "shadow-md" : ""}`}
-    >
+    <>
+      {scrolled && headerHeight > 0 && <div aria-hidden className="shrink-0" style={{ height: headerHeight }} />}
+      <header
+        ref={headerRef}
+        className={`z-40 border-b border-[var(--igh-border)] bg-white/95 backdrop-blur transition-shadow ${scrolled ? "fixed left-0 right-0 top-0 shadow-md" : "sticky top-0"}`}
+      >
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Menu principal">
         <Link href="/" className="flex shrink-0 items-center rounded focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2">
           {logoUrl ? (
@@ -109,5 +123,6 @@ export function Navbar({ menuItems: propItems, settings }: NavbarProps) {
         </div>
       )}
     </header>
+    </>
   );
 }
