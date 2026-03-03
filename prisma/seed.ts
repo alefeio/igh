@@ -15,10 +15,7 @@ async function main() {
         contactEmail: "contato@igh.org.br",
         contactPhone: "(11) 1234-5678",
         contactWhatsapp: "",
-        addressLine: "",
-        addressCity: "Belém",
-        addressState: "PA",
-        addressZip: "",
+        addresses: [{ line: "", city: "Belém", state: "PA", zip: "" }],
         businessHours: "",
         seoTitleDefault: "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital",
         seoDescriptionDefault:
