@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
-import { Button } from "@/components/ui/Button";
+import { Button, Card } from "@/components/site";
 import { Input } from "@/components/ui/Input";
-import { Card } from "@/components/site";
 import type { ApiResponse } from "@/lib/api-types";
 
 type StudentData = {
