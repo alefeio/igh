@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { PageHeader, Section } from "@/components/site";
 import { InscrevaForm } from "./InscrevaForm";
 
@@ -5,6 +6,14 @@ export const metadata = {
   title: "Inscreva-se",
   description: "Faça sua pré-matrícula nas formações do IGH. Escolha a turma e inscreva-se.",
 };
+
+function InscrevaFormFallback() {
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center text-[var(--igh-muted)]">
+      Carregando...
+    </div>
+  );
+}
 
 export default function InscrevaPage() {
   return (
@@ -15,7 +24,9 @@ export default function InscrevaPage() {
       />
       <Section>
         <div className="mx-auto max-w-xl">
-          <InscrevaForm />
+          <Suspense fallback={<InscrevaFormFallback />}>
+            <InscrevaForm />
+          </Suspense>
         </div>
       </Section>
     </>
