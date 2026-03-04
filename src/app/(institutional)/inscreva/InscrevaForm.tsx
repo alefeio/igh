@@ -51,6 +51,14 @@ function formatDateForInput(d: Date | string): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Primeira letra de cada palavra maiúscula, restante minúscula. */
+function toTitleCase(value: string): string {
+  return value
+    .split(/\s+/)
+    .map((word) => (word.length === 0 ? "" : word[0].toUpperCase() + word.slice(1).toLowerCase()))
+    .join(" ");
+}
+
 /** Converte "HH:MM" ou "HH:MM:SS" em minutos desde meia-noite. */
 function timeToMinutes(t: string): number {
   const parts = (t || "0:0").split(":");
@@ -301,7 +309,7 @@ export function InscrevaForm() {
                 <input
                   className={`mt-1 ${inputClass}`}
                   value={cadastroName}
-                  onChange={(e) => setCadastroName(e.target.value)}
+                  onChange={(e) => setCadastroName(toTitleCase(e.target.value))}
                   required
                 />
               </div>
@@ -311,7 +319,7 @@ export function InscrevaForm() {
                   className={`mt-1 ${inputClass}`}
                   type="email"
                   value={cadastroEmail}
-                  onChange={(e) => setCadastroEmail(e.target.value)}
+                  onChange={(e) => setCadastroEmail(e.target.value.toLowerCase())}
                   placeholder="seu@email.com"
                 />
                 <p className={hintClass}>Se informar, você receberá a confirmação por e-mail. Use sua data de nascimento para o primeiro acesso.</p>
