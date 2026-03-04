@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button, Card } from "@/components/site";
 import { Input } from "@/components/ui/Input";
@@ -52,6 +53,8 @@ function formatDateForInput(d: Date | string): string {
 }
 
 export function InscrevaForm() {
+  const searchParams = useSearchParams();
+  const courseIdFromUrl = searchParams.get("courseId");
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<StudentData | null>(null);
@@ -70,9 +73,12 @@ export function InscrevaForm() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const cgUrl = courseIdFromUrl
+        ? `/api/public/class-groups?courseId=${encodeURIComponent(courseIdFromUrl)}`
+        : "/api/public/class-groups";
       const [meRes, cgRes] = await Promise.all([
         fetch("/api/me/student"),
-        fetch("/api/public/class-groups"),
+        fetch(cgUrl),
       ]);
       const meJson = (await meRes.json()) as ApiResponse<{ student: StudentData | null }>;
       const cgJson = (await cgRes.json()) as ApiResponse<{ classGroups: ClassGroupOption[] }>;
@@ -81,7 +87,7 @@ export function InscrevaForm() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [courseIdFromUrl]);
 
   useEffect(() => {
     void load();
@@ -323,6 +329,16 @@ export function InscrevaForm() {
             </select>
             {classGroups.length === 0 && (
               <p className="mt-1 text-xs text-[var(--igh-muted)]">Nenhuma turma disponível no momento.</p>
+            )}
+            {courseIdFromUrl && (
+              <p className="mt-2">
+                <a
+                  href="/inscreva"
+                  className="text-xs text-[var(--igh-muted)] hover:text-[var(--igh-primary)] hover:underline"
+                >
+                  Ver outros cursos
+                </a>
+              </p>
             )}
           </div>
           <Button type="submit" disabled={submitting || !classGroupId || classGroups.length === 0}>

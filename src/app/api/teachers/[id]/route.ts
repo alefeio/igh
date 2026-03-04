@@ -118,6 +118,16 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   }
 
   if (existing.deletedAt) {
+    const linkedCount = await prisma.classGroup.count({
+      where: { teacherId: id },
+    });
+    if (linkedCount > 0) {
+      return jsonErr(
+        "CONSTRAINT_VIOLATION",
+        "Este professor está vinculado a turmas. Atribua outro professor às turmas antes de excluir definitivamente.",
+        409
+      );
+    }
     const userIdToDelete = existing.userId;
     await prisma.teacher.delete({ where: { id } });
     if (userIdToDelete) {

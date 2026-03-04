@@ -70,7 +70,7 @@ export default async function CursoSlugPage({ params }: Props) {
           </nav>
           <Button
             as="link"
-            href="/contato#inscreva"
+            href={`/inscreva?courseId=${encodeURIComponent(course.id)}`}
             variant="primary"
             size="lg"
             className="w-full shrink-0 sm:w-auto"
@@ -79,7 +79,7 @@ export default async function CursoSlugPage({ params }: Props) {
           </Button>
         </div>
 
-        <CourseCtaFloating />
+        <CourseCtaFloating courseId={course.id} />
 
         {course.description && (
           <p className="mb-8 w-full text-lg text-[var(--igh-muted)]">

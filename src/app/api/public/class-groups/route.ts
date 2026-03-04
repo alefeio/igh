@@ -1,12 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
 
-/** Lista turmas abertas para pré-matrícula (público, sem auth). */
-export async function GET() {
+/** Lista turmas abertas para pré-matrícula (público, sem auth). Query: courseId (uuid) para filtrar por curso. */
+export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
+    const courseId = url.searchParams.get("courseId")?.trim() || null;
+
     const classGroups = await prisma.classGroup.findMany({
       where: {
         status: { in: ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"] },
+        ...(courseId && { courseId }),
       },
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       select: {

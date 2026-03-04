@@ -58,7 +58,7 @@ export default async function HomePage({ searchParams }: Props) {
     image: p.coverImageUrl ?? undefined,
   }));
 
-  const courses = coursesFull.slice(0, 6);
+  const courses = coursesFull;
 
   const faqItems = faqItemsFromDb.map((i) => ({ pergunta: i.question, resposta: i.answer }));
   const depoimentos = testimonialsFromDb.map((t) => ({
@@ -114,8 +114,8 @@ export default async function HomePage({ searchParams }: Props) {
           basePath="/"
         />
         <div className="mt-8 text-center">
-          <Button as="link" href="/formacoes" variant="primary" size="lg">
-            Ver todas as formações
+          <Button as="link" href="/inscreva" variant="primary" size="lg">
+            Quero me inscrever
           </Button>
         </div>
       </Section>
