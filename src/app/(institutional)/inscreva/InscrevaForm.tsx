@@ -235,6 +235,12 @@ export function InscrevaForm() {
         } else {
           toast.push("success", successCount === 1 ? "Pré-matrícula enviada. Aguarde a confirmação pela equipe." : `${successCount} pré-matrículas enviadas. Aguarde a confirmação pela equipe.`);
         }
+        setCadastroName("");
+        setCadastroCpf("");
+        setCadastroBirthDate("");
+        setCadastroPhone("");
+        setCadastroEmail("");
+        setCadastroGuardianCpf("");
       }
       setSelectedClassGroupIds([]);
       setStudentToken(null);
