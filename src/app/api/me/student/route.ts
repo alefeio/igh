@@ -7,7 +7,7 @@ import { updateStudentSchema } from "@/lib/validators/students";
 export async function GET() {
   const user = await getSessionUserFromCookie();
   if (!user || user.role !== "STUDENT") {
-    return jsonOk({ student: null });
+    return jsonOk({ student: null, enrolledCourseIds: [] });
   }
 
   const student = await prisma.student.findFirst({
@@ -23,8 +23,14 @@ export async function GET() {
   });
 
   if (!student) {
-    return jsonOk({ student: null });
+    return jsonOk({ student: null, enrolledCourseIds: [] });
   }
+
+  const activeEnrollments = await prisma.enrollment.findMany({
+    where: { studentId: student.id, status: "ACTIVE" },
+    select: { classGroup: { select: { courseId: true } } },
+  });
+  const enrolledCourseIds = [...new Set(activeEnrollments.map((e) => e.classGroup.courseId))];
 
   return jsonOk({
     student: {
@@ -35,6 +41,7 @@ export async function GET() {
       phone: student.phone,
       email: student.email,
     },
+    enrolledCourseIds,
   });
 }
 

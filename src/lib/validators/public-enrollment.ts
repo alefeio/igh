@@ -18,6 +18,16 @@ function isValidCPF(cpf: string): boolean {
   return rev === parseInt(d[10], 10);
 }
 
+function ageFromBirthDate(birthDate: string): number | null {
+  const d = new Date(birthDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+  return age;
+}
+
 export const createPublicStudentSchema = z
   .object({
     name: z.string().min(2, "Nome deve ter ao menos 2 caracteres").max(200),
@@ -28,6 +38,10 @@ export const createPublicStudentSchema = z
       .string()
       .optional()
       .transform((s) => (typeof s === "string" && s.trim() ? s.trim().toLowerCase() : null)),
+    guardianCpf: z
+      .string()
+      .optional()
+      .transform((s) => (typeof s === "string" && s.trim() ? s.trim() : null)),
   })
   .refine(
     (data) => {
@@ -42,6 +56,22 @@ export const createPublicStudentSchema = z
       return !Number.isNaN(d.getTime()) && d < new Date();
     },
     { message: "Data de nascimento inválida", path: ["birthDate"] }
+  )
+  .refine(
+    (data) => {
+      const age = ageFromBirthDate(data.birthDate);
+      if (age == null || age >= 18) return true;
+      return data.guardianCpf != null && data.guardianCpf.replace(/\D/g, "").length === 11;
+    },
+    { message: "Para menores de 18 anos é obrigatório informar o CPF do responsável.", path: ["guardianCpf"] }
+  )
+  .refine(
+    (data) => {
+      const age = ageFromBirthDate(data.birthDate);
+      if (age == null || age >= 18 || !data.guardianCpf) return true;
+      return isValidCPF(data.guardianCpf);
+    },
+    { message: "CPF do responsável inválido.", path: ["guardianCpf"] }
   );
 
 export const createPreEnrollmentSchema = z.object({

@@ -72,6 +72,18 @@ function doOverlap(a: ClassGroupOption, b: ClassGroupOption): boolean {
   return startA < endB && endA > startB;
 }
 
+/** Calcula idade a partir da data de nascimento (string YYYY-MM-DD). */
+function ageFromBirthDate(birthDate: string): number | null {
+  if (!birthDate) return null;
+  const d = new Date(birthDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+  return age;
+}
+
 export function InscrevaForm() {
   const searchParams = useSearchParams();
   const courseIdFromUrl = searchParams.get("courseId");
@@ -88,9 +100,11 @@ export function InscrevaForm() {
   const [cadastroBirthDate, setCadastroBirthDate] = useState("");
   const [cadastroPhone, setCadastroPhone] = useState("");
   const [cadastroEmail, setCadastroEmail] = useState("");
+  const [cadastroGuardianCpf, setCadastroGuardianCpf] = useState("");
   const [cadastroSubmitting, setCadastroSubmitting] = useState(false);
   const [registeredWithoutEmail, setRegisteredWithoutEmail] = useState(false);
   const [showSecretariatMessage, setShowSecretariatMessage] = useState(false);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,9 +116,12 @@ export function InscrevaForm() {
         fetch("/api/me/student"),
         fetch(cgUrl),
       ]);
-      const meJson = (await meRes.json()) as ApiResponse<{ student: StudentData | null }>;
+      const meJson = (await meRes.json()) as ApiResponse<{ student: StudentData | null; enrolledCourseIds?: string[] }>;
       const cgJson = (await cgRes.json()) as ApiResponse<{ classGroups: ClassGroupOption[] }>;
-      if (meJson?.ok) setStudent(meJson.data.student ?? null);
+      if (meJson?.ok) {
+        setStudent(meJson.data.student ?? null);
+        setEnrolledCourseIds(meJson.data.enrolledCourseIds ?? []);
+      }
       if (cgJson?.ok && cgJson.data.classGroups) setClassGroups(cgJson.data.classGroups);
     } finally {
       setLoading(false);
@@ -115,6 +132,9 @@ export function InscrevaForm() {
     void load();
   }, [load]);
 
+  const cadastroAge = ageFromBirthDate(cadastroBirthDate);
+  const isMinor = cadastroAge != null && cadastroAge < 18;
+
   async function handleCadastro(e: React.FormEvent) {
     e.preventDefault();
     if (cadastroSubmitting) return;
@@ -122,8 +142,13 @@ export function InscrevaForm() {
     const cpf = cadastroCpf.replace(/\D/g, "");
     const phone = cadastroPhone.replace(/\D/g, "");
     const email = cadastroEmail.trim().toLowerCase() || undefined;
+    const guardianCpf = cadastroGuardianCpf.replace(/\D/g, "");
     if (!name || cpf.length !== 11 || !cadastroBirthDate || phone.length < 10) {
       toast.push("error", "Preencha todos os campos obrigatórios.");
+      return;
+    }
+    if (isMinor && guardianCpf.length !== 11) {
+      toast.push("error", "Para menores de 18 anos é obrigatório informar o CPF do responsável.");
       return;
     }
     setCadastroSubmitting(true);
@@ -137,6 +162,7 @@ export function InscrevaForm() {
           birthDate: cadastroBirthDate,
           phone,
           ...(email ? { email } : {}),
+          ...(isMinor && guardianCpf ? { guardianCpf: cadastroGuardianCpf } : {}),
         }),
       });
       const json = (await res.json()) as ApiResponse<{ student: StudentData; studentToken: string }>;
@@ -158,31 +184,43 @@ export function InscrevaForm() {
     }
   }
 
-  function toggleClassGroup(id: string) {
-    const cg = classGroups.find((c) => c.id === id);
-    if (!cg) return;
-    const isSelected = selectedClassGroupIds.includes(id);
-    if (isSelected) {
-      setSelectedClassGroupIds((prev) => prev.filter((x) => x !== id));
-      return;
-    }
-    if (selectedClassGroupIds.length >= 2) {
-      toast.push("error", "Você pode selecionar no máximo 2 turmas.");
-      return;
-    }
-    const selected = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
-    if (selected.some((other) => doOverlap(other, cg))) {
-      toast.push("error", "Esta turma tem horário no mesmo dia e hora de outra já selecionada. Escolha turmas em dias ou horários diferentes.");
-      return;
-    }
-    setSelectedClassGroupIds((prev) => [...prev, id]);
-  }
+  const selectedClassGroups = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
+  const selectedCourseIds = new Set([
+    ...enrolledCourseIds,
+    ...selectedClassGroups.map((c) => c.courseId),
+  ]);
 
-  function isCheckboxDisabled(cg: ClassGroupOption): boolean {
+  function isClassGroupOptionDisabled(cg: ClassGroupOption): boolean {
     if (selectedClassGroupIds.includes(cg.id)) return false;
     if (selectedClassGroupIds.length >= 2) return true;
     const selected = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
-    return selected.some((other) => doOverlap(other, cg));
+    if (selected.some((other) => doOverlap(other, cg))) return true;
+    const wouldAddCourse = !selectedCourseIds.has(cg.courseId);
+    const newCourseCount = selectedCourseIds.size + (wouldAddCourse ? 1 : 0);
+    return newCourseCount > 2;
+  }
+
+  function handleTurmasSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const selectedIds = Array.from(e.target.selectedOptions).map((o) => o.value);
+    if (selectedIds.length > 2) {
+      toast.push("error", "Você pode se inscrever em no máximo 2 turmas.");
+      return;
+    }
+    const selected = selectedIds.map((id) => classGroups.find((c) => c.id === id)).filter(Boolean) as ClassGroupOption[];
+    const coursesUsed = new Set([...enrolledCourseIds, ...selected.map((c) => c.courseId)]);
+    if (coursesUsed.size > 2) {
+      toast.push("error", "O aluno pode se cadastrar em no máximo 2 cursos. Escolha turmas de até 2 cursos.");
+      return;
+    }
+    for (let i = 0; i < selected.length; i++) {
+      for (let j = i + 1; j < selected.length; j++) {
+        if (doOverlap(selected[i], selected[j])) {
+          toast.push("error", "Turmas no mesmo dia e horário não podem ser selecionadas juntas.");
+          return;
+        }
+      }
+    }
+    setSelectedClassGroupIds(selectedIds);
   }
 
   async function handleEnrollment(e: React.FormEvent) {
@@ -302,7 +340,7 @@ export function InscrevaForm() {
                 <p className={hintClass}>Se informar, você receberá a confirmação por e-mail. Use sua data de nascimento para o primeiro acesso.</p>
               </div>
               <div>
-                <label className={labelClass}>CPF *</label>
+                <label className={labelClass}>{isMinor ? "CPF do aluno" : "CPF *"}</label>
                 <input
                   className={`mt-1 ${inputClass}`}
                   value={cadastroCpf}
@@ -321,7 +359,23 @@ export function InscrevaForm() {
                   onChange={(e) => setCadastroBirthDate(e.target.value)}
                   required
                 />
+                {cadastroBirthDate && cadastroAge != null && (
+                  <p className={`mt-1 ${hintClass}`}>Idade: {cadastroAge} anos{cadastroAge < 18 ? " (menor de 18 — informe o CPF do responsável abaixo)" : ""}</p>
+                )}
               </div>
+              {isMinor && (
+                <div>
+                  <label className={labelClass}>CPF do responsável *</label>
+                  <input
+                    className={`mt-1 ${inputClass}`}
+                    value={cadastroGuardianCpf}
+                    onChange={(e) => setCadastroGuardianCpf(formatCpf(e.target.value))}
+                    placeholder="000.000.000-00"
+                    maxLength={14}
+                    required
+                  />
+                </div>
+              )}
               <div>
                 <label className={labelClass}>Telefone *</label>
                 <input
@@ -397,46 +451,51 @@ export function InscrevaForm() {
       </div>
 
       <div className={cardClass}>
+        {enrolledCourseIds.length >= 2 ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+            <p className="font-medium theme-text-label">Limite de cursos atingido</p>
+            <p className="mt-1 text-sm theme-text-muted">
+              O aluno pode se cadastrar em no máximo 2 cursos. Você já está inscrito em 2 cursos. Para se inscrever em outra turma, entre em contato com a secretaria.
+            </p>
+          </div>
+        ) : (
         <form onSubmit={handleEnrollment} className="flex flex-col gap-4">
           <div>
             <p className={labelClass}>
-              Escolha até 2 turmas (não podem ser no mesmo dia e horário) *
+              Escolha até 2 turmas (máximo 2 cursos; turmas no mesmo dia e horário não podem ser selecionadas juntas) *
             </p>
             <p className={`mt-1 ${hintClass}`}>
-              Marque as turmas desejadas. Turmas no mesmo dia e horário não podem ser selecionadas juntas.
+              {enrolledCourseIds.length === 1
+                ? "Você já está em 1 curso. Pode escolher mais uma turma do mesmo curso ou de outro curso (máximo 2 cursos no total)."
+                : "Selecione uma ou duas turmas na lista. Você pode se inscrever em no máximo 2 cursos."}
             </p>
             {classGroups.length === 0 ? (
               <p className={`mt-3 ${hintClass}`}>Nenhuma turma disponível no momento.</p>
             ) : (
-              <ul className="mt-3 space-y-2 list-none pl-0">
+              <select
+                multiple
+                value={selectedClassGroupIds}
+                onChange={handleTurmasSelectChange}
+                className={`mt-3 min-h-[120px] w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm theme-input sm:min-h-[140px]`}
+                aria-label="Escolha até 2 turmas"
+              >
                 {classGroups.map((cg) => {
-                  const checked = selectedClassGroupIds.includes(cg.id);
-                  const disabled = isCheckboxDisabled(cg);
+                  const disabled = isClassGroupOptionDisabled(cg);
+                  const label = `${cg.courseName} — Início ${formatDateForInput(cg.startDate)} — ${cg.startTime}–${cg.endTime}${Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}`;
                   return (
-                    <li key={cg.id} className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        id={`cg-${cg.id}`}
-                        checked={checked}
-                        onChange={() => toggleClassGroup(cg.id)}
-                        disabled={disabled}
-                        className="mt-1 h-4 w-4 rounded border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--igh-primary)] focus:ring-[var(--igh-primary)]"
-                      />
-                      <label
-                        htmlFor={`cg-${cg.id}`}
-                        className={`text-sm cursor-pointer ${disabled && !checked ? "theme-text-muted" : ""}`}
-                        style={!(disabled && !checked) ? { color: "var(--text-primary)" } : undefined}
-                      >
-                        <span className="font-medium">{cg.courseName}</span>
-                        {" — "}
-                        Início {formatDateForInput(cg.startDate)} — {cg.startTime}–{cg.endTime}
-                        {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
-                      </label>
-                    </li>
+                    <option
+                      key={cg.id}
+                      value={cg.id}
+                      disabled={disabled}
+                      className={disabled ? "theme-text-muted" : ""}
+                    >
+                      {label}
+                    </option>
                   );
                 })}
-              </ul>
+              </select>
             )}
+            <p className={`mt-2 ${hintClass}`}>Mantenha Ctrl (ou Cmd) pressionado para selecionar mais de uma turma.</p>
             {courseIdFromUrl && (
               <p className="mt-2">
                 <a
@@ -452,6 +511,7 @@ export function InscrevaForm() {
             {submitting ? "Enviando..." : "Enviar pré-matrícula"}
           </Button>
         </form>
+        )}
       </div>
     </div>
   );

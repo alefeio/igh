@@ -24,9 +24,10 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { name, cpf, birthDate, phone, email } = parsed.data;
+  const { name, cpf, birthDate, phone, email, guardianCpf } = parsed.data;
   const emailNormalized = email && email.trim() ? email.trim().toLowerCase() : null;
   const cpfNormalized = onlyDigits(cpf, 11);
+  const guardianCpfNormalized = guardianCpf ? onlyDigits(guardianCpf, 11) : null;
   const phoneNormalized = phone.trim();
 
   const existingCpf = await prisma.student.findUnique({
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
         rg: "",
         gender: "PREFER_NOT_SAY",
         educationLevel: "OTHER",
+        ...(guardianCpfNormalized ? { guardianCpf: guardianCpfNormalized } : {}),
       },
       select: {
         id: true,
@@ -140,6 +142,7 @@ export async function POST(request: Request) {
       rg: "",
       gender: "PREFER_NOT_SAY",
       educationLevel: "OTHER",
+      ...(guardianCpfNormalized ? { guardianCpf: guardianCpfNormalized } : {}),
     },
     select: {
       id: true,

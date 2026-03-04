@@ -62,6 +62,20 @@ export async function POST(request: Request) {
     return jsonErr("DUPLICATE", "Você já está inscrito nesta turma.", 409);
   }
 
+  const currentEnrollments = await prisma.enrollment.findMany({
+    where: { studentId, status: "ACTIVE" },
+    select: { classGroup: { select: { courseId: true } } },
+  });
+  const currentCourseIds = new Set(currentEnrollments.map((e) => e.classGroup.courseId));
+  const newCourseId = classGroup.courseId;
+  if (!currentCourseIds.has(newCourseId) && currentCourseIds.size >= 2) {
+    return jsonErr(
+      "LIMIT_EXCEEDED",
+      "Você já está cadastrado em 2 cursos. O aluno pode se inscrever em no máximo 2 cursos.",
+      400
+    );
+  }
+
   const enrollment = await prisma.enrollment.create({
     data: {
       studentId,
