@@ -200,29 +200,6 @@ export function InscrevaForm() {
     return newCourseCount > 2;
   }
 
-  function handleTurmasSelectChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const selectedIds = Array.from(e.target.selectedOptions).map((o) => o.value);
-    if (selectedIds.length > 2) {
-      toast.push("error", "Você pode se inscrever em no máximo 2 turmas.");
-      return;
-    }
-    const selected = selectedIds.map((id) => classGroups.find((c) => c.id === id)).filter(Boolean) as ClassGroupOption[];
-    const coursesUsed = new Set([...enrolledCourseIds, ...selected.map((c) => c.courseId)]);
-    if (coursesUsed.size > 2) {
-      toast.push("error", "O aluno pode se cadastrar em no máximo 2 cursos. Escolha turmas de até 2 cursos.");
-      return;
-    }
-    for (let i = 0; i < selected.length; i++) {
-      for (let j = i + 1; j < selected.length; j++) {
-        if (doOverlap(selected[i], selected[j])) {
-          toast.push("error", "Turmas no mesmo dia e horário não podem ser selecionadas juntas.");
-          return;
-        }
-      }
-    }
-    setSelectedClassGroupIds(selectedIds);
-  }
-
   async function handleEnrollment(e: React.FormEvent) {
     e.preventDefault();
     if (!student || selectedClassGroupIds.length === 0 || submitting) return;
@@ -343,6 +320,9 @@ export function InscrevaForm() {
                 <label className={labelClass}>{isMinor ? "CPF do aluno" : "CPF *"}</label>
                 <input
                   className={`mt-1 ${inputClass}`}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   value={cadastroCpf}
                   onChange={(e) => setCadastroCpf(formatCpf(e.target.value))}
                   placeholder="000.000.000-00"
@@ -368,6 +348,9 @@ export function InscrevaForm() {
                   <label className={labelClass}>CPF do responsável *</label>
                   <input
                     className={`mt-1 ${inputClass}`}
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
                     value={cadastroGuardianCpf}
                     onChange={(e) => setCadastroGuardianCpf(formatCpf(e.target.value))}
                     placeholder="000.000.000-00"
@@ -380,6 +363,9 @@ export function InscrevaForm() {
                 <label className={labelClass}>Telefone *</label>
                 <input
                   className={`mt-1 ${inputClass}`}
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   value={cadastroPhone}
                   onChange={(e) => setCadastroPhone(formatPhone(e.target.value))}
                   placeholder="(00) 00000-0000"
@@ -472,30 +458,66 @@ export function InscrevaForm() {
             {classGroups.length === 0 ? (
               <p className={`mt-3 ${hintClass}`}>Nenhuma turma disponível no momento.</p>
             ) : (
-              <select
-                multiple
-                value={selectedClassGroupIds}
-                onChange={handleTurmasSelectChange}
-                className={`mt-3 min-h-[120px] w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm theme-input sm:min-h-[140px]`}
+              <div
+                className="mt-3 max-h-[280px] overflow-y-auto rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] p-2"
+                role="listbox"
                 aria-label="Escolha até 2 turmas"
+                aria-multiselectable="true"
               >
                 {classGroups.map((cg) => {
                   const disabled = isClassGroupOptionDisabled(cg);
-                  const label = `${cg.courseName} — Início ${formatDateForInput(cg.startDate)} — ${cg.startTime}–${cg.endTime}${Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}`;
+                  const selected = selectedClassGroupIds.includes(cg.id);
+                  const daysStr = Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? cg.daysOfWeek.join(", ") : null;
                   return (
-                    <option
+                    <button
                       key={cg.id}
-                      value={cg.id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
                       disabled={disabled}
-                      className={disabled ? "theme-text-muted" : ""}
+                      onClick={() => {
+                        if (disabled) return;
+                        const newIds = selected
+                          ? selectedClassGroupIds.filter((id) => id !== cg.id)
+                          : [...selectedClassGroupIds, cg.id];
+                        if (newIds.length > 2) {
+                          toast.push("error", "Você pode selecionar no máximo 2 turmas.");
+                          return;
+                        }
+                        const newSelected = newIds.map((id) => classGroups.find((c) => c.id === id)).filter(Boolean) as ClassGroupOption[];
+                        const coursesUsed = new Set([...enrolledCourseIds, ...newSelected.map((c) => c.courseId)]);
+                        if (coursesUsed.size > 2) {
+                          toast.push("error", "O aluno pode se cadastrar em no máximo 2 cursos. Escolha turmas de até 2 cursos.");
+                          return;
+                        }
+                        for (let i = 0; i < newSelected.length; i++) {
+                          for (let j = i + 1; j < newSelected.length; j++) {
+                            if (doOverlap(newSelected[i], newSelected[j])) {
+                              toast.push("error", "Turmas no mesmo dia e horário não podem ser selecionadas juntas.");
+                              return;
+                            }
+                          }
+                        }
+                        setSelectedClassGroupIds(newIds);
+                      }}
+                      className={`mb-1.5 flex w-full cursor-pointer flex-col rounded-md border px-3 py-2.5 text-left text-sm last:mb-0 focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                        selected
+                          ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10"
+                          : "border-transparent hover:bg-[var(--input-bg)]"
+                      } ${disabled && !selected ? "theme-text-muted" : ""}`}
+                      style={!(disabled && !selected) ? { color: "var(--text-primary)" } : undefined}
                     >
-                      {label}
-                    </option>
+                      <span className="font-medium break-words">{cg.courseName}</span>
+                      <span className="mt-0.5 block break-words text-xs theme-text-muted">
+                        Início {formatDateForInput(cg.startDate)} — {cg.startTime}–{cg.endTime}
+                        {daysStr ? ` — ${daysStr}` : ""}
+                      </span>
+                    </button>
                   );
                 })}
-              </select>
+              </div>
             )}
-            <p className={`mt-2 ${hintClass}`}>Mantenha Ctrl (ou Cmd) pressionado para selecionar mais de uma turma.</p>
+            <p className={`mt-2 ${hintClass}`}>Toque nas turmas desejadas (até 2).</p>
             {courseIdFromUrl && (
               <p className="mt-2">
                 <a

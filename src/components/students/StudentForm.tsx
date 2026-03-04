@@ -560,6 +560,9 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
           <div>
             <label className="text-sm font-medium">CPF *</label>
             <Input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
               value={cpf}
               onChange={(e) => setCpf(formatCpf(e.target.value))}
               placeholder="000.000.000-00"
@@ -578,7 +581,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
           </div>
           <div>
             <label className="text-sm font-medium">Celular *</label>
-            <Input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" className="mt-1" />
+            <Input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" className="mt-1" />
           </div>
         </div>
       </div>
@@ -697,7 +700,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
           </div>
           <div>
             <label className="text-sm font-medium">CPF do responsável {isMinor && "*"}</label>
-            <Input value={guardianCpf} onChange={(e) => setGuardianCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" className="mt-1" />
+            <Input type="text" inputMode="numeric" autoComplete="off" value={guardianCpf} onChange={(e) => setGuardianCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" className="mt-1" />
           </div>
           <div>
             <label className="text-sm font-medium">RG do responsável</label>
@@ -705,7 +708,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
           </div>
           <div>
             <label className="text-sm font-medium">Celular do responsável {isMinor && "*"}</label>
-            <Input value={guardianPhone} onChange={(e) => setGuardianPhone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" className="mt-1" />
+            <Input type="tel" inputMode="numeric" autoComplete="tel" value={guardianPhone} onChange={(e) => setGuardianPhone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" className="mt-1" />
           </div>
           <div>
             <label className="text-sm font-medium">Parentesco {isMinor && "*"}</label>

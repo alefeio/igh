@@ -284,6 +284,9 @@ export function MeusDadosForm() {
             <label className="text-sm font-medium">CPF</label>
             <Input
               className="mt-1"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
               value={String(form.cpf ?? "")}
               onChange={(e) => setForm((f) => ({ ...f, cpf: formatCpf(e.target.value) }))}
               maxLength={14}
@@ -319,6 +322,9 @@ export function MeusDadosForm() {
             <label className="text-sm font-medium">Telefone</label>
             <Input
               className="mt-1"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel"
               value={String(form.phone ?? "")}
               onChange={(e) => setForm((f) => ({ ...f, phone: formatPhone(e.target.value) }))}
               maxLength={15}
@@ -360,7 +366,7 @@ export function MeusDadosForm() {
           </div>
           <div>
             <label className="text-sm font-medium">CPF do responsável</label>
-            <Input className="mt-1" value={String(form.guardianCpf ?? "")} onChange={(e) => setForm((f) => ({ ...f, guardianCpf: formatCpf(e.target.value) }))} maxLength={14} />
+            <Input className="mt-1" type="text" inputMode="numeric" autoComplete="off" value={String(form.guardianCpf ?? "")} onChange={(e) => setForm((f) => ({ ...f, guardianCpf: formatCpf(e.target.value) }))} maxLength={14} />
           </div>
           <div>
             <label className="text-sm font-medium">RG do responsável</label>
@@ -368,7 +374,7 @@ export function MeusDadosForm() {
           </div>
           <div>
             <label className="text-sm font-medium">Telefone do responsável</label>
-            <Input className="mt-1" value={String(form.guardianPhone ?? "")} onChange={(e) => setForm((f) => ({ ...f, guardianPhone: formatPhone(e.target.value) }))} maxLength={15} />
+            <Input className="mt-1" type="tel" inputMode="numeric" autoComplete="tel" value={String(form.guardianPhone ?? "")} onChange={(e) => setForm((f) => ({ ...f, guardianPhone: formatPhone(e.target.value) }))} maxLength={15} />
           </div>
           <div className="sm:col-span-2">
             <label className="text-sm font-medium">Parentesco</label>

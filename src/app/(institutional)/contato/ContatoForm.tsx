@@ -52,7 +52,7 @@ export function ContatoForm() {
           </div>
           <div>
             <label htmlFor="telefone" className="block text-sm font-medium text-[var(--igh-secondary)]">Telefone / WhatsApp</label>
-            <input id="telefone" name="telefone" type="tel" className="mt-1 block w-full rounded-lg border border-[var(--igh-border)] px-3 py-2" />
+            <input id="telefone" name="telefone" type="tel" inputMode="numeric" autoComplete="tel" className="mt-1 block w-full rounded-lg border border-[var(--igh-border)] px-3 py-2" />
           </div>
           <div>
             <label htmlFor="assunto" className="block text-sm font-medium text-[var(--igh-secondary)]">Assunto</label>
