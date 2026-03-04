@@ -31,7 +31,10 @@ function ageFromBirthDate(birthDate: string): number | null {
 export const createPublicStudentSchema = z
   .object({
     name: z.string().min(2, "Nome deve ter ao menos 2 caracteres").max(200),
-    cpf: z.string().min(11, "CPF inválido").refine((v) => isValidCPF(v), "CPF inválido"),
+    cpf: z
+      .string()
+      .optional()
+      .transform((s) => (typeof s === "string" && s.trim() ? s.trim() : null)),
     birthDate: z.string().min(1, "Data de nascimento obrigatória"),
     phone: z.string().min(10, "Telefone inválido"),
     email: z
@@ -72,6 +75,23 @@ export const createPublicStudentSchema = z
       return isValidCPF(data.guardianCpf);
     },
     { message: "CPF do responsável inválido.", path: ["guardianCpf"] }
+  )
+  .refine(
+    (data) => {
+      const age = ageFromBirthDate(data.birthDate);
+      if (age != null && age < 18) return true;
+      return data.cpf != null && data.cpf.replace(/\D/g, "").length === 11;
+    },
+    { message: "CPF é obrigatório para maiores de 18 anos.", path: ["cpf"] }
+  )
+  .refine(
+    (data) => {
+      const age = ageFromBirthDate(data.birthDate);
+      if (age != null && age < 18 && (data.cpf == null || data.cpf.replace(/\D/g, "").length === 0)) return true;
+      if (data.cpf == null || data.cpf.replace(/\D/g, "").length === 0) return true;
+      return isValidCPF(data.cpf);
+    },
+    { message: "CPF do aluno inválido.", path: ["cpf"] }
   );
 
 export const createPreEnrollmentSchema = z.object({

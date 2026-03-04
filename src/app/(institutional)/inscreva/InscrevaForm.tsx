@@ -114,12 +114,15 @@ export function InscrevaForm() {
   const [showSecretariatMessage, setShowSecretariatMessage] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { ignoreCourseId?: boolean }) => {
     setLoading(true);
     try {
-      const cgUrl = courseIdFromUrl
-        ? `/api/public/class-groups?courseId=${encodeURIComponent(courseIdFromUrl)}`
-        : "/api/public/class-groups";
+      const cgUrl =
+        options?.ignoreCourseId
+          ? "/api/public/class-groups"
+          : courseIdFromUrl
+            ? `/api/public/class-groups?courseId=${encodeURIComponent(courseIdFromUrl)}`
+            : "/api/public/class-groups";
       const [meRes, cgRes] = await Promise.all([
         fetch("/api/me/student"),
         fetch(cgUrl),
@@ -151,7 +154,8 @@ export function InscrevaForm() {
     const phone = cadastroPhone.replace(/\D/g, "");
     const email = cadastroEmail.trim().toLowerCase() || undefined;
     const guardianCpf = cadastroGuardianCpf.replace(/\D/g, "");
-    if (!name || cpf.length !== 11 || !cadastroBirthDate || phone.length < 10) {
+    const cpfOk = isMinor ? true : cpf.length === 11;
+    if (!name || !cpfOk || !cadastroBirthDate || phone.length < 10) {
       toast.push("error", "Preencha todos os campos obrigatórios.");
       return;
     }
@@ -166,7 +170,7 @@ export function InscrevaForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          cpf,
+          ...(cpf.length === 11 ? { cpf } : {}),
           birthDate: cadastroBirthDate,
           phone,
           ...(email ? { email } : {}),
@@ -245,7 +249,7 @@ export function InscrevaForm() {
       setSelectedClassGroupIds([]);
       setStudentToken(null);
       setRegisteredWithoutEmail(false);
-      void load();
+      void load({ ignoreCourseId: true });
     } finally {
       setSubmitting(false);
     }
@@ -331,7 +335,7 @@ export function InscrevaForm() {
                 <p className={hintClass}>Se informar, você receberá a confirmação por e-mail. Use sua data de nascimento para o primeiro acesso.</p>
               </div>
               <div>
-                <label className={labelClass}>{isMinor ? "CPF do aluno" : "CPF *"}</label>
+                <label className={labelClass}>{isMinor ? "CPF do aluno (opcional)" : "CPF *"}</label>
                 <input
                   className={`mt-1 ${inputClass}`}
                   type="text"
@@ -341,7 +345,7 @@ export function InscrevaForm() {
                   onChange={(e) => setCadastroCpf(formatCpf(e.target.value))}
                   placeholder="000.000.000-00"
                   maxLength={14}
-                  required
+                  required={!isMinor}
                 />
               </div>
               <div>
@@ -417,7 +421,7 @@ export function InscrevaForm() {
           </div>
           <div>
             <dt className={hintClass}>CPF</dt>
-            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>{student.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</dd>
+            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>{student.cpf ? student.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "—"}</dd>
           </div>
           <div>
             <dt className={hintClass}>Nascimento</dt>

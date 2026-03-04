@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -26,16 +27,20 @@ export async function POST(request: Request) {
 
   const { name, cpf, birthDate, phone, email, guardianCpf } = parsed.data;
   const emailNormalized = email && email.trim() ? email.trim().toLowerCase() : null;
-  const cpfNormalized = onlyDigits(cpf, 11);
+  const cpfDigits = cpf ? onlyDigits(cpf, 11) : "";
+  const cpfNormalized =
+    cpfDigits.length === 11 ? cpfDigits : `MENOR-${randomUUID()}`;
   const guardianCpfNormalized = guardianCpf ? onlyDigits(guardianCpf, 11) : null;
   const phoneNormalized = phone.trim();
 
-  const existingCpf = await prisma.student.findUnique({
-    where: { cpf: cpfNormalized },
-    select: { id: true },
-  });
-  if (existingCpf) {
-    return jsonErr("DUPLICATE_CPF", "Já existe um cadastro com este CPF. Faça login para continuar.", 409);
+  if (cpfDigits.length === 11) {
+    const existingCpf = await prisma.student.findUnique({
+      where: { cpf: cpfNormalized },
+      select: { id: true },
+    });
+    if (existingCpf) {
+      return jsonErr("DUPLICATE_CPF", "Já existe um cadastro com este CPF. Faça login para continuar.", 409);
+    }
   }
 
   if (emailNormalized) {
@@ -120,7 +125,7 @@ export async function POST(request: Request) {
         student: {
           id: student.id,
           name: student.name,
-          cpf: student.cpf,
+          cpf: student.cpf.startsWith("MENOR-") ? "" : student.cpf,
           birthDate: student.birthDate,
           phone: student.phone,
           email: student.email,
@@ -161,7 +166,7 @@ export async function POST(request: Request) {
       student: {
         id: student.id,
         name: student.name,
-        cpf: student.cpf,
+        cpf: student.cpf.startsWith("MENOR-") ? "" : student.cpf,
         birthDate: student.birthDate,
         phone: student.phone,
         email: student.email,
