@@ -230,6 +230,11 @@ export async function DELETE(
     });
   }
 
+  await prisma.enrollment.updateMany({
+    where: { studentId: id, status: "ACTIVE" },
+    data: { status: "SUSPENDED" },
+  });
+
   await createAuditLog({
     entityType: "Student",
     entityId: id,

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { StudentForm } from "@/components/students/StudentForm";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -48,7 +49,9 @@ async function parseJson<T>(res: Response): Promise<ApiResponse<T> | null> {
 }
 
 export default function EnrollmentsPage() {
+  const user = useUser();
   const toast = useToast();
+  const isMaster = user.role === "MASTER";
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Enrollment[]>([]);
   const [open, setOpen] = useState(false);
@@ -122,6 +125,18 @@ export default function EnrollmentsPage() {
       return;
     }
     toast.push("success", "Pré-matrícula confirmada.");
+    void load();
+  }
+
+  async function deleteEnrollment(e: Enrollment) {
+    if (!confirm(`Excluir a matrícula de ${e.student.name} em ${e.classGroup.course.name}? Esta ação não pode ser desfeita.`)) return;
+    const res = await fetch(`/api/enrollments/${e.id}`, { method: "DELETE" });
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean }>;
+    if (!res.ok || !json?.ok) {
+      toast.push("error", json && "error" in json ? json.error.message : "Falha ao excluir matrícula.");
+      return;
+    }
+    toast.push("success", "Matrícula excluída.");
     void load();
   }
 
@@ -350,6 +365,16 @@ export default function EnrollmentsPage() {
                     <Button type="button" variant="secondary" onClick={() => openEdit(e)}>
                       Editar
                     </Button>
+                    {isMaster && (
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        onClick={() => deleteEnrollment(e)}
+                      >
+                        Excluir
+                      </Button>
+                    )}
                   </div>
                 </Td>
               </tr>
@@ -444,6 +469,7 @@ export default function EnrollmentsPage() {
                 className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm"
               >
                 <option value="ACTIVE">Ativa</option>
+                <option value="SUSPENDED">Suspensa</option>
                 <option value="CANCELLED">Cancelada</option>
                 <option value="COMPLETED">Concluída</option>
               </select>

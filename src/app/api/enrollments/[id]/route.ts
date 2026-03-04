@@ -162,3 +162,32 @@ export async function PATCH(
     },
   });
 }
+
+/** Exclui uma matrícula. Apenas MASTER. */
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const user = await requireRole("MASTER");
+  const { id } = await context.params;
+
+  const enrollment = await prisma.enrollment.findUnique({
+    where: { id },
+    select: { id: true, studentId: true, classGroupId: true },
+  });
+  if (!enrollment) {
+    return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
+  }
+
+  await prisma.enrollment.delete({ where: { id } });
+
+  await createAuditLog({
+    entityType: "Enrollment",
+    entityId: id,
+    action: "DELETE",
+    diff: { deleted: enrollment },
+    performedByUserId: user.id,
+  });
+
+  return jsonOk({ deleted: true });
+}

@@ -23,6 +23,7 @@ type HeroBannerCarouselProps = {
 
 export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarouselProps) {
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
   const n = banners.length;
 
   const goTo = useCallback(
@@ -38,10 +39,10 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
   }, [n]);
 
   useEffect(() => {
-    if (n <= 1) return;
+    if (n <= 1 || paused) return;
     const id = setInterval(goNext, ROTATION_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [n, goNext]);
+  }, [n, goNext, paused]);
 
   if (banners.length === 0) return null;
 
@@ -49,8 +50,10 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
 
   return (
     <section
-      className={`relative flex min-h-screen flex-col justify-center overflow-hidden bg-[var(--igh-surface)] ${className}`}
+      className={`relative flex h-screen flex-col justify-center overflow-hidden bg-[var(--igh-surface)] ${className}`}
       aria-label="Banner principal"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
     >
       {/* Slides (stacked, fade via opacity) */}
       {banners.map((banner, i) => (
@@ -68,19 +71,32 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
               <img
                 src={banner.imageUrl}
                 alt=""
-                className="h-full w-full object-cover opacity-30"
+                className="h-full w-full object-cover opacity-55"
               />
+              <div className="absolute inset-0 bg-black/40" aria-hidden />
             </div>
           )}
-          <Container className="relative z-10 flex h-full min-h-screen flex-col justify-center py-16 sm:py-24">
+          <Container className="relative z-10 flex h-full flex-col justify-center py-16 sm:py-24">
             <div className="mx-auto max-w-3xl text-center">
               {banner.title && (
-                <h1 className="text-3xl font-bold tracking-tight text-[var(--igh-secondary)] sm:text-4xl lg:text-5xl">
+                <h1
+                  className={`text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl ${
+                    banner.imageUrl
+                      ? "text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]"
+                      : "text-[var(--igh-secondary)]"
+                  }`}
+                >
                   {banner.title}
                 </h1>
               )}
               {banner.subtitle && (
-                <p className="mt-4 text-lg text-[var(--igh-muted)]">
+                <p
+                  className={`mt-4 text-lg ${
+                    banner.imageUrl
+                      ? "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+                      : "text-[var(--igh-muted)]"
+                  }`}
+                >
                   {banner.subtitle}
                 </p>
               )}

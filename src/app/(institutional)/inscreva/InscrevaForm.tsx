@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button, Card } from "@/components/site";
@@ -54,7 +52,6 @@ function formatDateForInput(d: Date | string): string {
 }
 
 export function InscrevaForm() {
-  const router = useRouter();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<StudentData | null>(null);
@@ -79,7 +76,7 @@ export function InscrevaForm() {
       ]);
       const meJson = (await meRes.json()) as ApiResponse<{ student: StudentData | null }>;
       const cgJson = (await cgRes.json()) as ApiResponse<{ classGroups: ClassGroupOption[] }>;
-      if (meJson?.ok && meJson.data.student) setStudent(meJson.data.student);
+      if (meJson?.ok) setStudent(meJson.data.student ?? null);
       if (cgJson?.ok && cgJson.data.classGroups) setClassGroups(cgJson.data.classGroups);
     } finally {
       setLoading(false);
@@ -289,9 +286,19 @@ export function InscrevaForm() {
         </dl>
         <p className="mt-3 text-xs text-[var(--igh-muted)]">
           Não é você?{" "}
-          <Link href="/login?from=/inscreva" className="text-[var(--igh-primary)] hover:underline">
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              setStudent(null);
+              setStudentToken(null);
+              setClassGroupId("");
+              void load();
+            }}
+            className="text-[var(--igh-primary)] hover:underline font-medium"
+          >
             Faça login
-          </Link>{" "}
+          </button>{" "}
           com outra conta.
         </p>
       </Card>
