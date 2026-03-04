@@ -23,6 +23,7 @@ type ClassGroup = {
   daysOfWeek: string[];
   startTime: string;
   endTime: string;
+  capacity?: number;
   course: Course;
 };
 type Enrollment = {
@@ -96,6 +97,30 @@ export default function EnrollmentsPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  const dashboard = (() => {
+    const byClassGroup = new Map<string, { classGroup: ClassGroup; count: number }>();
+    for (const e of items) {
+      const cg = e.classGroup;
+      const cur = byClassGroup.get(cg.id);
+      if (!cur) byClassGroup.set(cg.id, { classGroup: cg, count: 1 });
+      else cur.count++;
+    }
+    const byCourse = new Map<string, { courseName: string; turmas: { classGroup: ClassGroup; count: number }[] }>();
+    for (const { classGroup, count } of byClassGroup.values()) {
+      const cid = classGroup.course.id;
+      const name = classGroup.course.name;
+      if (!byCourse.has(cid)) byCourse.set(cid, { courseName: name, turmas: [] });
+      byCourse.get(cid)!.turmas.push({ classGroup, count });
+    }
+    for (const row of byCourse.values()) {
+      row.turmas.sort((a, b) => (a.classGroup.startDate < b.classGroup.startDate ? -1 : 1));
+    }
+    const courses = Array.from(byCourse.entries()).sort((a, b) =>
+      a[1].courseName.localeCompare(b[1].courseName)
+    );
+    return { courses, total: items.length };
+  })();
 
   function openCreate() {
     setStudentId("");
@@ -300,6 +325,39 @@ export default function EnrollmentsPage() {
       {loading ? (
         <div className="text-sm text-zinc-600">Carregando...</div>
       ) : (
+        <>
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/30">
+          <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Resumo por curso e turma</div>
+          {dashboard.courses.length === 0 ? (
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Nenhuma matrícula para exibir.</p>
+          ) : (
+            <div className="mt-3 space-y-4">
+              {dashboard.courses.map(([courseId, { courseName, turmas }]) => (
+                <div key={courseId}>
+                  <div className="font-medium text-zinc-800 dark:text-zinc-200">{courseName}</div>
+                  <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                    {turmas.map(({ classGroup: cg, count }) => {
+                      const start = typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
+                      const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
+                      const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}`;
+                      const cap = cg.capacity != null ? ` / ${cg.capacity}` : "";
+                      return (
+                        <li key={cg.id}>
+                          {label}: <strong>{count}{cap}</strong>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+              <div className="border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Total de matrículas: </span>
+                <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dashboard.total}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         <Table>
           <thead>
             <tr>
@@ -388,6 +446,7 @@ export default function EnrollmentsPage() {
             )}
           </tbody>
         </Table>
+        </>
       )}
 
       <Modal open={open} title="Nova matrícula" onClose={() => setOpen(false)}>
