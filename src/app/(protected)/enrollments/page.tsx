@@ -325,40 +325,49 @@ export default function EnrollmentsPage() {
       {loading ? (
         <div className="text-sm text-zinc-600">Carregando...</div>
       ) : (
-        <>
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-900/30">
-          <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Resumo por curso e turma</div>
-          {dashboard.courses.length === 0 ? (
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Nenhuma matrícula para exibir.</p>
-          ) : (
-            <div className="mt-3 space-y-4">
-              {dashboard.courses.map(([courseId, { courseName, turmas }]) => (
-                <div key={courseId}>
-                  <div className="font-medium text-zinc-800 dark:text-zinc-200">{courseName}</div>
-                  <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400">
-                    {turmas.map(({ classGroup: cg, count }) => {
-                      const start = typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
-                      const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
-                      const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}`;
-                      const cap = cg.capacity != null ? ` / ${cg.capacity}` : "";
-                      return (
-                        <li key={cg.id}>
-                          {label}: <strong>{count}{cap}</strong>
-                        </li>
-                      );
-                    })}
-                  </ul>
+        <div className="flex flex-col gap-6">
+          <section
+            className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/50"
+            aria-label="Resumo de matrículas por curso e turma"
+          >
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Resumo por curso e turma</h2>
+            {dashboard.courses.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">Nenhuma matrícula para exibir.</p>
+            ) : (
+              <>
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {dashboard.courses.map(([courseId, { courseName, turmas }]) => (
+                    <div
+                      key={courseId}
+                      className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-600 dark:bg-zinc-800/80"
+                    >
+                      <div className="font-medium text-zinc-800 dark:text-zinc-200">{courseName}</div>
+                      <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                        {turmas.map(({ classGroup: cg, count }) => {
+                          const start = typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
+                          const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
+                          const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}`;
+                          const cap = cg.capacity != null ? ` / ${cg.capacity}` : "";
+                          return (
+                            <li key={cg.id}>
+                              {label}: <strong>{count}{cap}</strong>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              <div className="border-t border-zinc-200 pt-3 dark:border-zinc-700">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Total de matrículas: </span>
-                <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dashboard.total}</span>
-              </div>
-            </div>
-          )}
-        </div>
+                <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Total de matrículas: </span>
+                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dashboard.total}</span>
+                </div>
+              </>
+            )}
+          </section>
 
-        <Table>
+          <section aria-label="Listagem de matrículas">
+            <Table>
           <thead>
             <tr>
               <Th>Aluno</Th>
@@ -410,7 +419,7 @@ export default function EnrollmentsPage() {
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-2">
-                    {e.isPreEnrollment && (
+                    {isMaster && e.isPreEnrollment && (
                       <Button
                         type="button"
                         variant="primary"
@@ -420,9 +429,11 @@ export default function EnrollmentsPage() {
                         Confirmar
                       </Button>
                     )}
-                    <Button type="button" variant="secondary" onClick={() => openEdit(e)}>
-                      Editar
-                    </Button>
+                    {isMaster && (
+                      <Button type="button" variant="secondary" onClick={() => openEdit(e)}>
+                        Editar
+                      </Button>
+                    )}
                     {isMaster && (
                       <Button
                         type="button"
@@ -446,7 +457,8 @@ export default function EnrollmentsPage() {
             )}
           </tbody>
         </Table>
-        </>
+          </section>
+        </div>
       )}
 
       <Modal open={open} title="Nova matrícula" onClose={() => setOpen(false)}>

@@ -48,11 +48,12 @@ export async function GET(
   });
 }
 
+/** Atualiza matrícula (confirmar pré-matrícula, editar status/certificado). Apenas MASTER. */
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole("MASTER");
   const { id } = await context.params;
 
   const enrollment = await prisma.enrollment.findUnique({

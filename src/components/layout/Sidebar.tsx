@@ -25,7 +25,7 @@ const ITEMS: Item[] = [
   { href: "/admin/site/formacoes", label: "Formações", adminOrMaster: true, category: "Administração" },
   { href: "/courses", label: "Cursos", masterOnly: true, category: "Administração" },
   { href: "/class-groups", label: "Turmas", masterOnly: true, category: "Administração" },
-  { href: "/enrollments", label: "Matrículas", masterOnly: true, category: "Administração" },
+  { href: "/enrollments", label: "Matrículas", adminOrMaster: true, category: "Administração" },
   { href: "/students", label: "Alunos", category: "Administração" },
   { href: "/admin/site/configuracoes", label: "Configurações", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/sobre", label: "Sobre", adminOrMaster: true, category: "Site" },
