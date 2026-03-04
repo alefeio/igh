@@ -311,7 +311,7 @@ export function InscrevaForm() {
           <div className={cardClass}>
             <h3 className="text-lg font-semibold theme-text-label">Cadastro rápido</h3>
             <p className="mt-1 text-sm theme-text-muted">
-              Preencha os campos obrigatórios. O e-mail é opcional; sem ele, você precisará ir à secretaria para concluir o cadastro.
+              Preencha os campos obrigatórios. O e-mail é opcional; sem ele, será necessário ir à secretaria para entregar documentos e só com e-mail cadastrado o aluno poderá acessar a área restrita.
             </p>
             <form onSubmit={handleCadastro} className="mt-4 flex flex-col gap-4">
               <div>
@@ -332,7 +332,7 @@ export function InscrevaForm() {
                   onChange={(e) => setCadastroEmail(e.target.value.toLowerCase())}
                   placeholder="seu@email.com"
                 />
-                <p className={hintClass}>Se informar, você receberá a confirmação por e-mail. Use sua data de nascimento para o primeiro acesso.</p>
+                <p className={hintClass}>Sem e-mail: será preciso ir à secretaria para entregar documento de identidade e comprovante de residência. A área do aluno só pode ser acessada com e-mail cadastrado.</p>
               </div>
               <div>
                 <label className={labelClass}>{isMinor ? "CPF do aluno (opcional)" : "CPF *"}</label>
