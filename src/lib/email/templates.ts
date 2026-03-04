@@ -104,6 +104,7 @@ export function templateStudentRegistered(params: {
 }): { subject: string; html: string } {
   const { name, email, tempPassword } = params;
   const loginUrl = getAppUrl("/login");
+  const meusDadosUrl = getAppUrl("/meus-dados");
   const body = `
 <h2>Cadastro realizado</h2>
 <p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
@@ -113,8 +114,14 @@ export function templateStudentRegistered(params: {
   <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
   <li><strong>Senha temporária:</strong> <code style="background:#f0f0f0;padding:2px 6px;">${escapeHtml(tempPassword)}</code></li>
 </ul>
-<p><strong>Importante:</strong> Troque a senha no primeiro acesso. Guarde esta mensagem em local seguro.</p>
-<p>Quando você for matriculado em uma turma, receberá outro e-mail com os dados do curso e um link para confirmar sua inscrição.</p>
+<p><strong>Para sua matrícula ser concluída</strong>, após fazer login você deve:</p>
+<ol>
+  <li>Acessar a área do aluno e ir em <strong>Meus dados</strong> (<a href="${meusDadosUrl}">${meusDadosUrl}</a>).</li>
+  <li>Completar todos os dados restantes do cadastro (endereço, documento, etc.).</li>
+  <li>Anexar o <strong>documento de identidade</strong> e o <strong>comprovante de residência</strong>.</li>
+</ol>
+<p>Somente após o envio desses dados e anexos sua matrícula poderá ser confirmada pela equipe. Troque a senha no primeiro acesso e guarde esta mensagem em local seguro.</p>
+<p>Quando sua pré-matrícula for confirmada, você receberá outro e-mail com os dados do curso.</p>
 `;
   return { subject: "Cadastro realizado - Instituto Gustavo Hessel", html: wrapHtml(body) };
 }

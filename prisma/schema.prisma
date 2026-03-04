@@ -280,6 +280,7 @@ model Enrollment {
   classGroupId           String
   enrolledAt             DateTime   @default(now())
   status                 String     @default("ACTIVE")
+  isPreEnrollment        Boolean    @default(false)
   enrollmentConfirmedAt  DateTime?
   termsAcceptedAt       DateTime?
   termsVersion          String?

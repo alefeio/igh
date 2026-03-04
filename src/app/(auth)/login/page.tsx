@@ -3,10 +3,14 @@ import { redirect } from "next/navigation";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
-export default async function LoginPage() {
+type Props = { searchParams: Promise<{ from?: string }> };
+
+export default async function LoginPage({ searchParams }: Props) {
   const session = await getSessionUserFromCookie();
+  const { from } = await searchParams;
   if (session) {
-    redirect("/dashboard");
+    const path = from && from.startsWith("/") && !from.startsWith("//") ? from : "/dashboard";
+    redirect(path);
   }
 
   return (
@@ -20,7 +24,7 @@ export default async function LoginPage() {
           <div className="mt-1 text-sm text-zinc-600">Acesse com seu e-mail e senha.</div>
         </div>
         <div className="card-body">
-          <LoginForm />
+          <LoginForm redirectTo={from} />
         </div>
       </div>
     </div>

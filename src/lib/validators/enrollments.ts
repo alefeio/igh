@@ -7,6 +7,7 @@ export const createEnrollmentSchema = z.object({
 
 export const updateEnrollmentSchema = z.object({
   status: z.enum(["ACTIVE", "CANCELLED", "COMPLETED"]).optional(),
+  isPreEnrollment: z.boolean().optional(),
   certificateUrl: z.union([z.string().url(), z.literal(""), z.null()]).optional(),
   certificatePublicId: z.union([z.string(), z.null()]).optional(),
   certificateFileName: z.union([z.string(), z.null()]).optional(),

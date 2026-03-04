@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { StudentForm } from "@/components/students/StudentForm";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
@@ -27,11 +28,13 @@ type Enrollment = {
   id: string;
   enrolledAt: string;
   status: string;
+  isPreEnrollment?: boolean;
   enrollmentConfirmedAt: string | null;
   certificateUrl?: string | null;
   certificateFileName?: string | null;
   student: Student;
   classGroup: ClassGroup;
+  studentDataComplete?: boolean;
 };
 
 async function parseJson<T>(res: Response): Promise<ApiResponse<T> | null> {
@@ -105,6 +108,21 @@ export default function EnrollmentsPage() {
     setEditCertFile(null);
     setEditRemovingCert(false);
     setEditOpen(true);
+  }
+
+  async function confirmPreEnrollment(e: Enrollment) {
+    const res = await fetch(`/api/enrollments/${e.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPreEnrollment: false }),
+    });
+    const json = (await res.json()) as ApiResponse<{ enrollment: Enrollment }>;
+    if (!res.ok || !json?.ok) {
+      toast.push("error", json && "error" in json ? json.error.message : "Falha ao confirmar.");
+      return;
+    }
+    toast.push("success", "Pré-matrícula confirmada.");
+    void load();
   }
 
   async function uploadCertificateForEnrollment(
@@ -273,6 +291,8 @@ export default function EnrollmentsPage() {
               <Th>Aluno</Th>
               <Th>Curso / Turma</Th>
               <Th>Data matrícula</Th>
+              <Th>Pré-matrícula</Th>
+              <Th>Dados completos</Th>
               <Th>Confirmado</Th>
               <Th>Certificado</Th>
               <Th>Ações</Th>
@@ -297,6 +317,16 @@ export default function EnrollmentsPage() {
                   </div>
                 </Td>
                 <Td>{new Date(e.enrolledAt).toLocaleDateString("pt-BR")}</Td>
+                <Td>{e.isPreEnrollment ? <Badge tone="amber">Pré-matrícula</Badge> : "—"}</Td>
+                <Td>
+                  {e.studentDataComplete === true ? (
+                    <Badge tone="green">Sim</Badge>
+                  ) : e.studentDataComplete === false ? (
+                    <Badge tone="zinc">Não</Badge>
+                  ) : (
+                    "—"
+                  )}
+                </Td>
                 <Td>{e.enrollmentConfirmedAt ? new Date(e.enrollmentConfirmedAt).toLocaleString("pt-BR") : "-"}</Td>
                 <Td>
                   {e.certificateUrl ? (
@@ -306,15 +336,27 @@ export default function EnrollmentsPage() {
                   ) : "—"}
                 </Td>
                 <Td>
-                  <Button type="button" variant="secondary" onClick={() => openEdit(e)}>
-                    Editar
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    {e.isPreEnrollment && (
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        onClick={() => confirmPreEnrollment(e)}
+                      >
+                        Confirmar
+                      </Button>
+                    )}
+                    <Button type="button" variant="secondary" onClick={() => openEdit(e)}>
+                      Editar
+                    </Button>
+                  </div>
                 </Td>
               </tr>
             ))}
             {items.length === 0 && (
               <tr>
-                <Td colSpan={6} className="text-zinc-600">
+                <Td colSpan={8} className="text-zinc-600">
                   Nenhuma matrícula cadastrada.
                 </Td>
               </tr>

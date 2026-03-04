@@ -13,4 +13,5 @@ export { FAQ } from "./FAQ";
 export { BlogCard } from "./BlogCard";
 export { NoticiasList } from "./NoticiasList";
 export { FormacoesSection } from "./FormacoesSection";
+export { HeroBannerCarousel } from "./HeroBannerCarousel";
 export { ImageCarousel } from "./ImageCarousel";

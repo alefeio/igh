@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
 
-export function LoginForm() {
+type LoginFormProps = { redirectTo?: string };
+
+export function LoginForm({ redirectTo }: LoginFormProps) {
   const router = useRouter();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,8 @@ export function LoginForm() {
       if (json.data?.user?.mustChangePassword) {
         router.replace("/trocar-senha");
       } else {
-        router.replace("/dashboard");
+        const path = redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/dashboard";
+        router.replace(path);
       }
     } finally {
       setLoading(false);

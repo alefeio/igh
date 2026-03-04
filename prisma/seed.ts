@@ -295,6 +295,26 @@ async function main() {
     console.log("Banner criado.");
   }
 
+  // --- Banner CTA Inscrições ---
+  const inscricoesBanner = await prisma.siteBanner.findFirst({
+    where: { ctaHref: "/inscreva" },
+  });
+  if (!inscricoesBanner) {
+    const { _max } = await prisma.siteBanner.aggregate({ _max: { order: true } });
+    const nextOrder = typeof _max?.order === "number" ? _max.order + 1 : 0;
+    await prisma.siteBanner.create({
+      data: {
+        title: "Inscreva-se em nossos cursos",
+        subtitle: "Faça sua pré-matrícula de forma rápida. Cadastre-se ou faça login e escolha a turma.",
+        ctaLabel: "Quero me inscrever",
+        ctaHref: "/inscreva",
+        order: nextOrder,
+        isActive: true,
+      },
+    });
+    console.log("Banner de inscrições (CTA) criado.");
+  }
+
   // --- FAQ (conteúdo que estava em content/faq.ts) ---
   const faqCount = await prisma.siteFaqItem.count();
   if (faqCount === 0) {

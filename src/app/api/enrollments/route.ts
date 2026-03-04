@@ -16,7 +16,21 @@ export async function GET() {
   const enrollments = await prisma.enrollment.findMany({
     orderBy: { enrolledAt: "desc" },
     include: {
-      student: { select: { id: true, name: true, email: true } },
+      student: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          street: true,
+          number: true,
+          city: true,
+          state: true,
+          attachments: {
+            where: { deletedAt: null },
+            select: { type: true },
+          },
+        },
+      },
       classGroup: {
         include: {
           course: { select: { id: true, name: true } },
@@ -27,18 +41,33 @@ export async function GET() {
   });
 
   return jsonOk({
-    enrollments: enrollments.map((e) => ({
-      id: e.id,
-      studentId: e.studentId,
-      classGroupId: e.classGroupId,
-      enrolledAt: e.enrolledAt,
-      status: e.status,
-      enrollmentConfirmedAt: e.enrollmentConfirmedAt,
-      certificateUrl: e.certificateUrl,
-      certificateFileName: e.certificateFileName,
-      student: e.student,
-      classGroup: e.classGroup,
-    })),
+    enrollments: enrollments.map((e) => {
+      const hasIdDoc = e.student.attachments.some((a) => a.type === "ID_DOCUMENT");
+      const hasAddrProof = e.student.attachments.some((a) => a.type === "ADDRESS_PROOF");
+      const hasAddress =
+        !!(
+          e.student.street?.trim() &&
+          e.student.number?.trim() &&
+          e.student.city?.trim() &&
+          e.student.state?.trim()
+        );
+      const studentDataComplete = hasIdDoc && hasAddrProof && hasAddress;
+      const { attachments: _a, ...studentRest } = e.student;
+      return {
+        id: e.id,
+        studentId: e.studentId,
+        classGroupId: e.classGroupId,
+        enrolledAt: e.enrolledAt,
+        status: e.status,
+        isPreEnrollment: e.isPreEnrollment,
+        enrollmentConfirmedAt: e.enrollmentConfirmedAt,
+        certificateUrl: e.certificateUrl,
+        certificateFileName: e.certificateFileName,
+        student: { ...studentRest },
+        classGroup: e.classGroup,
+        studentDataComplete,
+      };
+    }),
   });
 }
 

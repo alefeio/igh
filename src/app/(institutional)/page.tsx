@@ -9,6 +9,7 @@ import {
   FAQ,
   BlogCard,
   FormacoesSection,
+  HeroBannerCarousel,
 } from "@/components/site";
 import { statsImpact } from "@/content";
 import {
@@ -67,44 +68,11 @@ export default async function HomePage({ searchParams }: Props) {
     avatar: t.photoUrl ?? undefined,
   }));
 
-  const heroBanner = banners.length > 0 ? banners[0] : null;
-
   return (
     <>
-      {/* Hero / Banner do banco */}
-      {heroBanner ? (
-        <section className="relative flex min-h-screen flex-col justify-center overflow-hidden bg-[var(--igh-surface)]">
-          {heroBanner.imageUrl && (
-            <div className="absolute inset-0 z-0">
-              <img
-                src={heroBanner.imageUrl}
-                alt=""
-                className="h-full w-full object-cover opacity-30"
-              />
-            </div>
-          )}
-          <Container className="relative z-10 py-16 sm:py-24">
-            <div className="mx-auto max-w-3xl text-center">
-              {heroBanner.title && (
-                <h1 className="text-3xl font-bold tracking-tight text-[var(--igh-secondary)] sm:text-4xl lg:text-5xl">
-                  {heroBanner.title}
-                </h1>
-              )}
-              {heroBanner.subtitle && (
-                <p className="mt-4 text-lg text-[var(--igh-muted)]">
-                  {heroBanner.subtitle}
-                </p>
-              )}
-              {heroBanner.ctaLabel && heroBanner.ctaHref ? (
-                <div className="mt-8">
-                  <Button as="link" href={heroBanner.ctaHref} variant="primary" size="lg">
-                    {heroBanner.ctaLabel}
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          </Container>
-        </section>
+      {/* Hero / Carrossel de banners */}
+      {banners.length > 0 ? (
+        <HeroBannerCarousel banners={banners} />
       ) : (
         <section className="flex min-h-screen flex-col justify-center bg-[var(--igh-surface)] py-16 sm:py-24">
           <Container>
