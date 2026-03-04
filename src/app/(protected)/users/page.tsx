@@ -149,12 +149,17 @@ export default function UsersPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name, email }),
     });
-    const json = (await res.json()) as ApiResponse<{ user: { id: string } }>;
+    const json = (await res.json()) as ApiResponse<{ user: { id: string }; emailSent?: boolean; temporaryPassword?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao criar admin.");
       return;
     }
-    toast.push("success", "Admin criado. E-mail de boas-vindas enviado.");
+    if (json.data.emailSent) {
+      toast.push("success", "Admin criado. E-mail de acesso enviado para o novo usuário.");
+    } else {
+      const senha = json.data.temporaryPassword ? ` Senha temporária: ${json.data.temporaryPassword}.` : "";
+      toast.push("error", `Admin criado, mas o e-mail não foi enviado. Passe o link de login e essa senha ao novo usuário.${senha}`);
+    }
     setOpen(false);
     setName("");
     setEmail("");

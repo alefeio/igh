@@ -87,7 +87,11 @@ export async function POST(request: Request) {
   });
 
   return jsonOk(
-    { user: created, emailSent: emailResult.success },
+    {
+      user: created,
+      emailSent: emailResult.success,
+      ...(emailResult.success ? {} : { temporaryPassword: tempPassword }),
+    },
     { status: 201 }
   );
 }

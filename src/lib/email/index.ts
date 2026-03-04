@@ -24,9 +24,8 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
   if (!RESEND_API_KEY) {
     if (process.env.NODE_ENV === "development") {
       console.warn("[email] RESEND_API_KEY nao definida; email nao enviado.", { to: toList, subject });
-      return { success: true, messageId: "dev-skip" };
     }
-    return { success: false, error: "Configuracao de email indisponivel." };
+    return { success: false, error: "Configuracao de email indisponivel (RESEND_API_KEY)." };
   }
 
   try {
