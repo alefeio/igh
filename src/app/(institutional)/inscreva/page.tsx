@@ -9,7 +9,7 @@ export const metadata = {
 
 function InscrevaFormFallback() {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-6 text-center text-[var(--igh-muted)]">
+    <div className="rounded-xl border border-zinc-200 bg-white p-6 text-center text-zinc-600 shadow-sm">
       Carregando...
     </div>
   );

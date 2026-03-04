@@ -24,8 +24,18 @@ export const createPublicStudentSchema = z
     cpf: z.string().min(11, "CPF inválido").refine((v) => isValidCPF(v), "CPF inválido"),
     birthDate: z.string().min(1, "Data de nascimento obrigatória"),
     phone: z.string().min(10, "Telefone inválido"),
-    email: z.string().email("E-mail inválido"),
+    email: z
+      .string()
+      .optional()
+      .transform((s) => (typeof s === "string" && s.trim() ? s.trim().toLowerCase() : null)),
   })
+  .refine(
+    (data) => {
+      if (data.email == null || data.email === "") return true;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email);
+    },
+    { message: "E-mail inválido", path: ["email"] }
+  )
   .refine(
     (data) => {
       const d = new Date(data.birthDate);

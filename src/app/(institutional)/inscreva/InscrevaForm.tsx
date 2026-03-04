@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useToast } from "@/components/feedback/ToastProvider";
-import { Button, Card } from "@/components/site";
-import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/site";
 import type { ApiResponse } from "@/lib/api-types";
 
 type StudentData = {
@@ -69,6 +68,8 @@ export function InscrevaForm() {
   const [cadastroPhone, setCadastroPhone] = useState("");
   const [cadastroEmail, setCadastroEmail] = useState("");
   const [cadastroSubmitting, setCadastroSubmitting] = useState(false);
+  const [registeredWithoutEmail, setRegisteredWithoutEmail] = useState(false);
+  const [showSecretariatMessage, setShowSecretariatMessage] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,9 +100,9 @@ export function InscrevaForm() {
     const name = cadastroName.trim();
     const cpf = cadastroCpf.replace(/\D/g, "");
     const phone = cadastroPhone.replace(/\D/g, "");
-    const email = cadastroEmail.trim().toLowerCase();
-    if (!name || cpf.length !== 11 || !cadastroBirthDate || phone.length < 10 || !email) {
-      toast.push("error", "Preencha todos os campos corretamente.");
+    const email = cadastroEmail.trim().toLowerCase() || undefined;
+    if (!name || cpf.length !== 11 || !cadastroBirthDate || phone.length < 10) {
+      toast.push("error", "Preencha todos os campos obrigatórios.");
       return;
     }
     setCadastroSubmitting(true);
@@ -114,7 +115,7 @@ export function InscrevaForm() {
           cpf,
           birthDate: cadastroBirthDate,
           phone,
-          email,
+          ...(email ? { email } : {}),
         }),
       });
       const json = (await res.json()) as ApiResponse<{ student: StudentData; studentToken: string }>;
@@ -124,8 +125,13 @@ export function InscrevaForm() {
       }
       setStudent(json.data.student);
       setStudentToken(json.data.studentToken);
+      setRegisteredWithoutEmail(!json.data.student.email);
       setShowCadastro(false);
-      toast.push("success", "Cadastro realizado! Verifique seu e-mail para acessar a área do aluno. Agora escolha a turma abaixo.");
+      if (json.data.student.email) {
+        toast.push("success", "Cadastro realizado! Verifique seu e-mail para acessar a área do aluno. Agora escolha a turma abaixo.");
+      } else {
+        toast.push("success", "Cadastro realizado! Escolha a turma abaixo e finalize sua pré-matrícula.");
+      }
     } finally {
       setCadastroSubmitting(false);
     }
@@ -148,29 +154,55 @@ export function InscrevaForm() {
         toast.push("error", json && !json.ok && "error" in json ? json.error.message : "Erro ao enviar pré-matrícula.");
         return;
       }
-      toast.push("success", `Pré-matrícula enviada para ${json.data.enrollment.courseName}. Aguarde a confirmação pela equipe.`);
+      if (registeredWithoutEmail) {
+        setShowSecretariatMessage(true);
+      } else {
+        toast.push("success", `Pré-matrícula enviada para ${json.data.enrollment.courseName}. Aguarde a confirmação pela equipe.`);
+      }
       setClassGroupId("");
       setStudentToken(null);
+      setRegisteredWithoutEmail(false);
       void load();
     } finally {
       setSubmitting(false);
     }
   }
 
+  const cardClass = "rounded-xl border border-zinc-200 bg-white p-6 shadow-sm text-zinc-800";
+  const labelClass = "text-sm font-medium text-zinc-700";
+  const hintClass = "text-xs text-zinc-600";
+  const inputClass = "min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-500 outline-none focus:border-zinc-600 sm:h-10 sm:min-h-0";
+
   if (loading) {
     return (
-      <Card className="p-6 text-center text-[var(--igh-muted)]">
+      <div className={`${cardClass} text-center text-zinc-600`}>
         Carregando...
-      </Card>
+      </div>
+    );
+  }
+
+  if (showSecretariatMessage) {
+    return (
+      <div className="space-y-6">
+        <div className={`${cardClass} border-emerald-200 bg-emerald-50/50`}>
+          <h3 className="text-lg font-semibold text-zinc-800">Pré-matrícula enviada</h3>
+          <p className="mt-3 text-sm text-zinc-700">
+            Como você não informou e-mail, será necessário comparecer à secretaria para completar seu cadastro e entregar os documentos (documento de identidade e comprovante de residência), para que sua matrícula seja confirmada.
+          </p>
+          <p className="mt-2 text-sm text-zinc-600">
+            Anote o número do CPF utilizado na inscrição para facilitar o atendimento.
+          </p>
+        </div>
+      </div>
     );
   }
 
   if (!student) {
     return (
       <div className="space-y-4">
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold text-[var(--igh-secondary)]">Identifique-se</h3>
-          <p className="mt-2 text-sm text-[var(--igh-muted)]">
+        <div className={cardClass}>
+          <h3 className="text-lg font-semibold text-zinc-800">Identifique-se</h3>
+          <p className="mt-2 text-sm text-zinc-600">
             Para fazer sua pré-matrícula, faça login se você já tem cadastro ou cadastre-se com seus dados.
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:gap-4">
@@ -186,39 +218,39 @@ export function InscrevaForm() {
               Cadastrar-se
             </Button>
           </div>
-        </Card>
+        </div>
 
         {showCadastro && (
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold text-[var(--igh-secondary)]">Cadastro rápido</h3>
-            <p className="mt-1 text-sm text-[var(--igh-muted)]">
-              Preencha apenas os campos obrigatórios. Depois escolha a turma na próxima etapa.
+          <div className={cardClass}>
+            <h3 className="text-lg font-semibold text-zinc-800">Cadastro rápido</h3>
+            <p className="mt-1 text-sm text-zinc-600">
+              Preencha os campos obrigatórios. O e-mail é opcional; sem ele, você precisará ir à secretaria para concluir o cadastro.
             </p>
             <form onSubmit={handleCadastro} className="mt-4 flex flex-col gap-4">
               <div>
-                <label className="text-sm font-medium">Nome *</label>
-                <Input
-                  className="mt-1"
+                <label className={labelClass}>Nome *</label>
+                <input
+                  className={`mt-1 ${inputClass}`}
                   value={cadastroName}
                   onChange={(e) => setCadastroName(e.target.value)}
                   required
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">E-mail *</label>
-                <Input
-                  className="mt-1"
+                <label className={labelClass}>E-mail (opcional)</label>
+                <input
+                  className={`mt-1 ${inputClass}`}
                   type="email"
                   value={cadastroEmail}
                   onChange={(e) => setCadastroEmail(e.target.value)}
-                  required
+                  placeholder="seu@email.com"
                 />
-                <p className="mt-1 text-xs text-[var(--igh-muted)]">Você receberá a senha de acesso por e-mail.</p>
+                <p className={hintClass}>Se informar, você receberá a senha de acesso por e-mail.</p>
               </div>
               <div>
-                <label className="text-sm font-medium">CPF *</label>
-                <Input
-                  className="mt-1"
+                <label className={labelClass}>CPF *</label>
+                <input
+                  className={`mt-1 ${inputClass}`}
                   value={cadastroCpf}
                   onChange={(e) => setCadastroCpf(formatCpf(e.target.value))}
                   placeholder="000.000.000-00"
@@ -227,9 +259,9 @@ export function InscrevaForm() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Data de nascimento *</label>
-                <Input
-                  className="mt-1"
+                <label className={labelClass}>Data de nascimento *</label>
+                <input
+                  className={`mt-1 ${inputClass}`}
                   type="date"
                   value={cadastroBirthDate}
                   onChange={(e) => setCadastroBirthDate(e.target.value)}
@@ -237,9 +269,9 @@ export function InscrevaForm() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Telefone *</label>
-                <Input
-                  className="mt-1"
+                <label className={labelClass}>Telefone *</label>
+                <input
+                  className={`mt-1 ${inputClass}`}
                   value={cadastroPhone}
                   onChange={(e) => setCadastroPhone(formatPhone(e.target.value))}
                   placeholder="(00) 00000-0000"
@@ -260,7 +292,7 @@ export function InscrevaForm() {
                 </Button>
               </div>
             </form>
-          </Card>
+          </div>
         )}
       </div>
     );
@@ -268,29 +300,29 @@ export function InscrevaForm() {
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold text-[var(--igh-secondary)]">Seus dados</h3>
+      <div className={cardClass}>
+        <h3 className="text-lg font-semibold text-zinc-800">Seus dados</h3>
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-[var(--igh-muted)]">Nome</dt>
-            <dd className="font-medium">{student.name}</dd>
+            <dt className={hintClass}>Nome</dt>
+            <dd className="font-medium text-zinc-800">{student.name}</dd>
           </div>
           <div>
-            <dt className="text-[var(--igh-muted)]">CPF</dt>
-            <dd className="font-medium">{student.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</dd>
+            <dt className={hintClass}>CPF</dt>
+            <dd className="font-medium text-zinc-800">{student.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</dd>
           </div>
           <div>
-            <dt className="text-[var(--igh-muted)]">Nascimento</dt>
-            <dd className="font-medium">
+            <dt className={hintClass}>Nascimento</dt>
+            <dd className="font-medium text-zinc-800">
               {student.birthDate ? formatDateForInput(student.birthDate) : "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-[var(--igh-muted)]">Telefone</dt>
-            <dd className="font-medium">{student.phone}</dd>
+            <dt className={hintClass}>Telefone</dt>
+            <dd className="font-medium text-zinc-800">{student.phone}</dd>
           </div>
         </dl>
-        <p className="mt-3 text-xs text-[var(--igh-muted)]">
+        <p className="mt-3 text-xs text-zinc-600">
           Não é você?{" "}
           <button
             type="button"
@@ -301,22 +333,22 @@ export function InscrevaForm() {
               setClassGroupId("");
               void load();
             }}
-            className="text-[var(--igh-primary)] hover:underline font-medium"
+            className="font-medium text-blue-700 hover:underline"
           >
             Faça login
           </button>{" "}
           com outra conta.
         </p>
-      </Card>
+      </div>
 
-      <Card className="p-6">
+      <div className={cardClass}>
         <form onSubmit={handleEnrollment} className="flex flex-col gap-4">
           <div>
-            <label className="text-sm font-medium">Turma *</label>
+            <label className={labelClass}>Turma *</label>
             <select
               value={classGroupId}
               onChange={(e) => setClassGroupId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className={`mt-1 ${inputClass}`}
               required
             >
               <option value="">Selecione a turma</option>
@@ -328,13 +360,13 @@ export function InscrevaForm() {
               ))}
             </select>
             {classGroups.length === 0 && (
-              <p className="mt-1 text-xs text-[var(--igh-muted)]">Nenhuma turma disponível no momento.</p>
+              <p className={`mt-1 ${hintClass}`}>Nenhuma turma disponível no momento.</p>
             )}
             {courseIdFromUrl && (
               <p className="mt-2">
                 <a
                   href="/inscreva"
-                  className="text-xs text-[var(--igh-muted)] hover:text-[var(--igh-primary)] hover:underline"
+                  className="text-xs text-zinc-600 hover:text-blue-700 hover:underline"
                 >
                   Ver outros cursos
                 </a>
@@ -345,7 +377,7 @@ export function InscrevaForm() {
             {submitting ? "Enviando..." : "Enviar pré-matrícula"}
           </Button>
         </form>
-      </Card>
+      </div>
     </div>
   );
 }

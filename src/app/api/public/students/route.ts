@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   const { name, cpf, birthDate, phone, email } = parsed.data;
-  const emailNormalized = email.trim().toLowerCase();
+  const emailNormalized = email && email.trim() ? email.trim().toLowerCase() : null;
   const cpfNormalized = onlyDigits(cpf, 11);
   const phoneNormalized = phone.trim();
 
@@ -38,12 +38,14 @@ export async function POST(request: Request) {
     return jsonErr("DUPLICATE_CPF", "Já existe um cadastro com este CPF. Faça login para continuar.", 409);
   }
 
-  const existingEmail = await prisma.user.findUnique({
-    where: { email: emailNormalized },
-    select: { id: true },
-  });
-  if (existingEmail) {
-    return jsonErr("DUPLICATE_EMAIL", "Este e-mail já está em uso. Faça login ou use outro e-mail.", 409);
+  if (emailNormalized) {
+    const existingEmail = await prisma.user.findUnique({
+      where: { email: emailNormalized },
+      select: { id: true },
+    });
+    if (existingEmail) {
+      return jsonErr("DUPLICATE_EMAIL", "Este e-mail já está em uso. Faça login ou use outro e-mail.", 409);
+    }
   }
 
   let birthDateValue: Date;
@@ -53,20 +55,76 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", "Data de nascimento inválida.", 400);
   }
 
-  const tempPassword = generateTempPassword();
-  const passwordHash = await hashPassword(tempPassword);
+  if (emailNormalized) {
+    const tempPassword = generateTempPassword();
+    const passwordHash = await hashPassword(tempPassword);
 
-  const user = await prisma.user.create({
-    data: {
-      name: name.trim(),
+    const user = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: emailNormalized,
+        passwordHash,
+        role: "STUDENT",
+        isActive: true,
+        mustChangePassword: true,
+      },
+      select: { id: true },
+    });
+
+    const student = await prisma.student.create({
+      data: {
+        name: name.trim(),
+        cpf: cpfNormalized,
+        birthDate: birthDateValue,
+        phone: phoneNormalized,
+        email: emailNormalized,
+        userId: user.id,
+        rg: "",
+        gender: "PREFER_NOT_SAY",
+        educationLevel: "OTHER",
+      },
+      select: {
+        id: true,
+        name: true,
+        cpf: true,
+        birthDate: true,
+        phone: true,
+        email: true,
+      },
+    });
+
+    const token = await signStudentToken(student.id);
+
+    const { subject, html } = templateStudentRegistered({
+      name: student.name,
       email: emailNormalized,
-      passwordHash,
-      role: "STUDENT",
-      isActive: true,
-      mustChangePassword: true,
-    },
-    select: { id: true },
-  });
+      tempPassword,
+    });
+    await sendEmailAndRecord({
+      to: emailNormalized,
+      subject,
+      html,
+      emailType: "student_registered",
+      entityType: "Student",
+      entityId: student.id,
+      performedByUserId: null,
+    });
+
+    return jsonOk(
+      {
+        student: {
+          id: student.id,
+          name: student.name,
+          cpf: student.cpf,
+          birthDate: student.birthDate,
+          phone: student.phone,
+          email: student.email,
+        },
+        studentToken: token,
+      },
+      { status: 201 }
+    );
+  }
 
   const student = await prisma.student.create({
     data: {
@@ -74,8 +132,8 @@ export async function POST(request: Request) {
       cpf: cpfNormalized,
       birthDate: birthDateValue,
       phone: phoneNormalized,
-      email: emailNormalized,
-      userId: user.id,
+      email: null,
+      userId: null,
       rg: "",
       gender: "PREFER_NOT_SAY",
       educationLevel: "OTHER",
@@ -91,21 +149,6 @@ export async function POST(request: Request) {
   });
 
   const token = await signStudentToken(student.id);
-
-  const { subject, html } = templateStudentRegistered({
-    name: student.name,
-    email: emailNormalized,
-    tempPassword,
-  });
-  await sendEmailAndRecord({
-    to: emailNormalized,
-    subject,
-    html,
-    emailType: "student_registered",
-    entityType: "Student",
-    entityId: student.id,
-    performedByUserId: null,
-  });
 
   return jsonOk(
     {
