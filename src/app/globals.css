@@ -12,6 +12,16 @@
   --igh-surface: #f5f7fa;
   --igh-border: #e2e8f0;
   --igh-muted: #64748b;
+  /* Cards e inputs (contraste) */
+  --card-bg: #ffffff;
+  --card-border: #e4e4e7;
+  --input-bg: #ffffff;
+  --input-border: #d4d4d8;
+  --input-text: #18181b;
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --footer-bg: #1a365d;
 }
 
 @theme inline {
@@ -27,14 +37,60 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f0f0f;
+    --foreground: #fafafa;
+    --igh-surface: #18181b;
+    --igh-border: #3f3f46;
+    --igh-muted: #a1a1aa;
+    --igh-secondary: #e4e4e7;
+    --card-bg: #18181b;
+    --card-border: #3f3f46;
+    --input-bg: #27272a;
+    --input-border: #3f3f46;
+    --input-text: #fafafa;
+    --text-primary: #fafafa;
+    --text-secondary: #d4d4d8;
+    --text-muted: #a1a1aa;
+    --footer-bg: #18181b;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
+/* Tema claro/escuro: na mesma camada do Preflight (Tailwind v4) para não ser sobrescrito */
+@layer base {
+  html {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    min-height: 100vh;
+  }
+}
+
+/* Contraste em formulários e cards (respeitam tema claro/escuro) */
+.theme-bg-card {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+  color: var(--text-primary);
+}
+.theme-text-label {
+  color: var(--text-primary);
+}
+.theme-text-muted {
+  color: var(--text-muted);
+}
+.theme-input {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--input-text);
+}
+.theme-input::placeholder {
+  color: var(--text-muted);
+}
+.theme-input:focus {
+  outline: none;
+  border-color: var(--igh-primary);
 }
 
 button {

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
 
-/** Lista turmas abertas para pré-matrícula (público, sem auth). Query: courseId (uuid) para filtrar por curso. */
+/** Lista turmas abertas para pré-matrícula (público, sem auth). Só retorna turmas com vagas (enrollments ACTIVE < capacity). Query: courseId (uuid) para filtrar por curso. */
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -15,6 +15,7 @@ export async function GET(request: Request) {
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       select: {
         id: true,
+        capacity: true,
         startDate: true,
         daysOfWeek: true,
         startTime: true,
@@ -22,11 +23,14 @@ export async function GET(request: Request) {
         location: true,
         status: true,
         course: { select: { id: true, name: true } },
+        enrollments: { where: { status: "ACTIVE" }, select: { id: true } },
       },
     });
 
+    const withVagas = classGroups.filter((cg) => cg.enrollments.length < cg.capacity);
+
     return jsonOk({
-      classGroups: classGroups.map((cg) => ({
+      classGroups: withVagas.map((cg) => ({
         id: cg.id,
         courseId: cg.course.id,
         courseName: cg.course.name,

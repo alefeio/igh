@@ -3,7 +3,6 @@ import { requireRole, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createStudentSchema, normalizeDigits } from "@/lib/validators/students";
 import { createAuditLog } from "@/lib/audit";
-import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered } from "@/lib/email/templates";
 
@@ -106,11 +105,16 @@ export async function POST(request: Request) {
     },
   });
 
-  let tempPasswordForEmail: string | null = null;
+  let birthDateFormattedForEmail: string | null = null;
   if (emailTrimmed) {
-    const tempPassword = generateTempPassword();
-    tempPasswordForEmail = tempPassword;
-    const passwordHash = await hashPassword(tempPassword);
+    const d = birthDate.getDate();
+    const m = birthDate.getMonth() + 1;
+    const y = birthDate.getFullYear();
+    const day = String(d).padStart(2, "0");
+    const month = String(m).padStart(2, "0");
+    const birthDateAsPassword = `${day}${month}${y}`;
+    birthDateFormattedForEmail = `${day}/${month}/${y}`;
+    const passwordHash = await hashPassword(birthDateAsPassword);
     const createdUser = await prisma.user.create({
       data: {
         name: student.name,
@@ -128,11 +132,11 @@ export async function POST(request: Request) {
     student.userId = createdUser.id;
   }
 
-  if (emailTrimmed && tempPasswordForEmail) {
+  if (emailTrimmed && birthDateFormattedForEmail) {
     const { subject, html } = templateStudentRegistered({
       name: student.name,
       email: emailTrimmed,
-      tempPassword: tempPasswordForEmail,
+      birthDateFormatted: birthDateFormattedForEmail,
     });
     await sendEmailAndRecord({
       to: emailTrimmed,

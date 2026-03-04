@@ -65,7 +65,7 @@ export default async function InstitutionalLayout({
     <>
       {styleContent ? <style dangerouslySetInnerHTML={{ __html: styleContent }} /> : null}
       <Navbar menuItems={menuItems} settings={settings} />
-      <main id="main-content">{children}</main>
+      <main id="main-content" className="min-h-[50vh]" style={{ background: "var(--background)" }}>{children}</main>
       <Footer menuItems={menuItems} settings={settings} />
     </>
   );

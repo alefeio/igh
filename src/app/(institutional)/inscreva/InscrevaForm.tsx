@@ -51,6 +51,27 @@ function formatDateForInput(d: Date | string): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Converte "HH:MM" ou "HH:MM:SS" em minutos desde meia-noite. */
+function timeToMinutes(t: string): number {
+  const parts = (t || "0:0").split(":");
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  return h * 60 + m;
+}
+
+/** Verifica se duas turmas têm dia e horário sobrepostos. */
+function doOverlap(a: ClassGroupOption, b: ClassGroupOption): boolean {
+  const daysA = new Set(Array.isArray(a.daysOfWeek) ? a.daysOfWeek : []);
+  const daysB = new Set(Array.isArray(b.daysOfWeek) ? b.daysOfWeek : []);
+  const shared = [...daysA].filter((d) => daysB.has(d));
+  if (shared.length === 0) return false;
+  const startA = timeToMinutes(a.startTime);
+  const endA = timeToMinutes(a.endTime);
+  const startB = timeToMinutes(b.startTime);
+  const endB = timeToMinutes(b.endTime);
+  return startA < endB && endA > startB;
+}
+
 export function InscrevaForm() {
   const searchParams = useSearchParams();
   const courseIdFromUrl = searchParams.get("courseId");
@@ -59,7 +80,7 @@ export function InscrevaForm() {
   const [student, setStudent] = useState<StudentData | null>(null);
   const [studentToken, setStudentToken] = useState<string | null>(null);
   const [classGroups, setClassGroups] = useState<ClassGroupOption[]>([]);
-  const [classGroupId, setClassGroupId] = useState("");
+  const [selectedClassGroupIds, setSelectedClassGroupIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [showCadastro, setShowCadastro] = useState(false);
   const [cadastroName, setCadastroName] = useState("");
@@ -137,29 +158,62 @@ export function InscrevaForm() {
     }
   }
 
+  function toggleClassGroup(id: string) {
+    const cg = classGroups.find((c) => c.id === id);
+    if (!cg) return;
+    const isSelected = selectedClassGroupIds.includes(id);
+    if (isSelected) {
+      setSelectedClassGroupIds((prev) => prev.filter((x) => x !== id));
+      return;
+    }
+    if (selectedClassGroupIds.length >= 2) {
+      toast.push("error", "Você pode selecionar no máximo 2 turmas.");
+      return;
+    }
+    const selected = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
+    if (selected.some((other) => doOverlap(other, cg))) {
+      toast.push("error", "Esta turma tem horário no mesmo dia e hora de outra já selecionada. Escolha turmas em dias ou horários diferentes.");
+      return;
+    }
+    setSelectedClassGroupIds((prev) => [...prev, id]);
+  }
+
+  function isCheckboxDisabled(cg: ClassGroupOption): boolean {
+    if (selectedClassGroupIds.includes(cg.id)) return false;
+    if (selectedClassGroupIds.length >= 2) return true;
+    const selected = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
+    return selected.some((other) => doOverlap(other, cg));
+  }
+
   async function handleEnrollment(e: React.FormEvent) {
     e.preventDefault();
-    if (!student || !classGroupId || submitting) return;
+    if (!student || selectedClassGroupIds.length === 0 || submitting) return;
     setSubmitting(true);
     try {
-      const body: { classGroupId: string; studentToken?: string } = { classGroupId };
-      if (studentToken) body.studentToken = studentToken;
-      const res = await fetch("/api/public/enrollments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = (await res.json()) as ApiResponse<{ enrollment: { courseName: string } }>;
-      if (!res.ok || !json?.ok) {
-        toast.push("error", json && !json.ok && "error" in json ? json.error.message : "Erro ao enviar pré-matrícula.");
-        return;
+      let successCount = 0;
+      for (const classGroupId of selectedClassGroupIds) {
+        const body: { classGroupId: string; studentToken?: string } = { classGroupId };
+        if (studentToken) body.studentToken = studentToken;
+        const res = await fetch("/api/public/enrollments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const json = (await res.json()) as ApiResponse<{ enrollment: { courseName: string } }>;
+        if (res.ok && json?.ok) {
+          successCount++;
+        } else {
+          toast.push("error", json && "error" in json ? json.error.message : "Erro ao enviar pré-matrícula.");
+        }
       }
-      if (registeredWithoutEmail) {
-        setShowSecretariatMessage(true);
-      } else {
-        toast.push("success", `Pré-matrícula enviada para ${json.data.enrollment.courseName}. Aguarde a confirmação pela equipe.`);
+      if (successCount > 0) {
+        if (registeredWithoutEmail) {
+          setShowSecretariatMessage(true);
+        } else {
+          toast.push("success", successCount === 1 ? "Pré-matrícula enviada. Aguarde a confirmação pela equipe." : `${successCount} pré-matrículas enviadas. Aguarde a confirmação pela equipe.`);
+        }
       }
-      setClassGroupId("");
+      setSelectedClassGroupIds([]);
       setStudentToken(null);
       setRegisteredWithoutEmail(false);
       void load();
@@ -168,14 +222,14 @@ export function InscrevaForm() {
     }
   }
 
-  const cardClass = "rounded-xl border border-zinc-200 bg-white p-6 shadow-sm text-zinc-800";
-  const labelClass = "text-sm font-medium text-zinc-700";
-  const hintClass = "text-xs text-zinc-600";
-  const inputClass = "min-h-[44px] w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-500 outline-none focus:border-zinc-600 sm:h-10 sm:min-h-0";
+  const cardClass = "rounded-xl border border-[var(--card-border)] p-6 shadow-sm theme-bg-card";
+  const labelClass = "text-sm font-medium theme-text-label";
+  const hintClass = "text-xs theme-text-muted";
+  const inputClass = "min-h-[44px] w-full rounded-md border border-[var(--input-border)] px-3 text-sm theme-input sm:h-10 sm:min-h-0";
 
   if (loading) {
     return (
-      <div className={`${cardClass} text-center text-zinc-600`}>
+      <div className={`${cardClass} text-center theme-text-muted`}>
         Carregando...
       </div>
     );
@@ -184,12 +238,12 @@ export function InscrevaForm() {
   if (showSecretariatMessage) {
     return (
       <div className="space-y-6">
-        <div className={`${cardClass} border-emerald-200 bg-emerald-50/50`}>
-          <h3 className="text-lg font-semibold text-zinc-800">Pré-matrícula enviada</h3>
-          <p className="mt-3 text-sm text-zinc-700">
+        <div className={`${cardClass} border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30`}>
+          <h3 className="text-lg font-semibold theme-text-label">Pré-matrícula enviada</h3>
+          <p className="mt-3 text-sm theme-text-label">
             Como você não informou e-mail, será necessário comparecer à secretaria para completar seu cadastro e entregar os documentos (documento de identidade e comprovante de residência), para que sua matrícula seja confirmada.
           </p>
-          <p className="mt-2 text-sm text-zinc-600">
+          <p className="mt-2 text-sm theme-text-muted">
             Anote o número do CPF utilizado na inscrição para facilitar o atendimento.
           </p>
         </div>
@@ -201,8 +255,8 @@ export function InscrevaForm() {
     return (
       <div className="space-y-4">
         <div className={cardClass}>
-          <h3 className="text-lg font-semibold text-zinc-800">Identifique-se</h3>
-          <p className="mt-2 text-sm text-zinc-600">
+          <h3 className="text-lg font-semibold theme-text-label">Identifique-se</h3>
+          <p className="mt-2 text-sm theme-text-muted">
             Para fazer sua pré-matrícula, faça login se você já tem cadastro ou cadastre-se com seus dados.
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:gap-4">
@@ -222,8 +276,8 @@ export function InscrevaForm() {
 
         {showCadastro && (
           <div className={cardClass}>
-            <h3 className="text-lg font-semibold text-zinc-800">Cadastro rápido</h3>
-            <p className="mt-1 text-sm text-zinc-600">
+            <h3 className="text-lg font-semibold theme-text-label">Cadastro rápido</h3>
+            <p className="mt-1 text-sm theme-text-muted">
               Preencha os campos obrigatórios. O e-mail é opcional; sem ele, você precisará ir à secretaria para concluir o cadastro.
             </p>
             <form onSubmit={handleCadastro} className="mt-4 flex flex-col gap-4">
@@ -245,7 +299,7 @@ export function InscrevaForm() {
                   onChange={(e) => setCadastroEmail(e.target.value)}
                   placeholder="seu@email.com"
                 />
-                <p className={hintClass}>Se informar, você receberá a senha de acesso por e-mail.</p>
+                <p className={hintClass}>Se informar, você receberá a confirmação por e-mail. Use sua data de nascimento para o primeiro acesso.</p>
               </div>
               <div>
                 <label className={labelClass}>CPF *</label>
@@ -301,28 +355,28 @@ export function InscrevaForm() {
   return (
     <div className="space-y-6">
       <div className={cardClass}>
-        <h3 className="text-lg font-semibold text-zinc-800">Seus dados</h3>
+        <h3 className="text-lg font-semibold theme-text-label">Seus dados</h3>
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
           <div>
             <dt className={hintClass}>Nome</dt>
-            <dd className="font-medium text-zinc-800">{student.name}</dd>
+            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>{student.name}</dd>
           </div>
           <div>
             <dt className={hintClass}>CPF</dt>
-            <dd className="font-medium text-zinc-800">{student.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</dd>
+            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>{student.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</dd>
           </div>
           <div>
             <dt className={hintClass}>Nascimento</dt>
-            <dd className="font-medium text-zinc-800">
+            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>
               {student.birthDate ? formatDateForInput(student.birthDate) : "—"}
             </dd>
           </div>
           <div>
             <dt className={hintClass}>Telefone</dt>
-            <dd className="font-medium text-zinc-800">{student.phone}</dd>
+            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>{student.phone}</dd>
           </div>
         </dl>
-        <p className="mt-3 text-xs text-zinc-600">
+        <p className="mt-3 text-xs theme-text-muted">
           Não é você?{" "}
           <button
             type="button"
@@ -330,10 +384,11 @@ export function InscrevaForm() {
               await fetch("/api/auth/logout", { method: "POST" });
               setStudent(null);
               setStudentToken(null);
-              setClassGroupId("");
+              setSelectedClassGroupIds([]);
               void load();
             }}
-            className="font-medium text-blue-700 hover:underline"
+            className="font-medium hover:underline"
+            style={{ color: "var(--igh-primary)" }}
           >
             Faça login
           </button>{" "}
@@ -344,36 +399,56 @@ export function InscrevaForm() {
       <div className={cardClass}>
         <form onSubmit={handleEnrollment} className="flex flex-col gap-4">
           <div>
-            <label className={labelClass}>Turma *</label>
-            <select
-              value={classGroupId}
-              onChange={(e) => setClassGroupId(e.target.value)}
-              className={`mt-1 ${inputClass}`}
-              required
-            >
-              <option value="">Selecione a turma</option>
-              {classGroups.map((cg) => (
-                <option key={cg.id} value={cg.id}>
-                  {cg.courseName} — Início {formatDateForInput(cg.startDate)} — {cg.startTime}-{cg.endTime}
-                  {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
-                </option>
-              ))}
-            </select>
-            {classGroups.length === 0 && (
-              <p className={`mt-1 ${hintClass}`}>Nenhuma turma disponível no momento.</p>
+            <p className={labelClass}>
+              Escolha até 2 turmas (não podem ser no mesmo dia e horário) *
+            </p>
+            <p className={`mt-1 ${hintClass}`}>
+              Marque as turmas desejadas. Turmas no mesmo dia e horário não podem ser selecionadas juntas.
+            </p>
+            {classGroups.length === 0 ? (
+              <p className={`mt-3 ${hintClass}`}>Nenhuma turma disponível no momento.</p>
+            ) : (
+              <ul className="mt-3 space-y-2 list-none pl-0">
+                {classGroups.map((cg) => {
+                  const checked = selectedClassGroupIds.includes(cg.id);
+                  const disabled = isCheckboxDisabled(cg);
+                  return (
+                    <li key={cg.id} className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id={`cg-${cg.id}`}
+                        checked={checked}
+                        onChange={() => toggleClassGroup(cg.id)}
+                        disabled={disabled}
+                        className="mt-1 h-4 w-4 rounded border-[var(--input-border)] bg-[var(--input-bg)] text-[var(--igh-primary)] focus:ring-[var(--igh-primary)]"
+                      />
+                      <label
+                        htmlFor={`cg-${cg.id}`}
+                        className={`text-sm cursor-pointer ${disabled && !checked ? "theme-text-muted" : ""}`}
+                        style={!(disabled && !checked) ? { color: "var(--text-primary)" } : undefined}
+                      >
+                        <span className="font-medium">{cg.courseName}</span>
+                        {" — "}
+                        Início {formatDateForInput(cg.startDate)} — {cg.startTime}–{cg.endTime}
+                        {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
             {courseIdFromUrl && (
               <p className="mt-2">
                 <a
                   href="/inscreva"
-                  className="text-xs text-zinc-600 hover:text-blue-700 hover:underline"
+                  className={`text-xs ${hintClass} hover:underline`}
                 >
                   Ver outros cursos
                 </a>
               </p>
             )}
           </div>
-          <Button type="submit" disabled={submitting || !classGroupId || classGroups.length === 0}>
+          <Button type="submit" disabled={submitting || selectedClassGroupIds.length === 0 || classGroups.length === 0}>
             {submitting ? "Enviando..." : "Enviar pré-matrícula"}
           </Button>
         </form>

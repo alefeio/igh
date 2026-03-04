@@ -20,7 +20,7 @@ export function Section({
   containerClassName = "",
   background = "white",
 }: SectionProps) {
-  const bg = background === "muted" ? "bg-[var(--igh-surface)]" : "bg-white";
+  const bg = background === "muted" ? "bg-[var(--igh-surface)]" : "bg-[var(--background)]";
   return (
     <section id={id} className={`py-12 sm:py-16 lg:py-20 ${bg} ${className}`}>
       <Container className={containerClassName}>

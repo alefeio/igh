@@ -58,7 +58,7 @@ export function Navbar({ menuItems: propItems, settings }: NavbarProps) {
       {scrolled && headerHeight > 0 && <div aria-hidden className="shrink-0" style={{ height: headerHeight }} />}
       <header
         ref={headerRef}
-        className={`z-40 border-b border-[var(--igh-border)] bg-white/95 backdrop-blur transition-shadow ${scrolled ? "fixed left-0 right-0 top-0 shadow-md" : "sticky top-0"}`}
+        className={`z-40 border-b border-[var(--igh-border)] bg-[var(--background)] backdrop-blur transition-shadow ${scrolled ? "fixed left-0 right-0 top-0 shadow-md" : "sticky top-0"}`}
       >
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Menu principal">
         <Link href="/" className="flex shrink-0 items-center rounded focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2">

@@ -100,9 +100,9 @@ export function templateProfessorWelcome(params: {
 export function templateStudentRegistered(params: {
   name: string;
   email: string;
-  tempPassword: string;
+  birthDateFormatted: string;
 }): { subject: string; html: string } {
-  const { name, email, tempPassword } = params;
+  const { name, email, birthDateFormatted } = params;
   const loginUrl = getAppUrl("/login");
   const meusDadosUrl = getAppUrl("/meus-dados");
   const body = `
@@ -112,7 +112,7 @@ export function templateStudentRegistered(params: {
 <ul>
   <li><strong>Link de acesso:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
   <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
-  <li><strong>Senha temporária:</strong> <code style="background:#f0f0f0;padding:2px 6px;">${escapeHtml(tempPassword)}</code></li>
+  <li><strong>Senha para primeiro acesso:</strong> use sua <strong>data de nascimento</strong> no formato DD/MM/AAAA (${escapeHtml(birthDateFormatted)}).</li>
 </ul>
 <p><strong>Para sua matrícula ser concluída</strong>, após fazer login você deve:</p>
 <ol>

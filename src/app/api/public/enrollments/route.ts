@@ -48,6 +48,13 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
   }
 
+  const activeCount = await prisma.enrollment.count({
+    where: { classGroupId, status: "ACTIVE" },
+  });
+  if (activeCount >= classGroup.capacity) {
+    return jsonErr("VALIDATION_ERROR", "Esta turma não possui vagas disponíveis.", 400);
+  }
+
   const existing = await prisma.enrollment.findFirst({
     where: { studentId, classGroupId, status: "ACTIVE" },
   });
