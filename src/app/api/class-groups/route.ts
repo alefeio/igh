@@ -17,7 +17,7 @@ function getTodayUtc(): Date {
 
 export async function GET() {
   try {
-    await requireRole("MASTER");
+    await requireRole(["ADMIN", "MASTER"]);
 
     const today = getTodayUtc();
 
