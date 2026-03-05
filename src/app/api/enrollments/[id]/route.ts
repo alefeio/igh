@@ -56,11 +56,11 @@ export async function PATCH(
   const user = await requireRole("MASTER");
   const { id } = await context.params;
 
-  const enrollment = await prisma.enrollment.findUnique({
+  const existing = await prisma.enrollment.findUnique({
     where: { id },
-    select: { id: true },
+    select: { studentId: true, classGroupId: true },
   });
-  if (!enrollment) {
+  if (!existing) {
     return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
   }
 
@@ -73,6 +73,7 @@ export async function PATCH(
   const data: {
     status?: string;
     isPreEnrollment?: boolean;
+    classGroupId?: string;
     certificateUrl?: string | null;
     certificatePublicId?: string | null;
     certificateFileName?: string | null;
@@ -82,6 +83,51 @@ export async function PATCH(
   if (parsed.data.certificateUrl !== undefined) data.certificateUrl = parsed.data.certificateUrl || null;
   if (parsed.data.certificatePublicId !== undefined) data.certificatePublicId = parsed.data.certificatePublicId || null;
   if (parsed.data.certificateFileName !== undefined) data.certificateFileName = parsed.data.certificateFileName || null;
+
+  if (parsed.data.classGroupId !== undefined && parsed.data.classGroupId !== existing.classGroupId) {
+    const newClassGroupId = parsed.data.classGroupId;
+    const newClassGroup = await prisma.classGroup.findUnique({
+      where: { id: newClassGroupId },
+      include: { course: { select: { id: true, name: true } } },
+    });
+    if (!newClassGroup) {
+      return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+    }
+    if (!["ABERTA", "EM_ANDAMENTO", "PLANEJADA"].includes(newClassGroup.status)) {
+      return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
+    }
+    const activeInNew = await prisma.enrollment.count({
+      where: { classGroupId: newClassGroupId, status: "ACTIVE" },
+    });
+    if (activeInNew >= newClassGroup.capacity) {
+      return jsonErr("VALIDATION_ERROR", "Esta turma não possui vagas disponíveis.", 400);
+    }
+    const alreadyInNew = await prisma.enrollment.findFirst({
+      where: { studentId: existing.studentId, classGroupId: newClassGroupId, status: "ACTIVE", id: { not: id } },
+    });
+    if (alreadyInNew) {
+      return jsonErr("VALIDATION_ERROR", "O aluno já está inscrito nesta turma.", 400);
+    }
+    const ACTIVE_CLASS_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
+    const otherEnrollments = await prisma.enrollment.findMany({
+      where: {
+        studentId: existing.studentId,
+        status: "ACTIVE",
+        id: { not: id },
+        classGroup: { status: { in: [...ACTIVE_CLASS_STATUSES] } },
+      },
+      select: { classGroup: { select: { courseId: true } } },
+    });
+    const currentCourseIds = new Set(otherEnrollments.map((e) => e.classGroup.courseId));
+    if (!currentCourseIds.has(newClassGroup.courseId) && currentCourseIds.size >= 2) {
+      return jsonErr(
+        "VALIDATION_ERROR",
+        "O aluno já está inscrito em 2 cursos com turmas em andamento ou abertas. Não é possível alterar para esta turma.",
+        400
+      );
+    }
+    data.classGroupId = newClassGroupId;
+  }
 
   const updated = await prisma.enrollment.update({
     where: { id },

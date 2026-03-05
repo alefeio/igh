@@ -175,6 +175,9 @@ export function Sidebar({
       <nav className="flex-1 overflow-y-auto px-2 py-3">{navContent}</nav>
       <div className="shrink-0 space-y-2 border-t border-[var(--card-border)] p-3">
         <ThemeToggle className="w-full" showLabel />
+        <Button as="link" href="/" variant="secondary" className="w-full">
+          Acessar site
+        </Button>
         <Button variant="secondary" className="w-full" onClick={logout} disabled={loading}>
           Sair
         </Button>

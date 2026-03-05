@@ -61,6 +61,7 @@ export default function EnrollmentsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(null);
   const [editStatus, setEditStatus] = useState("ACTIVE");
+  const [editClassGroupId, setEditClassGroupId] = useState("");
   const [editCertFile, setEditCertFile] = useState<File | null>(null);
   const [editRemovingCert, setEditRemovingCert] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
@@ -171,9 +172,11 @@ export default function EnrollmentsPage() {
   function openEdit(e: Enrollment) {
     setEditingEnrollment(e);
     setEditStatus(e.status);
+    setEditClassGroupId(e.classGroup.id);
     setEditCertFile(null);
     setEditRemovingCert(false);
     setEditOpen(true);
+    void loadFormOptions();
   }
 
   async function confirmPreEnrollment(e: Enrollment) {
@@ -308,9 +311,12 @@ export default function EnrollmentsPage() {
     if (!editingEnrollment || editSubmitting) return;
     setEditSubmitting(true);
     try {
-      const body: { status: string; certificateUrl?: string | null; certificatePublicId?: string | null; certificateFileName?: string | null } = {
+      const body: { status: string; classGroupId?: string; certificateUrl?: string | null; certificatePublicId?: string | null; certificateFileName?: string | null } = {
         status: editStatus,
       };
+      if (editClassGroupId && editClassGroupId !== editingEnrollment.classGroup.id) {
+        body.classGroupId = editClassGroupId;
+      }
       if (editRemovingCert) {
         body.certificateUrl = null;
         body.certificatePublicId = null;
@@ -651,8 +657,19 @@ export default function EnrollmentsPage() {
               <p className="text-xs text-[var(--text-muted)]">{editingEnrollment.student.email ?? "-"}</p>
             </div>
             <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Turma</div>
-              <p className="mt-0.5">{editingEnrollment.classGroup.course.name} — {editingEnrollment.classGroup.startTime}-{editingEnrollment.classGroup.endTime}</p>
+              <label className="text-sm font-medium">Turma</label>
+              <select
+                value={editClassGroupId}
+                onChange={(e) => setEditClassGroupId(e.target.value)}
+                className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
+              >
+                {classGroups.map((cg) => (
+                  <option key={cg.id} value={cg.id}>
+                    {cg.course.name} — Início {typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR") : ""} — {cg.startTime}-{cg.endTime}
+                    {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-sm font-medium">Status</label>

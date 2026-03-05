@@ -287,6 +287,15 @@ export function InscrevaForm() {
           <p className="mt-2 text-sm theme-text-muted">
             Anote o número do CPF utilizado na inscrição para facilitar o atendimento.
           </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3">
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setShowSecretariatMessage(false)}
+            >
+              Fazer nova inscrição em outra turma
+            </Button>
+          </div>
         </div>
       </div>
     );

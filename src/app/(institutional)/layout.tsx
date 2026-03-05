@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/site";
 import { Footer } from "@/components/site";
+import { getSessionUserFromCookie } from "@/lib/auth";
 import { getMenuItems, getSiteSettings } from "@/lib/site-data";
 
 function absoluteUrl(pathOrUrl: string, baseUrl: string): string {
@@ -46,9 +47,10 @@ export default async function InstitutionalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [menuItems, settings] = await Promise.all([
+  const [menuItems, settings, sessionUser] = await Promise.all([
     getMenuItems(),
     getSiteSettings(),
+    getSessionUserFromCookie(),
   ]);
 
   const cssVars: string[] = [];
@@ -64,7 +66,7 @@ export default async function InstitutionalLayout({
   return (
     <>
       {styleContent ? <style dangerouslySetInnerHTML={{ __html: styleContent }} /> : null}
-      <Navbar menuItems={menuItems} settings={settings} />
+      <Navbar menuItems={menuItems} settings={settings} sessionUser={sessionUser} />
       <main id="main-content" className="min-h-[50vh]" style={{ background: "var(--background)" }}>{children}</main>
       <Footer menuItems={menuItems} settings={settings} />
     </>
