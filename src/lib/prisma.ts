@@ -5,17 +5,23 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-function createAdapter() {
-  const connectionString =
-    // Vercel Prisma Postgres / Data Proxy
+function getConnectionString(): string {
+  let u =
     process.env.POSTGRES_URL ??
     process.env.PRISMA_DATABASE_URL ??
-    // fallback para dev local
     process.env.DATABASE_URL;
-  if (!connectionString) {
+  if (!u) {
     throw new Error("URL de banco não configurada (POSTGRES_URL / PRISMA_DATABASE_URL / DATABASE_URL)");
   }
-  return new PrismaPg({ connectionString });
+  // Prisma Postgres (db.prisma.io): forçar pooled para serverless (Vercel injeta URL sem pooled)
+  if (u.includes("db.prisma.io") && !u.includes("pooled=true")) {
+    u += u.includes("?") ? "&pooled=true" : "?pooled=true";
+  }
+  return u;
+}
+
+function createAdapter() {
+  return new PrismaPg({ connectionString: getConnectionString() });
 }
 
 export const prisma =
