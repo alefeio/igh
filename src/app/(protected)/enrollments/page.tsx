@@ -557,7 +557,7 @@ export default function EnrollmentsPage() {
                         Confirmar
                       </Button>
                     )}
-                    {isMaster && (
+                    {(isMaster || user.role === "ADMIN") && (
                       <Button type="button" variant="secondary" onClick={() => openEdit(e)}>
                         Editar
                       </Button>

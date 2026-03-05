@@ -53,7 +53,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await context.params;
 
   const existing = await prisma.enrollment.findUnique({
