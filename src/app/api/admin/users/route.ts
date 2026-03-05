@@ -11,13 +11,14 @@ export async function GET() {
   await requireRole("MASTER");
 
   const users = await prisma.user.findMany({
-    where: { role: "ADMIN" },
+    where: { OR: [{ role: "ADMIN" }, { isAdmin: true }] },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       name: true,
       email: true,
       role: true,
+      isAdmin: true,
       isActive: true,
       createdAt: true,
       updatedAt: true,
@@ -37,9 +38,40 @@ export async function POST(request: Request) {
   }
 
   const { name, email } = parsed.data;
-  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, name: true, email: true, role: true, isActive: true, isAdmin: true },
+  });
+
   if (existing) {
-    return jsonErr("EMAIL_IN_USE", "Já existe um usuário com este e-mail.", 409);
+    if (existing.role === "ADMIN" || existing.role === "MASTER") {
+      return jsonErr("EMAIL_IN_USE", "Já existe um usuário administrador com este e-mail.", 409);
+    }
+    if (existing.role === "STUDENT" || existing.role === "TEACHER") {
+      if (existing.isAdmin) {
+        return jsonErr("EMAIL_IN_USE", "Este usuário já possui acesso como Admin.", 409);
+      }
+      const updated = await prisma.user.update({
+        where: { id: existing.id },
+        data: { isAdmin: true, ...(name.trim() !== existing.name ? { name: name.trim() } : {}) },
+        select: { id: true, name: true, email: true, role: true, isAdmin: true, isActive: true },
+      });
+      await createAuditLog({
+        entityType: "User",
+        entityId: updated.id,
+        action: "ADMIN_ACCESS_GRANTED",
+        diff: { email: updated.email, previousRole: existing.role },
+        performedByUserId: master.id,
+      });
+      return jsonOk(
+        {
+          user: updated,
+          emailSent: true,
+          alreadyRegisteredAs: existing.role === "STUDENT" ? "Aluno" : "Professor",
+        },
+        { status: 200 }
+      );
+    }
   }
 
   const tempPassword = generateTempPassword();

@@ -8,6 +8,7 @@ export type SessionUser = {
   email: string;
   role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
   mustChangePassword?: boolean;
+  isAdmin?: boolean;
 };
 
 const UserContext = createContext<SessionUser | null>(null);

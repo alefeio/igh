@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       name: true,
       email: true,
       role: true,
+      isAdmin: true,
       isActive: true,
       mustChangePassword: true,
       passwordHash: true,
@@ -40,8 +41,20 @@ export async function POST(request: Request) {
     role: user.role,
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword ?? false,
+    isAdmin: user.isAdmin ?? false,
   } as const;
 
   await createSessionCookie(sessionUser);
-  return jsonOk({ user: sessionUser });
+  const needsRoleChoice =
+    (user.role === "STUDENT" || user.role === "TEACHER") && (user.isAdmin === true);
+  return jsonOk({
+    user: {
+      id: sessionUser.id,
+      name: sessionUser.name,
+      email: sessionUser.email,
+      role: sessionUser.role,
+      mustChangePassword: sessionUser.mustChangePassword,
+    },
+    needsRoleChoice: needsRoleChoice ?? false,
+  });
 }

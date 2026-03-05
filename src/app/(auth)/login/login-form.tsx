@@ -33,9 +33,16 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const json = (await res.json()) as ApiResponse<{ user: { id: string; mustChangePassword?: boolean } }>;
+      const json = (await res.json()) as ApiResponse<{
+        user: { id: string; mustChangePassword?: boolean };
+        needsRoleChoice?: boolean;
+      }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha no login.");
+        return;
+      }
+      if (json.data?.needsRoleChoice) {
+        router.replace("/escolher-perfil");
         return;
       }
       if (json.data?.user?.mustChangePassword) {

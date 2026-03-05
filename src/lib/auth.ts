@@ -10,7 +10,7 @@ import type { User, UserRole } from "@/generated/prisma/client";
 const AUTH_COOKIE_NAME = "auth_token";
 const AUTH_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
-export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActive" | "mustChangePassword">;
+export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActive" | "mustChangePassword"> & { isAdmin?: boolean };
 
 interface JwtPayload {
   sub: string;
@@ -27,11 +27,16 @@ export async function verifyPassword(password: string, passwordHash: string): Pr
   return compare(password, passwordHash);
 }
 
-export async function createSessionCookie(user: SessionUser): Promise<void> {
+/** Cria o cookie de sessão. effectiveRole: use quando o usuário escolheu acessar como Admin (e tem isAdmin). */
+export async function createSessionCookie(
+  user: SessionUser & { isAdmin?: boolean },
+  effectiveRole?: UserRole
+): Promise<void> {
+  const role = effectiveRole ?? user.role;
   const token = await new SignJWT({
     name: user.name,
     email: user.email,
-    role: user.role,
+    role,
   } as Omit<JwtPayload, "sub">)
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
@@ -70,13 +75,25 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
         name: true,
         email: true,
         role: true,
+        isAdmin: true,
         isActive: true,
         mustChangePassword: true,
       },
     });
 
     if (!user || !user.isActive) return null;
-    return user;
+    if (payload.role === "ADMIN" && user.role !== "ADMIN" && user.role !== "MASTER") {
+      if (!user.isAdmin) return null;
+    }
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: payload.role as UserRole,
+      isActive: user.isActive,
+      mustChangePassword: user.mustChangePassword ?? false,
+      isAdmin: user.isAdmin ?? false,
+    };
   } catch {
     return null;
   }

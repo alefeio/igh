@@ -15,7 +15,8 @@ type AdminUser = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN";
+  role: "ADMIN" | "STUDENT" | "TEACHER";
+  isAdmin?: boolean;
   isActive: boolean;
   createdAt: string;
 };
@@ -149,12 +150,22 @@ export default function UsersPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name, email }),
     });
-    const json = (await res.json()) as ApiResponse<{ user: { id: string }; emailSent?: boolean; temporaryPassword?: string }>;
+    const json = (await res.json()) as ApiResponse<{
+      user: { id: string };
+      emailSent?: boolean;
+      temporaryPassword?: string;
+      alreadyRegisteredAs?: string;
+    }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao criar admin.");
       return;
     }
-    if (json.data.emailSent) {
+    if (json.data.alreadyRegisteredAs) {
+      toast.push(
+        "success",
+        `Usuário já cadastrado como ${json.data.alreadyRegisteredAs}. Foi concedido acesso como Admin. Ao entrar no sistema, ele poderá escolher usar como ${json.data.alreadyRegisteredAs} ou Admin.`
+      );
+    } else if (json.data.emailSent) {
       toast.push("success", "Admin criado. E-mail de acesso enviado para o novo usuário.");
     } else {
       const senha = json.data.temporaryPassword ? ` Senha temporária: ${json.data.temporaryPassword}.` : "";
