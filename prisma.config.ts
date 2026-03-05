@@ -12,6 +12,14 @@ export default defineConfig({
   datasource: {
     // Usamos sempre a mesma URL (POSTGRES_URL) tanto local quanto na Vercel.
     // Em dev, defina POSTGRES_URL no .env com a mesma string usada em produção.
-    url: process.env["POSTGRES_URL"] ?? process.env["DATABASE_URL"],
+    url: (() => {
+      const u = process.env["POSTGRES_URL"] ?? process.env["DATABASE_URL"] ?? process.env["PRISMA_DATABASE_URL"];
+      if (!u || typeof u !== "string" || !u.startsWith("postgres")) {
+        throw new Error(
+          "URL do banco não configurada. No arquivo .env na raiz do projeto, defina POSTGRES_URL ou DATABASE_URL com a connection string do PostgreSQL (ex.: postgresql://usuario:senha@localhost:5432/nome_do_banco)"
+        );
+      }
+      return u;
+    })(),
   },
 });
