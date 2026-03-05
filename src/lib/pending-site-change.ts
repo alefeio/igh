@@ -183,7 +183,7 @@ async function applyPendingChange(pending: {
       return;
     case "site_project":
       if (action === "create") {
-        const slug = (payload.slug as string) || (payload.title as string)?.toLowerCase?.()?.replace?.(/\s+/g, "-") ?? "";
+        const slug = ((payload.slug as string) || (payload.title as string)?.toLowerCase?.()?.replace?.(/\s+/g, "-")) ?? "";
         await prisma.siteProject.create({
           data: {
             title: payload.title as string,

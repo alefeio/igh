@@ -308,7 +308,7 @@ export default async function DashboardPage() {
       ) : data.role === "TEACHER" ? (
         <DashboardTeacher data={data} />
       ) : (
-        <DashboardStudent data={data} />
+        <DashboardStudent data={data as Extract<DashboardData, { role: "STUDENT" }>} />
       )}
     </div>
   );
