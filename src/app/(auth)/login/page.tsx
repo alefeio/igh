@@ -20,8 +20,8 @@ export default async function LoginPage({ searchParams }: Props) {
       </div>
       <div className="card w-full">
         <div className="card-header">
-          <div className="text-lg font-semibold">Entrar</div>
-          <div className="mt-1 text-sm text-zinc-600">Acesse com seu e-mail e senha.</div>
+          <div className="text-lg font-semibold text-[var(--text-primary)]">Entrar</div>
+          <div className="mt-1 text-sm text-[var(--text-secondary)]">Acesse com seu e-mail e senha.</div>
         </div>
         <div className="card-body">
           <LoginForm redirectTo={from} />

@@ -59,13 +59,13 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   return (
     <form className="flex flex-col gap-3" onSubmit={submit}>
       <div>
-        <label className="text-sm font-medium">E-mail</label>
+        <label className="text-sm font-medium text-[var(--text-primary)]">E-mail</label>
         <div className="mt-1">
           <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
         </div>
       </div>
       <div>
-        <label className="text-sm font-medium">Senha</label>
+        <label className="text-sm font-medium text-[var(--text-primary)]">Senha</label>
         <div className="mt-1">
           <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
         </div>
@@ -74,15 +74,15 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         {loading ? "Entrando..." : "Entrar"}
       </Button>
       <div className="text-center">
-        <Link className="text-xs text-zinc-500 hover:text-zinc-700" href="/esqueci-senha">
+        <Link className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]" href="/esqueci-senha">
           Esqueci minha senha
         </Link>
       </div>
 
       {setupHint ? (
-        <div className="pt-2 text-xs text-zinc-600">
+        <div className="pt-2 text-xs text-[var(--text-secondary)]">
           Primeiro acesso? Vá em{" "}
-          <Link className="font-medium text-zinc-900 underline" href="/setup">
+          <Link className="font-medium text-[var(--text-primary)] underline" href="/setup">
             /setup
           </Link>
           .

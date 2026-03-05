@@ -100,7 +100,7 @@ export default function MinhasTurmasDetailPage() {
 
       <div className="card">
         <div className="card-header">
-          <div className="text-lg font-semibold">{e.course.name}</div>
+          <div className="text-lg font-semibold text-[var(--text-primary)]">{e.course.name}</div>
           <div className="mt-1 flex items-center gap-2">
             <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
           </div>
@@ -108,47 +108,47 @@ export default function MinhasTurmasDetailPage() {
         <div className="card-body space-y-6">
           {e.course.description ? (
             <div>
-              <div className="text-sm font-medium text-zinc-600">Descrição do curso</div>
-              <p className="mt-1 text-zinc-800">{e.course.description}</p>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Descrição do curso</div>
+              <p className="mt-1 text-[var(--text-primary)]">{e.course.description}</p>
             </div>
           ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <div className="text-sm font-medium text-zinc-600">Carga horária</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Carga horária</div>
               <p className="mt-1">{e.course.workloadHours != null ? `${e.course.workloadHours} horas` : "—"}</p>
             </div>
             <div>
-              <div className="text-sm font-medium text-zinc-600">Professor</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Professor</div>
               <p className="mt-1">{e.teacher}</p>
             </div>
             <div>
-              <div className="text-sm font-medium text-zinc-600">Dias da semana</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Dias da semana</div>
               <p className="mt-1">{e.daysOfWeek?.length ? e.daysOfWeek.join(", ") : "—"}</p>
             </div>
             <div>
-              <div className="text-sm font-medium text-zinc-600">Data de início</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Data de início</div>
               <p className="mt-1">{formatDate(e.startDate)}</p>
             </div>
             <div>
-              <div className="text-sm font-medium text-zinc-600">Status</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Status</div>
               <p className="mt-1">
                 <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
               </p>
             </div>
             <div>
-              <div className="text-sm font-medium text-zinc-600">Local</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Local</div>
               <p className="mt-1">{e.location ?? "—"}</p>
             </div>
             <div>
-              <div className="text-sm font-medium text-zinc-600">Horário</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Horário</div>
               <p className="mt-1">{e.startTime} às {e.endTime}</p>
             </div>
           </div>
 
           {e.certificateUrl ? (
             <div>
-              <div className="text-sm font-medium text-zinc-600">Certificado</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Certificado</div>
               <p className="mt-1">
                 <a
                   href={e.certificateUrl}
@@ -163,9 +163,9 @@ export default function MinhasTurmasDetailPage() {
           ) : null}
 
           <div>
-            <div className="mb-2 text-sm font-medium text-zinc-600">Data e horário das aulas</div>
+            <div className="mb-2 text-sm font-medium text-[var(--text-secondary)]">Data e horário das aulas</div>
             {e.sessions.length === 0 ? (
-              <p className="text-zinc-600">Nenhuma aula agendada.</p>
+              <p className="text-[var(--text-secondary)]">Nenhuma aula agendada.</p>
             ) : (
               <Table>
                 <thead>

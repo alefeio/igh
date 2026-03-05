@@ -62,14 +62,14 @@ export default function MinhasTurmasPage() {
     <div className="flex flex-col gap-4">
       <div className="card">
         <div className="card-header">
-          <div className="text-lg font-semibold">Minhas turmas</div>
-          <div className="mt-1 text-sm text-zinc-600">Turmas em que você está matriculado.</div>
+          <div className="text-lg font-semibold text-[var(--text-primary)]">Minhas turmas</div>
+          <div className="mt-1 text-sm text-[var(--text-secondary)]">Turmas em que você está matriculado.</div>
         </div>
         <div className="card-body">
           {loading ? (
-            <p className="text-zinc-600">Carregando...</p>
+            <p className="text-[var(--text-secondary)]">Carregando...</p>
           ) : enrollments.length === 0 ? (
-            <p className="text-zinc-600">Você não está matriculado em nenhuma turma no momento.</p>
+            <p className="text-[var(--text-secondary)]">Você não está matriculado em nenhuma turma no momento.</p>
           ) : (
             <Table>
               <thead>

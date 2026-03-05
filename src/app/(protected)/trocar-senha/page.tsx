@@ -47,14 +47,14 @@ export default function TrocarSenhaPage() {
 
   return (
     <div className="mx-auto max-w-md">
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold">Trocar senha</h1>
-        <p className="mt-1 text-sm text-zinc-600">
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-6 shadow-sm">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Trocar senha</h1>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
           Por segurança, altere sua senha temporária antes de continuar.
         </p>
         <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
           <div>
-            <label className="text-sm font-medium">Senha atual</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Senha atual</label>
             <div className="mt-1">
               <Input
                 type="password"
@@ -65,7 +65,7 @@ export default function TrocarSenhaPage() {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">Nova senha</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Nova senha</label>
             <div className="mt-1">
               <Input
                 type="password"
@@ -75,10 +75,10 @@ export default function TrocarSenhaPage() {
                 autoComplete="new-password"
               />
             </div>
-            <p className="mt-1 text-xs text-zinc-500">Mínimo de 8 caracteres.</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Mínimo de 8 caracteres.</p>
           </div>
           <div>
-            <label className="text-sm font-medium">Confirmar nova senha</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Confirmar nova senha</label>
             <div className="mt-1">
               <Input
                 type="password"

@@ -17,7 +17,7 @@ export function RequireChangePassword({ children }: { children: React.ReactNode 
 
   if (user.mustChangePassword && pathname !== "/trocar-senha") {
     return (
-      <div className="flex min-h-screen items-center justify-center text-zinc-600">
+      <div className="flex min-h-screen items-center justify-center text-[var(--text-secondary)]">
         Redirecionando para troca de senha...
       </div>
     );

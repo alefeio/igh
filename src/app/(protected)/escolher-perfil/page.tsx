@@ -31,11 +31,11 @@ export default function EscolherPerfilPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6 px-4 py-8">
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/50">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+      <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 shadow-sm">
+        <h1 className="text-lg font-semibold text-[var(--text-primary)]">
           Como deseja acessar o sistema?
         </h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-2 text-sm text-[var(--text-secondary)]">
           Escolha o perfil com o qual deseja entrar nesta sessão.
         </p>
         <div className="mt-6 flex flex-col gap-3">

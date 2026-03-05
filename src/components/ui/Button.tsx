@@ -13,8 +13,8 @@ export function Button({
     "inline-flex cursor-pointer items-center justify-center rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation";
 
   const styles: Record<Variant, string> = {
-    primary: "bg-zinc-900 text-white hover:bg-zinc-800",
-    secondary: "bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border border-zinc-200",
+    primary: "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200",
+    secondary: "bg-[var(--igh-surface)] text-[var(--text-primary)] border border-[var(--card-border)] hover:opacity-90",
     danger: "bg-red-600 text-white hover:bg-red-700",
   };
 

@@ -41,13 +41,15 @@ const ITEMS: Item[] = [
   { href: "/holidays", label: "Feriados", masterOnly: true, category: "Configurações" },
 ];
 
+type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN"; label: string };
+
 export function Sidebar({
   user,
   logoUrl = null,
   mobileOpen = false,
   onMobileClose,
 }: {
-  user: { name: string; email: string; role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT" };
+  user: { name: string; email: string; role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; isAdmin?: boolean };
   logoUrl?: string | null;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
@@ -55,6 +57,32 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [switchingRole, setSwitchingRole] = useState(false);
+
+  const canStudent = user.baseRole === "STUDENT" || user.role === "STUDENT";
+  const canTeacher = user.baseRole === "TEACHER" || user.role === "TEACHER";
+  const canAdmin = user.isAdmin === true && user.baseRole !== "MASTER";
+  const roleOptions: RoleOption[] = [
+    ...(canStudent ? [{ value: "STUDENT" as const, label: "Aluno" }] : []),
+    ...(canTeacher ? [{ value: "TEACHER" as const, label: "Professor" }] : []),
+    ...(canAdmin ? [{ value: "ADMIN" as const, label: "Admin" }] : []),
+  ];
+  const showRoleSwitcher = roleOptions.length > 1;
+
+  async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN") {
+    if (newRole === user.role) return;
+    setSwitchingRole(true);
+    try {
+      const res = await fetch("/api/auth/choose-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setSwitchingRole(false);
+    }
+  }
 
   const filteredItems = ITEMS.filter((i) => {
     if (i.alwaysShow) return true;
@@ -82,7 +110,7 @@ export function Sidebar({
     <ul className="flex list-none flex-col gap-4 pl-0">
       {categoryOrder.filter((cat) => byCategory[cat]?.length).map((cat) => (
         <li key={cat}>
-          <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+          <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             {cat}
           </div>
           <ul className="flex list-none flex-col gap-0.5 pl-0">
@@ -93,7 +121,7 @@ export function Sidebar({
                   <Link
                     href={item.href}
                     className={`block rounded-md px-3 py-2 text-sm ${
-                      active ? "bg-zinc-900 text-white" : "text-zinc-800 hover:bg-zinc-100"
+                      active ? "bg-[var(--igh-primary)] text-white" : "text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
                     }`}
                     onClick={onMobileClose}
                   >
@@ -110,7 +138,7 @@ export function Sidebar({
 
   const sidebarContent = (
     <>
-      <div className="shrink-0 border-b border-zinc-200 px-4 py-4">
+      <div className="shrink-0 border-b border-[var(--card-border)] px-4 py-4">
         <div className="flex justify-center">
           {logoUrl ? (
             <img src={logoUrl} alt="Logo" className="h-12 w-auto object-contain" />
@@ -118,13 +146,32 @@ export function Sidebar({
             <img src="/images/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
           )}
         </div>
-        <div className="mt-3 text-sm font-semibold">Cadastro de Cursos</div>
-        <div className="mt-2 text-xs text-zinc-600">{user.name}</div>
-        <div className="text-xs text-zinc-500 truncate" title={user.email}>{user.email}</div>
-        <div className="mt-1 text-[11px] font-medium text-zinc-700">{user.role}</div>
+        <div className="mt-3 text-sm font-semibold text-[var(--text-primary)]">Cadastro de Cursos</div>
+        <div className="mt-2 text-xs text-[var(--text-secondary)]">{user.name}</div>
+        <div className="truncate text-xs text-[var(--text-muted)]" title={user.email}>{user.email}</div>
+        {showRoleSwitcher ? (
+          <div className="mt-2">
+            <label className="sr-only" htmlFor="sidebar-role">Perfil de acesso</label>
+            <select
+              id="sidebar-role"
+              value={user.role}
+              disabled={switchingRole}
+              onChange={(e) => onRoleChange(e.target.value as "STUDENT" | "TEACHER" | "ADMIN")}
+              className="w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-xs text-[var(--input-text)] focus:border-[var(--igh-primary)] focus:outline-none"
+            >
+              {roleOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="mt-1 text-[11px] font-medium text-[var(--text-secondary)]">
+            {{ MASTER: "Administrador Master", ADMIN: "Admin", TEACHER: "Professor", STUDENT: "Aluno" }[user.role] ?? user.role}
+          </div>
+        )}
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-3">{navContent}</nav>
-      <div className="border-t border-zinc-200 p-3 shrink-0">
+      <div className="shrink-0 border-t border-[var(--card-border)] p-3">
         <Button variant="secondary" className="w-full" onClick={logout} disabled={loading}>
           Sair
         </Button>
@@ -135,22 +182,22 @@ export function Sidebar({
   return (
     <>
       {/* Desktop: sidebar fixa à esquerda */}
-      <aside className="hidden min-h-screen w-64 shrink-0 flex-col border-r border-zinc-200 bg-white md:flex">
+      <aside className="hidden min-h-screen w-64 shrink-0 flex-col border-r border-[var(--card-border)] bg-[var(--card-bg)] md:flex">
         {sidebarContent}
       </aside>
       {/* Mobile: drawer que desliza da esquerda */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] flex-col border-r border-zinc-200 bg-white shadow-lg transition-transform duration-200 ease-out md:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] flex-col border-r border-[var(--card-border)] bg-[var(--card-bg)] shadow-lg transition-transform duration-200 ease-out md:hidden ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-hidden={!mobileOpen}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-3 py-2">
-          <span className="text-sm font-semibold">Menu</span>
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--card-border)] px-3 py-2">
+          <span className="text-sm font-semibold text-[var(--text-primary)]">Menu</span>
           <button
             type="button"
             onClick={onMobileClose}
-            className="rounded p-2 text-zinc-600 hover:bg-zinc-100"
+            className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
             aria-label="Fechar menu"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -260,16 +260,16 @@ export function MeusDadosForm() {
     }
   }
 
-  if (loading) return <p className="text-sm text-zinc-600">Carregando...</p>;
-  if (!profile) return <p className="text-sm text-zinc-600">Cadastro não encontrado.</p>;
+  if (loading) return <p className="text-sm text-[var(--text-secondary)]">Carregando...</p>;
+  if (!profile) return <p className="text-sm text-[var(--text-secondary)]">Cadastro não encontrado.</p>;
 
   const idDoc = attachments.find((a) => a.type === "ID_DOCUMENT");
   const addressProof = attachments.find((a) => a.type === "ADDRESS_PROOF");
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 text-sm font-semibold text-zinc-800">Identificação</h2>
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+        <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">Identificação</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium">Nome</label>
@@ -357,8 +357,8 @@ export function MeusDadosForm() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 text-sm font-semibold text-zinc-800">Responsável (menores de 18 anos)</h2>
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+        <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">Responsável (menores de 18 anos)</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium">Nome do responsável</label>
@@ -383,8 +383,8 @@ export function MeusDadosForm() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 text-sm font-semibold text-zinc-800">Endereço</h2>
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+        <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">Endereço</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium">CEP</label>
@@ -447,9 +447,9 @@ export function MeusDadosForm() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <h2 className="mb-4 text-sm font-semibold text-zinc-800">Anexos</h2>
-        <p className="mb-4 text-xs text-zinc-500">Envie documento de identidade (RG ou CPF) e comprovante de residência (PDF ou imagem, máx. 5MB).</p>
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+        <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">Anexos</h2>
+        <p className="mb-4 text-xs text-[var(--text-muted)]">Envie documento de identidade (RG ou CPF) e comprovante de residência (PDF ou imagem, máx. 5MB).</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium">Documento de identidade</label>
@@ -458,7 +458,7 @@ export function MeusDadosForm() {
                 <a href={idDoc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline">
                   {idDoc.fileName ?? "Ver arquivo"}
                 </a>
-                <span className="ml-2 text-xs text-zinc-500">— envie outro para substituir</span>
+                <span className="ml-2 text-xs text-[var(--text-muted)]">— envie outro para substituir</span>
               </div>
             ) : null}
             <input
@@ -472,7 +472,7 @@ export function MeusDadosForm() {
                 e.target.value = "";
               }}
             />
-            {uploadingType === "ID_DOCUMENT" && <span className="text-xs text-zinc-500">Enviando…</span>}
+            {uploadingType === "ID_DOCUMENT" && <span className="text-xs text-[var(--text-muted)]">Enviando…</span>}
           </div>
           <div>
             <label className="text-sm font-medium">Comprovante de residência</label>
@@ -481,7 +481,7 @@ export function MeusDadosForm() {
                 <a href={addressProof.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline">
                   {addressProof.fileName ?? "Ver arquivo"}
                 </a>
-                <span className="ml-2 text-xs text-zinc-500">— envie outro para substituir</span>
+                <span className="ml-2 text-xs text-[var(--text-muted)]">— envie outro para substituir</span>
               </div>
             ) : null}
             <input
@@ -495,7 +495,7 @@ export function MeusDadosForm() {
                 e.target.value = "";
               }}
             />
-            {uploadingType === "ADDRESS_PROOF" && <span className="text-xs text-zinc-500">Enviando…</span>}
+            {uploadingType === "ADDRESS_PROOF" && <span className="text-xs text-[var(--text-muted)]">Enviando…</span>}
           </div>
         </div>
       </div>

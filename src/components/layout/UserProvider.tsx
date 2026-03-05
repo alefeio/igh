@@ -7,6 +7,7 @@ export type SessionUser = {
   name: string;
   email: string;
   role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+  baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
   mustChangePassword?: boolean;
   isAdmin?: boolean;
 };

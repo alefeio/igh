@@ -106,14 +106,19 @@ button:disabled {
 }
 
 .card {
-  @apply rounded-lg border border-zinc-200 bg-white shadow-sm;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  @apply rounded-lg shadow-sm;
 }
 
 .card-header {
-  @apply border-b border-zinc-200 px-3 py-3 sm:px-4;
+  border-bottom: 1px solid var(--card-border);
+  color: var(--text-primary);
+  @apply px-3 py-3 sm:px-4;
 }
 
 .card-body {
+  color: var(--text-primary);
   @apply px-3 py-3 sm:px-4 sm:py-4;
 }
 

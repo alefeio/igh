@@ -314,8 +314,8 @@ export default function EnrollmentsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <div className="text-lg font-semibold">Matrículas</div>
-          <div className="text-sm text-zinc-600">
+          <div className="text-lg font-semibold text-[var(--text-primary)]">Matrículas</div>
+          <div className="text-sm text-[var(--text-secondary)]">
             Ao matricular um aluno em uma turma, um e-mail com link de confirmação e credenciais é enviado.
           </div>
         </div>
@@ -323,26 +323,26 @@ export default function EnrollmentsPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <div className="flex flex-col gap-6">
           <section
-            className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/50"
+            className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm"
             aria-label="Resumo de matrículas por curso e turma"
           >
-            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Resumo por curso e turma</h2>
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">Resumo por curso e turma</h2>
             {dashboard.courses.length === 0 ? (
-              <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">Nenhuma matrícula para exibir.</p>
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">Nenhuma matrícula para exibir.</p>
             ) : (
               <>
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {dashboard.courses.map(([courseId, { courseName, turmas }]) => (
                     <div
                       key={courseId}
-                      className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-600 dark:bg-zinc-800/80"
+                      className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4"
                     >
-                      <div className="font-medium text-zinc-800 dark:text-zinc-200">{courseName}</div>
-                      <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                      <div className="font-medium text-[var(--text-primary)]">{courseName}</div>
+                      <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-[var(--text-secondary)]">
                         {turmas.map(({ classGroup: cg, count }) => {
                           const start = typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
                           const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
@@ -386,13 +386,13 @@ export default function EnrollmentsPage() {
                 <Td>
                   <div>
                     <div className="font-medium">{e.student.name}</div>
-                    <div className="text-xs text-zinc-500">{e.student.email ?? "-"}</div>
+                    <div className="text-xs text-[var(--text-muted)]">{e.student.email ?? "-"}</div>
                   </div>
                 </Td>
                 <Td>
                   <div>
                     <div>{e.classGroup.course.name}</div>
-                    <div className="text-xs text-zinc-500">
+                    <div className="text-xs text-[var(--text-muted)]">
                       {e.classGroup.startTime} - {e.classGroup.endTime} •{" "}
                       {Array.isArray(e.classGroup.daysOfWeek) ? e.classGroup.daysOfWeek.join(", ") : "-"}
                     </div>
@@ -450,7 +450,7 @@ export default function EnrollmentsPage() {
             ))}
             {items.length === 0 && (
               <tr>
-                <Td colSpan={8} className="text-zinc-600">
+                <Td colSpan={8} className="text-[var(--text-secondary)]">
                   Nenhuma matrícula cadastrada.
                 </Td>
               </tr>
@@ -507,7 +507,7 @@ export default function EnrollmentsPage() {
               className="mt-1 w-full text-sm"
               onChange={(e) => setCreateCertFile(e.target.files?.[0] ?? null)}
             />
-            <p className="mt-1 text-xs text-zinc-500">PDF ou imagem, máx. 5MB.</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">PDF ou imagem, máx. 5MB.</p>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
@@ -524,12 +524,12 @@ export default function EnrollmentsPage() {
         {editingEnrollment && (
           <form onSubmit={submitEdit} className="flex flex-col gap-4">
             <div>
-              <div className="text-sm font-medium text-zinc-600">Aluno</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Aluno</div>
               <p className="mt-0.5 font-medium">{editingEnrollment.student.name}</p>
-              <p className="text-xs text-zinc-500">{editingEnrollment.student.email ?? "-"}</p>
+              <p className="text-xs text-[var(--text-muted)]">{editingEnrollment.student.email ?? "-"}</p>
             </div>
             <div>
-              <div className="text-sm font-medium text-zinc-600">Turma</div>
+              <div className="text-sm font-medium text-[var(--text-secondary)]">Turma</div>
               <p className="mt-0.5">{editingEnrollment.classGroup.course.name} — {editingEnrollment.classGroup.startTime}-{editingEnrollment.classGroup.endTime}</p>
             </div>
             <div>
@@ -566,11 +566,11 @@ export default function EnrollmentsPage() {
                     Remover certificado
                   </label>
                   {!editRemovingCert && (
-                    <p className="text-xs text-zinc-500">Ou selecione um novo arquivo para substituir:</p>
+                    <p className="text-xs text-[var(--text-muted)]">Ou selecione um novo arquivo para substituir:</p>
                   )}
                 </div>
               ) : (
-                <p className="mt-1 text-xs text-zinc-500">Nenhum certificado anexado.</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">Nenhum certificado anexado.</p>
               )}
               {!editRemovingCert && (
                 <input
@@ -580,7 +580,7 @@ export default function EnrollmentsPage() {
                   onChange={(e) => setEditCertFile(e.target.files?.[0] ?? null)}
                 />
               )}
-              <p className="mt-1 text-xs text-zinc-500">PDF ou imagem, máx. 5MB.</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">PDF ou imagem, máx. 5MB.</p>
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>

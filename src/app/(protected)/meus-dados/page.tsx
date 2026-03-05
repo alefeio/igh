@@ -15,8 +15,8 @@ export default async function MeusDadosPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-lg font-semibold">Meus dados</h1>
-        <p className="text-sm text-zinc-600">
+        <h1 className="text-lg font-semibold text-[var(--text-primary)]">Meus dados</h1>
+        <p className="text-sm text-[var(--text-secondary)]">
           Complete seu cadastro com os dados restantes e anexe documento de identidade e comprovante de residência.
         </p>
       </div>
