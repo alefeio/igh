@@ -156,7 +156,7 @@ export default function DepoimentosPage() {
       });
       const json = (await res.json()) as ApiResponse<{ items: Testimonial[] }>;
       if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao reordenar.");
+        toast.push("error", (!json.ok && "error" in json ? json.error.message : null) ?? "Falha ao reordenar.");
         return;
       }
       toast.push("success", "Ordem atualizada.");
@@ -173,7 +173,7 @@ export default function DepoimentosPage() {
     });
     const json = (await res.json()) as ApiResponse<{ message?: string }>;
     if (!res.ok || !json?.ok) {
-      toast.push("error", json?.error?.message ?? "Falha ao aprovar.");
+      toast.push("error", (json && !json.ok && "error" in json ? json.error.message : null) ?? "Falha ao aprovar.");
       return;
     }
     toast.push("success", json.data?.message ?? "Depoimento aprovado.");
@@ -190,7 +190,7 @@ export default function DepoimentosPage() {
     });
     const json = (await res.json()) as ApiResponse<{ message?: string }>;
     if (!res.ok || !json?.ok) {
-      toast.push("error", json?.error?.message ?? "Falha ao rejeitar.");
+      toast.push("error", (json && !json.ok && "error" in json ? json.error.message : null) ?? "Falha ao rejeitar.");
       return;
     }
     toast.push("success", json.data?.message ?? "Depoimento rejeitado.");
