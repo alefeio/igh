@@ -16,7 +16,11 @@ export async function GET(request: Request) {
 
   const where: {
     deletedAt?: Date | null;
-    OR?: Array<{ name?: { contains: string; mode: "insensitive" }; cpf?: string }>;
+    OR?: Array<
+      | { name: { contains: string; mode: "insensitive" } }
+      | { cpf: string }
+      | { cpf: { contains: string } }
+    >;
   } = {};
 
   if (!includeDeleted) {
@@ -25,10 +29,15 @@ export async function GET(request: Request) {
 
   if (q.length > 0) {
     const digits = normalizeDigits(q);
-    where.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      ...(digits.length === 11 ? [{ cpf: digits }] : []),
-    ];
+    const orConditions: (typeof where)["OR"] = [{ name: { contains: q, mode: "insensitive" } }];
+    if (digits.length >= 10 && digits.length <= 11) {
+      const cpfExact = digits.length === 11 ? digits : digits.padStart(11, "0");
+      orConditions.push({ cpf: cpfExact });
+    }
+    if (digits.length >= 9 && digits.length <= 11) {
+      orConditions.push({ cpf: { contains: digits } });
+    }
+    where.OR = orConditions;
   }
 
   const students = await prisma.student.findMany({

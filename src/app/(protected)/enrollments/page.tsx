@@ -93,7 +93,7 @@ export default function EnrollmentsPage() {
     ]);
     const studentsJson = await parseJson<{ students: Student[] }>(studentsRes);
     const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
-    if (studentsJson?.ok) setStudents(studentsJson.data.students.filter((s) => s.email));
+    if (studentsJson?.ok) setStudents(studentsJson.data.students);
     if (classGroupsJson?.ok) setClassGroups(classGroupsJson.data.classGroups);
   }
 
@@ -123,6 +123,16 @@ export default function EnrollmentsPage() {
       a[1].courseName.localeCompare(b[1].courseName)
     );
     return { courses, total: items.length };
+  })();
+
+  const activeCountByClassGroup = (() => {
+    const m = new Map<string, number>();
+    for (const e of items) {
+      if (e.status !== "ACTIVE") continue;
+      const id = e.classGroup.id;
+      m.set(id, (m.get(id) ?? 0) + 1);
+    }
+    return m;
   })();
 
   const pieData = dashboard.courses.map(([, { courseName, turmas }]) => ({
@@ -265,6 +275,12 @@ export default function EnrollmentsPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!studentId || !classGroupId || submitting) return;
+    const active = activeCountByClassGroup.get(classGroupId) ?? 0;
+    const cg = classGroups.find((c) => c.id === classGroupId);
+    if (cg && (cg.capacity ?? 0) > 0 && active >= (cg.capacity ?? 0)) {
+      toast.push("error", "Esta turma está lotada. Escolha outra turma.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/enrollments", {
@@ -272,13 +288,14 @@ export default function EnrollmentsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId, classGroupId }),
       });
-      const json = await parseJson<{ enrollment: Enrollment; emailSent: boolean }>(res);
+      const json = await parseJson<{ enrollment: Enrollment; emailSent: boolean; studentHadNoEmail?: boolean }>(res);
       if (!res.ok || !json?.ok) {
         toast.push("error", !json?.ok && json && "error" in json ? json.error.message : "Falha ao matricular.");
         return;
       }
       const created = json.data.enrollment;
       const emailSent = json.data.emailSent;
+      const studentHadNoEmail = json.data.studentHadNoEmail;
       if (createCertFile) {
         const up = await uploadCertificateForEnrollment(created.id, createCertFile);
         if (up) {
@@ -297,7 +314,9 @@ export default function EnrollmentsPage() {
         "success",
         emailSent
           ? "Matrícula criada. E-mail de boas-vindas enviado ao aluno."
-          : "Matrícula criada. E-mail não foi enviado (verifique configuração)."
+          : studentHadNoEmail
+            ? "Matrícula criada. Aluno sem e-mail; link de confirmação não enviado."
+            : "Matrícula criada. E-mail não foi enviado (verifique configuração)."
       );
       setOpen(false);
       await load();
@@ -592,7 +611,7 @@ export default function EnrollmentsPage() {
       <Modal open={open} title="Nova matrícula" onClose={() => setOpen(false)}>
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-2">
-            <label className="text-sm font-medium">Aluno (com e-mail)</label>
+            <label className="text-sm font-medium">Aluno</label>
             <Button type="button" variant="secondary" onClick={() => setOpenNewStudent(true)}>
               Cadastrar aluno
             </Button>
@@ -606,7 +625,7 @@ export default function EnrollmentsPage() {
             <option value="">Selecione</option>
             {students.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name} ({s.email})
+                {s.name}{s.email ? ` (${s.email})` : " (sem e-mail)"}
               </option>
             ))}
           </select>
@@ -619,12 +638,18 @@ export default function EnrollmentsPage() {
               required
             >
               <option value="">Selecione</option>
-              {classGroups.map((cg) => (
-                <option key={cg.id} value={cg.id}>
-                  {cg.course.name} — Início {typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR") : ""} —{" "}
-                  {cg.startTime}-{cg.endTime} — {Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : ""}
-                </option>
-              ))}
+              {classGroups.map((cg) => {
+                const active = activeCountByClassGroup.get(cg.id) ?? 0;
+                const cap = cg.capacity ?? 0;
+                const full = cap > 0 && active >= cap;
+                return (
+                  <option key={cg.id} value={cg.id} disabled={full}>
+                    {cg.course.name} — Início {typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR") : ""} — {cg.startTime}-{cg.endTime}
+                    {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
+                    {full ? ` (lotada ${active}/${cap})` : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>

@@ -89,9 +89,6 @@ export async function POST(request: Request) {
   if (!student) {
     return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
   }
-  if (!student.email) {
-    return jsonErr("VALIDATION_ERROR", "O aluno precisa ter e-mail cadastrado para receber o link de confirmação.", 400);
-  }
 
   const classGroup = await prisma.classGroup.findUnique({
     where: { id: classGroupId },
@@ -99,6 +96,13 @@ export async function POST(request: Request) {
   });
   if (!classGroup) {
     return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+  }
+
+  const activeCount = await prisma.enrollment.count({
+    where: { classGroupId, status: "ACTIVE" },
+  });
+  if (activeCount >= classGroup.capacity) {
+    return jsonErr("VALIDATION_ERROR", "Esta turma não possui vagas disponíveis.", 400);
   }
 
   const existing = await prisma.enrollment.findFirst({
@@ -124,85 +128,89 @@ export async function POST(request: Request) {
     performedByUserId: user.id,
   });
 
-  let tempPassword: string | null = null;
-  let userId = student.userId;
+  let emailResult = { success: false };
 
-  if (!student.userId || !student.user) {
-    tempPassword = generateTempPassword();
-    const passwordHash = await hashPassword(tempPassword);
-    const createdUser = await prisma.user.create({
-      data: {
-        name: student.name,
-        email: student.email,
-        passwordHash,
-        role: "STUDENT",
-        isActive: true,
-        mustChangePassword: true,
+  if (student.email) {
+    let tempPassword: string | null = null;
+    let userId = student.userId;
+
+    if (!student.userId || !student.user) {
+      tempPassword = generateTempPassword();
+      const passwordHash = await hashPassword(tempPassword);
+      const createdUser = await prisma.user.create({
+        data: {
+          name: student.name,
+          email: student.email,
+          passwordHash,
+          role: "STUDENT",
+          isActive: true,
+          mustChangePassword: true,
+        },
+      });
+      userId = createdUser.id;
+      await prisma.student.update({
+        where: { id: studentId },
+        data: { userId: createdUser.id },
+      });
+    } else if (student.user.mustChangePassword) {
+      tempPassword = generateTempPassword();
+      const passwordHash = await hashPassword(tempPassword);
+      await prisma.user.update({
+        where: { id: student.userId },
+        data: { passwordHash, mustChangePassword: true },
+      });
+    }
+
+    const { token, expiresAt } = await createVerificationToken({
+      userId: userId!,
+      type: "ENROLLMENT_CONFIRMATION",
+      studentId,
+      enrollmentId: enrollment.id,
+      expiresInDays: 7,
+    });
+
+    const confirmUrl = getAppUrl(`/confirmar-inscricao?token=${token}`);
+
+    const startDateFormatted = classGroup.startDate.toLocaleDateString("pt-BR");
+    const daysFormatted = Array.isArray(classGroup.daysOfWeek)
+      ? classGroup.daysOfWeek.join(", ")
+      : String(classGroup.daysOfWeek);
+
+    const { subject, html } = templateStudentWelcome({
+      name: student.name,
+      email: student.email,
+      tempPassword: tempPassword ?? null,
+      courseName: classGroup.course.name,
+      startDate: startDateFormatted,
+      daysOfWeek: daysFormatted,
+      startTime: classGroup.startTime,
+      endTime: classGroup.endTime,
+      location: classGroup.location,
+      confirmUrl,
+    });
+
+    emailResult = await sendEmailAndRecord({
+      to: student.email,
+      subject,
+      html,
+      emailType: "welcome_student",
+      entityType: "Enrollment",
+      entityId: enrollment.id,
+      performedByUserId: user.id,
+    });
+
+    await createAuditLog({
+      entityType: "Enrollment",
+      entityId: enrollment.id,
+      action: "EMAIL_SENT",
+      diff: {
+        type: "welcome_student",
+        success: emailResult.success,
+        expiresAt: expiresAt.toISOString(),
       },
-    });
-    userId = createdUser.id;
-    await prisma.student.update({
-      where: { id: studentId },
-      data: { userId: createdUser.id },
-    });
-  } else if (student.user.mustChangePassword) {
-    tempPassword = generateTempPassword();
-    const passwordHash = await hashPassword(tempPassword);
-    await prisma.user.update({
-      where: { id: student.userId },
-      data: { passwordHash, mustChangePassword: true },
+      performedByUserId: user.id,
     });
   }
-
-  const { token, expiresAt } = await createVerificationToken({
-    userId: userId!,
-    type: "ENROLLMENT_CONFIRMATION",
-    studentId,
-    enrollmentId: enrollment.id,
-    expiresInDays: 7,
-  });
-
-  const confirmUrl = getAppUrl(`/confirmar-inscricao?token=${token}`);
-
-  const startDateFormatted = classGroup.startDate.toLocaleDateString("pt-BR");
-  const daysFormatted = Array.isArray(classGroup.daysOfWeek)
-    ? classGroup.daysOfWeek.join(", ")
-    : String(classGroup.daysOfWeek);
-
-  const { subject, html } = templateStudentWelcome({
-    name: student.name,
-    email: student.email,
-    tempPassword: tempPassword ?? null,
-    courseName: classGroup.course.name,
-    startDate: startDateFormatted,
-    daysOfWeek: daysFormatted,
-    startTime: classGroup.startTime,
-    endTime: classGroup.endTime,
-    location: classGroup.location,
-    confirmUrl,
-  });
-
-  const emailResult = await sendEmailAndRecord({
-    to: student.email,
-    subject,
-    html,
-    emailType: "welcome_student",
-    entityType: "Enrollment",
-    entityId: enrollment.id,
-    performedByUserId: user.id,
-  });
-
-  await createAuditLog({
-    entityType: "Enrollment",
-    entityId: enrollment.id,
-    action: "EMAIL_SENT",
-    diff: {
-      type: "welcome_student",
-      success: emailResult.success,
-      expiresAt: expiresAt.toISOString(),
-    },
-    performedByUserId: user.id,
-  });
 
   const enrollmentWithRelations = await prisma.enrollment.findUnique({
     where: { id: enrollment.id },
@@ -216,6 +224,7 @@ export async function POST(request: Request) {
     {
       enrollment: enrollmentWithRelations,
       emailSent: emailResult.success,
+      studentHadNoEmail: !student.email,
     },
     { status: 201 }
   );
