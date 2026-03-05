@@ -339,17 +339,19 @@ export function InscrevaForm() {
                   onChange={(e) => setCadastroEmail(e.target.value.toLowerCase())}
                   placeholder="seu@email.com"
                 />
-              </div>
-              <div>
-                <label className={labelClass}>Confirme seu e-mail</label>
-                <input
-                  className={`mt-1 ${inputClass}`}
-                  type="email"
-                  value={cadastroEmailConfirm}
-                  onChange={(e) => setCadastroEmailConfirm(e.target.value.toLowerCase())}
-                  placeholder="repita o e-mail"
-                />
-                <p className={hintClass}>Sem e-mail: será preciso ir à secretaria para entregar documento de identidade e comprovante de residência. A área do aluno só pode ser acessada com e-mail cadastrado.</p>
+                {cadastroEmail.trim().length > 0 && (
+                  <div className="mt-3">
+                    <label className={labelClass}>Confirme seu e-mail</label>
+                    <input
+                      className={`mt-1 ${inputClass}`}
+                      type="email"
+                      value={cadastroEmailConfirm}
+                      onChange={(e) => setCadastroEmailConfirm(e.target.value.toLowerCase())}
+                      placeholder="repita o e-mail"
+                    />
+                  </div>
+                )}
+                <p className={`mt-2 ${hintClass}`}>Sem e-mail: será preciso ir à secretaria para entregar documento de identidade e comprovante de residência. A área do aluno só pode ser acessada com e-mail cadastrado.</p>
               </div>
               <div>
                 <label className={labelClass}>{isMinor ? "CPF do aluno (opcional)" : "CPF *"}</label>

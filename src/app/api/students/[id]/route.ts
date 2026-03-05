@@ -3,7 +3,8 @@ import { requireRole, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateStudentSchema } from "@/lib/validators/students";
 import { createAuditLog } from "@/lib/audit";
-import { generateTempPassword } from "@/lib/password";
+import { sendEmailAndRecord } from "@/lib/email/send-and-record";
+import { templateStudentRegistered } from "@/lib/email/templates";
 
 export async function GET(
   _request: Request,
@@ -131,18 +132,53 @@ export async function PATCH(
   });
 
   if (updated.email) {
+    const emailWasAddedOrChanged = !existing.email || existing.email !== updated.email;
     if (existing.userId) {
+      const userUpdateData: { name: string; email: string; isActive: boolean; passwordHash?: string } = {
+        name: updated.name,
+        email: updated.email,
+        isActive: true,
+      };
+      if (emailWasAddedOrChanged) {
+        const birth = updated.birthDate;
+        const day = String(birth.getDate()).padStart(2, "0");
+        const month = String(birth.getMonth() + 1).padStart(2, "0");
+        const year = birth.getFullYear();
+        userUpdateData.passwordHash = await hashPassword(`${day}${month}${year}`);
+      }
       await prisma.user.update({
         where: { id: existing.userId },
-        data: {
+        data: userUpdateData,
+      });
+      if (emailWasAddedOrChanged) {
+        const birth = updated.birthDate;
+        const day = String(birth.getDate()).padStart(2, "0");
+        const month = String(birth.getMonth() + 1).padStart(2, "0");
+        const year = birth.getFullYear();
+        const birthDateFormatted = `${day}/${month}/${year}`;
+        const { subject, html } = templateStudentRegistered({
           name: updated.name,
           email: updated.email,
-          isActive: true,
-        },
-      });
+          birthDateFormatted,
+        });
+        await sendEmailAndRecord({
+          to: updated.email,
+          subject,
+          html,
+          emailType: "student_registered",
+          entityType: "Student",
+          entityId: id,
+          performedByUserId: user.id,
+        });
+      }
     } else {
-      const tempPassword = generateTempPassword();
-      const passwordHash = await hashPassword(tempPassword);
+      const birth = updated.birthDate;
+      const day = String(birth.getDate()).padStart(2, "0");
+      const month = String(birth.getMonth() + 1).padStart(2, "0");
+      const year = birth.getFullYear();
+      const birthDateAsPassword = `${day}${month}${year}`;
+      const birthDateFormatted = `${day}/${month}/${year}`;
+      const passwordHash = await hashPassword(birthDateAsPassword);
       const createdUser = await prisma.user.create({
         data: {
           name: updated.name,
@@ -158,6 +194,20 @@ export async function PATCH(
         data: { userId: createdUser.id },
       });
       (updated as { userId: string | null }).userId = createdUser.id;
+      const { subject, html } = templateStudentRegistered({
+        name: updated.name,
+        email: updated.email,
+        birthDateFormatted,
+      });
+      await sendEmailAndRecord({
+        to: updated.email,
+        subject,
+        html,
+        emailType: "student_registered",
+        entityType: "Student",
+        entityId: id,
+        performedByUserId: user.id,
+      });
     }
   } else if (existing.userId) {
     await prisma.user.update({
