@@ -192,14 +192,9 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
   const canSubmit = useMemo(() => {
     if (name.trim().length < 2) return false;
     if (!birthDate) return false;
-    if (cpfDigits.length !== 11 || !isValidCPF(cpf)) return false;
-    if (rg.trim().length < 1) return false;
     if (onlyDigits(phone).length < 10) return false;
-    if (street.trim().length < 1) return false;
-    if (number.trim().length < 1) return false;
-    if (neighborhood.trim().length < 1) return false;
-    if (city.trim().length < 1) return false;
-    if (state.trim().length !== 2) return false;
+    if (!isMinor && (cpfDigits.length !== 11 || !isValidCPF(cpf))) return false;
+    if (isMinor && cpfDigits.length > 0 && (cpfDigits.length !== 11 || !isValidCPF(cpf))) return false;
     if (hasDisability && (disabilityDescription?.trim().length ?? 0) < 3) return false;
     if (isStudying && !studyShift) return false;
     if (isMinor) {
@@ -214,13 +209,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
     birthDate,
     cpfDigits,
     cpf,
-    rg,
     phone,
-    street,
-    number,
-    neighborhood,
-    city,
-    state,
     hasDisability,
     disabilityDescription,
     isStudying,
@@ -535,22 +524,22 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
   return (
     <form className="flex flex-col gap-4" onSubmit={save}>
       <div className="space-y-2">
-        <div className="text-sm font-semibold text-zinc-800">Dados do aluno</div>
+        <div className="text-sm font-semibold text-[var(--text-primary)]">Dados do aluno</div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="text-sm font-medium">Nome *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Nome *</label>
             <Input value={name} onChange={(e) => setName(toTitleCase(e.target.value))} className="mt-1" />
           </div>
           <div>
-            <label className="text-sm font-medium">Data de nascimento *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Data de nascimento *</label>
             <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="mt-1" />
           </div>
           <div>
-            <label className="text-sm font-medium">Gênero *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Gênero</label>
             <select
               value={gender}
               onChange={(e) => setGender(e.target.value)}
-              className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+              className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
             >
               {Object.entries(GENDER_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
@@ -558,7 +547,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
             </select>
           </div>
           <div>
-            <label className="text-sm font-medium">CPF *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">{isMinor ? "CPF (opcional)" : "CPF *"}</label>
             <Input
               type="text"
               inputMode="numeric"
@@ -571,26 +560,26 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
             {cpfInvalid && <p className="mt-1 text-xs text-red-600">CPF inválido. Verifique os dígitos.</p>}
           </div>
           <div>
-            <label className="text-sm font-medium">RG *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">RG</label>
             <Input value={rg} onChange={(e) => setRg(e.target.value)} className="mt-1" />
           </div>
           <div>
-            <label className="text-sm font-medium">E-mail</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">E-mail</label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1" placeholder="exemplo@email.com" />
-            <p className="mt-1 text-xs text-zinc-500">Se preenchido, o aluno poderá acessar o sistema com este e-mail e senha.</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Se preenchido, o aluno poderá acessar o sistema com este e-mail e senha.</p>
           </div>
           <div>
-            <label className="text-sm font-medium">Celular *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Celular *</label>
             <Input type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" className="mt-1" />
           </div>
         </div>
       </div>
 
       <div className="space-y-2">
-        <div className="text-sm font-semibold text-zinc-800">Endereço</div>
+        <div className="text-sm font-semibold text-[var(--text-primary)]">Endereço</div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div>
-            <label className="text-sm font-medium">CEP</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">CEP</label>
             <Input
               value={cep}
               onChange={(e) => setCep(formatCep(e.target.value))}
@@ -599,31 +588,31 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
               className="mt-1"
               disabled={loadingCep}
             />
-            {loadingCep && <p className="mt-1 text-xs text-zinc-500">Buscando endereço...</p>}
+            {loadingCep && <p className="mt-1 text-xs text-[var(--text-muted)]">Buscando endereço...</p>}
           </div>
           <div className="sm:col-span-2">
-            <label className="text-sm font-medium">Rua *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Rua</label>
             <Input value={street} onChange={(e) => setStreet(e.target.value)} className="mt-1" placeholder="Nome da rua" />
           </div>
           <div>
-            <label className="text-sm font-medium">Número *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Número</label>
             <Input value={number} onChange={(e) => setNumber(e.target.value)} className="mt-1" placeholder="Nº" />
           </div>
           <div>
-            <label className="text-sm font-medium">Complemento</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Complemento</label>
             <Input value={complement} onChange={(e) => setComplement(e.target.value)} className="mt-1" placeholder="Apto, bloco, etc." />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-sm font-medium">Bairro *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Bairro</label>
             <Input value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} className="mt-1" placeholder="Bairro" />
           </div>
           <div>
-            <label className="text-sm font-medium">Cidade *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Cidade</label>
             <Input value={city} onChange={(e) => setCity(e.target.value)} className="mt-1" placeholder="Belém" />
           </div>
           <div>
-            <label className="text-sm font-medium">UF *</label>
-            <select value={state} onChange={(e) => setState(e.target.value)} className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm">
+            <label className="text-sm font-medium text-[var(--text-primary)]">UF</label>
+            <select value={state} onChange={(e) => setState(e.target.value)} className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm">
               {["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"].map((uf) => (
                 <option key={uf} value={uf}>{uf}</option>
               ))}
@@ -633,14 +622,14 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
       </div>
 
       <div className="space-y-2">
-        <div className="text-sm font-semibold text-zinc-800">Escolaridade / Estudo</div>
+        <div className="text-sm font-semibold text-[var(--text-primary)]">Escolaridade / Estudo</div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="text-sm font-medium">Escolaridade *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Escolaridade</label>
             <select
               value={educationLevel}
               onChange={(e) => setEducationLevel(e.target.value)}
-              className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+              className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
             >
               {Object.entries(EDUCATION_LEVEL_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
@@ -653,11 +642,11 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
           </div>
           {isStudying && (
             <div className="sm:col-span-2">
-              <label className="text-sm font-medium">Turno de estudo *</label>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Turno de estudo</label>
               <select
                 value={studyShift ?? ""}
                 onChange={(e) => setStudyShift((e.target.value || null))}
-                className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+                className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
               >
                 <option value="">Selecione</option>
                 {Object.entries(STUDY_SHIFT_LABELS).map(([k, v]) => (
@@ -670,23 +659,23 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
       </div>
 
       <div className="space-y-2">
-        <div className="text-sm font-semibold text-zinc-800">Deficiência</div>
+        <div className="text-sm font-semibold text-[var(--text-primary)]">Deficiência</div>
         <div className="flex items-center gap-2">
           <input id="hasDisability" type="checkbox" checked={hasDisability} onChange={(e) => setHasDisability(e.target.checked)} />
           <label htmlFor="hasDisability" className="text-sm">Possui deficiência</label>
         </div>
         {hasDisability && (
           <div>
-            <label className="text-sm font-medium">Qual deficiência? *</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Qual deficiência? {hasDisability && "*"}</label>
             <Input value={disabilityDescription} onChange={(e) => setDisabilityDescription(e.target.value)} className="mt-1" placeholder="Descreva (mín. 3 caracteres)" />
           </div>
         )}
       </div>
 
       <div className="space-y-2">
-        <div className="text-sm font-semibold text-zinc-800">
+        <div className="text-sm font-semibold text-[var(--text-primary)]">
           Responsável
-          {isMinor ? <span className="ml-1 text-amber-600">* obrigatório (menor de 18 anos)</span> : <span className="ml-1 font-normal text-zinc-500">(opcional para maior de 18 anos)</span>}
+          {isMinor ? <span className="ml-1 text-amber-600">* obrigatório (menor de 18 anos)</span> : <span className="ml-1 font-normal text-[var(--text-muted)]">(opcional para maior de 18 anos)</span>}
         </div>
         {isMinor && (
           <p className="rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
@@ -695,38 +684,38 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
         )}
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="text-sm font-medium">Nome do responsável {isMinor && "*"}</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Nome do responsável {isMinor && "*"}</label>
             <Input value={guardianName} onChange={(e) => setGuardianName(toTitleCase(e.target.value))} className="mt-1" />
           </div>
           <div>
-            <label className="text-sm font-medium">CPF do responsável {isMinor && "*"}</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">CPF do responsável {isMinor && "*"}</label>
             <Input type="text" inputMode="numeric" autoComplete="off" value={guardianCpf} onChange={(e) => setGuardianCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" className="mt-1" />
           </div>
           <div>
-            <label className="text-sm font-medium">RG do responsável</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">RG do responsável</label>
             <Input value={guardianRg} onChange={(e) => setGuardianRg(e.target.value)} className="mt-1" />
           </div>
           <div>
-            <label className="text-sm font-medium">Celular do responsável {isMinor && "*"}</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Celular do responsável {isMinor && "*"}</label>
             <Input type="tel" inputMode="numeric" autoComplete="tel" value={guardianPhone} onChange={(e) => setGuardianPhone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" className="mt-1" />
           </div>
           <div>
-            <label className="text-sm font-medium">Parentesco {isMinor && "*"}</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Parentesco {isMinor && "*"}</label>
             <Input value={guardianRelationship} onChange={(e) => setGuardianRelationship(e.target.value)} placeholder="ex.: Pai, Mãe" className="mt-1" />
           </div>
         </div>
       </div>
 
       <div className="space-y-3">
-        <div className="text-sm font-semibold text-zinc-800">Anexos (opcional)</div>
-        <p className="text-xs text-zinc-500">PDF, JPG ou PNG, máx. 5MB. {!editing && "Os arquivos serão enviados ao salvar o aluno."}</p>
+        <div className="text-sm font-semibold text-[var(--text-primary)]">Anexos (opcional)</div>
+        <p className="text-xs text-[var(--text-muted)]">PDF, JPG ou PNG, máx. 5MB. {!editing && "Os arquivos serão enviados ao salvar o aluno."}</p>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded border border-zinc-200 p-3">
-            <div className="text-sm font-medium text-zinc-700">Documento (RG/CPF/CNH)</div>
+          <div className="rounded border border-[var(--card-border)] p-3">
+            <div className="text-sm font-medium text-[var(--text-secondary)]">Documento (RG/CPF/CNH)</div>
             {editing && attachmentByIdDoc ? (
               <div className="mt-2 flex flex-col gap-1 text-sm">
-                <span className="truncate text-zinc-800">{attachmentByIdDoc.fileName ?? "Arquivo"}</span>
-                {attachmentByIdDoc.sizeBytes != null && <span className="text-zinc-500">{formatBytes(attachmentByIdDoc.sizeBytes)}</span>}
+                <span className="truncate text-[var(--text-primary)]">{attachmentByIdDoc.fileName ?? "Arquivo"}</span>
+                {attachmentByIdDoc.sizeBytes != null && <span className="text-[var(--text-muted)]">{formatBytes(attachmentByIdDoc.sizeBytes)}</span>}
                 <div className="mt-1 flex gap-2">
                   <a href={attachmentByIdDoc.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Visualizar</a>
                   <label className="cursor-pointer text-blue-600 underline">
@@ -738,8 +727,8 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
               </div>
             ) : !editing && pendingIdDocument ? (
               <div className="mt-2 flex flex-col gap-1 text-sm">
-                <span className="truncate text-zinc-800">{pendingIdDocument.name}</span>
-                <span className="text-zinc-500">{formatBytes(pendingIdDocument.size)}</span>
+                <span className="truncate text-[var(--text-primary)]">{pendingIdDocument.name}</span>
+                <span className="text-[var(--text-muted)]">{formatBytes(pendingIdDocument.size)}</span>
                 <button type="button" onClick={() => handlePendingFile("ID_DOCUMENT", null)} className="mt-1 text-left text-red-600 underline">Remover</button>
               </div>
             ) : (
@@ -750,12 +739,12 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
               </label>
             )}
           </div>
-          <div className="rounded border border-zinc-200 p-3">
-            <div className="text-sm font-medium text-zinc-700">Comprovante de endereço</div>
+          <div className="rounded border border-[var(--card-border)] p-3">
+            <div className="text-sm font-medium text-[var(--text-secondary)]">Comprovante de endereço</div>
             {editing && attachmentByAddress ? (
               <div className="mt-2 flex flex-col gap-1 text-sm">
-                <span className="truncate text-zinc-800">{attachmentByAddress.fileName ?? "Arquivo"}</span>
-                {attachmentByAddress.sizeBytes != null && <span className="text-zinc-500">{formatBytes(attachmentByAddress.sizeBytes)}</span>}
+                <span className="truncate text-[var(--text-primary)]">{attachmentByAddress.fileName ?? "Arquivo"}</span>
+                {attachmentByAddress.sizeBytes != null && <span className="text-[var(--text-muted)]">{formatBytes(attachmentByAddress.sizeBytes)}</span>}
                 <div className="mt-1 flex gap-2">
                   <a href={attachmentByAddress.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Visualizar</a>
                   <label className="cursor-pointer text-blue-600 underline">
@@ -767,8 +756,8 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
               </div>
             ) : !editing && pendingAddressProof ? (
               <div className="mt-2 flex flex-col gap-1 text-sm">
-                <span className="truncate text-zinc-800">{pendingAddressProof.name}</span>
-                <span className="text-zinc-500">{formatBytes(pendingAddressProof.size)}</span>
+                <span className="truncate text-[var(--text-primary)]">{pendingAddressProof.name}</span>
+                <span className="text-[var(--text-muted)]">{formatBytes(pendingAddressProof.size)}</span>
                 <button type="button" onClick={() => handlePendingFile("ADDRESS_PROOF", null)} className="mt-1 text-left text-red-600 underline">Remover</button>
               </div>
             ) : (
@@ -782,7 +771,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4">
+      <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-4">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>Cancelar</Button>
         <Button type="submit" disabled={!canSubmit || saving}>
           {saving ? (

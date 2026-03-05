@@ -32,11 +32,11 @@ export function Modal({
       aria-labelledby={open ? "modal-title" : undefined}
     >
       <div className="flex min-h-full items-start justify-center py-4 sm:py-6" onClick={(e) => e.stopPropagation()}>
-        <div className="my-0 w-full max-w-lg flex-shrink-0 rounded-lg bg-white shadow-lg">
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-200 bg-white px-3 py-3 sm:px-4">
-            <div id="modal-title" className="min-w-0 flex-1 truncate text-sm font-semibold pr-2">{title}</div>
+        <div className="my-0 w-full max-w-lg flex-shrink-0 rounded-lg bg-[var(--card-bg)] shadow-lg border border-[var(--card-border)]">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-3 sm:px-4">
+            <div id="modal-title" className="min-w-0 flex-1 truncate text-sm font-semibold pr-2 text-[var(--text-primary)]">{title}</div>
             <button
-              className="cursor-pointer shrink-0 rounded-md px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 touch-manipulation"
+              className="cursor-pointer shrink-0 rounded-md px-2 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] touch-manipulation"
               onClick={onClose}
               type="button"
               aria-label="Fechar"
@@ -44,7 +44,7 @@ export function Modal({
               Fechar
             </button>
           </div>
-          <div className="max-h-[calc(100vh-6rem)] overflow-y-auto px-3 py-4 sm:px-4">{children}</div>
+          <div className="max-h-[calc(100vh-6rem)] overflow-y-auto px-3 py-4 sm:px-4 text-[var(--text-primary)]">{children}</div>
         </div>
       </div>
     </div>

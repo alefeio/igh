@@ -28,7 +28,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_r: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole("MASTER");
   const { id } = await ctx.params;
   const existing = await prisma.siteTestimonial.findUnique({ where: { id } });
   if (!existing) return jsonErr("NOT_FOUND", "Depoimento nao encontrado.", 404);

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { createPendingSiteChange } from "@/lib/pending-site-change";
 import { siteSettingsSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -17,7 +18,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   try {
     const body = await request.json().catch(() => null);
     const parsed = siteSettingsSchema.safeParse(body);
@@ -28,6 +29,13 @@ export async function PATCH(request: Request) {
     const clean: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(data)) {
       clean[k] = v === "" || v === undefined ? null : v;
+    }
+    if (user.role === "ADMIN") {
+      await createPendingSiteChange(user.id, "site_settings", "update", null, clean);
+      return jsonOk({
+        pending: true,
+        message: "Alteração enviada para aprovação do Master.",
+      });
     }
     let settings = await prisma.siteSettings.findFirst();
     if (!settings) {

@@ -108,6 +108,7 @@ export function InscrevaForm() {
   const [cadastroBirthDate, setCadastroBirthDate] = useState("");
   const [cadastroPhone, setCadastroPhone] = useState("");
   const [cadastroEmail, setCadastroEmail] = useState("");
+  const [cadastroEmailConfirm, setCadastroEmailConfirm] = useState("");
   const [cadastroGuardianCpf, setCadastroGuardianCpf] = useState("");
   const [cadastroSubmitting, setCadastroSubmitting] = useState(false);
   const [registeredWithoutEmail, setRegisteredWithoutEmail] = useState(false);
@@ -153,10 +154,15 @@ export function InscrevaForm() {
     const cpf = cadastroCpf.replace(/\D/g, "");
     const phone = cadastroPhone.replace(/\D/g, "");
     const email = cadastroEmail.trim().toLowerCase() || undefined;
+    const emailConfirm = cadastroEmailConfirm.trim().toLowerCase();
     const guardianCpf = cadastroGuardianCpf.replace(/\D/g, "");
     const cpfOk = isMinor ? true : cpf.length === 11;
     if (!name || !cpfOk || !cadastroBirthDate || phone.length < 10) {
       toast.push("error", "Preencha todos os campos obrigatórios.");
+      return;
+    }
+    if (email && email !== emailConfirm) {
+      toast.push("error", "Os e-mails digitados não coincidem. Confira e tente novamente.");
       return;
     }
     if (isMinor && guardianCpf.length !== 11) {
@@ -244,6 +250,7 @@ export function InscrevaForm() {
         setCadastroBirthDate("");
         setCadastroPhone("");
         setCadastroEmail("");
+        setCadastroEmailConfirm("");
         setCadastroGuardianCpf("");
       }
       setSelectedClassGroupIds([]);
@@ -331,6 +338,16 @@ export function InscrevaForm() {
                   value={cadastroEmail}
                   onChange={(e) => setCadastroEmail(e.target.value.toLowerCase())}
                   placeholder="seu@email.com"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Confirme seu e-mail</label>
+                <input
+                  className={`mt-1 ${inputClass}`}
+                  type="email"
+                  value={cadastroEmailConfirm}
+                  onChange={(e) => setCadastroEmailConfirm(e.target.value.toLowerCase())}
+                  placeholder="repita o e-mail"
                 />
                 <p className={hintClass}>Sem e-mail: será preciso ir à secretaria para entregar documento de identidade e comprovante de residência. A área do aluno só pode ser acessada com e-mail cadastrado.</p>
               </div>
@@ -529,6 +546,7 @@ export function InscrevaForm() {
                       <span className="mt-0.5 block break-words text-xs theme-text-muted">
                         Início {formatDateForInput(cg.startDate)} — {cg.startTime}–{cg.endTime}
                         {daysStr ? ` — ${daysStr}` : ""}
+                        {cg.location?.trim() ? ` — Local: ${cg.location.trim()}` : ""}
                       </span>
                     </button>
                   );

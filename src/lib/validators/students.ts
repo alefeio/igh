@@ -18,24 +18,26 @@ const educationLevelEnum = z.enum([
   "OTHER",
 ]);
 
+/** CPF obrigatório (11 dígitos). */
 const cpfSchema = z
   .string()
   .min(1, "CPF é obrigatório")
   .transform((v) => normalizeDigits(v))
   .refine((v) => v.length === 11, "CPF deve ter 11 dígitos");
 
+/** CPF opcional (quando informado, deve ter 11 dígitos). */
+const optionalCpfSchema = z
+  .string()
+  .optional()
+  .transform((v) => (v == null || v === "" ? undefined : normalizeDigits(v)))
+  .refine((v) => v === undefined || v.length === 11, "CPF deve ter 11 dígitos")
+  .optional();
+
 const phoneSchema = z
   .string()
   .min(1, "Celular é obrigatório")
   .transform((v) => normalizeDigits(v))
   .refine((v) => v.length >= 10, "Celular deve ter no mínimo 10 dígitos");
-
-const optionalCpfSchema = z
-  .string()
-  .optional()
-  .transform((v) => (v == null || v === "" ? undefined : normalizeDigits(v)))
-  .refine((v) => v === undefined || v.length === 11, "CPF do responsável deve ter 11 dígitos")
-  .optional();
 
 const optionalPhoneSchema = z
   .string()
@@ -53,14 +55,15 @@ function isMinor(birthDate: Date): boolean {
   return age < 18;
 }
 
+/** Mesmos obrigatórios do formulário de inscrição (/inscreva): nome, nascimento, telefone; CPF obrigatório para 18+; responsável para menores. */
 const baseStudentSchema = z.object({
   name: z.string().min(2, "Nome é obrigatório"),
   birthDate: z.string().min(1, "Data de nascimento é obrigatória").refine(
     (v) => !Number.isNaN(Date.parse(v)),
     "Data inválida"
   ),
-  cpf: cpfSchema,
-  rg: z.string().min(1, "RG é obrigatório"),
+  cpf: z.string().optional().transform((v) => (v == null || v === "" ? undefined : normalizeDigits(v))),
+  rg: z.string().optional().transform((v) => (v == null || v === "" ? "" : v.trim())),
   email: z.union([z.string().email("E-mail inválido"), z.literal("")]).optional(),
   phone: phoneSchema,
   cep: z
@@ -69,16 +72,16 @@ const baseStudentSchema = z.object({
     .transform((v) => (v == null || v === "" ? undefined : normalizeDigits(v)))
     .refine((v) => v === undefined || v.length === 8, "CEP deve ter 8 dígitos")
     .optional(),
-  street: z.string().min(1, "Rua é obrigatória"),
-  number: z.string().min(1, "Número é obrigatório"),
+  street: z.string().optional().transform((v) => (v == null ? "" : v.trim())),
+  number: z.string().optional().transform((v) => (v == null ? "" : v.trim())),
   complement: z.string().optional(),
-  neighborhood: z.string().min(1, "Bairro é obrigatório"),
-  city: z.string().min(1, "Cidade é obrigatória"),
-  state: z.string().length(2, "UF deve ter 2 caracteres"),
-  gender: genderEnum,
+  neighborhood: z.string().optional().transform((v) => (v == null ? "" : v.trim())),
+  city: z.string().optional().transform((v) => (v == null ? "Belém" : v.trim())),
+  state: z.string().optional().transform((v) => (v == null ? "PA" : v.trim().toUpperCase().slice(0, 2))),
+  gender: genderEnum.default("PREFER_NOT_SAY"),
   hasDisability: z.boolean().default(false),
   disabilityDescription: z.string().optional(),
-  educationLevel: educationLevelEnum,
+  educationLevel: educationLevelEnum.default("NONE"),
   isStudying: z.boolean().default(false),
   studyShift: studyShiftEnum.optional().nullable(),
   guardianName: z.string().optional(),
@@ -89,6 +92,14 @@ const baseStudentSchema = z.object({
 });
 
 export const createStudentSchema = baseStudentSchema
+  .refine(
+    (data) => {
+      const birth = new Date(data.birthDate);
+      if (isMinor(birth)) return true;
+      return data.cpf != null && data.cpf.length === 11;
+    },
+    { message: "CPF é obrigatório para maiores de 18 anos.", path: ["cpf"] }
+  )
   .refine(
     (data) => !data.hasDisability || (data.disabilityDescription?.trim().length ?? 0) >= 3,
     { message: "Se possui deficiência, informe qual (mín. 3 caracteres).", path: ["disabilityDescription"] }

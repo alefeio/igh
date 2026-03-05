@@ -76,7 +76,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 }
 
 export async function DELETE(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole("MASTER");
   const { id: formationId } = await ctx.params;
   const url = new URL(request.url);
   const courseId = url.searchParams.get("courseId");

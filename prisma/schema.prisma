@@ -25,6 +25,8 @@ model User {
   student                Student?
   verificationTokens     VerificationToken[]
   sentEmails             SentEmail[]         @relation("SentEmailPerformedBy")
+  pendingSiteChangesRequested PendingSiteChange[]
+  pendingSiteChangesReviewed  PendingSiteChange[] @relation("PendingSiteChangeReviewedBy")
 }
 
 model SentEmail {
@@ -490,4 +492,19 @@ model SiteTransparencyDocument {
   isActive    Boolean                   @default(true)
   createdAt   DateTime                 @default(now())
   updatedAt   DateTime                 @updatedAt
+}
+
+model PendingSiteChange {
+  id                String    @id @default(uuid())
+  requestedByUserId String
+  requestedBy       User      @relation(fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  entityType        String
+  action            String
+  entityId          String?
+  payload           Json
+  status            String    @default("pending")
+  reviewedByUserId  String?
+  reviewedBy        User?     @relation("PendingSiteChangeReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt        DateTime?
+  createdAt         DateTime  @default(now())
 }

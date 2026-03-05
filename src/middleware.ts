@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Rotas apenas MASTER
-  if (["/users", "/teachers", "/courses", "/class-groups"].some((p) => pathname.startsWith(p))) {
+  if (["/users", "/teachers", "/courses", "/class-groups", "/approvacoes"].some((p) => pathname.startsWith(p))) {
     if (role !== "MASTER") {
       const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
@@ -74,5 +74,6 @@ export const config = {
     "/students/:path*",
     "/minhas-turmas/:path*",
     "/admin/site/:path*",
+    "/approvacoes/:path*",
   ],
 };

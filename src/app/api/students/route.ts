@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { requireRole, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -52,12 +53,25 @@ export async function POST(request: Request) {
   }
 
   const data = parsed.data;
-  const existingCpf = await prisma.student.findUnique({
-    where: { cpf: data.cpf },
-    select: { id: true },
-  });
-  if (existingCpf) {
-    return jsonErr("DUPLICATE_CPF", "Já existe um aluno com este CPF.", 409);
+  const cpfDigits = data.cpf ? normalizeDigits(data.cpf) : "";
+  const isMinorBirth = (() => {
+    const birth = new Date(data.birthDate);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age < 18;
+  })();
+  const cpfNormalized =
+    cpfDigits.length === 11 ? cpfDigits : `MENOR-${randomUUID()}`;
+  if (cpfDigits.length === 11) {
+    const existingCpf = await prisma.student.findUnique({
+      where: { cpf: cpfNormalized },
+      select: { id: true },
+    });
+    if (existingCpf) {
+      return jsonErr("DUPLICATE_CPF", "Já existe um aluno com este CPF.", 409);
+    }
   }
 
   const emailTrimmed = data.email?.trim() ? data.email.trim() : null;
@@ -80,17 +94,17 @@ export async function POST(request: Request) {
     data: {
       name: data.name,
       birthDate,
-      cpf: data.cpf,
-      rg: data.rg,
+      cpf: cpfNormalized,
+      rg: (data.rg ?? "").trim() || "",
       email: emailTrimmed,
       phone: data.phone,
       cep: data.cep?.trim() ? data.cep.replace(/\D/g, "") : null,
-      street: data.street,
-      number: data.number,
+      street: (data.street ?? "").trim() || "",
+      number: (data.number ?? "").trim() || "",
       complement: data.complement ?? null,
-      neighborhood: data.neighborhood,
-      city: data.city,
-      state: data.state,
+      neighborhood: (data.neighborhood ?? "").trim() || "",
+      city: (data.city ?? "Belém").trim() || "Belém",
+      state: (data.state ?? "PA").trim().toUpperCase().slice(0, 2) || "PA",
       gender: data.gender,
       hasDisability: data.hasDisability,
       disabilityDescription: data.hasDisability ? (data.disabilityDescription ?? null) : null,

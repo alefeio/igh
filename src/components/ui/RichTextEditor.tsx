@@ -118,21 +118,21 @@ export function RichTextEditor({
 
   if (!editor) {
     return (
-      <div className={`rounded-md border border-zinc-300 bg-white ${className}`} style={{ minHeight }}>
-        <div className="animate-pulse p-3 text-zinc-400 text-sm">Carregando editor...</div>
+      <div className={`rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] ${className}`} style={{ minHeight }}>
+        <div className="animate-pulse p-3 text-[var(--text-muted)] text-sm">Carregando editor...</div>
       </div>
     );
   }
 
   return (
-    <div className={`rounded-md border border-zinc-300 bg-white overflow-hidden ${className}`} style={{ minHeight }}>
-      <div className="flex flex-wrap gap-1 border-b border-zinc-200 bg-zinc-50 px-2 py-1">
+    <div className={`rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] overflow-hidden ${className}`} style={{ minHeight }}>
+      <div className="flex flex-wrap gap-1 border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-2 py-1">
         <label className="sr-only" htmlFor="rte-blocktype">
           Tipo de texto
         </label>
         <select
           id="rte-blocktype"
-          className="mr-2 h-8 rounded border border-zinc-200 bg-white px-2 text-sm text-zinc-800"
+          className="mr-2 h-8 rounded border border-[var(--card-border)] bg-[var(--input-bg)] px-2 text-sm text-[var(--input-text)]"
           value={blockType}
           onChange={(e) => onBlockTypeChange(e.target.value as "paragraph" | "title")}
           title={`Tipo atual: ${blockTypeLabel}`}
