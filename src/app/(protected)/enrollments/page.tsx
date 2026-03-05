@@ -398,7 +398,7 @@ export default function EnrollmentsPage() {
                             ))}
                           </Pie>
                           <Tooltip
-                            formatter={(value: number) => [value, "Matrículas"]}
+                            formatter={(value: number | undefined) => [value ?? 0, "Matrículas"]}
                             contentStyle={{
                               backgroundColor: "var(--card-bg)",
                               border: "1px solid var(--card-border)",
@@ -428,7 +428,7 @@ export default function EnrollmentsPage() {
                             allowDecimals={false}
                           />
                           <Tooltip
-                            formatter={(value: number) => [value, "Matrículas"]}
+                            formatter={(value: number | undefined) => [value ?? 0, "Matrículas"]}
                             labelStyle={{ color: "var(--text-primary)" }}
                             contentStyle={{
                               backgroundColor: "var(--card-bg)",
