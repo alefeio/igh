@@ -114,6 +114,7 @@ export function InscrevaForm() {
   const [registeredWithoutEmail, setRegisteredWithoutEmail] = useState(false);
   const [showSecretariatMessage, setShowSecretariatMessage] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
+  const [enrollmentSuccessName, setEnrollmentSuccessName] = useState<string | null>(null);
 
   const load = useCallback(async (options?: { ignoreCourseId?: boolean }) => {
     setLoading(true);
@@ -243,7 +244,7 @@ export function InscrevaForm() {
         if (registeredWithoutEmail) {
           setShowSecretariatMessage(true);
         } else {
-          toast.push("success", successCount === 1 ? "Pré-matrícula enviada. Aguarde a confirmação pela equipe." : `${successCount} pré-matrículas enviadas. Aguarde a confirmação pela equipe.`);
+          setEnrollmentSuccessName(student.name);
         }
         setCadastroName("");
         setCadastroCpf("");
@@ -431,6 +432,35 @@ export function InscrevaForm() {
 
   return (
     <div className="space-y-6">
+      {enrollmentSuccessName && (
+        <div className={`${cardClass} border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30`}>
+          <h3 className="text-lg font-semibold theme-text-label">Inscrição confirmada com sucesso</h3>
+          <p className="mt-2 text-sm theme-text-muted">
+            Sua pré-matrícula foi registrada. Aguarde a confirmação pela equipe quando for o caso.
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3">
+            <Button as="link" href="/minhas-turmas" variant="primary" className="flex-1 sm:flex-initial">
+              Acessar Área do aluno
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 sm:flex-initial"
+              onClick={async () => {
+                await fetch("/api/auth/logout", { method: "POST" });
+                setEnrollmentSuccessName(null);
+                setStudent(null);
+                setStudentToken(null);
+                setSelectedClassGroupIds([]);
+                void load();
+              }}
+            >
+              Não é {enrollmentSuccessName}, entre com uma conta diferente
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className={cardClass}>
         <h3 className="text-lg font-semibold theme-text-label">Seus dados</h3>
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -478,7 +508,7 @@ export function InscrevaForm() {
           <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
             <p className="font-medium theme-text-label">Limite de cursos atingido</p>
             <p className="mt-1 text-sm theme-text-muted">
-              O aluno pode se cadastrar em no máximo 2 cursos. Você já está inscrito em 2 cursos. Para se inscrever em outra turma, entre em contato com a secretaria.
+              Você já está inscrito em 2 cursos com turmas em andamento, abertas ou planejadas. O aluno pode ter no máximo 2 cursos nessa situação. Para se inscrever em outra turma, entre em contato com a secretaria ou aguarde o encerramento de alguma turma.
             </p>
           </div>
         ) : (

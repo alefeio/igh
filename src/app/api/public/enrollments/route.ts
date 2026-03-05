@@ -62,8 +62,13 @@ export async function POST(request: Request) {
     return jsonErr("DUPLICATE", "Você já está inscrito nesta turma.", 409);
   }
 
+  const ACTIVE_CLASS_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
   const currentEnrollments = await prisma.enrollment.findMany({
-    where: { studentId, status: "ACTIVE" },
+    where: {
+      studentId,
+      status: "ACTIVE",
+      classGroup: { status: { in: [...ACTIVE_CLASS_STATUSES] } },
+    },
     select: { classGroup: { select: { courseId: true } } },
   });
   const currentCourseIds = new Set(currentEnrollments.map((e) => e.classGroup.courseId));
@@ -71,7 +76,7 @@ export async function POST(request: Request) {
   if (!currentCourseIds.has(newCourseId) && currentCourseIds.size >= 2) {
     return jsonErr(
       "LIMIT_EXCEEDED",
-      "Você já está cadastrado em 2 cursos. O aluno pode se inscrever em no máximo 2 cursos.",
+      "Você já está inscrito em 2 cursos com turmas em andamento ou abertas. O aluno pode ter no máximo 2 cursos nessa situação.",
       400
     );
   }

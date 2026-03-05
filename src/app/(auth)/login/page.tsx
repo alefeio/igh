@@ -3,14 +3,19 @@ import { redirect } from "next/navigation";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
-type Props = { searchParams: Promise<{ from?: string }> };
+type Props = { searchParams: Promise<{ from?: string | string[] }> };
+
+function normalizeRedirectFrom(from: string | string[] | undefined): string | undefined {
+  const raw = Array.isArray(from) ? from[0] : from;
+  return typeof raw === "string" && raw.startsWith("/") && !raw.startsWith("//") ? raw : undefined;
+}
 
 export default async function LoginPage({ searchParams }: Props) {
   const session = await getSessionUserFromCookie();
   const { from } = await searchParams;
+  const redirectTo = normalizeRedirectFrom(from);
   if (session) {
-    const path = from && from.startsWith("/") && !from.startsWith("//") ? from : "/dashboard";
-    redirect(path);
+    redirect(redirectTo ?? "/dashboard");
   }
 
   return (
@@ -24,7 +29,7 @@ export default async function LoginPage({ searchParams }: Props) {
           <div className="mt-1 text-sm text-[var(--text-secondary)]">Acesse com seu e-mail e senha.</div>
         </div>
         <div className="card-body">
-          <LoginForm redirectTo={from} />
+          <LoginForm redirectTo={redirectTo} />
         </div>
       </div>
     </div>

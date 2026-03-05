@@ -46,7 +46,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         return;
       }
       if (json.data?.user?.mustChangePassword) {
-        router.replace("/trocar-senha");
+        router.replace(redirectTo ? `/trocar-senha?from=${encodeURIComponent(redirectTo)}` : "/trocar-senha");
       } else {
         const path = redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/dashboard";
         router.replace(path);

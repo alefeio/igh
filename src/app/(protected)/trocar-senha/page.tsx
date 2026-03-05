@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
 
 export default function TrocarSenhaPage() {
+  const searchParams = useSearchParams();
   const toast = useToast();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -38,7 +40,10 @@ export default function TrocarSenhaPage() {
         return;
       }
       toast.push("success", "Senha alterada com sucesso.");
-      window.location.href = "/dashboard";
+      const from = searchParams.get("from");
+      const redirectTo =
+        typeof from === "string" && from.startsWith("/") && !from.startsWith("//") ? from : "/dashboard";
+      window.location.href = redirectTo;
       return;
     } finally {
       setLoading(false);

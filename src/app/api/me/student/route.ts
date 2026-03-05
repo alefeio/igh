@@ -26,8 +26,13 @@ export async function GET() {
     return jsonOk({ student: null, enrolledCourseIds: [] });
   }
 
+  const ACTIVE_CLASS_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
   const activeEnrollments = await prisma.enrollment.findMany({
-    where: { studentId: student.id, status: "ACTIVE" },
+    where: {
+      studentId: student.id,
+      status: "ACTIVE",
+      classGroup: { status: { in: [...ACTIVE_CLASS_STATUSES] } },
+    },
     select: { classGroup: { select: { courseId: true } } },
   });
   const enrolledCourseIds = [...new Set(activeEnrollments.map((e) => e.classGroup.courseId))];
