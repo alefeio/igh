@@ -23,7 +23,7 @@ const variants = {
   primary:
     "bg-[var(--igh-primary)] text-white hover:bg-[var(--igh-primary-hover)] focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2",
   secondary:
-    "bg-white text-[var(--igh-primary)] border-2 border-[var(--igh-primary)] hover:bg-[var(--igh-primary)] hover:text-white focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2",
+    "bg-[var(--card-bg)] text-[var(--igh-primary)] border-2 border-[var(--igh-primary)] hover:bg-[var(--igh-primary)] hover:text-white focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2",
   accent:
     "bg-[var(--igh-accent)] text-white hover:bg-[var(--igh-accent-hover)] focus:ring-2 focus:ring-[var(--igh-accent)] focus:ring-offset-2",
   outline:

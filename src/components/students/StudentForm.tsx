@@ -301,7 +301,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
       birthDate: birthDate.slice(0, 10),
       cpf: cpf.replace(/\D/g, ""),
       rg: rg.trim(),
-      email: email.trim() || undefined,
+      email: email.trim(),
       phone: phone.replace(/\D/g, ""),
       cep: cep.replace(/\D/g, "") || undefined,
       street: street.trim(),

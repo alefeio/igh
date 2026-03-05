@@ -35,24 +35,23 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f0f0f;
-    --foreground: #fafafa;
-    --igh-surface: #18181b;
-    --igh-border: #3f3f46;
-    --igh-muted: #a1a1aa;
-    --igh-secondary: #e4e4e7;
-    --card-bg: #18181b;
-    --card-border: #3f3f46;
-    --input-bg: #27272a;
-    --input-border: #3f3f46;
-    --input-text: #fafafa;
-    --text-primary: #fafafa;
-    --text-secondary: #d4d4d8;
-    --text-muted: #a1a1aa;
-    --footer-bg: #18181b;
-  }
+/* Tema escuro: controlado por data-theme no html (alternância manual + localStorage) */
+html[data-theme="dark"] {
+  --background: #0f0f0f;
+  --foreground: #fafafa;
+  --igh-surface: #18181b;
+  --igh-border: #3f3f46;
+  --igh-muted: #a1a1aa;
+  --igh-secondary: #e4e4e7;
+  --card-bg: #18181b;
+  --card-border: #3f3f46;
+  --input-bg: #27272a;
+  --input-border: #3f3f46;
+  --input-text: #fafafa;
+  --text-primary: #fafafa;
+  --text-secondary: #d4d4d8;
+  --text-muted: #a1a1aa;
+  --footer-bg: #18181b;
 }
 
 /* Tema claro/escuro: na mesma camada do Preflight (Tailwind v4) para não ser sobrescrito */

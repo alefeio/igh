@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/Button";
 
 type Item = {
@@ -172,7 +173,8 @@ export function Sidebar({
         )}
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-3">{navContent}</nav>
-      <div className="shrink-0 border-t border-[var(--card-border)] p-3">
+      <div className="shrink-0 space-y-2 border-t border-[var(--card-border)] p-3">
+        <ThemeToggle className="w-full" showLabel />
         <Button variant="secondary" className="w-full" onClick={logout} disabled={loading}>
           Sair
         </Button>

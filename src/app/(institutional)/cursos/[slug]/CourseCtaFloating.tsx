@@ -29,7 +29,7 @@ export function CourseCtaFloating({ courseId }: CourseCtaFloatingProps) {
       <div ref={sentinelRef} className="h-0 w-full" aria-hidden />
       {showFloating && (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--igh-border)] bg-white/95 py-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.08)] backdrop-blur-sm"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--igh-border)] bg-[var(--card-bg)]/95 py-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.08)] backdrop-blur-sm"
       role="complementary"
       aria-label="Inscrição"
     >

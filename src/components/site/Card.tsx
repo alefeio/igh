@@ -11,7 +11,7 @@ export function Card({
 }) {
   return (
     <Component
-      className={`rounded-xl border border-[var(--igh-border)] bg-white p-6 shadow-sm transition-shadow hover:shadow-md ${className}`}
+      className={`rounded-xl border border-[var(--igh-border)] bg-[var(--card-bg)] p-6 shadow-sm transition-shadow hover:shadow-md ${className}`}
     >
       {children}
     </Component>

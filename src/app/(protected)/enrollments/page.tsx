@@ -403,6 +403,7 @@ export default function EnrollmentsPage() {
                               backgroundColor: "var(--card-bg)",
                               border: "1px solid var(--card-border)",
                               borderRadius: "8px",
+                              color: "var(--text-primary)",
                             }}
                             labelStyle={{ color: "var(--text-primary)" }}
                           />
@@ -434,6 +435,7 @@ export default function EnrollmentsPage() {
                               backgroundColor: "var(--card-bg)",
                               border: "1px solid var(--card-border)",
                               borderRadius: "8px",
+                              color: "var(--text-primary)",
                             }}
                           />
                           <Bar dataKey="quantidade" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} name="Matrículas" />

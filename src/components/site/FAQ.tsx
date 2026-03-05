@@ -14,7 +14,7 @@ export function FAQ({ items, title = "Perguntas frequentes" }: { items: readonly
         {items.map((item, i) => (
           <div
             key={i}
-            className="rounded-lg border border-[var(--igh-border)] bg-white"
+            className="rounded-lg border border-[var(--igh-border)] bg-[var(--card-bg)]"
           >
             <button
               type="button"
