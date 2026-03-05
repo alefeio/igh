@@ -10,12 +10,14 @@ export function Button({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size }) {
   const base =
-    "inline-flex cursor-pointer items-center justify-center rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation";
+    "inline-flex cursor-pointer items-center justify-center rounded-md font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation";
 
   const styles: Record<Variant, string> = {
-    primary: "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200",
-    secondary: "bg-[var(--igh-surface)] text-[var(--text-primary)] border border-[var(--card-border)] hover:opacity-90",
-    danger: "bg-red-600 text-white hover:bg-red-700",
+    primary:
+      "bg-zinc-900 text-white hover:bg-zinc-800 hover:brightness-95 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:brightness-95",
+    secondary:
+      "bg-[var(--igh-surface)] text-[var(--text-primary)] border border-[var(--card-border)] hover:opacity-90 hover:brightness-95",
+    danger: "bg-red-600 text-white hover:bg-red-700 hover:brightness-95",
   };
 
   const sizes: Record<Size, string> = {

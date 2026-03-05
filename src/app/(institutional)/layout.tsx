@@ -60,6 +60,7 @@ export default async function InstitutionalLayout({
   }
   if (settings?.secondaryColor) {
     cssVars.push(`--igh-secondary: ${settings.secondaryColor}`);
+    cssVars.push(`--igh-secondary-solid: ${settings.secondaryColor}`);
   }
   const styleContent = cssVars.length > 0 ? `:root { ${cssVars.join("; ")} }` : "";
 

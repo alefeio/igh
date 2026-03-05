@@ -31,7 +31,7 @@ export function CTASection({
                 href={primaryCTA.href}
                 variant={primaryCTA.variant ?? "primary"}
                 size="lg"
-                className="bg-[var(--igh-secondary)] text-white hover:opacity-90 focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--igh-primary)]"
+                className="!bg-[var(--igh-secondary-solid)] text-white hover:!opacity-90 focus:ring-2 focus:ring-white/80 focus:ring-offset-2 focus:ring-offset-[var(--igh-primary)]"
               >
                 {primaryCTA.label}
               </Button>

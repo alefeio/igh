@@ -147,7 +147,7 @@ export default async function HomePage({ searchParams }: Props) {
           </Card>
         </div>
         <div className="mt-8 text-center">
-          <Button as="link" href="/projetos" variant="secondary" size="lg">
+          <Button as="link" href="/projetos" variant="outline" size="lg">
             Ver todos os projetos
           </Button>
         </div>

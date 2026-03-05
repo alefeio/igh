@@ -140,11 +140,7 @@ export function Testimonials({
       )}
 
       <div className="mt-8 text-center">
-        <Button
-          variant="secondary"
-          onClick={() => setModalOpen(true)}
-          className="border-[var(--igh-border)] bg-[var(--card-bg)] text-[var(--igh-secondary)] hover:bg-[var(--igh-surface)]"
-        >
+        <Button variant="outline" size="lg" onClick={() => setModalOpen(true)}>
           Deixe seu depoimento
         </Button>
       </div>
