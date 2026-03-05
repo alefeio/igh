@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import * as XLSX from "xlsx";
 
@@ -73,6 +73,10 @@ export default function EnrollmentsPage() {
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   const [openNewStudent, setOpenNewStudent] = useState(false);
+  const [studentSearchQuery, setStudentSearchQuery] = useState("");
+  const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
+  const studentComboboxRef = useRef<HTMLDivElement>(null);
+  const [listFilter, setListFilter] = useState("");
 
   async function load() {
     setLoading(true);
@@ -135,6 +139,16 @@ export default function EnrollmentsPage() {
     return m;
   })();
 
+  const filteredItems = useMemo(() => {
+    const q = listFilter.trim().toLowerCase();
+    if (q.length === 0) return items;
+    return items.filter(
+      (e) =>
+        e.student.name.toLowerCase().includes(q) ||
+        e.classGroup.course.name.toLowerCase().includes(q)
+    );
+  }, [items, listFilter]);
+
   const pieData = dashboard.courses.map(([, { courseName, turmas }]) => ({
     name: courseName,
     value: turmas.reduce((s, t) => s + t.count, 0),
@@ -174,6 +188,8 @@ export default function EnrollmentsPage() {
   function openCreate() {
     setStudentId("");
     setClassGroupId("");
+    setStudentSearchQuery("");
+    setStudentDropdownOpen(false);
     setCreateCertFile(null);
     setOpen(true);
     void loadFormOptions();
@@ -514,6 +530,19 @@ export default function EnrollmentsPage() {
           </section>
 
           <section aria-label="Listagem de matrículas">
+            <div className="mb-4">
+              <label htmlFor="enrollments-list-filter" className="text-sm font-medium text-[var(--text-secondary)]">
+                Filtrar por nome do aluno ou curso
+              </label>
+              <input
+                id="enrollments-list-filter"
+                type="text"
+                value={listFilter}
+                onChange={(e) => setListFilter(e.target.value)}
+                placeholder="Digite para pesquisar..."
+                className="theme-input mt-1 max-w-md rounded border px-3 py-2 text-sm"
+              />
+            </div>
             <Table>
           <thead>
             <tr>
@@ -528,7 +557,7 @@ export default function EnrollmentsPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((e) => (
+            {filteredItems.map((e) => (
               <tr key={e.id}>
                 <Td>
                   <div>
@@ -595,10 +624,12 @@ export default function EnrollmentsPage() {
                 </Td>
               </tr>
             ))}
-            {items.length === 0 && (
+            {filteredItems.length === 0 && (
               <tr>
                 <Td colSpan={8} className="text-[var(--text-secondary)]">
-                  Nenhuma matrícula cadastrada.
+                  {items.length === 0
+                    ? "Nenhuma matrícula cadastrada."
+                    : "Nenhuma matrícula encontrada com esse filtro."}
                 </Td>
               </tr>
             )}
@@ -616,19 +647,75 @@ export default function EnrollmentsPage() {
               Cadastrar aluno
             </Button>
           </div>
-          <select
-            value={studentId}
-            onChange={(e) => setStudentId(e.target.value)}
-            className="theme-input w-full rounded border px-3 py-2 text-sm"
-            required
-          >
-            <option value="">Selecione</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}{s.email ? ` (${s.email})` : " (sem e-mail)"}
-              </option>
-            ))}
-          </select>
+          <div ref={studentComboboxRef} className="relative">
+            <input
+              type="text"
+              value={
+                studentId
+                  ? (() => {
+                      const s = students.find((x) => x.id === studentId);
+                      return s ? `${s.name}${s.email ? ` (${s.email})` : " (sem e-mail)"}` : studentSearchQuery;
+                    })()
+                  : studentSearchQuery
+              }
+              onChange={(e) => {
+                setStudentSearchQuery(e.target.value);
+                setStudentId("");
+                setStudentDropdownOpen(true);
+              }}
+              onFocus={() => setStudentDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setStudentDropdownOpen(false), 150)}
+              placeholder="Digite o nome ou e-mail do aluno..."
+              className="theme-input w-full rounded border px-3 py-2 text-sm"
+              autoComplete="off"
+            />
+            {studentDropdownOpen && (
+              <ul
+                className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded border border-[var(--card-border)] bg-[var(--card-bg)] py-1 shadow-lg"
+                role="listbox"
+              >
+                {(() => {
+                  const q = studentSearchQuery.trim().toLowerCase();
+                  const filtered =
+                    q.length === 0
+                      ? students
+                      : students.filter(
+                          (s) =>
+                            s.name.toLowerCase().includes(q) ||
+                            (s.email?.toLowerCase().includes(q) ?? false)
+                        );
+                  if (filtered.length === 0) {
+                    return (
+                      <li className="px-3 py-2 text-sm text-[var(--text-muted)]">
+                        Nenhum aluno encontrado.
+                      </li>
+                    );
+                  }
+                  return filtered.map((s) => {
+                    const label = `${s.name}${s.email ? ` (${s.email})` : " (sem e-mail)"}`;
+                    return (
+                      <li
+                        key={s.id}
+                        role="option"
+                        className="cursor-pointer px-3 py-2 text-sm hover:bg-[var(--igh-surface)]"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setStudentId(s.id);
+                          setStudentSearchQuery("");
+                          setStudentDropdownOpen(false);
+                        }}
+                      >
+                        {label}
+                      </li>
+                    );
+                  });
+                })()}
+              </ul>
+            )}
+          </div>
+          {!studentId && (
+            <p className="text-xs text-[var(--text-muted)]">Selecione um aluno da lista ao digitar.</p>
+          )}
           <div>
             <label className="text-sm font-medium">Turma</label>
             <select

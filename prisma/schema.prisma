@@ -27,6 +27,7 @@ model User {
   studentAttachments          StudentAttachment[] @relation("StudentAttachmentUploadedBy")
   teacher                     Teacher?
   verificationTokens          VerificationToken[]
+  pendingTestimonialsReviewed PendingTestimonial[] @relation("PendingTestimonialReviewedBy")
 }
 
 model SentEmail {
@@ -366,6 +367,19 @@ model SiteTestimonial {
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model PendingTestimonial {
+  id                String    @id @default(uuid())
+  name              String
+  roleOrContext     String?
+  quote             String
+  photoUrl          String?
+  status            String    @default("pending")
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  reviewedBy        User?     @relation("PendingTestimonialReviewedBy", fields: [reviewedByUserId], references: [id])
 }
 
 model SitePartner {

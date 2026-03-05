@@ -106,6 +106,14 @@ export const siteTestimonialSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+// Depoimento enviado pelo público (pendente de aprovação)
+export const publicTestimonialSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(200, "Nome muito longo"),
+  roleOrContext: z.string().max(200).optional().or(z.literal("")),
+  quote: z.string().min(1, "Depoimento é obrigatório").max(2000, "Depoimento muito longo"),
+  photoUrl: z.string().url().optional().or(z.literal("")),
+});
+
 // SitePartner
 export const sitePartnerSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),

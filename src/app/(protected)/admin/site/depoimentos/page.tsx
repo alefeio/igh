@@ -21,10 +21,22 @@ type Testimonial = {
   isActive: boolean;
 };
 
+type PendingTestimonial = {
+  id: string;
+  name: string;
+  roleOrContext: string | null;
+  quote: string;
+  photoUrl: string | null;
+  status: string;
+  createdAt: string;
+};
+
 export default function DepoimentosPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Testimonial[]>([]);
+  const [pending, setPending] = useState<PendingTestimonial[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Testimonial | null>(null);
   const [name, setName] = useState("");
@@ -57,8 +69,20 @@ export default function DepoimentosPage() {
     }
   }
 
+  async function loadPending() {
+    setPendingLoading(true);
+    try {
+      const res = await fetch("/api/admin/site/pending-testimonials");
+      const json = (await res.json()) as ApiResponse<{ items: PendingTestimonial[] }>;
+      if (res.ok && json?.ok) setPending(json.data.items);
+    } finally {
+      setPendingLoading(false);
+    }
+  }
+
   useEffect(() => {
     void load();
+    void loadPending();
   }, []);
 
   function openCreate() {
@@ -108,6 +132,7 @@ export default function DepoimentosPage() {
     setOpen(false);
     resetForm();
     void load();
+    void loadPending();
   }
 
   async function remove(t: Testimonial) {
@@ -140,6 +165,38 @@ export default function DepoimentosPage() {
     [toast]
   );
 
+  async function approvePending(p: PendingTestimonial) {
+    const res = await fetch(`/api/admin/site/pending-testimonials/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "approve" }),
+    });
+    const json = (await res.json()) as ApiResponse<{ message?: string }>;
+    if (!res.ok || !json?.ok) {
+      toast.push("error", json?.error?.message ?? "Falha ao aprovar.");
+      return;
+    }
+    toast.push("success", json.data?.message ?? "Depoimento aprovado.");
+    void load();
+    void loadPending();
+  }
+
+  async function rejectPending(p: PendingTestimonial) {
+    if (!confirm(`Rejeitar o depoimento de "${p.name}"?`)) return;
+    const res = await fetch(`/api/admin/site/pending-testimonials/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reject" }),
+    });
+    const json = (await res.json()) as ApiResponse<{ message?: string }>;
+    if (!res.ok || !json?.ok) {
+      toast.push("error", json?.error?.message ?? "Falha ao rejeitar.");
+      return;
+    }
+    toast.push("success", json.data?.message ?? "Depoimento rejeitado.");
+    void loadPending();
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -149,6 +206,55 @@ export default function DepoimentosPage() {
         </div>
         <Button onClick={openCreate}>Novo depoimento</Button>
       </div>
+
+      {pending.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Depoimentos pendentes de aprovação</h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Depoimentos enviados pelo site aguardando sua aprovação para serem publicados.
+          </p>
+          {pendingLoading ? (
+            <p className="mt-3 text-sm text-zinc-500">Carregando...</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {pending.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex flex-col gap-2 rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-zinc-900 dark:text-zinc-100">{p.name}</p>
+                      {p.roleOrContext && (
+                        <p className="text-sm text-zinc-500 dark:text-zinc-400">{p.roleOrContext}</p>
+                      )}
+                      <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">&ldquo;{p.quote}&rdquo;</p>
+                      {p.photoUrl && (
+                        <img
+                          src={p.photoUrl}
+                          alt=""
+                          className="mt-2 h-12 w-12 rounded-full object-cover"
+                        />
+                      )}
+                      <p className="mt-1 text-xs text-zinc-400">
+                        Enviado em {new Date(p.createdAt).toLocaleString("pt-BR")}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button variant="primary" size="sm" onClick={() => approvePending(p)}>
+                        Aprovar
+                      </Button>
+                      <Button variant="secondary" className="text-red-600" size="sm" onClick={() => rejectPending(p)}>
+                        Rejeitar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-sm text-zinc-600">Carregando...</div>

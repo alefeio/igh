@@ -154,7 +154,10 @@ export default async function HomePage({ searchParams }: Props) {
       </Section>
 
       {/* Depoimentos */}
-      {depoimentos.length > 0 && <Testimonials items={depoimentos} />}
+      <Testimonials
+        items={depoimentos}
+        courses={courses.map((c) => ({ id: c.id, name: c.name }))}
+      />
 
       {/* Parceiros */}
       <Section title="Parceiros e apoio" background="muted">
