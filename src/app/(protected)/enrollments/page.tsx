@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import * as XLSX from "xlsx";
 
 import { StudentForm } from "@/components/students/StudentForm";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -121,6 +123,42 @@ export default function EnrollmentsPage() {
     );
     return { courses, total: items.length };
   })();
+
+  const pieData = dashboard.courses.map(([, { courseName, turmas }]) => ({
+    name: courseName,
+    value: turmas.reduce((s, t) => s + t.count, 0),
+  }));
+
+  const byDay = new Map<string, number>();
+  for (const e of items) {
+    const d = new Date(e.enrolledAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    byDay.set(d, (byDay.get(d) ?? 0) + 1);
+  }
+  const columnData = [...byDay.entries()]
+    .sort((a, b) => {
+      const [da, db] = [a[0], b[0]].map((s) => {
+        const [dd, mm, yyyy] = s.split("/");
+        return new Date(Number(yyyy), Number(mm) - 1, Number(dd)).getTime();
+      });
+      return da - db;
+    })
+    .map(([data, quantidade]) => ({ data, quantidade }));
+
+  const PIE_COLORS = ["#0066b3", "#1a365d", "#e87500", "#0d9488", "#7c3aed", "#dc2626", "#65a30d", "#ca8a04"];
+
+  function exportToExcel() {
+    const sorted = [...items].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
+    const rows = sorted.map((e) => ({
+      Aluno: e.student.name,
+      "Curso/Turma": `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${e.classGroup.daysOfWeek.join(", ")})` : ""}`,
+      "Data matrícula": new Date(e.enrolledAt).toLocaleDateString("pt-BR"),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Matrículas");
+    XLSX.writeFile(wb, `matriculas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.push("success", "Planilha exportada.");
+  }
 
   function openCreate() {
     setStudentId("");
@@ -319,13 +357,95 @@ export default function EnrollmentsPage() {
             Ao matricular um aluno em uma turma, um e-mail com link de confirmação e credenciais é enviado.
           </div>
         </div>
-        <Button onClick={openCreate} className="w-full shrink-0 sm:w-auto">Nova matrícula</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={exportToExcel} disabled={items.length === 0}>
+            Exportar para Excel
+          </Button>
+          <Button onClick={openCreate} className="w-full shrink-0 sm:w-auto">Nova matrícula</Button>
+        </div>
       </div>
 
       {loading ? (
         <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <div className="flex flex-col gap-6">
+          {(pieData.length > 0 || columnData.length > 0) && (
+            <section
+              className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm"
+              aria-label="Gráficos de matrículas"
+            >
+              <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">Gráficos</h2>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {pieData.length > 0 && (
+                  <div className="flex flex-col">
+                    <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-2">Matrículas por curso</h3>
+                    <div className="h-[280px] w-full min-w-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={100}
+                            paddingAngle={2}
+                            dataKey="value"
+                            nameKey="name"
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {pieData.map((_, i) => (
+                              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value: number) => [value, "Matrículas"]}
+                            contentStyle={{
+                              backgroundColor: "var(--card-bg)",
+                              border: "1px solid var(--card-border)",
+                              borderRadius: "8px",
+                            }}
+                            labelStyle={{ color: "var(--text-primary)" }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+                {columnData.length > 0 && (
+                  <div className="flex flex-col">
+                    <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-2">Matrículas por dia</h3>
+                    <div className="h-[280px] w-full min-w-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={columnData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                          <XAxis
+                            dataKey="data"
+                            tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                            stroke="var(--card-border)"
+                          />
+                          <YAxis
+                            tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                            stroke="var(--card-border)"
+                            allowDecimals={false}
+                          />
+                          <Tooltip
+                            formatter={(value: number) => [value, "Matrículas"]}
+                            labelStyle={{ color: "var(--text-primary)" }}
+                            contentStyle={{
+                              backgroundColor: "var(--card-bg)",
+                              border: "1px solid var(--card-border)",
+                              borderRadius: "8px",
+                            }}
+                          />
+                          <Bar dataKey="quantidade" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} name="Matrículas" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
           <section
             className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm"
             aria-label="Resumo de matrículas por curso e turma"
@@ -472,7 +592,7 @@ export default function EnrollmentsPage() {
           <select
             value={studentId}
             onChange={(e) => setStudentId(e.target.value)}
-            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+            className="theme-input w-full rounded border px-3 py-2 text-sm"
             required
           >
             <option value="">Selecione</option>
@@ -487,7 +607,7 @@ export default function EnrollmentsPage() {
             <select
               value={classGroupId}
               onChange={(e) => setClassGroupId(e.target.value)}
-              className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+              className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
               required
             >
               <option value="">Selecione</option>
@@ -537,7 +657,7 @@ export default function EnrollmentsPage() {
               <select
                 value={editStatus}
                 onChange={(e) => setEditStatus(e.target.value)}
-                className="mt-1 w-full rounded border border-zinc-300 px-3 py-2 text-sm"
+                className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
               >
                 <option value="ACTIVE">Ativa</option>
                 <option value="SUSPENDED">Suspensa</option>

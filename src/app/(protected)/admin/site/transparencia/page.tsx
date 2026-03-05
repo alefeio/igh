@@ -398,7 +398,7 @@ export default function TransparenciaPage() {
           <div>
             <label className="text-sm font-medium">Categoria</label>
             <select
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              className="theme-input mt-1 w-full rounded-md border px-3 py-2 text-sm"
               value={docCategoryId}
               onChange={(e) => setDocCategoryId(e.target.value)}
             >

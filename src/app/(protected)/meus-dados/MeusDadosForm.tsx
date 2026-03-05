@@ -333,7 +333,7 @@ export function MeusDadosForm() {
           <div>
             <label className="text-sm font-medium">Gênero</label>
             <select
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="theme-input mt-1 w-full rounded-md border px-3 py-2 text-sm"
               value={String(form.gender ?? "")}
               onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
             >
@@ -345,7 +345,7 @@ export function MeusDadosForm() {
           <div>
             <label className="text-sm font-medium">Escolaridade</label>
             <select
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="theme-input mt-1 w-full rounded-md border px-3 py-2 text-sm"
               value={String(form.educationLevel ?? "")}
               onChange={(e) => setForm((f) => ({ ...f, educationLevel: e.target.value }))}
             >

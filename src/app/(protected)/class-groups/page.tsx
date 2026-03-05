@@ -437,7 +437,7 @@ export default function ClassGroupsPage() {
             <label className="text-sm font-medium">Curso</label>
             <div className="mt-1">
               <select
-                className="h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-900"
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
                 value={courseId}
                 onChange={(e) => setCourseId(e.target.value)}
               >
@@ -454,7 +454,7 @@ export default function ClassGroupsPage() {
             <label className="text-sm font-medium">Professor</label>
             <div className="mt-1">
               <select
-                className="h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-900"
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
                 value={teacherId}
                 onChange={(e) => setTeacherId(e.target.value)}
               >
@@ -506,7 +506,7 @@ export default function ClassGroupsPage() {
             <label className="text-sm font-medium">Horário predefinido (opcional)</label>
             <div className="mt-1">
               <select
-                className="h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-900"
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
                 value={selectedTimeSlotId}
                 onChange={(e) => {
                   const id = e.target.value;
@@ -571,7 +571,7 @@ export default function ClassGroupsPage() {
               <label className="text-sm font-medium">Status</label>
               <div className="mt-1">
                 <select
-                  className="h-10 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-900"
+                  className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
                   value={status}
                   onChange={(e) => setStatus(e.target.value as ClassGroup["status"])}
                 >
