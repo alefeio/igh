@@ -37,6 +37,9 @@ function buildWhatsAppHref(contactWhatsapp: string | null | undefined): string |
 const WELCOME_MESSAGE =
   "Olá! Sou a Nina, atendente virtual do IGH. O que você precisa? Escolha uma opção abaixo.";
 
+/** Âncora para abrir o chat via link (ex.: banner). Use o link /#nina ou qualquer página + #nina */
+export const CHAT_OPEN_HASH = "nina";
+
 function TypingDots() {
   return (
     <div className="flex items-center justify-start gap-1 px-3 py-2" aria-live="polite" aria-label="Nina está digitando">
@@ -98,6 +101,16 @@ export function FloatingChatWidget({
   useEffect(() => {
     if (isOpen) void fetchContext();
   }, [isOpen, fetchContext]);
+
+  useEffect(() => {
+    const hash = `#${CHAT_OPEN_HASH}`;
+    const openIfHash = () => {
+      if (typeof window !== "undefined" && window.location.hash === hash) setIsOpen(true);
+    };
+    openIfHash();
+    window.addEventListener("hashchange", openIfHash);
+    return () => window.removeEventListener("hashchange", openIfHash);
+  }, []);
 
   useEffect(() => {
     return () => {
