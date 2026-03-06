@@ -50,7 +50,7 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
 
   return (
     <section
-      className={`relative flex h-screen flex-col justify-center overflow-hidden bg-[var(--igh-surface)] ${className}`}
+      className={`relative flex h-[60vh] flex-col justify-center overflow-hidden bg-[var(--igh-surface)] sm:h-screen ${className}`}
       aria-label="Banner principal"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
