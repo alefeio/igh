@@ -299,7 +299,33 @@ function DashboardStudent({ data }: { data: Extract<DashboardData, { role: "STUD
 
 export default async function DashboardPage() {
   const user = await requireSessionUser();
-  const data = await getDashboardData(user);
+  let data: DashboardData;
+  try {
+    data = await getDashboardData(user);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const isConnectionError =
+      message.includes("connect") ||
+      message.includes("upstream") ||
+      message.includes("ECONNREFUSED") ||
+      message.includes("connection");
+
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 dark:border-amber-800 dark:bg-amber-950/30">
+        <h2 className="text-lg font-semibold text-amber-800 dark:text-amber-200">
+          Não foi possível carregar o painel
+        </h2>
+        <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+          {isConnectionError
+            ? "Falha na conexão com o banco de dados. Verifique se o servidor está rodando e se a variável DATABASE_URL no .env está correta."
+            : "Ocorreu um erro ao buscar os dados."}
+        </p>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          Se o problema continuar, confira a conexão (PostgreSQL) e as credenciais no .env.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">

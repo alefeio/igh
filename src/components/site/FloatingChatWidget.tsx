@@ -304,7 +304,7 @@ export function FloatingChatWidget({
                       >
                         <p className="whitespace-pre-wrap">{m.content}</p>
                         {m.links && m.links.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
+                          <div className="mt-2 flex flex-col gap-2">
                             {m.links.map((link) => (
                               <a
                                 key={link.label}

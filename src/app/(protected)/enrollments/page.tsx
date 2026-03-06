@@ -77,6 +77,8 @@ export default function EnrollmentsPage() {
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
   const studentComboboxRef = useRef<HTMLDivElement>(null);
   const [listFilter, setListFilter] = useState("");
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
 
   async function load() {
     setLoading(true);
@@ -104,6 +106,10 @@ export default function EnrollmentsPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [listFilter, pageSize]);
 
   const dashboard = (() => {
     const byClassGroup = new Map<string, { classGroup: ClassGroup; count: number }>();
@@ -148,6 +154,14 @@ export default function EnrollmentsPage() {
         e.classGroup.course.name.toLowerCase().includes(q)
     );
   }, [items, listFilter]);
+
+  const totalFiltered = filteredItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const pageSafe = Math.min(Math.max(1, page), totalPages);
+  const paginatedItems = useMemo(() => {
+    const start = (pageSafe - 1) * pageSize;
+    return filteredItems.slice(start, start + pageSize);
+  }, [filteredItems, pageSafe, pageSize]);
 
   const pieData = dashboard.courses.map(([, { courseName, turmas }]) => ({
     name: courseName,
@@ -521,27 +535,46 @@ export default function EnrollmentsPage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-700">
-                  <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Total de matrículas: </span>
-                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{dashboard.total}</span>
+                <div className="mt-4 border-t border-[var(--card-border)] pt-3">
+                  <span className="text-sm font-medium text-[var(--text-primary)]">Total de matrículas: </span>
+                  <span className="text-sm font-semibold text-[var(--text-primary)]">{dashboard.total}</span>
                 </div>
               </>
             )}
           </section>
 
           <section aria-label="Listagem de matrículas">
-            <div className="mb-4">
-              <label htmlFor="enrollments-list-filter" className="text-sm font-medium text-[var(--text-secondary)]">
-                Filtrar por nome do aluno ou curso
-              </label>
-              <input
-                id="enrollments-list-filter"
-                type="text"
-                value={listFilter}
-                onChange={(e) => setListFilter(e.target.value)}
-                placeholder="Digite para pesquisar..."
-                className="theme-input mt-1 max-w-md rounded border px-3 py-2 text-sm"
-              />
+            <div className="mb-4 flex flex-wrap items-end gap-4">
+              <div>
+                <label htmlFor="enrollments-list-filter" className="text-sm font-medium text-[var(--text-secondary)]">
+                  Filtrar por nome do aluno ou curso
+                </label>
+                <input
+                  id="enrollments-list-filter"
+                  type="text"
+                  value={listFilter}
+                  onChange={(e) => setListFilter(e.target.value)}
+                  placeholder="Digite para pesquisar..."
+                  className="theme-input mt-1 max-w-md rounded border px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label htmlFor="enrollments-page-size" className="text-sm font-medium text-[var(--text-secondary)]">
+                  Registros por página
+                </label>
+                <select
+                  id="enrollments-page-size"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="theme-input rounded border px-3 py-2 text-sm"
+                >
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                  <option value={500}>500</option>
+                </select>
+              </div>
             </div>
             <Table>
           <thead>
@@ -549,15 +582,12 @@ export default function EnrollmentsPage() {
               <Th>Aluno</Th>
               <Th>Curso / Turma</Th>
               <Th>Data matrícula</Th>
-              <Th>Pré-matrícula</Th>
               <Th>Dados completos</Th>
-              <Th>Confirmado</Th>
-              <Th>Certificado</Th>
               <Th>Ações</Th>
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((e) => (
+            {paginatedItems.map((e) => (
               <tr key={e.id}>
                 <Td>
                   <div>
@@ -575,7 +605,6 @@ export default function EnrollmentsPage() {
                   </div>
                 </Td>
                 <Td>{new Date(e.enrolledAt).toLocaleDateString("pt-BR")}</Td>
-                <Td>{e.isPreEnrollment ? <Badge tone="amber">Pré-matrícula</Badge> : "—"}</Td>
                 <Td>
                   {e.studentDataComplete === true ? (
                     <Badge tone="green">Sim</Badge>
@@ -584,14 +613,6 @@ export default function EnrollmentsPage() {
                   ) : (
                     "—"
                   )}
-                </Td>
-                <Td>{e.enrollmentConfirmedAt ? new Date(e.enrollmentConfirmedAt).toLocaleString("pt-BR") : "-"}</Td>
-                <Td>
-                  {e.certificateUrl ? (
-                    <a href={e.certificateUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">
-                      {e.certificateFileName ?? "Sim"}
-                    </a>
-                  ) : "—"}
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-2">
@@ -624,9 +645,9 @@ export default function EnrollmentsPage() {
                 </Td>
               </tr>
             ))}
-            {filteredItems.length === 0 && (
+            {paginatedItems.length === 0 && (
               <tr>
-                <Td colSpan={8} className="text-[var(--text-secondary)]">
+                <Td colSpan={5} className="text-[var(--text-secondary)]">
                   {items.length === 0
                     ? "Nenhuma matrícula cadastrada."
                     : "Nenhuma matrícula encontrada com esse filtro."}
@@ -635,6 +656,36 @@ export default function EnrollmentsPage() {
             )}
           </tbody>
         </Table>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--card-border)] pt-3">
+              <p className="text-sm text-[var(--text-muted)]">
+                {totalFiltered === 0
+                  ? "Nenhuma matrícula na listagem"
+                  : `Exibindo ${(pageSafe - 1) * pageSize + 1}–${Math.min(pageSafe * pageSize, totalFiltered)} de ${totalFiltered} matrículas`}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={pageSafe <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="text-sm text-[var(--text-secondary)]">
+                  Página {pageSafe} de {totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={pageSafe >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
           </section>
         </div>
       )}

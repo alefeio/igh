@@ -67,8 +67,8 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Menu principal">
         <Link href="/" className="flex shrink-0 items-center rounded focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2">
           {logoUrl ? (
-            <span className="inline-block rounded-lg bg-white p-2">
-              <img src={logoUrl} alt={settings?.siteName ?? "Logo"} className="h-10 w-auto object-contain sm:h-12" />
+            <span className={`inline-block rounded-lg bg-white transition-[padding] ${scrolled ? "p-1" : "p-2"}`}>
+              <img src={logoUrl} alt={settings?.siteName ?? "Logo"} className={`w-auto object-contain transition-[height] ${scrolled ? "h-7 sm:h-8" : "h-10 sm:h-12"}`} />
             </span>
           ) : (
             <span className="text-xl font-bold text-[var(--igh-primary)]">IGH</span>
