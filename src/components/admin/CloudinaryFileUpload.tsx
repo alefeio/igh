@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { cloudinaryRawUrlForDownload } from "@/lib/cloudinary-url";
 
 export type SiteFileUploadKind = "transparency";
 
@@ -41,7 +42,7 @@ export function CloudinaryFileUpload({
           setError(signJson.error?.message ?? "Falha ao obter assinatura.");
           return;
         }
-        const { timestamp, signature, apiKey, cloudName, folder } = signJson.data;
+        const { timestamp, signature, apiKey, cloudName, folder, use_filename } = signJson.data;
 
         const formData = new FormData();
         formData.append("file", file);
@@ -50,6 +51,7 @@ export function CloudinaryFileUpload({
         formData.append("signature", signature);
         formData.append("folder", folder);
         formData.append("resource_type", "raw");
+        if (use_filename) formData.append("use_filename", "true");
 
         const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`, {
           method: "POST",
@@ -105,7 +107,7 @@ export function CloudinaryFileUpload({
         </label>
         {currentUrl && (
           <a
-            href={currentUrl}
+            href={cloudinaryRawUrlForDownload(currentUrl)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-blue-600 underline"

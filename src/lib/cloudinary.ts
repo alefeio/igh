@@ -14,22 +14,23 @@ export function getCloudinaryConfig() {
 
 /**
  * Gera assinatura para upload assinado no Cloudinary.
- * Parâmetros assinados: folder, timestamp (ordem alfabética).
+ * Parâmetros assinados: folder, timestamp (e use_filename se fornecido), ordem alfabética.
  * @see https://cloudinary.com/documentation/upload_images#generating_authentication_signatures
  */
-export function generateUploadSignature(params: { folder: string }): { signature: string; timestamp: number } {
+export function generateUploadSignature(params: { folder: string; use_filename?: boolean }): { signature: string; timestamp: number; use_filename?: boolean } {
   const { apiSecret } = getCloudinaryConfig();
   const timestamp = Math.floor(Date.now() / 1000);
   const toSign: Record<string, string | number> = {
     folder: params.folder,
     timestamp,
+    ...(params.use_filename === true && { use_filename: "true" }),
   };
   const sorted = Object.keys(toSign)
     .sort()
     .map((k) => `${k}=${toSign[k]}`)
     .join("&");
   const signature = createHash("sha1").update(sorted + apiSecret).digest("hex");
-  return { signature, timestamp };
+  return { signature, timestamp, ...(params.use_filename === true && { use_filename: true }) };
 }
 
 /**

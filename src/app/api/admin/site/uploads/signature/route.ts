@@ -33,8 +33,19 @@ export async function POST(request: Request) {
 
   try {
     const { apiKey, cloudName } = getCloudinaryConfig();
-    const { signature, timestamp } = generateUploadSignature({ folder });
-    return jsonOk({ timestamp, signature, apiKey, cloudName, folder });
+    const isTransparency = kind === "transparency";
+    const { signature, timestamp, use_filename } = generateUploadSignature({
+      folder,
+      use_filename: isTransparency,
+    });
+    return jsonOk({
+      timestamp,
+      signature,
+      apiKey,
+      cloudName,
+      folder,
+      ...(use_filename && { use_filename: true }),
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao gerar assinatura.";
     return jsonErr("CONFIG_ERROR", message, 500);
