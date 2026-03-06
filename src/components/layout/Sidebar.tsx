@@ -30,6 +30,7 @@ const ITEMS: Item[] = [
   { href: "/enrollments", label: "Matrículas", adminOrMaster: true, category: "Administração" },
   { href: "/students", label: "Alunos", category: "Administração" },
   { href: "/admin/site/configuracoes", label: "Configurações", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/sobre", label: "Sobre", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/menu", label: "Menu", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/banners", label: "Banners", adminOrMaster: true, category: "Site" },

@@ -171,7 +171,7 @@ export default async function HomePage({ searchParams }: Props) {
                 href={p.websiteUrl || undefined}
                 target={p.websiteUrl ? "_blank" : undefined}
                 rel={p.websiteUrl ? "noreferrer noopener" : undefined}
-                className="group flex h-16 w-36 items-center justify-center rounded-lg border border-[var(--igh-border)] bg-[var(--card-bg)] px-3 text-[var(--igh-muted)] text-sm transition hover:border-[var(--igh-border)] hover:shadow-sm"
+                className="group flex h-16 w-36 items-center justify-center rounded-lg border border-[var(--igh-border)] bg-white px-3 text-[var(--igh-muted)] text-sm transition hover:border-[var(--igh-border)] hover:shadow-sm"
                 title={p.name}
                 aria-label={p.websiteUrl ? `Abrir site do parceiro: ${p.name}` : p.name}
               >

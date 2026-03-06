@@ -106,6 +106,14 @@ export const siteTestimonialSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+// Mensagem do formulário de contato (público)
+export const contactMessageSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(200, "Nome muito longo"),
+  email: z.string().min(1, "E-mail é obrigatório").email("E-mail inválido"),
+  phone: z.string().min(1, "Telefone é obrigatório").max(20, "Telefone muito longo"),
+  message: z.string().min(1, "Mensagem é obrigatória").max(5000, "Mensagem muito longa"),
+});
+
 // Depoimento enviado pelo público (pendente de aprovação)
 export const publicTestimonialSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório").max(200, "Nome muito longo"),
