@@ -5,6 +5,7 @@ export { Card } from "./Card";
 export { Badge } from "./Badge";
 export { PageHeader } from "./PageHeader";
 export { Navbar } from "./Navbar";
+export { FloatingWhatsApp } from "./FloatingWhatsApp";
 export { Footer } from "./Footer";
 export { CTASection } from "./CTASection";
 export { Stats } from "./Stats";
