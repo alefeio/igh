@@ -127,7 +127,11 @@ export default function EnrollmentsPage() {
       byCourse.get(cid)!.turmas.push({ classGroup, count });
     }
     for (const row of byCourse.values()) {
-      row.turmas.sort((a, b) => (a.classGroup.startDate < b.classGroup.startDate ? -1 : 1));
+      row.turmas.sort((a, b) => {
+        const d = String(a.classGroup.startDate).localeCompare(String(b.classGroup.startDate));
+        if (d !== 0) return d;
+        return (a.classGroup.startTime || "").localeCompare(b.classGroup.startTime || "");
+      });
     }
     const courses = Array.from(byCourse.entries()).sort((a, b) =>
       a[1].courseName.localeCompare(b[1].courseName)
@@ -513,27 +517,41 @@ export default function EnrollmentsPage() {
             ) : (
               <>
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {dashboard.courses.map(([courseId, { courseName, turmas }]) => (
-                    <div
-                      key={courseId}
-                      className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4"
-                    >
-                      <div className="font-medium text-[var(--text-primary)]">{courseName}</div>
-                      <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-[var(--text-secondary)]">
-                        {turmas.map(({ classGroup: cg, count }) => {
-                          const start = typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
-                          const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
-                          const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}`;
-                          const cap = cg.capacity != null ? ` / ${cg.capacity}` : "";
-                          return (
-                            <li key={cg.id}>
-                              {label}: <strong>{count}{cap}</strong>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  ))}
+                  {dashboard.courses.map(([courseId, { courseName, turmas }]) => {
+                    const totalCurso = turmas.reduce((s, t) => s + t.count, 0);
+                    return (
+                      <div
+                        key={courseId}
+                        className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4"
+                      >
+                        <div className="flex items-baseline justify-between gap-2">
+                          <div className="font-medium text-[var(--text-primary)]">{courseName}</div>
+                          <span className="text-sm font-semibold text-[var(--text-primary)]">
+                            Total: {totalCurso}
+                          </span>
+                        </div>
+                        <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-[var(--text-secondary)]">
+                          {turmas.map(({ classGroup: cg, count }) => {
+                            const start = typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
+                            const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
+                            const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}`;
+                            const cap = cg.capacity != null ? cg.capacity : 0;
+                            const fechada = cap > 0 && count >= cap;
+                            return (
+                              <li key={cg.id}>
+                                {label}:{" "}
+                                <strong
+                                  className={fechada ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
+                                >
+                                  {count} / {cap || "—"}
+                                </strong>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="mt-4 border-t border-[var(--card-border)] pt-3">
                   <span className="text-sm font-medium text-[var(--text-primary)]">Total de matrículas: </span>

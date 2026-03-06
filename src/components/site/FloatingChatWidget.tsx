@@ -228,6 +228,9 @@ export function FloatingChatWidget({
     setView("initial");
     setMessages([{ id: "0", role: "bot", content: WELCOME_MESSAGE }]);
     setIsTyping(false);
+    if (typeof window !== "undefined" && window.location.hash === `#${CHAT_OPEN_HASH}`) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
   }, []);
 
   const ctx = context ?? { courses: [], faq: [] };
