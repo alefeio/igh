@@ -212,7 +212,7 @@ export default async function HomePage({ searchParams }: Props) {
       <CTASection
         title="Pronto para começar?"
         subtitle="Inscreva-se em uma formação, fale com a gente ou doe equipamentos."
-        primaryCTA={{ label: "Quero me inscrever", href: "/contato" }}
+        primaryCTA={{ label: "Quero me inscrever", href: "/inscreva" }}
         secondaryCTAs={[
           { label: "Fale com o IGH", href: "/contato" },
           { label: "Doe equipamentos", href: "/projetos/doacoes-recebidas" },

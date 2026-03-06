@@ -50,7 +50,7 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
 
   return (
     <section
-      className={`relative flex h-[60vh] flex-col justify-center overflow-hidden bg-[var(--igh-surface)] sm:h-screen ${className}`}
+      className={`relative flex h-[60vh] flex-col justify-end overflow-hidden bg-[var(--igh-surface)] sm:h-screen ${className}`}
       aria-label="Banner principal"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
@@ -76,8 +76,8 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
               <div className="absolute inset-0 bg-black/40" aria-hidden />
             </div>
           )}
-          <Container className="relative z-10 flex h-full flex-col justify-center py-16 sm:py-24">
-            <div className="mx-auto max-w-3xl text-center">
+          <Container className="relative z-10 flex h-full min-h-0 flex-col justify-end pb-12 pt-16 sm:pb-28 sm:pt-24">
+            <div className="mx-auto mt-auto max-w-3xl text-center">
               {banner.title && (
                 <h1
                   className={`text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl ${
