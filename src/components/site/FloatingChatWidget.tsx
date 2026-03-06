@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import Image from "next/image";
 import { FaCommentDots, FaTimes } from "react-icons/fa";
+
+const ANA_AVATAR = "/images/Ana-Atendente-Virtual.png";
+const TYPING_DELAY_MS = 1200;
 
 type ChatContext = {
   courses: { name: string; slug: string; url: string }[];
@@ -31,7 +35,28 @@ function buildWhatsAppHref(contactWhatsapp: string | null | undefined): string |
 }
 
 const WELCOME_MESSAGE =
-  "Olá! Sou o assistente do IGH. O que você precisa? Escolha uma opção abaixo.";
+  "Olá! Sou a Nina, atendente virtual do IGH. O que você precisa? Escolha uma opção abaixo.";
+
+function TypingDots() {
+  return (
+    <div className="flex items-center justify-start gap-1 px-3 py-2" aria-live="polite" aria-label="Nina está digitando">
+      <div className="flex gap-1 rounded-lg bg-[var(--igh-surface)] px-3 py-2.5">
+        <span
+          className="h-2 w-2 rounded-full bg-[var(--igh-primary)] animate-bounce"
+          style={{ animationDelay: "0ms", animationDuration: "0.6s" }}
+        />
+        <span
+          className="h-2 w-2 rounded-full bg-[var(--igh-primary)] animate-bounce"
+          style={{ animationDelay: "150ms", animationDuration: "0.6s" }}
+        />
+        <span
+          className="h-2 w-2 rounded-full bg-[var(--igh-primary)] animate-bounce"
+          style={{ animationDelay: "300ms", animationDuration: "0.6s" }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export function FloatingChatWidget({
   contactWhatsapp,
@@ -47,6 +72,8 @@ export function FloatingChatWidget({
     { id: "0", role: "bot", content: WELCOME_MESSAGE },
   ]);
   const [view, setView] = useState<View>("initial");
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const whatsappHref = buildWhatsAppHref(contactWhatsapp);
 
@@ -72,22 +99,45 @@ export function FloatingChatWidget({
     if (isOpen) void fetchContext();
   }, [isOpen, fetchContext]);
 
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
+
   const goBack = useCallback(() => {
     setMessages([{ id: "0", role: "bot", content: WELCOME_MESSAGE }]);
     setView("initial");
   }, []);
 
-  const addMessages = useCallback(
-    (userContent: string, botContent: string, links?: { label: string; href: string }[]) => {
-      const userId = `u-${Date.now()}`;
-      const botId = `b-${Date.now()}`;
-      setMessages((prev) => [
-        ...prev,
-        { id: userId, role: "user", content: userContent },
-        { id: botId, role: "bot", content: botContent, links },
-      ]);
+  const addUserMessage = useCallback((content: string) => {
+    const userId = `u-${Date.now()}`;
+    setMessages((prev) => [...prev, { id: userId, role: "user", content }]);
+  }, []);
+
+  const addBotMessage = useCallback((content: string, links?: { label: string; href: string }[]) => {
+    const botId = `b-${Date.now()}`;
+    setMessages((prev) => [...prev, { id: botId, role: "bot", content, links }]);
+  }, []);
+
+  const scheduleBotReply = useCallback(
+    (
+      userContent: string,
+      botContent: string,
+      nextView: View,
+      links?: { label: string; href: string }[]
+    ) => {
+      addUserMessage(userContent);
+      setIsTyping(true);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        typingTimeoutRef.current = null;
+        addBotMessage(botContent, links);
+        setView(nextView);
+        setIsTyping(false);
+      }, TYPING_DELAY_MS);
     },
-    []
+    [addUserMessage, addBotMessage]
   );
 
   const handleOption = useCallback(
@@ -95,56 +145,58 @@ export function FloatingChatWidget({
       if (option === "cursos") {
         const ctx = context ?? { courses: [], faq: [] };
         if (ctx.courses.length === 0) {
-          addMessages(
+          scheduleBotReply(
             "Ver cursos",
             "No momento não há cursos disponíveis na listagem. Você pode acessar a página de formações ou falar conosco pelo WhatsApp para mais informações.",
+            "cursos",
             whatsappHref ? [{ label: "Falar no WhatsApp", href: whatsappHref }] : undefined
           );
-          setView("cursos");
           return;
         }
         const courseLinks = ctx.courses.map((c) => ({ label: c.name, href: c.url }));
-        const botText =
-          "Temos estas formações e cursos. Clique no que te interessar para ver detalhes e se inscrever.";
-        addMessages("Ver cursos", botText, courseLinks);
-        setView("cursos");
+        scheduleBotReply(
+          "Ver cursos",
+          "Temos estas formações e cursos. Clique no que te interessar para ver detalhes e se inscrever.",
+          "cursos",
+          courseLinks
+        );
       } else if (option === "duvidas") {
         const ctx = context ?? { courses: [], faq: [] };
         if (ctx.faq.length === 0) {
-          addMessages(
+          scheduleBotReply(
             "Tirar dúvidas",
             "Não há perguntas frequentes cadastradas no momento. Quer falar com nossa equipe?",
+            "whatsapp",
             whatsappHref ? [{ label: "Falar no WhatsApp", href: whatsappHref }] : undefined
           );
-          setView("whatsapp");
           return;
         }
-        addMessages("Tirar dúvidas", "Escolha uma pergunta:");
-        setView("faq-list");
+        scheduleBotReply("Tirar dúvidas", "Escolha uma pergunta:", "faq-list");
       } else if (option === "inscrever") {
-        addMessages(
+        scheduleBotReply(
           "Quero me inscrever",
           "Você pode se inscrever em um curso pela nossa página de inscrição. Escolha a turma e preencha seus dados.",
+          "inscrever",
           [{ label: "Ir para inscrição", href: "/inscreva" }]
         );
-        setView("inscrever");
       } else {
         if (whatsappHref) {
-          addMessages(
+          scheduleBotReply(
             "WhatsApp",
             "Clique no botão abaixo para abrir uma conversa no WhatsApp com nossa equipe.",
+            "whatsapp",
             [{ label: "Abrir WhatsApp", href: whatsappHref }]
           );
         } else {
-          addMessages(
+          scheduleBotReply(
             "WhatsApp",
-            "No momento o contato por WhatsApp não está configurado. Envie uma mensagem pela página de contato do site."
+            "No momento o contato por WhatsApp não está configurado. Envie uma mensagem pela página de contato do site.",
+            "whatsapp"
           );
         }
-        setView("whatsapp");
       }
     },
-    [context, whatsappHref, addMessages]
+    [context, whatsappHref, scheduleBotReply]
   );
 
   const handleFaqQuestion = useCallback(
@@ -152,21 +204,22 @@ export function FloatingChatWidget({
       const ctx = context ?? { courses: [], faq: [] };
       const item = ctx.faq[index];
       if (!item) return;
-      addMessages(item.pergunta, item.resposta);
-      setView({ faqAnswer: index });
+      scheduleBotReply(item.pergunta, item.resposta, { faqAnswer: index });
     },
-    [context, addMessages]
+    [context, scheduleBotReply]
   );
 
   const handleClose = useCallback(() => {
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     setIsOpen(false);
     setView("initial");
     setMessages([{ id: "0", role: "bot", content: WELCOME_MESSAGE }]);
+    setIsTyping(false);
   }, []);
 
   const ctx = context ?? { courses: [], faq: [] };
-  const showInitialButtons = !loadingContext && view === "initial" && messages.length <= 1;
-  const showFaqList = view === "faq-list" && ctx.faq.length > 0;
+  const showInitialButtons = !loadingContext && view === "initial" && messages.length <= 1 && !isTyping;
+  const showFaqList = view === "faq-list" && ctx.faq.length > 0 && !isTyping;
   const showFaqAnswer = typeof view === "object" && "faqAnswer" in view;
   const showCursosFooter = view === "cursos";
   const showInscreverFooter = view === "inscrever";
@@ -190,59 +243,103 @@ export function FloatingChatWidget({
           role="dialog"
           aria-label="Chat de atendimento"
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-[var(--card-border)] px-4 py-2.5">
-            <span className="font-semibold text-[var(--text-primary)] text-sm sm:text-base">Atendimento IGH</span>
+          <div className="flex shrink-0 items-center gap-3 border-b border-[var(--card-border)] px-4 py-2.5">
+            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-[var(--igh-surface)]">
+              <Image
+                src={ANA_AVATAR}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="36px"
+                unoptimized
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="block font-semibold text-[var(--text-primary)] text-sm sm:text-base truncate">
+                Nina
+              </span>
+              <span className="block text-xs text-[var(--text-muted)] truncate">
+                Atendente Virtual
+              </span>
+            </div>
             <button
               type="button"
               onClick={handleClose}
               aria-label="Fechar chat"
-              className="rounded p-1.5 text-[var(--text-muted)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)]"
+              className="rounded p-1.5 text-[var(--text-muted)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)] shrink-0"
             >
               <FaTimes className="h-5 w-5" />
             </button>
           </div>
 
-          {/* Uma única área rolável: mensagens + ações. Prioriza leitura. */}
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="p-4 pb-2 space-y-3">
               {loadingContext && messages.length <= 1 ? (
                 <p className="text-sm text-[var(--text-muted)] py-4">Carregando...</p>
               ) : (
-                messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
+                <>
+                  {messages.map((m) => (
                     <div
-                      className={`max-w-[90%] rounded-lg px-3 py-2.5 text-sm leading-relaxed ${
-                        m.role === "user"
-                          ? "bg-[var(--igh-primary)] text-white"
-                          : "bg-[var(--igh-surface)] text-[var(--text-primary)]"
-                      }`}
+                      key={m.id}
+                      className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} gap-2`}
                     >
-                      <p className="whitespace-pre-wrap">{m.content}</p>
-                      {m.links && m.links.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {m.links.map((link) => (
-                            <a
-                              key={link.label}
-                              href={link.href}
-                              target={link.href.startsWith("http") ? "_blank" : undefined}
-                              rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                              className="inline-block rounded bg-[var(--igh-primary)] px-2.5 py-1.5 text-xs text-white hover:opacity-90"
-                            >
-                              {link.label}
-                            </a>
-                          ))}
+                      {m.role === "bot" && (
+                        <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-[var(--igh-surface)] mt-0.5">
+                          <Image
+                            src={ANA_AVATAR}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            sizes="32px"
+                            unoptimized
+                          />
                         </div>
                       )}
+                      <div
+                        className={`max-w-[85%] rounded-lg px-3 py-2.5 text-sm leading-relaxed ${
+                          m.role === "user"
+                            ? "bg-[var(--igh-primary)] text-white"
+                            : "bg-[var(--igh-surface)] text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">{m.content}</p>
+                        {m.links && m.links.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {m.links.map((link) => (
+                              <a
+                                key={link.label}
+                                href={link.href}
+                                target={link.href.startsWith("http") ? "_blank" : undefined}
+                                rel={link.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                                className="inline-block rounded bg-[var(--igh-primary)] px-2.5 py-1.5 text-xs text-white hover:opacity-90"
+                              >
+                                {link.label}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  {isTyping && (
+                    <div className="flex gap-2">
+                      <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-[var(--igh-surface)] mt-0.5">
+                        <Image
+                          src={ANA_AVATAR}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="32px"
+                          unoptimized
+                        />
+                      </div>
+                      <TypingDots />
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
-            {/* Ações no mesmo scroll (não fixas), para não roubar espaço de leitura */}
             <div className="p-3 pt-2 border-t border-[var(--card-border)] bg-[var(--card-bg)]">
               {showInitialButtons && (
                 <>
