@@ -1,4 +1,4 @@
-import { Navbar, Footer, FloatingWhatsApp } from "@/components/site";
+import { Navbar, Footer, FloatingChatWidget } from "@/components/site";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { getMenuItems, getSiteSettings } from "@/lib/site-data";
 
@@ -69,7 +69,7 @@ export default async function InstitutionalLayout({
       <Navbar menuItems={menuItems} settings={settings} sessionUser={sessionUser} />
       <main id="main-content" className="min-h-[50vh]" style={{ background: "var(--background)" }}>{children}</main>
       <Footer menuItems={menuItems} settings={settings} />
-      <FloatingWhatsApp contactWhatsapp={settings?.contactWhatsapp} />
+      <FloatingChatWidget contactWhatsapp={settings?.contactWhatsapp} />
     </>
   );
 }
