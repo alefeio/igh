@@ -78,7 +78,7 @@ export default function SobrePage() {
     return (
       <div className="flex flex-col gap-4">
         <div className="text-lg font-semibold">Sobre</div>
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       </div>
     );
   }
@@ -87,7 +87,7 @@ export default function SobrePage() {
     <div className="flex flex-col gap-4">
       <div>
         <div className="text-lg font-semibold">Sobre</div>
-        <div className="text-sm text-zinc-600">Conteúdo exibido na página /sobre do site.</div>
+        <div className="text-sm text-[var(--text-secondary)]">Conteúdo exibido na página /sobre do site.</div>
       </div>
       <form className="flex flex-col gap-4" onSubmit={save}>
         <div>

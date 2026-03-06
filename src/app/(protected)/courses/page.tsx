@@ -343,7 +343,7 @@ export default function CoursesPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="text-lg font-semibold">Cursos</div>
-          <div className="text-sm text-zinc-600">
+          <div className="text-sm text-[var(--text-secondary)]">
             Listagem em ordem alfabética. Por padrão, mostra apenas cursos ativos.
           </div>
         </div>
@@ -360,7 +360,7 @@ export default function CoursesPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <Table>
           <thead>
@@ -379,13 +379,13 @@ export default function CoursesPage() {
                   {c.imageUrl ? (
                     <img src={c.imageUrl} alt="" className="h-10 w-10 rounded object-cover" />
                   ) : (
-                    <span className="text-xs text-zinc-400">—</span>
+                    <span className="text-xs text-[var(--text-muted)]">—</span>
                   )}
                 </Td>
                 <Td>
                   <div className="flex flex-col">
-                    <span className="font-medium text-zinc-900">{c.name}</span>
-                    <span className="text-xs text-zinc-500">{c.description ?? ""}</span>
+                    <span className="font-medium text-[var(--text-primary)]">{c.name}</span>
+                    <span className="text-xs text-[var(--text-muted)]">{c.description ?? ""}</span>
                   </div>
                 </Td>
                 <Td>
@@ -431,7 +431,7 @@ export default function CoursesPage() {
               <tr>
                 <Td />
                 <Td>
-                  <span className="text-zinc-600">
+                  <span className="text-[var(--text-secondary)]">
                     {showInactive
                       ? "Nenhum curso encontrado."
                       : "Nenhum curso ativo cadastrado."}
@@ -515,23 +515,23 @@ export default function CoursesPage() {
             </div>
           </div>
           {editing && (
-            <div className="border-t border-zinc-200 pt-3">
+            <div className="border-t border-[var(--card-border)] pt-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-zinc-700">Módulos e aulas</span>
+                <span className="text-sm font-medium text-[var(--text-secondary)]">Módulos e aulas</span>
                 <Button type="button" variant="secondary" onClick={openModuleCreate}>
                   Novo módulo
                 </Button>
               </div>
               {modulesLoading ? (
-                <p className="mt-1 text-xs text-zinc-500">Carregando...</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">Carregando...</p>
               ) : modules.length === 0 ? (
-                <p className="mt-1 text-xs text-zinc-500">Nenhum módulo. Clique em &quot;Novo módulo&quot; para adicionar.</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">Nenhum módulo. Clique em &quot;Novo módulo&quot; para adicionar.</p>
               ) : (
                 <ul className="mt-2 max-h-64 overflow-y-auto text-sm">
                   {modules.map((mod) => (
-                    <li key={mod.id} className="rounded-md border border-zinc-200 bg-zinc-50/50 p-3">
+                    <li key={mod.id} className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium text-zinc-800">Módulo {mod.order + 1}: {mod.title}</span>
+                        <span className="font-medium text-[var(--text-primary)]">Módulo {mod.order + 1}: {mod.title}</span>
                         <div className="flex gap-1">
                           <Button type="button" variant="secondary" onClick={() => openModuleEdit(mod)}>
                             Editar
@@ -544,14 +544,14 @@ export default function CoursesPage() {
                           </Button>
                         </div>
                       </div>
-                      {mod.description && <p className="mt-0.5 text-xs text-zinc-500">{mod.description}</p>}
+                      {mod.description && <p className="mt-0.5 text-xs text-[var(--text-muted)]">{mod.description}</p>}
                       <ul className="mt-2 pl-2">
                         {mod.lessons.map((les) => (
                           <li key={les.id} className="flex flex-wrap items-center justify-between gap-1 rounded py-0.5">
-                            <span className="text-zinc-700">
+                            <span className="text-[var(--text-secondary)]">
                               Aula {les.order + 1}: {les.title}
                               {les.durationMinutes != null && (
-                                <span className="text-zinc-400"> ({les.durationMinutes} min)</span>
+                                <span className="text-[var(--text-muted)]"> ({les.durationMinutes} min)</span>
                               )}
                             </span>
                             <div className="flex gap-1">

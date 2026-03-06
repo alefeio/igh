@@ -106,12 +106,12 @@ export default function MenuPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-lg font-semibold">Menu</div>
-          <div className="text-sm text-zinc-600">Itens do menu do site.</div>
+          <div className="text-sm text-[var(--text-secondary)]">Itens do menu do site.</div>
         </div>
         <Button onClick={openCreate}>Novo item</Button>
       </div>
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <SortableTableDndWrapper items={items} onReorder={handleReorder}>
           <Table>
@@ -129,7 +129,7 @@ export default function MenuPage() {
               <>
                 <Td>{m.order + 1}</Td>
                 <Td className="font-medium">{m.label}</Td>
-                <Td className="text-sm text-zinc-600">{m.href}</Td>
+                <Td className="text-sm text-[var(--text-secondary)]">{m.href}</Td>
                 <Td>
                   <Button variant="secondary" onClick={() => openEdit(m)}>Editar</Button>
                   <Button variant="secondary" className="ml-2 text-red-600" onClick={() => remove(m)}>Excluir</Button>

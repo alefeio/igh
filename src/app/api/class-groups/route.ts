@@ -40,6 +40,7 @@ export async function GET() {
     ]);
 
     const classGroups = await prisma.classGroup.findMany({
+      where: { status: "ABERTA" },
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       include: {
         course: true,

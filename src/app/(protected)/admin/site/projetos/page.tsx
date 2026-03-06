@@ -162,13 +162,13 @@ export default function ProjetosPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-lg font-semibold">Projetos</div>
-          <div className="text-sm text-zinc-600">Projetos exibidos na página Projetos do site.</div>
+          <div className="text-sm text-[var(--text-secondary)]">Projetos exibidos na página Projetos do site.</div>
         </div>
         <Button onClick={openCreate}>Novo projeto</Button>
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <SortableTableDndWrapper items={items} onReorder={handleReorder}>
           <Table>
@@ -186,8 +186,8 @@ export default function ProjetosPage() {
               {(p) => (
                 <>
                   <Td>{p.order + 1}</Td>
-                  <Td className="font-medium text-zinc-900">{p.title}</Td>
-                  <Td className="text-sm text-zinc-500">{p.slug}</Td>
+                  <Td className="font-medium text-[var(--text-primary)]">{p.title}</Td>
+                  <Td className="text-sm text-[var(--text-muted)]">{p.slug}</Td>
                   <Td>{p.isActive ? <Badge tone="green">Ativo</Badge> : <Badge tone="red">Inativo</Badge>}</Td>
                   <Td>
                     <div className="flex justify-end gap-2">

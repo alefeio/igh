@@ -126,13 +126,13 @@ export default function FaqPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-lg font-semibold">FAQ</div>
-          <div className="text-sm text-zinc-600">Perguntas frequentes do site.</div>
+          <div className="text-sm text-[var(--text-secondary)]">Perguntas frequentes do site.</div>
         </div>
         <Button onClick={openCreate}>Novo item</Button>
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <SortableTableDndWrapper items={items} onReorder={handleReorder}>
           <Table>
@@ -150,7 +150,7 @@ export default function FaqPage() {
               <>
                 <Td>{item.order + 1}</Td>
                 <Td>
-                  <div className="font-medium text-zinc-900">{item.question}</div>
+                  <div className="font-medium text-[var(--text-primary)]">{item.question}</div>
                 </Td>
                 <Td>{item.isActive ? <Badge tone="green">Ativo</Badge> : <Badge tone="red">Inativo</Badge>}</Td>
                 <Td>
@@ -175,7 +175,7 @@ export default function FaqPage() {
           <div>
             <label className="text-sm font-medium">Resposta</label>
             <textarea
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm"
               rows={4}
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}

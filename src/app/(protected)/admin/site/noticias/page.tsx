@@ -285,17 +285,17 @@ export default function NoticiasPage() {
     <div className="flex flex-col gap-8">
       <div>
         <div className="text-lg font-semibold">Notícias</div>
-        <div className="text-sm text-zinc-600">Categorias e posts exibidos na página Notícias do site.</div>
+        <div className="text-sm text-[var(--text-secondary)]">Categorias e posts exibidos na página Notícias do site.</div>
       </div>
 
       {/* Categorias */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold text-zinc-700">Categorias</h3>
+          <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Categorias</h3>
           <Button onClick={openCatCreate}>Nova categoria</Button>
         </div>
         {loading ? (
-          <div className="text-sm text-zinc-600">Carregando...</div>
+          <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
         ) : (
           <SortableTableDndWrapper items={categories} onReorder={handleCatReorder}>
             <Table>
@@ -318,8 +318,8 @@ export default function NoticiasPage() {
                 {(c) => (
                   <>
                     <Td>{c.order + 1}</Td>
-                    <Td className="font-medium text-zinc-900">{c.name}</Td>
-                    <Td className="text-sm text-zinc-500">{c.slug}</Td>
+                    <Td className="font-medium text-[var(--text-primary)]">{c.name}</Td>
+                    <Td className="text-sm text-[var(--text-muted)]">{c.slug}</Td>
                     <Td>{c.isActive ? <Badge tone="green">Ativo</Badge> : <Badge tone="red">Inativo</Badge>}</Td>
                     <Td>
                       <div className="flex justify-end gap-2">
@@ -338,11 +338,11 @@ export default function NoticiasPage() {
       {/* Posts */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold text-zinc-700">Posts</h3>
+          <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Posts</h3>
           <Button onClick={openPostCreate}>Novo post</Button>
         </div>
         {loading ? (
-          <div className="text-sm text-zinc-600">Carregando...</div>
+          <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
         ) : (
           <Table>
             <thead>
@@ -356,10 +356,10 @@ export default function NoticiasPage() {
             </thead>
             <tbody>
               {posts.map((p) => (
-                <tr key={p.id} className="border-b border-zinc-200">
-                  <Td className="font-medium text-zinc-900">{p.title}</Td>
-                  <Td className="text-sm text-zinc-500">{p.category?.name ?? "—"}</Td>
-                  <Td className="text-sm text-zinc-500">{dateToInput(p.publishedAt) || "—"}</Td>
+                <tr key={p.id} className="border-b border-[var(--card-border)]">
+                  <Td className="font-medium text-[var(--text-primary)]">{p.title}</Td>
+                  <Td className="text-sm text-[var(--text-muted)]">{p.category?.name ?? "—"}</Td>
+                  <Td className="text-sm text-[var(--text-muted)]">{dateToInput(p.publishedAt) || "—"}</Td>
                   <Td>
                     {p.isPublished ? (
                       <Badge tone="green">Publicado</Badge>
@@ -379,7 +379,7 @@ export default function NoticiasPage() {
             {posts.length === 0 && (
               <tbody>
                 <tr>
-                  <td colSpan={5} className="py-4 text-center text-sm text-zinc-500">
+                  <td colSpan={5} className="py-4 text-center text-sm text-[var(--text-muted)]">
                     Nenhum post.
                   </td>
                 </tr>
@@ -440,7 +440,7 @@ export default function NoticiasPage() {
           <div>
             <label className="text-sm font-medium">Resumo / excerpt</label>
             <textarea
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm"
               rows={2}
               value={postExcerpt}
               onChange={(e) => setPostExcerpt(e.target.value)}
@@ -464,10 +464,10 @@ export default function NoticiasPage() {
           </div>
           <div>
             <label className="text-sm font-medium">Imagens adicionais (galeria / carrossel)</label>
-            <p className="mt-1 text-xs text-zinc-500">Ordem da lista = ordem no carrossel. Use a imagem de capa acima ou adicione aqui.</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Ordem da lista = ordem no carrossel. Use a imagem de capa acima ou adicione aqui.</p>
             <ul className="mt-2 list-none space-y-2 pl-0">
               {postImageUrls.map((url, idx) => (
-                <li key={idx} className="flex items-center gap-2 rounded border border-zinc-200 bg-zinc-50/50 p-2">
+                <li key={idx} className="flex items-center gap-2 rounded border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
                   <img src={url} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
                   <Input className="min-w-0 flex-1 text-sm" value={url} onChange={(e) => setPostImageUrls((prev) => prev.map((u, i) => (i === idx ? e.target.value : u)))} placeholder="URL" />
                   <Button type="button" variant="secondary" className="shrink-0 text-red-600" onClick={() => setPostImageUrls((prev) => prev.filter((_, i) => i !== idx))}>Remover</Button>

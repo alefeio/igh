@@ -51,6 +51,15 @@ async function parseJson<T>(res: Response): Promise<ApiResponse<T> | null> {
   }
 }
 
+/** Formata data apenas (YYYY-MM-DD ou ISO) como DD/MM/YYYY sem conversão de fuso (evita 18/03 virar 17/03). */
+function formatDateOnly(value: string | Date | null | undefined): string {
+  if (value == null) return "";
+  const s = typeof value === "string" ? value : value.toISOString();
+  const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  return "";
+}
+
 export default function EnrollmentsPage() {
   const user = useUser();
   const toast = useToast();
@@ -83,7 +92,7 @@ export default function EnrollmentsPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/enrollments");
+      const res = await fetch("/api/enrollments", { cache: "no-store" });
       const json = await parseJson<{ enrollments: Enrollment[] }>(res);
       if (res.ok && json?.ok) setItems(json.data.enrollments);
       else toast.push("error", "Falha ao carregar matrículas.");
@@ -136,7 +145,11 @@ export default function EnrollmentsPage() {
     const courses = Array.from(byCourse.entries()).sort((a, b) =>
       a[1].courseName.localeCompare(b[1].courseName)
     );
-    return { courses, total: items.length };
+    const totalCapacity = Array.from(byClassGroup.values()).reduce(
+      (sum, { classGroup }) => sum + (classGroup.capacity ?? 0),
+      0
+    );
+    return { courses, total: items.length, totalCapacity };
   })();
 
   const activeCountByClassGroup = (() => {
@@ -532,7 +545,7 @@ export default function EnrollmentsPage() {
                         </div>
                         <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-[var(--text-secondary)]">
                           {turmas.map(({ classGroup: cg, count }) => {
-                            const start = typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
+                            const start = formatDateOnly(cg.startDate).slice(0, 5);
                             const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
                             const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}`;
                             const cap = cg.capacity != null ? cg.capacity : 0;
@@ -555,7 +568,10 @@ export default function EnrollmentsPage() {
                 </div>
                 <div className="mt-4 border-t border-[var(--card-border)] pt-3">
                   <span className="text-sm font-medium text-[var(--text-primary)]">Total de matrículas: </span>
-                  <span className="text-sm font-semibold text-[var(--text-primary)]">{dashboard.total}</span>
+                  <span className="text-sm font-semibold text-[var(--text-primary)]">
+                    {dashboard.total}
+                    {dashboard.totalCapacity > 0 ? ` / ${dashboard.totalCapacity}` : ""}
+                  </span>
                 </div>
               </>
             )}
@@ -800,7 +816,7 @@ export default function EnrollmentsPage() {
                 const full = cap > 0 && active >= cap;
                 return (
                   <option key={cg.id} value={cg.id} disabled={full}>
-                    {cg.course.name} — Início {typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR") : ""} — {cg.startTime}-{cg.endTime}
+                    {cg.course.name} — Início {formatDateOnly(cg.startDate)} — {cg.startTime}-{cg.endTime}
                     {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
                     {full ? ` (lotada ${active}/${cap})` : ""}
                   </option>
@@ -846,7 +862,7 @@ export default function EnrollmentsPage() {
               >
                 {classGroups.map((cg) => (
                   <option key={cg.id} value={cg.id}>
-                    {cg.course.name} — Início {typeof cg.startDate === "string" ? new Date(cg.startDate).toLocaleDateString("pt-BR") : ""} — {cg.startTime}-{cg.endTime}
+                    {cg.course.name} — Início {formatDateOnly(cg.startDate)} — {cg.startTime}-{cg.endTime}
                     {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
                   </option>
                 ))}

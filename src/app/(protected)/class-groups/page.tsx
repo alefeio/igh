@@ -325,7 +325,7 @@ export default function ClassGroupsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="text-lg font-semibold">Turmas</div>
-          <div className="text-sm text-zinc-600">
+          <div className="text-sm text-[var(--text-secondary)]">
             Por padrão, apenas ativas. Use &quot;Exibir inativos&quot; para reativar ou excluir turmas canceladas.
           </div>
         </div>
@@ -342,7 +342,7 @@ export default function ClassGroupsPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <Table>
           <thead>
@@ -361,8 +361,8 @@ export default function ClassGroupsPage() {
               <tr key={cg.id}>
                 <Td>
                   <div className="flex flex-col">
-                    <span className="font-medium text-zinc-900">{cg.course.name}</span>
-                    <span className="text-xs text-zinc-500">
+                    <span className="font-medium text-[var(--text-primary)]">{cg.course.name}</span>
+                    <span className="text-xs text-[var(--text-muted)]">
                       Prof: {cg.teacher.name} · {cg.daysOfWeek.join(", ")} · {cg.location ?? "—"}
                     </span>
                   </div>
@@ -374,7 +374,7 @@ export default function ClassGroupsPage() {
                   {cg.startTime} - {cg.endTime}
                 </Td>
                 <Td>
-                  <span className="text-zinc-700">
+                  <span className="text-[var(--text-secondary)]">
                     {cg.totalSessions ?? cg.sessions?.length ?? 0} aulas
                     {cg.totalHours != null && ` · ${cg.totalHours}h`}
                   </span>
@@ -417,7 +417,7 @@ export default function ClassGroupsPage() {
             {visibleItems.length === 0 ? (
               <tr>
                 <Td colSpan={7}>
-                  <span className="text-zinc-600">
+                  <span className="text-[var(--text-secondary)]">
                     {showInactive ? "Nenhuma turma encontrada." : "Nenhuma turma ativa cadastrada."}
                   </span>
                 </Td>
@@ -478,15 +478,15 @@ export default function ClassGroupsPage() {
                   onClick={() => toggleDay(d)}
                   className={`rounded-md border px-2 py-1 text-xs font-medium ${
                     daysOfWeek.includes(d)
-                      ? "border-zinc-900 bg-zinc-900 text-white"
-                      : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-white text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
                   }`}
                 >
                   {d}
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
               Padrão: Ter/Qui ou Qua/Sex. Clique em QUA para alternar para Qua/Sex; em TER para voltar a Ter/Qui. Clique em um dia já marcado para desmarcar e personalizar (ex.: SEG e SEX).
             </p>
           </div>
@@ -527,7 +527,7 @@ export default function ClassGroupsPage() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
                 Selecione um horário cadastrado em Horários para preencher início e fim automaticamente.
               </p>
             </div>
@@ -595,18 +595,18 @@ export default function ClassGroupsPage() {
                 onFocus={() => setLocationDropdownOpen(true)}
                 onBlur={() => setTimeout(() => setLocationDropdownOpen(false), 150)}
                 placeholder="Digite ou selecione um local"
-                className="h-10 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-900"
+                className="h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--igh-primary)]"
               />
               {locationDropdownOpen && filteredLocationSuggestions.length > 0 && (
                 <ul
-                  className="absolute z-10 mt-0.5 max-h-40 w-full overflow-auto rounded-md border border-zinc-200 bg-white py-1 shadow-md"
+                  className="absolute z-10 mt-0.5 max-h-40 w-full overflow-auto rounded-md border border-[var(--card-border)] bg-white py-1 shadow-md"
                   role="listbox"
                 >
                   {filteredLocationSuggestions.map((s) => (
                     <li
                       key={s}
                       role="option"
-                      className="cursor-pointer px-3 py-2 text-sm text-zinc-800 hover:bg-zinc-100"
+                      className="cursor-pointer px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
                       onMouseDown={(e) => {
                         e.preventDefault();
                         setLocation(s);
@@ -631,33 +631,33 @@ export default function ClassGroupsPage() {
           </div>
         </form>
 
-        <div className="mt-6 border-t border-zinc-200 pt-4">
+        <div className="mt-6 border-t border-[var(--card-border)] pt-4">
           <div className="mb-2 text-sm font-semibold">Aulas geradas</div>
           {!editing ? (
-            <p className="text-xs text-zinc-600">
+            <p className="text-xs text-[var(--text-secondary)]">
               As aulas serão geradas automaticamente após salvar a turma.
             </p>
           ) : sessionsLoading ? (
-            <p className="text-xs text-zinc-600">Carregando aulas...</p>
+            <p className="text-xs text-[var(--text-secondary)]">Carregando aulas...</p>
           ) : sessions.length === 0 ? (
-            <p className="text-xs text-zinc-600">
+            <p className="text-xs text-[var(--text-secondary)]">
               Nenhuma aula gerada para esta turma.
             </p>
           ) : (
             <div className="max-h-64 space-y-1 overflow-y-auto text-xs">
-              <p className="mb-1 text-zinc-600">
+              <p className="mb-1 text-[var(--text-secondary)]">
                 Total de aulas: <span className="font-semibold">{sessions.length}</span>
                 {editing?.totalHours != null && (
                   <> · Total de horas: <span className="font-semibold">{editing.totalHours}h</span></>
                 )}
               </p>
               {sessions.map((s) => (
-                <div key={s.id} className="flex items-center justify-between rounded-md border border-zinc-200 px-2 py-1">
+                <div key={s.id} className="flex items-center justify-between rounded-md border border-[var(--card-border)] px-2 py-1">
                   <span>
                     {s.sessionDate.slice(0, 10).split("-").reverse().join("/")} · {s.startTime} -{" "}
                     {s.endTime}
                   </span>
-                  <span className="text-[10px] uppercase text-zinc-500">{s.status}</span>
+                  <span className="text-[10px] uppercase text-[var(--text-muted)]">{s.status}</span>
                 </div>
               ))}
             </div>

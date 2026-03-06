@@ -136,13 +136,13 @@ export default function ParceirosPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-lg font-semibold">Parceiros</div>
-          <div className="text-sm text-zinc-600">Parceiros e apoiadores exibidos no site.</div>
+          <div className="text-sm text-[var(--text-secondary)]">Parceiros e apoiadores exibidos no site.</div>
         </div>
         <Button onClick={openCreate}>Novo parceiro</Button>
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <SortableTableDndWrapper items={items} onReorder={handleReorder}>
           <Table>
@@ -163,13 +163,13 @@ export default function ParceirosPage() {
                   <Td>{p.order + 1}</Td>
                   <Td>
                     {p.logoUrl ? (
-                      <img src={p.logoUrl} alt="" className="h-10 w-10 rounded object-contain bg-zinc-50" />
+                      <img src={p.logoUrl} alt="" className="h-10 w-10 rounded object-contain bg-[var(--igh-surface)]" />
                     ) : (
-                      <span className="text-xs text-zinc-400">—</span>
+                      <span className="text-xs text-[var(--text-muted)]">—</span>
                     )}
                   </Td>
-                  <Td className="font-medium text-zinc-900">{p.name}</Td>
-                  <Td className="text-sm text-zinc-500">{p.websiteUrl ?? "—"}</Td>
+                  <Td className="font-medium text-[var(--text-primary)]">{p.name}</Td>
+                  <Td className="text-sm text-[var(--text-muted)]">{p.websiteUrl ?? "—"}</Td>
                   <Td>{p.isActive ? <Badge tone="green">Ativo</Badge> : <Badge tone="red">Inativo</Badge>}</Td>
                   <Td>
                     <div className="flex justify-end gap-2">

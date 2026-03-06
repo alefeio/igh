@@ -170,7 +170,7 @@ export default function TimeSlotsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="text-lg font-semibold">Horários predefinidos</div>
-          <div className="text-sm text-zinc-600">
+          <div className="text-sm text-[var(--text-secondary)]">
             Cadastre horários (início e fim) para usar ao criar turmas e evitar erros de digitação.
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function TimeSlotsPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <Table>
           <thead>
@@ -245,7 +245,7 @@ export default function TimeSlotsPage() {
             ))}
             {visibleItems.length === 0 ? (
               <tr>
-                <Td colSpan={5} className="text-zinc-600">
+                <Td colSpan={5} className="text-[var(--text-secondary)]">
                   {showInactive ? "Nenhum horário encontrado." : "Nenhum horário ativo. Cadastre em Horários."}
                 </Td>
               </tr>

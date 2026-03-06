@@ -198,13 +198,13 @@ export default function FormacoesPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-lg font-semibold">Formações</div>
-          <div className="text-sm text-zinc-600">Trilhas vinculadas aos cursos. Use no filtro da página Formações do site.</div>
+          <div className="text-sm text-[var(--text-secondary)]">Trilhas vinculadas aos cursos. Use no filtro da página Formações do site.</div>
         </div>
         <Button onClick={openCreate}>Nova formação</Button>
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <SortableTableDndWrapper items={items} onReorder={handleReorder}>
           <Table>
@@ -223,8 +223,8 @@ export default function FormacoesPage() {
               {(item) => (
               <>
                 <Td>{item.order + 1}</Td>
-                <Td className="font-medium text-zinc-900">{item.title}</Td>
-                <Td className="text-sm text-zinc-600">{item.slug}</Td>
+                <Td className="font-medium text-[var(--text-primary)]">{item.title}</Td>
+                <Td className="text-sm text-[var(--text-secondary)]">{item.slug}</Td>
                 <Td>{item.isActive ? <Badge tone="green">Ativo</Badge> : <Badge tone="red">Inativo</Badge>}</Td>
                 <Td>{item.courses.length}</Td>
                 <Td>
@@ -269,7 +269,7 @@ export default function FormacoesPage() {
           <div>
             <label className="text-sm font-medium">O que se aprende (um por linha, opcional)</label>
             <textarea
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm"
               rows={4}
               value={outcomesText}
               onChange={(e) => setOutcomesText(e.target.value)}
@@ -294,7 +294,7 @@ export default function FormacoesPage() {
           </div>
           <div>
             <label className="text-sm font-medium">Cursos desta formação</label>
-            <p className="mt-0.5 text-xs text-zinc-500">
+            <p className="mt-0.5 text-xs text-[var(--text-muted)]">
               Marque os cursos e defina a ordem (o primeiro da lista é o primeiro da trilha; use as setas para ajustar).
             </p>
             <div className="mt-2">
@@ -304,7 +304,7 @@ export default function FormacoesPage() {
                 onChange={(e) => setCourseFilter(e.target.value)}
                 className="mb-2"
               />
-              <div className="max-h-40 overflow-y-auto rounded border border-zinc-200 p-2">
+              <div className="max-h-40 overflow-y-auto rounded border border-[var(--card-border)] p-2">
                 {allCourses
                   .filter((c) => !courseFilter.trim() || c.name.toLowerCase().includes(courseFilter.toLowerCase()))
                   .sort((a, b) => a.name.localeCompare(b.name))
@@ -318,18 +318,18 @@ export default function FormacoesPage() {
                           else setSelectedCourseIds((prev) => prev.filter((id) => id !== c.id));
                         }}
                       />
-                      <span className="text-zinc-800">{c.name}</span>
+                      <span className="text-[var(--text-primary)]">{c.name}</span>
                     </label>
                   ))}
                 {allCourses.length === 0 && (
-                  <p className="text-sm text-zinc-500">Nenhum curso cadastrado. Cadastre em Cursos.</p>
+                  <p className="text-sm text-[var(--text-muted)]">Nenhum curso cadastrado. Cadastre em Cursos.</p>
                 )}
               </div>
             </div>
             {selectedCourseIds.length > 0 && (
               <div className="mt-3">
-                <span className="text-xs font-medium text-zinc-600">Ordem dos cursos (primeiro = início da trilha):</span>
-                <ul className="mt-1 rounded border border-zinc-200 bg-zinc-50/50 p-2">
+                <span className="text-xs font-medium text-[var(--text-secondary)]">Ordem dos cursos (primeiro = início da trilha):</span>
+                <ul className="mt-1 rounded border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
                   {selectedCourseIds.map((courseId, index) => {
                     const course = allCourses.find((c) => c.id === courseId);
                     const name = course?.name ?? courseId;
@@ -353,7 +353,7 @@ export default function FormacoesPage() {
                               });
                             }}
                             disabled={index === 0}
-                            className="rounded p-1 text-zinc-600 hover:bg-zinc-200 disabled:opacity-40"
+                            className="rounded p-1 text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-40"
                             title="Subir"
                           >
                             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -371,7 +371,7 @@ export default function FormacoesPage() {
                               });
                             }}
                             disabled={index === selectedCourseIds.length - 1}
-                            className="rounded p-1 text-zinc-600 hover:bg-zinc-200 disabled:opacity-40"
+                            className="rounded p-1 text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-40"
                             title="Descer"
                           >
                             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

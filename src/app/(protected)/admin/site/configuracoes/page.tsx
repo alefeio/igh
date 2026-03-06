@@ -146,7 +146,7 @@ export default function ConfiguracoesPage() {
     return (
       <div className="flex flex-col gap-4">
         <div className="text-lg font-semibold">Configurações do site</div>
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       </div>
     );
   }
@@ -155,7 +155,7 @@ export default function ConfiguracoesPage() {
     <div className="flex flex-col gap-4">
       <div>
         <div className="text-lg font-semibold">Configurações do site</div>
-        <div className="text-sm text-zinc-600">Logo, identidade, contato, redes sociais e SEO.</div>
+        <div className="text-sm text-[var(--text-secondary)]">Logo, identidade, contato, redes sociais e SEO.</div>
       </div>
 
       <form className="flex flex-col gap-6" onSubmit={save}>
@@ -255,12 +255,12 @@ export default function ConfiguracoesPage() {
             </div>
             <div>
               <label className="text-sm font-medium">Endereços (unidades)</label>
-              <p className="mt-1 text-xs text-zinc-500">Adicione um endereço por unidade.</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">Adicione um endereço por unidade.</p>
               <div className="mt-2 space-y-4">
                 {addresses.map((addr, idx) => (
-                  <div key={idx} className="rounded-lg border border-zinc-200 bg-zinc-50/50 p-4">
+                  <div key={idx} className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium text-zinc-700">Unidade {idx + 1}</span>
+                      <span className="text-sm font-medium text-[var(--text-secondary)]">Unidade {idx + 1}</span>
                       <Button
                         type="button"
                         variant="secondary"
@@ -273,7 +273,7 @@ export default function ConfiguracoesPage() {
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="sm:col-span-2">
-                        <label className="text-xs text-zinc-500">Logradouro / número / complemento</label>
+                        <label className="text-xs text-[var(--text-muted)]">Logradouro / número / complemento</label>
                         <Input
                           className="mt-1"
                           value={addr.line}
@@ -285,7 +285,7 @@ export default function ConfiguracoesPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-zinc-500">Cidade</label>
+                        <label className="text-xs text-[var(--text-muted)]">Cidade</label>
                         <Input
                           className="mt-1"
                           value={addr.city}
@@ -297,7 +297,7 @@ export default function ConfiguracoesPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-zinc-500">Estado</label>
+                        <label className="text-xs text-[var(--text-muted)]">Estado</label>
                         <Input
                           className="mt-1"
                           value={addr.state}
@@ -309,7 +309,7 @@ export default function ConfiguracoesPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-zinc-500">CEP</label>
+                        <label className="text-xs text-[var(--text-muted)]">CEP</label>
                         <Input
                           className="mt-1"
                           value={addr.zip}
@@ -380,7 +380,7 @@ export default function ConfiguracoesPage() {
             <div>
               <label className="text-sm font-medium">Descrição padrão</label>
               <textarea
-                className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm"
                 rows={3}
                 value={form.seoDescriptionDefault ?? ""}
                 onChange={(e) => setForm((f) => ({ ...f, seoDescriptionDefault: e.target.value }))}

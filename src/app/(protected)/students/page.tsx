@@ -140,7 +140,7 @@ export default function StudentsPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-lg font-semibold">Alunos</div>
-          <div className="text-sm text-zinc-600">
+          <div className="text-sm text-[var(--text-secondary)]">
             Cadastro base do aluno. Busca por nome ou CPF.
           </div>
         </div>
@@ -167,7 +167,7 @@ export default function StudentsPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <Table>
           <thead>
@@ -184,7 +184,7 @@ export default function StudentsPage() {
             {items.map((s) => (
               <tr key={s.id}>
                 <Td>
-                  <span className={s.deletedAt ? "text-zinc-500 line-through" : ""}>{s.name}</span>
+                  <span className={s.deletedAt ? "text-[var(--text-muted)] line-through" : ""}>{s.name}</span>
                   {s.deletedAt && (
                     <span className="ml-1"><Badge tone="red">Excluído</Badge></span>
                   )}
@@ -230,7 +230,7 @@ export default function StudentsPage() {
             ))}
             {items.length === 0 && (
               <tr>
-                <Td colSpan={6} className="text-zinc-600">
+                <Td colSpan={6} className="text-[var(--text-secondary)]">
                   Nenhum aluno encontrado.
                 </Td>
               </tr>

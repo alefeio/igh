@@ -184,7 +184,7 @@ export default function UsersPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="text-lg font-semibold">Usuários (ADMIN)</div>
-          <div className="text-sm text-zinc-600">
+          <div className="text-sm text-[var(--text-secondary)]">
             Por padrão, apenas ativos. Use &quot;Exibir inativos&quot; para reativar ou excluir.
           </div>
         </div>
@@ -201,7 +201,7 @@ export default function UsersPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <Table>
           <thead>
@@ -260,7 +260,7 @@ export default function UsersPage() {
             {visibleUsers.length === 0 ? (
               <tr>
                 <Td colSpan={5}>
-                  <span className="text-zinc-600">
+                  <span className="text-[var(--text-secondary)]">
                     {showInactive ? "Nenhum usuário encontrado." : "Nenhum ADMIN ativo cadastrado."}
                   </span>
                 </Td>
@@ -332,7 +332,7 @@ export default function UsersPage() {
               <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
             </div>
           </div>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-[var(--text-muted)]">
             Uma senha temporária será gerada e enviada por e-mail ao usuário. Ele deverá trocá-la no primeiro acesso.
           </p>
           <div className="flex items-center justify-end gap-2 pt-2">

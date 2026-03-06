@@ -202,33 +202,33 @@ export default function DepoimentosPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-lg font-semibold">Depoimentos</div>
-          <div className="text-sm text-zinc-600">Depoimentos exibidos no site.</div>
+          <div className="text-sm text-[var(--text-secondary)]">Depoimentos exibidos no site.</div>
         </div>
         <Button onClick={openCreate}>Novo depoimento</Button>
       </div>
 
       {pending.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Depoimentos pendentes de aprovação</h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">Depoimentos pendentes de aprovação</h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)] dark:text-[var(--text-muted)]">
             Depoimentos enviados pelo site aguardando sua aprovação para serem publicados.
           </p>
           {pendingLoading ? (
-            <p className="mt-3 text-sm text-zinc-500">Carregando...</p>
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando...</p>
           ) : (
             <div className="mt-4 space-y-3">
               {pending.map((p) => (
                 <div
                   key={p.id}
-                  className="flex flex-col gap-2 rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
+                  className="flex flex-col gap-2 rounded border border-[var(--card-border)] bg-[var(--card-bg)] p-3"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-zinc-900 dark:text-zinc-100">{p.name}</p>
+                      <p className="font-medium text-[var(--text-primary)]">{p.name}</p>
                       {p.roleOrContext && (
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400">{p.roleOrContext}</p>
+                        <p className="text-sm text-[var(--text-muted)] dark:text-[var(--text-muted)]">{p.roleOrContext}</p>
                       )}
-                      <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">&ldquo;{p.quote}&rdquo;</p>
+                      <p className="mt-1 text-sm text-[var(--text-secondary)]">&ldquo;{p.quote}&rdquo;</p>
                       {p.photoUrl && (
                         <img
                           src={p.photoUrl}
@@ -236,7 +236,7 @@ export default function DepoimentosPage() {
                           className="mt-2 h-12 w-12 rounded-full object-cover"
                         />
                       )}
-                      <p className="mt-1 text-xs text-zinc-400">
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">
                         Enviado em {new Date(p.createdAt).toLocaleString("pt-BR")}
                       </p>
                     </div>
@@ -257,7 +257,7 @@ export default function DepoimentosPage() {
       )}
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <SortableTableDndWrapper items={items} onReorder={handleReorder}>
           <Table>
@@ -275,8 +275,8 @@ export default function DepoimentosPage() {
               {(t) => (
                 <>
                   <Td>{t.order + 1}</Td>
-                  <Td className="font-medium text-zinc-900">{t.name}</Td>
-                  <Td className="text-sm text-zinc-500">{t.roleOrContext ?? "—"}</Td>
+                  <Td className="font-medium text-[var(--text-primary)]">{t.name}</Td>
+                  <Td className="text-sm text-[var(--text-muted)]">{t.roleOrContext ?? "—"}</Td>
                   <Td>{t.isActive ? <Badge tone="green">Ativo</Badge> : <Badge tone="red">Inativo</Badge>}</Td>
                   <Td>
                     <div className="flex justify-end gap-2">
@@ -303,7 +303,7 @@ export default function DepoimentosPage() {
           </div>
           <div>
             <label className="text-sm font-medium">Depoimento</label>
-            <textarea className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" rows={4} value={quote} onChange={(e) => setQuote(e.target.value)} required />
+            <textarea className="mt-1 w-full rounded-md border border-[var(--card-border)] px-3 py-2 text-sm" rows={4} value={quote} onChange={(e) => setQuote(e.target.value)} required />
           </div>
           <div>
             <label className="text-sm font-medium">URL da foto</label>

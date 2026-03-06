@@ -169,19 +169,19 @@ export default function TeachersPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="text-lg font-semibold">Professores</div>
-          <div className="text-sm text-zinc-600">
+          <div className="text-sm text-[var(--text-secondary)]">
             Filtro: Ativos (padrão), Inativos ou Todos. Inativos podem ser reativados.
           </div>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <div className="flex rounded-md border border-zinc-300 bg-white p-0.5 text-sm">
+          <div className="flex rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] p-0.5 text-sm">
             {(["active", "inactive", "all"] as const).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setStatusFilter(s)}
                 className={`rounded px-3 py-1.5 touch-manipulation ${
-                  statusFilter === s ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
+                  statusFilter === s ? "bg-[var(--igh-primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
                 }`}
               >
                 {s === "active" ? "Ativos" : s === "inactive" ? "Inativos" : "Todos"}
@@ -193,7 +193,7 @@ export default function TeachersPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <Table>
           <thead>
@@ -210,8 +210,8 @@ export default function TeachersPage() {
                 <Td>{t.name}</Td>
                 <Td>
                   <div className="flex flex-col">
-                    <span className="text-zinc-800">{t.email ?? "-"}</span>
-                    <span className="text-xs text-zinc-500">{t.phone ?? ""}</span>
+                    <span className="text-[var(--text-primary)]">{t.email ?? "-"}</span>
+                    <span className="text-xs text-[var(--text-muted)]">{t.phone ?? ""}</span>
                   </div>
                 </Td>
                 <Td>
@@ -247,7 +247,7 @@ export default function TeachersPage() {
             {items.length === 0 ? (
               <tr>
                 <Td>
-                  <span className="text-zinc-600">Nenhum professor cadastrado.</span>
+                  <span className="text-[var(--text-secondary)]">Nenhum professor cadastrado.</span>
                 </Td>
                 <Td />
                 <Td />
@@ -276,7 +276,7 @@ export default function TeachersPage() {
               <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
             </div>
           </div>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-[var(--text-muted)]">
             Uma senha temporária será gerada e enviada por e-mail ao professor.
           </p>
           <div>

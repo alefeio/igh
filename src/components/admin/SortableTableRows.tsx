@@ -42,7 +42,7 @@ function SortableRow<T>({ id, item, children }: SortableRowProps<T>) {
 
   return (
     <tr ref={setNodeRef} style={style} {...attributes}>
-      <td className="w-8 cursor-grab active:cursor-grabbing border-b border-zinc-200 bg-zinc-50 p-1" {...listeners} title="Arrastar para reordenar">
+      <td className="w-8 cursor-grab active:cursor-grabbing border-b border-[var(--card-border)] bg-[var(--igh-surface)] p-1" {...listeners} title="Arrastar para reordenar">
         ⋮⋮
       </td>
       {children}
@@ -86,7 +86,7 @@ function SortableTableRowsInner<T extends { id: string }>({
       {items.length === 0 ? (
         <tbody>
           <tr>
-            <td colSpan={10} className="border-b border-zinc-200 p-4 text-center text-zinc-600">
+            <td colSpan={10} className="border-b border-[var(--card-border)] p-4 text-center text-[var(--text-secondary)]">
               {emptyMessage}
             </td>
           </tr>

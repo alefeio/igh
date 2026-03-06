@@ -9,7 +9,7 @@ export async function GET(request: Request) {
 
     const classGroups = await prisma.classGroup.findMany({
       where: {
-        status: { in: ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"] },
+        status: "ABERTA",
         ...(courseId && { courseId }),
       },
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],

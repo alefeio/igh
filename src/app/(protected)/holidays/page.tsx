@@ -179,7 +179,7 @@ export default function HolidaysPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="text-lg font-semibold">Feriados</div>
-          <div className="text-sm text-zinc-600">
+          <div className="text-sm text-[var(--text-secondary)]">
             Feriados não geram aulas nas turmas. Por padrão, apenas ativos são exibidos.
           </div>
         </div>
@@ -196,7 +196,7 @@ export default function HolidaysPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-zinc-600">Carregando...</div>
+        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       ) : (
         <Table>
           <thead>
@@ -252,7 +252,7 @@ export default function HolidaysPage() {
             ))}
             {visibleItems.length === 0 ? (
               <tr>
-                <Td colSpan={4} className="text-zinc-600">
+                <Td colSpan={4} className="text-[var(--text-secondary)]">
                   {showInactive ? "Nenhum feriado encontrado." : "Nenhum feriado ativo."}
                 </Td>
               </tr>
@@ -311,7 +311,7 @@ export default function HolidaysPage() {
               />
             </div>
             {recurring && (
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
                 O ano não é usado; o feriado vale para todo ano.
               </p>
             )}

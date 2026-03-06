@@ -267,17 +267,17 @@ export default function TransparenciaPage() {
     <div className="flex flex-col gap-8">
       <div>
         <div className="text-lg font-semibold">Transparência</div>
-        <div className="text-sm text-zinc-600">Categorias e documentos exibidos na página Transparência do site.</div>
+        <div className="text-sm text-[var(--text-secondary)]">Categorias e documentos exibidos na página Transparência do site.</div>
       </div>
 
       {/* Categorias */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold text-zinc-700">Categorias</h3>
+          <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Categorias</h3>
           <Button onClick={openCatCreate}>Nova categoria</Button>
         </div>
         {loading ? (
-          <div className="text-sm text-zinc-600">Carregando...</div>
+          <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
         ) : (
           <SortableTableDndWrapper items={categories} onReorder={handleCatReorder}>
             <Table>
@@ -300,8 +300,8 @@ export default function TransparenciaPage() {
                 {(c) => (
                   <>
                     <Td>{c.order + 1}</Td>
-                    <Td className="font-medium text-zinc-900">{c.name}</Td>
-                    <Td className="text-sm text-zinc-500">{c.slug}</Td>
+                    <Td className="font-medium text-[var(--text-primary)]">{c.name}</Td>
+                    <Td className="text-sm text-[var(--text-muted)]">{c.slug}</Td>
                     <Td>{c.isActive ? <Badge tone="green">Ativo</Badge> : <Badge tone="red">Inativo</Badge>}</Td>
                     <Td>
                       <div className="flex justify-end gap-2">
@@ -320,13 +320,13 @@ export default function TransparenciaPage() {
       {/* Documentos */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold text-zinc-700">Documentos</h3>
+          <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Documentos</h3>
           <Button onClick={openDocCreate} disabled={categories.length === 0}>
             Novo documento
           </Button>
         </div>
         {categories.length === 0 && (
-          <p className="text-sm text-zinc-500">Crie uma categoria antes de adicionar documentos.</p>
+          <p className="text-sm text-[var(--text-muted)]">Crie uma categoria antes de adicionar documentos.</p>
         )}
         {!loading && categories.length > 0 && (
           <Table>
@@ -341,10 +341,10 @@ export default function TransparenciaPage() {
             </thead>
             <tbody>
               {documents.map((d) => (
-                <tr key={d.id} className="border-b border-zinc-200">
-                  <Td className="font-medium text-zinc-900">{d.title}</Td>
-                  <Td className="text-sm text-zinc-500">{d.category.name}</Td>
-                  <Td className="text-sm text-zinc-500">{dateToInput(d.date) || "—"}</Td>
+                <tr key={d.id} className="border-b border-[var(--card-border)]">
+                  <Td className="font-medium text-[var(--text-primary)]">{d.title}</Td>
+                  <Td className="text-sm text-[var(--text-muted)]">{d.category.name}</Td>
+                  <Td className="text-sm text-[var(--text-muted)]">{dateToInput(d.date) || "—"}</Td>
                   <Td>{d.isActive ? <Badge tone="green">Ativo</Badge> : <Badge tone="red">Inativo</Badge>}</Td>
                   <Td>
                     <div className="flex justify-end gap-2">
@@ -358,7 +358,7 @@ export default function TransparenciaPage() {
             {documents.length === 0 && (
               <tbody>
                 <tr>
-                  <td colSpan={5} className="py-4 text-center text-sm text-zinc-500">
+                  <td colSpan={5} className="py-4 text-center text-sm text-[var(--text-muted)]">
                     Nenhum documento.
                   </td>
                 </tr>
@@ -415,7 +415,7 @@ export default function TransparenciaPage() {
           <div>
             <label className="text-sm font-medium">Descrição</label>
             <textarea
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm"
               rows={2}
               value={docDescription}
               onChange={(e) => setDocDescription(e.target.value)}
