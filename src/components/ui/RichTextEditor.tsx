@@ -76,7 +76,6 @@ export function RichTextEditor({
       }),
       ImageWithResize,
       TableKit.configure({
-        resizable: true,
         HTMLAttributes: { class: "rte-table border-collapse w-full my-3" },
       }),
     ],
