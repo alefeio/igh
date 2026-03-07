@@ -11,7 +11,10 @@ export type SiteUploadKind =
   | "projects"
   | "testimonials"
   | "news"
-  | "transparency";
+  | "transparency"
+  | "about"
+  | "inscreva"
+  | "contato";
 
 type Props = {
   kind: SiteUploadKind;

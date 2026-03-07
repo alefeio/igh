@@ -27,11 +27,12 @@ export default async function ProjetoSlugPage({ params }: Props) {
 
   return (
     <>
-      <PageHeader title={projeto.title} subtitle={projeto.summary ?? undefined} />
+      <PageHeader
+        title={projeto.title}
+        subtitle={projeto.summary ?? undefined}
+        backgroundImageUrl={projeto.coverImageUrl}
+      />
       <Section>
-        {projeto.coverImageUrl && (
-          <img src={projeto.coverImageUrl} alt="" className="mb-6 h-64 w-full rounded-lg object-cover" />
-        )}
         {projeto.content ? (
           <div
             className="prose prose-lg max-w-none text-[var(--igh-muted)]"
@@ -39,6 +40,21 @@ export default async function ProjetoSlugPage({ params }: Props) {
           />
         ) : (
           <p className="max-w-2xl text-[var(--igh-muted)]">{projeto.summary ?? "Conteúdo em breve."}</p>
+        )}
+        {projeto.galleryImages && projeto.galleryImages.length > 0 && (
+          <div className="mt-8">
+            <h3 className="mb-4 text-lg font-semibold text-[var(--igh-secondary)]">Galeria</h3>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {projeto.galleryImages.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt=""
+                  className="h-48 w-full rounded-lg object-cover"
+                />
+              ))}
+            </div>
+          </div>
         )}
         <div className="mt-8 flex flex-wrap gap-4">
           <Button as="link" href="/projetos" variant="outline">

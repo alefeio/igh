@@ -18,7 +18,10 @@ export type PendingChangeEntityType =
   | "site_transparency_category"
   | "site_transparency_document"
   | "site_formation"
-  | "site_formation_courses";
+  | "site_formation_courses"
+  | "site_formacoes_page"
+  | "site_inscreva_page"
+  | "site_contato_page";
 
 export async function createPendingSiteChange(
   requestedByUserId: string,
@@ -106,6 +109,7 @@ async function applyPendingChange(pending: {
         title: payload.title ?? undefined,
         subtitle: payload.subtitle ?? undefined,
         content: payload.content ?? undefined,
+        imageUrl: payload.imageUrl ?? undefined,
       };
       const existing = await prisma.siteAboutPage.findFirst({ orderBy: { updatedAt: "desc" } });
       if (existing) {
@@ -116,6 +120,67 @@ async function applyPendingChange(pending: {
             title: (payload.title as string) ?? null,
             subtitle: (payload.subtitle as string) ?? null,
             content: (payload.content as string) ?? null,
+            imageUrl: (payload.imageUrl as string) ?? null,
+          },
+        });
+      }
+      return;
+    }
+    case "site_formacoes_page": {
+      const data = {
+        title: payload.title ?? undefined,
+        subtitle: payload.subtitle ?? undefined,
+        headerImageUrl: payload.headerImageUrl ?? undefined,
+      };
+      const existing = await prisma.siteFormacoesPage.findFirst({ orderBy: { updatedAt: "desc" } });
+      if (existing) {
+        await prisma.siteFormacoesPage.update({ where: { id: existing.id }, data });
+      } else {
+        await prisma.siteFormacoesPage.create({
+          data: {
+            title: (payload.title as string) ?? null,
+            subtitle: (payload.subtitle as string) ?? null,
+            headerImageUrl: (payload.headerImageUrl as string) ?? null,
+          },
+        });
+      }
+      return;
+    }
+    case "site_inscreva_page": {
+      const data = {
+        title: payload.title ?? undefined,
+        subtitle: payload.subtitle ?? undefined,
+        headerImageUrl: payload.headerImageUrl ?? undefined,
+      };
+      const existing = await prisma.siteInscrevaPage.findFirst({ orderBy: { updatedAt: "desc" } });
+      if (existing) {
+        await prisma.siteInscrevaPage.update({ where: { id: existing.id }, data });
+      } else {
+        await prisma.siteInscrevaPage.create({
+          data: {
+            title: (payload.title as string) ?? null,
+            subtitle: (payload.subtitle as string) ?? null,
+            headerImageUrl: (payload.headerImageUrl as string) ?? null,
+          },
+        });
+      }
+      return;
+    }
+    case "site_contato_page": {
+      const data = {
+        title: payload.title ?? undefined,
+        subtitle: payload.subtitle ?? undefined,
+        headerImageUrl: payload.headerImageUrl ?? undefined,
+      };
+      const existing = await prisma.siteContatoPage.findFirst({ orderBy: { updatedAt: "desc" } });
+      if (existing) {
+        await prisma.siteContatoPage.update({ where: { id: existing.id }, data });
+      } else {
+        await prisma.siteContatoPage.create({
+          data: {
+            title: (payload.title as string) ?? null,
+            subtitle: (payload.subtitle as string) ?? null,
+            headerImageUrl: (payload.headerImageUrl as string) ?? null,
           },
         });
       }

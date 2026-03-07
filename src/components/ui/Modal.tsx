@@ -7,11 +7,14 @@ export function Modal({
   title,
   children,
   onClose,
+  size = "default",
 }: {
   open: boolean;
   title: string;
   children: React.ReactNode;
   onClose: () => void;
+  /** "large" usa max-w-4xl e mais altura para o conteúdo. */
+  size?: "default" | "large";
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -23,6 +26,9 @@ export function Modal({
 
   if (!open) return null;
 
+  const maxWidthClass = size === "large" ? "max-w-4xl" : "max-w-lg";
+  const contentMaxHeightClass = size === "large" ? "max-h-[calc(100vh-5rem)]" : "max-h-[calc(100vh-6rem)]";
+
   return (
     <div
       className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-2 sm:p-4"
@@ -32,7 +38,7 @@ export function Modal({
       aria-labelledby={open ? "modal-title" : undefined}
     >
       <div className="flex min-h-full items-start justify-center py-4 sm:py-6" onClick={(e) => e.stopPropagation()}>
-        <div className="my-0 w-full max-w-lg flex-shrink-0 rounded-lg bg-[var(--card-bg)] shadow-lg border border-[var(--card-border)]">
+        <div className={`my-0 w-full ${maxWidthClass} flex-shrink-0 rounded-lg bg-[var(--card-bg)] shadow-lg border border-[var(--card-border)]`}>
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-3 sm:px-4">
             <div id="modal-title" className="min-w-0 flex-1 truncate text-sm font-semibold pr-2 text-[var(--text-primary)]">{title}</div>
             <button
@@ -44,7 +50,7 @@ export function Modal({
               Fechar
             </button>
           </div>
-          <div className="max-h-[calc(100vh-6rem)] overflow-y-auto px-3 py-4 sm:px-4 text-[var(--text-primary)]">{children}</div>
+          <div className={`${contentMaxHeightClass} overflow-y-auto px-3 py-4 sm:px-4 text-[var(--text-primary)]`}>{children}</div>
         </div>
       </div>
     </div>

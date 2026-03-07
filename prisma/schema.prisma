@@ -108,6 +108,7 @@ model CourseLesson {
   title           String
   order           Int          @default(0)
   durationMinutes Int?
+  videoUrl        String?
   contentRich     String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -286,6 +287,7 @@ model SiteAboutPage {
   title     String?
   subtitle  String?
   content   String?
+  imageUrl  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -341,6 +343,33 @@ model SiteFormationCourse {
   formation   SiteFormation @relation(fields: [formationId], references: [id], onDelete: Cascade)
 
   @@id([formationId, courseId])
+}
+
+model SiteFormacoesPage {
+  id             String   @id @default(uuid())
+  title          String?
+  subtitle       String?
+  headerImageUrl String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model SiteInscrevaPage {
+  id             String   @id @default(uuid())
+  title          String?
+  subtitle       String?
+  headerImageUrl String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model SiteContatoPage {
+  id             String   @id @default(uuid())
+  title          String?
+  subtitle       String?
+  headerImageUrl String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model SiteProject {

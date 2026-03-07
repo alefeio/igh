@@ -7,6 +7,28 @@ export const siteAboutPageSchema = z.object({
   title: z.string().optional().nullable(),
   subtitle: z.string().optional().nullable(),
   content: z.string().optional().nullable(),
+  imageUrl: z.string().url().optional().or(z.literal("")).nullable(),
+});
+
+// SiteFormacoesPage (singleton - cabeçalho da página Formações)
+export const siteFormacoesPageSchema = z.object({
+  title: z.string().optional().nullable(),
+  subtitle: z.string().optional().nullable(),
+  headerImageUrl: z.string().url().optional().or(z.literal("")).nullable(),
+});
+
+// SiteInscrevaPage (singleton - cabeçalho da página Inscreva-se)
+export const siteInscrevaPageSchema = z.object({
+  title: z.string().optional().nullable(),
+  subtitle: z.string().optional().nullable(),
+  headerImageUrl: z.string().url().optional().or(z.literal("")).nullable(),
+});
+
+// SiteContatoPage (singleton - cabeçalho da página Contato)
+export const siteContatoPageSchema = z.object({
+  title: z.string().optional().nullable(),
+  subtitle: z.string().optional().nullable(),
+  headerImageUrl: z.string().url().optional().or(z.literal("")).nullable(),
 });
 
 // SiteSettings (singleton)

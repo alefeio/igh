@@ -22,7 +22,7 @@
   --text-primary: #18181b;
   --text-secondary: #52525b;
   --text-muted: #71717a;
-  --footer-bg: #1a365d;
+  --footer-bg: var(--igh-secondary);
 }
 
 @theme inline {

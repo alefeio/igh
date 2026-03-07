@@ -24,5 +24,6 @@ export const courseLessonSchema = z.object({
   title: z.string().min(1, "Título é obrigatório"),
   order: z.number().int().min(0),
   durationMinutes: z.number().int().positive().optional().nullable(),
+  videoUrl: z.union([z.string().url(), z.literal("")]).optional().nullable(),
   contentRich: z.string().optional().nullable().or(z.literal("")),
 });

@@ -4,7 +4,7 @@ import { getCloudinaryConfig, generateUploadSignature, getSiteUploadFolder, getS
 import { z } from "zod";
 
 const bodySchema = z.object({
-  kind: z.enum(["logo", "favicon", "banners", "partners", "formations", "projects", "testimonials", "news", "transparency"]),
+  kind: z.enum(["logo", "favicon", "banners", "partners", "formations", "projects", "testimonials", "news", "transparency", "about", "inscreva", "contato"]),
   id: z.string().uuid().optional(),
 }).refine(
   (d) => {

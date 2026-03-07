@@ -1,6 +1,6 @@
 import { PageHeader, Section, Card } from "@/components/site";
 import { SocialIcons } from "@/components/site/SocialIcons";
-import { getSiteSettings } from "@/lib/site-data";
+import { getSiteSettings, getContatoPageForSite } from "@/lib/site-data";
 import { ContatoForm } from "./ContatoForm";
 
 function normalizeAddresses(value: unknown): { line: string; city: string; state: string; zip: string }[] {
@@ -20,8 +20,11 @@ function formatAddress(a: { line: string; city: string; state: string; zip: stri
 }
 
 export default async function ContatoPage() {
-  const settings = await getSiteSettings();
+  const [settings, contatoPage] = await Promise.all([getSiteSettings(), getContatoPageForSite()]);
   const addresses = normalizeAddresses(settings?.addresses);
+  const headerTitle = contatoPage?.title?.trim() || "Contato";
+  const headerSubtitle = contatoPage?.subtitle?.trim() || "Envie sua mensagem ou inscreva-se nas formações.";
+  const headerImageUrl = contatoPage?.headerImageUrl?.trim() || null;
   const firstAddressLine = addresses.length > 0 ? formatAddress(addresses[0]) : null;
 
   const whatsappNumber = settings?.contactWhatsapp?.replace(/\D/g, "") || "";
@@ -41,7 +44,11 @@ export default async function ContatoPage() {
 
   return (
     <>
-      <PageHeader title="Contato" subtitle="Envie sua mensagem ou inscreva-se nas formações." />
+      <PageHeader
+        title={headerTitle}
+        subtitle={headerSubtitle}
+        backgroundImageUrl={headerImageUrl}
+      />
       <Section id="inscreva">
         <div className="grid gap-8 lg:grid-cols-3">
           <ContatoForm />

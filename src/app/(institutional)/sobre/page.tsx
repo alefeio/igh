@@ -14,7 +14,11 @@ export default async function SobrePage() {
 
   return (
     <>
-      <PageHeader title={title} subtitle={subtitle} />
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        backgroundImageUrl={about?.imageUrl?.trim() || null}
+      />
       <Section>
         {content ? (
           <div

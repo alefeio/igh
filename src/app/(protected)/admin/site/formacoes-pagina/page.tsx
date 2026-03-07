@@ -1,35 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
-type AboutItem = {
+type FormacoesPageItem = {
   id: string;
   title: string | null;
   subtitle: string | null;
-  content: string | null;
-  imageUrl: string | null;
+  headerImageUrl: string | null;
 };
 
-export default function SobrePage() {
+export default function FormacoesPaginaPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
-  const [content, setContent] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [headerImageUrl, setHeaderImageUrl] = useState("");
 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/site/about");
-      const json = (await res.json()) as ApiResponse<{ item: AboutItem | null }>;
+      const res = await fetch("/api/admin/site/formacoes-page");
+      const json = (await res.json()) as ApiResponse<{ item: FormacoesPageItem | null }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao carregar.");
         return;
@@ -38,13 +35,11 @@ export default function SobrePage() {
       if (item) {
         setTitle(item.title ?? "");
         setSubtitle(item.subtitle ?? "");
-        setContent(item.content ?? "");
-        setImageUrl(item.imageUrl ?? "");
+        setHeaderImageUrl(item.headerImageUrl ?? "");
       } else {
         setTitle("");
         setSubtitle("");
-        setContent("");
-        setImageUrl("");
+        setHeaderImageUrl("");
       }
     } finally {
       setLoading(false);
@@ -59,28 +54,21 @@ export default function SobrePage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/site/about", {
+      const res = await fetch("/api/admin/site/formacoes-page", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim() || null,
           subtitle: subtitle.trim() || null,
-          content: content.trim() || null,
-          imageUrl: imageUrl.trim() || null,
+          headerImageUrl: headerImageUrl.trim() || null,
         }),
       });
-      const text = await res.text();
-      let json: ApiResponse<{ item: AboutItem }>;
-      try {
-        json = (text ? JSON.parse(text) : { ok: false, error: { code: "UNKNOWN", message: "Resposta vazia do servidor." } }) as ApiResponse<{ item: AboutItem }>;
-      } catch {
-        json = { ok: false, error: { code: "INVALID_JSON", message: "Resposta inválida do servidor." } } as ApiErr;
-      }
+      const json = (await res.json()) as ApiResponse<{ item: FormacoesPageItem }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
         return;
       }
-      toast.push("success", "Página Sobre atualizada.");
+      toast.push("success", "Conteúdo da página Formações atualizado.");
     } finally {
       setSaving(false);
     }
@@ -89,7 +77,7 @@ export default function SobrePage() {
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="text-lg font-semibold">Sobre</div>
+        <div className="text-lg font-semibold">Formações (página)</div>
         <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
       </div>
     );
@@ -98,27 +86,45 @@ export default function SobrePage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="text-lg font-semibold">Sobre</div>
-        <div className="text-sm text-[var(--text-secondary)]">Conteúdo exibido na página /sobre do site.</div>
+        <div className="text-lg font-semibold">Formações (página)</div>
+        <div className="text-sm text-[var(--text-secondary)]">
+          Título, subtítulo e foto de fundo do cabeçalho da página /formacoes do site.
+        </div>
       </div>
       <form className="flex flex-col gap-4" onSubmit={save}>
         <div>
           <label className="text-sm font-medium">Título</label>
-          <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Sobre o IGH" />
+          <Input
+            className="mt-1"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ex: Formações e Cursos"
+          />
         </div>
         <div>
           <label className="text-sm font-medium">Subtítulo</label>
-          <Input className="mt-1" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder="Ex: Conheça nossa missão..." />
-        </div>
-        <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
-          <label className="text-sm font-medium">Foto</label>
-          <p className="mt-0.5 text-xs text-[var(--text-muted)]">Imagem exibida na página Sobre do site. Cole a URL ou use o botão para enviar.</p>
-          <Input className="mt-2" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
-          <CloudinaryImageUpload kind="about" currentUrl={imageUrl || undefined} onUploaded={setImageUrl} label="Ou envie uma imagem" className="mt-2" />
+          <Input
+            className="mt-1"
+            value={subtitle}
+            onChange={(e) => setSubtitle(e.target.value)}
+            placeholder="Ex: Pré-requisito: Informática Básica."
+          />
         </div>
         <div>
-          <label className="text-sm font-medium">Conteúdo</label>
-          <RichTextEditor value={content} onChange={setContent} minHeight="200px" className="mt-1" />
+          <label className="text-sm font-medium">Foto de fundo do cabeçalho</label>
+          <Input
+            className="mt-1"
+            value={headerImageUrl}
+            onChange={(e) => setHeaderImageUrl(e.target.value)}
+            placeholder="https://..."
+          />
+          <CloudinaryImageUpload
+            kind="formations"
+            currentUrl={headerImageUrl || undefined}
+            onUploaded={setHeaderImageUrl}
+            label="Ou envie uma imagem"
+            className="mt-1"
+          />
         </div>
         <div className="flex justify-end">
           <Button type="submit" disabled={saving}>

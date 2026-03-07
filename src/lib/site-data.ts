@@ -81,13 +81,52 @@ export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
 }
 
 // --- Sobre (página institucional) ---
-export type AboutForSite = { title: string | null; subtitle: string | null; content: string | null };
+export type AboutForSite = { title: string | null; subtitle: string | null; content: string | null; imageUrl: string | null };
 
 export async function getAboutForSite(): Promise<AboutForSite | null> {
   try {
     const row = await prisma.siteAboutPage.findFirst({ orderBy: { updatedAt: "desc" } });
     if (!row) return null;
-    return { title: row.title, subtitle: row.subtitle, content: row.content };
+    return { title: row.title, subtitle: row.subtitle, content: row.content, imageUrl: row.imageUrl };
+  } catch {
+    return null;
+  }
+}
+
+// --- Página Formações (cabeçalho editável) ---
+export type FormacoesPageForSite = { title: string | null; subtitle: string | null; headerImageUrl: string | null };
+
+export async function getFormacoesPageForSite(): Promise<FormacoesPageForSite | null> {
+  try {
+    const row = await prisma.siteFormacoesPage.findFirst({ orderBy: { updatedAt: "desc" } });
+    if (!row) return null;
+    return { title: row.title, subtitle: row.subtitle, headerImageUrl: row.headerImageUrl };
+  } catch {
+    return null;
+  }
+}
+
+// --- Página Inscreva-se (cabeçalho editável) ---
+export type InscrevaPageForSite = { title: string | null; subtitle: string | null; headerImageUrl: string | null };
+
+export async function getInscrevaPageForSite(): Promise<InscrevaPageForSite | null> {
+  try {
+    const row = await prisma.siteInscrevaPage.findFirst({ orderBy: { updatedAt: "desc" } });
+    if (!row) return null;
+    return { title: row.title, subtitle: row.subtitle, headerImageUrl: row.headerImageUrl };
+  } catch {
+    return null;
+  }
+}
+
+// --- Página Contato (cabeçalho editável) ---
+export type ContatoPageForSite = { title: string | null; subtitle: string | null; headerImageUrl: string | null };
+
+export async function getContatoPageForSite(): Promise<ContatoPageForSite | null> {
+  try {
+    const row = await prisma.siteContatoPage.findFirst({ orderBy: { updatedAt: "desc" } });
+    if (!row) return null;
+    return { title: row.title, subtitle: row.subtitle, headerImageUrl: row.headerImageUrl };
   } catch {
     return null;
   }
@@ -419,6 +458,7 @@ export type ProjectForSite = {
   summary: string | null;
   content: string | null;
   coverImageUrl: string | null;
+  galleryImages: string[];
   order: number;
 };
 
@@ -434,10 +474,11 @@ export async function getProjectsForSite(): Promise<ProjectForSite[]> {
         summary: true,
         content: true,
         coverImageUrl: true,
+        galleryImages: true,
         order: true,
       },
     });
-    return list;
+    return list.map((p) => ({ ...p, galleryImages: p.galleryImages ?? [] }));
   } catch {
     return [];
   }
@@ -454,10 +495,12 @@ export async function getProjectBySlug(slug: string): Promise<ProjectForSite | n
         summary: true,
         content: true,
         coverImageUrl: true,
+        galleryImages: true,
         order: true,
       },
     });
-    return p;
+    if (!p) return null;
+    return { ...p, galleryImages: p.galleryImages ?? [] };
   } catch {
     return null;
   }

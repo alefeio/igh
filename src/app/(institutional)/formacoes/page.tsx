@@ -3,6 +3,7 @@ import {
   getFormationsForFilter,
   getCoursesForSite,
   getComoFuncionaFormacao,
+  getFormacoesPageForSite,
 } from "@/lib/site-data";
 
 export const metadata = {
@@ -15,15 +16,24 @@ type Props = { searchParams: Promise<{ formacao?: string }> };
 export default async function FormacoesPage({ searchParams }: Props) {
   const { formacao: formacaoSlug } = await searchParams;
 
-  const [formations, courses, comoFunciona] = await Promise.all([
+  const [formations, courses, comoFunciona, formacoesPage] = await Promise.all([
     getFormationsForFilter(),
     getCoursesForSite(formacaoSlug),
     Promise.resolve(getComoFuncionaFormacao()),
+    getFormacoesPageForSite(),
   ]);
+
+  const headerTitle = formacoesPage?.title?.trim() || "Formações e Cursos";
+  const headerSubtitle = formacoesPage?.subtitle?.trim() || "Pré-requisito: Informática Básica.";
+  const headerImageUrl = formacoesPage?.headerImageUrl?.trim() || null;
 
   return (
     <>
-      <PageHeader title="Formações e Cursos" subtitle="Pré-requisito: Informática Básica." />
+      <PageHeader
+        title={headerTitle}
+        subtitle={headerSubtitle}
+        backgroundImageUrl={headerImageUrl}
+      />
 
       <Section title="Formações">
         <FormacoesSection

@@ -145,7 +145,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
   ] = await Promise.all([
     prisma.student.count({ where: { deletedAt: null } }),
     prisma.teacher.count({ where: { deletedAt: null } }),
-    prisma.course.count(),
+    prisma.course.count({ where: { status: "ACTIVE" } }),
     prisma.classGroup.count(),
     prisma.enrollment.count(),
     prisma.enrollment.count({ where: { isPreEnrollment: true } }),

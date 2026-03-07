@@ -245,6 +245,8 @@ export function InscrevaForm() {
           setShowSecretariatMessage(true);
         } else {
           setEnrollmentSuccessName(student.name);
+          const newEnrolledIds = [...new Set([...enrolledCourseIds, ...selectedClassGroups.map((c) => c.courseId)])];
+          setEnrolledCourseIds(newEnrolledIds);
         }
         setCadastroName("");
         setCadastroCpf("");
@@ -255,9 +257,11 @@ export function InscrevaForm() {
         setCadastroGuardianCpf("");
       }
       setSelectedClassGroupIds([]);
-      setStudentToken(null);
-      setRegisteredWithoutEmail(false);
-      void load({ ignoreCourseId: true });
+      if (successCount === 0) {
+        setStudentToken(null);
+        setRegisteredWithoutEmail(false);
+        void load({ ignoreCourseId: true });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -447,26 +451,6 @@ export function InscrevaForm() {
           <p className="mt-2 text-sm theme-text-muted">
             Sua pré-matrícula foi registrada. Aguarde a confirmação pela equipe quando for o caso.
           </p>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3">
-            <Button as="link" href="/minhas-turmas" variant="primary" className="flex-1 sm:flex-initial">
-              Acessar Área do aluno
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="flex-1 sm:flex-initial"
-              onClick={async () => {
-                await fetch("/api/auth/logout", { method: "POST" });
-                setEnrollmentSuccessName(null);
-                setStudent(null);
-                setStudentToken(null);
-                setSelectedClassGroupIds([]);
-                void load();
-              }}
-            >
-              Não é {enrollmentSuccessName}, entre com uma conta diferente
-            </Button>
-          </div>
         </div>
       )}
 
@@ -492,12 +476,18 @@ export function InscrevaForm() {
             <dd className="font-medium" style={{ color: "var(--text-primary)" }}>{student.phone}</dd>
           </div>
         </dl>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3">
+          <Button as="link" href="/minhas-turmas" variant="primary" className="flex-1 sm:flex-initial">
+            Acessar área do aluno
+          </Button>
+        </div>
         <p className="mt-3 text-xs theme-text-muted">
           Não é você?{" "}
           <button
             type="button"
             onClick={async () => {
               await fetch("/api/auth/logout", { method: "POST" });
+              setEnrollmentSuccessName(null);
               setStudent(null);
               setStudentToken(null);
               setSelectedClassGroupIds([]);

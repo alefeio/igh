@@ -79,7 +79,7 @@ export default function FormacoesPage() {
       const formationsJson = (await formationsRes.json()) as ApiResponse<{ items: Formation[] }>;
       const coursesJson = (await coursesRes.json()) as ApiResponse<{ courses: CourseOption[] }>;
       if (!formationsRes.ok || !formationsJson.ok) {
-        toast.push("error", !formationsJson.ok ? formationsJson.error.message : "Falha ao carregar formações.");
+        toast.push("error", !formationsJson.ok ? formationsJson.error?.message : "Falha ao carregar formações.");
         return;
       }
       setItems(formationsJson.data.items);
@@ -196,12 +196,12 @@ export default function FormacoesPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="text-lg font-semibold">Formações</div>
-          <div className="text-sm text-[var(--text-secondary)]">Trilhas vinculadas aos cursos. Use no filtro da página Formações do site.</div>
+          <div>
+            <div className="text-lg font-semibold">Formações</div>
+            <div className="text-sm text-[var(--text-secondary)]">Trilhas vinculadas aos cursos. Use no filtro da página Formações do site.</div>
+          </div>
+          <Button onClick={openCreate}>Nova formação</Button>
         </div>
-        <Button onClick={openCreate}>Nova formação</Button>
-      </div>
 
       {loading ? (
         <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>

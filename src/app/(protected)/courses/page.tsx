@@ -24,7 +24,7 @@ type Course = {
   createdAt: string;
 };
 
-type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; contentRich?: string | null };
+type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; contentRich?: string | null };
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
 
 export default function CoursesPage() {
@@ -46,7 +46,7 @@ export default function CoursesPage() {
   const [moduleModal, setModuleModal] = useState<{ type: "create" | "edit"; module?: ModuleWithLessons } | null>(null);
   const [lessonModal, setLessonModal] = useState<{ type: "create" | "edit"; module: ModuleWithLessons; lesson?: Lesson } | null>(null);
   const [moduleForm, setModuleForm] = useState({ title: "", description: "", order: 0 });
-  const [lessonForm, setLessonForm] = useState({ title: "", order: 0, durationMinutes: "" as string | number, contentRich: "" });
+  const [lessonForm, setLessonForm] = useState({ title: "", order: 0, durationMinutes: "" as string | number, videoUrl: "", contentRich: "" });
 
   const canSubmit = useMemo(() => name.trim().length >= 2, [name]);
 
@@ -165,7 +165,7 @@ export default function CoursesPage() {
   }
 
   function openLessonCreate(mod: ModuleWithLessons) {
-    setLessonForm({ title: "", order: mod.lessons.length, durationMinutes: "", contentRich: "" });
+    setLessonForm({ title: "", order: mod.lessons.length, durationMinutes: "", videoUrl: "", contentRich: "" });
     setLessonModal({ type: "create", module: mod });
   }
 
@@ -174,6 +174,7 @@ export default function CoursesPage() {
       title: les.title,
       order: les.order,
       durationMinutes: les.durationMinutes ?? "",
+      videoUrl: les.videoUrl ?? "",
       contentRich: les.contentRich ?? "",
     });
     setLessonModal({ type: "edit", module: mod, lesson: les });
@@ -196,12 +197,24 @@ export default function CoursesPage() {
         title: lessonForm.title.trim(),
         order: Number(lessonForm.order) || 0,
         durationMinutes: duration,
+        videoUrl: lessonForm.videoUrl?.trim() || null,
         contentRich: lessonForm.contentRich?.trim() || null,
       }),
     });
-    const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+    const text = await res.text();
+    let json: ApiResponse<{ modules: ModuleWithLessons[] }>;
+    try {
+      json = (text ? JSON.parse(text) : { ok: false }) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+    } catch {
+      if (!res.ok) {
+        toast.push("error", res.status === 404 ? "Aula não encontrada. Recarregue a página e tente novamente." : `Erro ao salvar (${res.status}).`);
+        return;
+      }
+      json = { ok: false } as ApiResponse<{ modules: ModuleWithLessons[] }>;
+    }
     if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao salvar aula.");
+      const errMsg = json && !(json as { ok?: boolean }).ok && "error" in json ? (json as { error?: { message?: string } }).error?.message : null;
+      toast.push("error", errMsg ?? (res.status === 404 ? "Aula não encontrada. Recarregue a página." : "Falha ao salvar aula."));
       return;
     }
     toast.push("success", isEdit ? "Aula atualizada." : "Aula criada.");
@@ -622,6 +635,7 @@ export default function CoursesPage() {
           open={!!lessonModal}
           title={lessonModal.type === "edit" ? "Editar aula" : "Nova aula"}
           onClose={() => setLessonModal(null)}
+          size="large"
         >
           <form className="flex max-h-[80vh] flex-col gap-3 overflow-y-auto" onSubmit={saveLesson}>
             <div>
@@ -635,6 +649,17 @@ export default function CoursesPage() {
             <div>
               <label className="text-sm font-medium">Duração (minutos, opcional)</label>
               <Input type="number" min={0} className="mt-1" value={lessonForm.durationMinutes} onChange={(e) => setLessonForm((f) => ({ ...f, durationMinutes: e.target.value }))} placeholder="Ex: 75" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Vídeo (URL, opcional)</label>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Cole o link do vídeo (YouTube, Vimeo, etc.).</p>
+              <Input
+                className="mt-1"
+                type="url"
+                value={lessonForm.videoUrl}
+                onChange={(e) => setLessonForm((f) => ({ ...f, videoUrl: e.target.value }))}
+                placeholder="Ex: https://www.youtube.com/watch?v=..."
+              />
             </div>
             <div>
               <label className="text-sm font-medium">Conteúdo (rich text)</label>

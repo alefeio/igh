@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { PageHeader, Section } from "@/components/site";
+import { getInscrevaPageForSite } from "@/lib/site-data";
 import { InscrevaForm } from "./InscrevaForm";
 
 export const metadata = {
@@ -15,12 +16,18 @@ function InscrevaFormFallback() {
   );
 }
 
-export default function InscrevaPage() {
+export default async function InscrevaPage() {
+  const inscrevaPage = await getInscrevaPageForSite();
+  const headerTitle = inscrevaPage?.title?.trim() || "Inscreva-se";
+  const headerSubtitle = inscrevaPage?.subtitle?.trim() || "Faça sua pré-matrícula em uma das turmas disponíveis. Você pode fazer login se já tiver cadastro ou cadastrar-se com seus dados.";
+  const headerImageUrl = inscrevaPage?.headerImageUrl?.trim() || null;
+
   return (
     <>
       <PageHeader
-        title="Inscreva-se"
-        subtitle="Faça sua pré-matrícula em uma das turmas disponíveis. Você pode fazer login se já tiver cadastro ou cadastrar-se com seus dados."
+        title={headerTitle}
+        subtitle={headerSubtitle}
+        backgroundImageUrl={headerImageUrl}
       />
       <Section>
         <div className="mx-auto max-w-xl">

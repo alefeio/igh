@@ -19,6 +19,7 @@ type Project = {
   summary: string | null;
   content: string | null;
   coverImageUrl: string | null;
+  galleryImages: string[];
   order: number;
   isActive: boolean;
 };
@@ -43,6 +44,7 @@ export default function ProjetosPage() {
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
   const [coverImageUrl, setCoverImageUrl] = useState("");
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [isActive, setIsActive] = useState(true);
 
   function resetForm() {
@@ -51,6 +53,7 @@ export default function ProjetosPage() {
     setSummary("");
     setContent("");
     setCoverImageUrl("");
+    setGalleryImages([]);
     setIsActive(true);
     setEditing(null);
   }
@@ -86,6 +89,7 @@ export default function ProjetosPage() {
     setSummary(p.summary ?? "");
     setContent(p.content ?? "");
     setCoverImageUrl(p.coverImageUrl ?? "");
+    setGalleryImages(p.galleryImages ?? []);
     setIsActive(p.isActive);
     setOpen(true);
   }
@@ -113,6 +117,7 @@ export default function ProjetosPage() {
         summary: summary.trim() || undefined,
         content: content.trim() || undefined,
         coverImageUrl: coverImageUrl.trim() || undefined,
+        galleryImages: galleryImages.filter((u) => u?.trim()).map((u) => u.trim()),
         isActive,
       }),
     });
@@ -222,8 +227,54 @@ export default function ProjetosPage() {
           </div>
           <div>
             <label className="text-sm font-medium">URL da imagem de capa</label>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">Usada como fundo do título e subtítulo na página do projeto.</p>
             <Input className="mt-1" value={coverImageUrl} onChange={(e) => setCoverImageUrl(e.target.value)} placeholder="https://..." />
             <CloudinaryImageUpload kind="projects" currentUrl={coverImageUrl || undefined} onUploaded={setCoverImageUrl} label="Ou envie uma imagem" />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Galeria de fotos</label>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">Várias imagens exibidas na página do projeto.</p>
+            <div className="mt-2 space-y-2">
+              {galleryImages.map((url, i) => (
+                <div key={i} className="flex gap-2 items-start">
+                  <Input
+                    className="flex-1"
+                    value={url}
+                    onChange={(e) => {
+                      const next = [...galleryImages];
+                      next[i] = e.target.value;
+                      setGalleryImages(next);
+                    }}
+                    placeholder="https://..."
+                  />
+                  <CloudinaryImageUpload
+                    kind="projects"
+                    currentUrl={url || undefined}
+                    onUploaded={(u) => {
+                      const next = [...galleryImages];
+                      next[i] = u;
+                      setGalleryImages(next);
+                    }}
+                    label="Enviar"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="shrink-0 text-red-600"
+                    onClick={() => setGalleryImages(galleryImages.filter((_, j) => j !== i))}
+                  >
+                    Remover
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setGalleryImages([...galleryImages, ""])}
+              >
+                + Adicionar foto
+              </Button>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="projActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
