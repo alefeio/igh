@@ -75,9 +75,7 @@ export function RichTextEditor({
         HTMLAttributes: { target: "_blank", rel: "noopener noreferrer" },
       }),
       ImageWithResize,
-      TableKit.configure({
-        HTMLAttributes: { class: "rte-table border-collapse w-full my-3" },
-      }),
+      TableKit,
     ],
     content: parseContent(value) || "",
     immediatelyRender: false,
