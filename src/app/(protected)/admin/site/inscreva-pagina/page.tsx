@@ -118,13 +118,14 @@ export default function InscrevaPaginaPage() {
             onChange={(e) => setHeaderImageUrl(e.target.value)}
             placeholder="https://..."
           />
-          <CloudinaryImageUpload
-            kind="inscreva"
-            currentUrl={headerImageUrl || undefined}
-            onUploaded={setHeaderImageUrl}
-            label="Ou envie uma imagem"
-            className="mt-1"
-          />
+          <div className="mt-1">
+            <CloudinaryImageUpload
+              kind="inscreva"
+              currentUrl={headerImageUrl || undefined}
+              onUploaded={setHeaderImageUrl}
+              label="Ou envie uma imagem"
+            />
+          </div>
         </div>
         <div className="flex justify-end">
           <Button type="submit" disabled={saving}>

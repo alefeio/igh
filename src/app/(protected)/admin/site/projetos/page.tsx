@@ -46,6 +46,7 @@ export default function ProjetosPage() {
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   function resetForm() {
     setTitle("");
@@ -105,31 +106,37 @@ export default function ProjetosPage() {
       toast.push("error", "Título é obrigatório.");
       return;
     }
-    const slugVal = slug.trim() || slugify(title);
-    const url = editing ? `/api/admin/site/projects/${editing.id}` : "/api/admin/site/projects";
-    const method = editing ? "PATCH" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: title.trim(),
-        slug: slugVal,
-        summary: summary.trim() || undefined,
-        content: content.trim() || undefined,
-        coverImageUrl: coverImageUrl.trim() || undefined,
-        galleryImages: galleryImages.filter((u) => u?.trim()).map((u) => u.trim()),
-        isActive,
-      }),
-    });
-    const json = (await res.json()) as ApiResponse<{ item: Project }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
-      return;
+    if (saving) return;
+    setSaving(true);
+    try {
+      const slugVal = slug.trim() || slugify(title);
+      const url = editing ? `/api/admin/site/projects/${editing.id}` : "/api/admin/site/projects";
+      const method = editing ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          slug: slugVal,
+          summary: summary.trim() || undefined,
+          content: content.trim() || undefined,
+          coverImageUrl: coverImageUrl.trim() || undefined,
+          galleryImages: galleryImages.filter((u) => u?.trim()).map((u) => u.trim()),
+          isActive,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ item: Project }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
+        return;
+      }
+      toast.push("success", editing ? "Projeto atualizado." : "Projeto criado.");
+      setOpen(false);
+      resetForm();
+      void load();
+    } finally {
+      setSaving(false);
     }
-    toast.push("success", editing ? "Projeto atualizado." : "Projeto criado.");
-    setOpen(false);
-    resetForm();
-    void load();
   }
 
   async function remove(p: Project) {
@@ -282,7 +289,7 @@ export default function ProjetosPage() {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>Cancelar</Button>
-            <Button type="submit">Salvar</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Salvando" : "Salvar"}</Button>
           </div>
         </form>
       </Modal>

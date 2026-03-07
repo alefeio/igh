@@ -1,4 +1,4 @@
-import { PageHeader, Section, FormacoesSection, Card } from "@/components/site";
+import { PageHeader, Section, FormacoesSection, Card, Button } from "@/components/site";
 import {
   getFormationsForFilter,
   getCoursesForSite,
@@ -51,6 +51,11 @@ export default async function FormacoesPage({ searchParams }: Props) {
               <p className="mt-2 text-sm text-[var(--igh-muted)]">{etapa.descricao}</p>
             </Card>
           ))}
+        </div>
+        <div className="mt-8 flex justify-center">
+          <Button as="link" href="/inscreva" variant="primary" size="lg">
+            Quero me inscrever
+          </Button>
         </div>
       </Section>
     </>

@@ -68,6 +68,8 @@ export default function TransparenciaPage() {
   const [docDate, setDocDate] = useState("");
   const [docFileUrl, setDocFileUrl] = useState("");
   const [docActive, setDocActive] = useState(true);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [savingDocument, setSavingDocument] = useState(false);
 
   function resetCatForm() {
     setCatName("");
@@ -141,30 +143,36 @@ export default function TransparenciaPage() {
       toast.push("error", "Nome é obrigatório.");
       return;
     }
-    const slugVal = catSlug.trim() || slugify(catName);
-    const url = catEditing
-      ? `/api/admin/site/transparency/categories/${catEditing.id}`
-      : "/api/admin/site/transparency/categories";
-    const method = catEditing ? "PATCH" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: catName.trim(),
-        slug: slugVal,
-        order: catOrder,
-        isActive: catActive,
-      }),
-    });
-    const json = (await res.json()) as ApiResponse<{ item: Category }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
-      return;
+    if (savingCategory) return;
+    setSavingCategory(true);
+    try {
+      const slugVal = catSlug.trim() || slugify(catName);
+      const url = catEditing
+        ? `/api/admin/site/transparency/categories/${catEditing.id}`
+        : "/api/admin/site/transparency/categories";
+      const method = catEditing ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: catName.trim(),
+          slug: slugVal,
+          order: catOrder,
+          isActive: catActive,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ item: Category }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
+        return;
+      }
+      toast.push("success", catEditing ? "Categoria atualizada." : "Categoria criada.");
+      setCatOpen(false);
+      resetCatForm();
+      void load();
+    } finally {
+      setSavingCategory(false);
     }
-    toast.push("success", catEditing ? "Categoria atualizada." : "Categoria criada.");
-    setCatOpen(false);
-    resetCatForm();
-    void load();
   }
 
   async function removeCategory(c: Category) {
@@ -224,31 +232,37 @@ export default function TransparenciaPage() {
       toast.push("error", "Selecione uma categoria.");
       return;
     }
-    const url = docEditing
-      ? `/api/admin/site/transparency/documents/${docEditing.id}`
-      : "/api/admin/site/transparency/documents";
-    const method = docEditing ? "PATCH" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        categoryId: docCategoryId,
-        title: docTitle.trim(),
-        description: docDescription.trim() || undefined,
-        date: docDate || null,
-        fileUrl: docFileUrl.trim() || undefined,
-        isActive: docActive,
-      }),
-    });
-    const json = (await res.json()) as ApiResponse<{ item: Document }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
-      return;
+    if (savingDocument) return;
+    setSavingDocument(true);
+    try {
+      const url = docEditing
+        ? `/api/admin/site/transparency/documents/${docEditing.id}`
+        : "/api/admin/site/transparency/documents";
+      const method = docEditing ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoryId: docCategoryId,
+          title: docTitle.trim(),
+          description: docDescription.trim() || undefined,
+          date: docDate || null,
+          fileUrl: docFileUrl.trim() || undefined,
+          isActive: docActive,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ item: Document }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
+        return;
+      }
+      toast.push("success", docEditing ? "Documento atualizado." : "Documento criado.");
+      setDocOpen(false);
+      resetDocForm();
+      void load();
+    } finally {
+      setSavingDocument(false);
     }
-    toast.push("success", docEditing ? "Documento atualizado." : "Documento criado.");
-    setDocOpen(false);
-    resetDocForm();
-    void load();
   }
 
   async function removeDocument(d: Document) {

@@ -24,7 +24,7 @@ type Course = {
   createdAt: string;
 };
 
-type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; contentRich?: string | null };
+type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null };
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
 
 export default function CoursesPage() {
@@ -46,7 +46,10 @@ export default function CoursesPage() {
   const [moduleModal, setModuleModal] = useState<{ type: "create" | "edit"; module?: ModuleWithLessons } | null>(null);
   const [lessonModal, setLessonModal] = useState<{ type: "create" | "edit"; module: ModuleWithLessons; lesson?: Lesson } | null>(null);
   const [moduleForm, setModuleForm] = useState({ title: "", description: "", order: 0 });
-  const [lessonForm, setLessonForm] = useState({ title: "", order: 0, durationMinutes: "" as string | number, videoUrl: "", contentRich: "" });
+  const [lessonForm, setLessonForm] = useState({ title: "", order: 0, durationMinutes: "" as string | number, videoUrl: "", imageUrls: [] as string[], contentRich: "" });
+  const [savingCourse, setSavingCourse] = useState(false);
+  const [savingModule, setSavingModule] = useState(false);
+  const [savingLesson, setSavingLesson] = useState(false);
 
   const canSubmit = useMemo(() => name.trim().length >= 2, [name]);
 
@@ -126,29 +129,34 @@ export default function CoursesPage() {
 
   async function saveModule(e: React.FormEvent) {
     e.preventDefault();
-    if (!editing?.id || !moduleForm.title.trim()) return;
-    const isEdit = moduleModal?.type === "edit" && moduleModal?.module;
-    const url = isEdit
-      ? `/api/courses/${editing.id}/modules/${moduleModal!.module!.id}`
-      : `/api/courses/${editing.id}/modules`;
-    const method = isEdit ? "PATCH" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: moduleForm.title.trim(),
-        description: moduleForm.description.trim() || undefined,
-        order: moduleForm.order,
-      }),
-    });
-    const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao salvar módulo.");
-      return;
+    if (!editing?.id || !moduleForm.title.trim() || savingModule) return;
+    setSavingModule(true);
+    try {
+      const isEdit = moduleModal?.type === "edit" && moduleModal?.module;
+      const url = isEdit
+        ? `/api/courses/${editing.id}/modules/${moduleModal!.module!.id}`
+        : `/api/courses/${editing.id}/modules`;
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: moduleForm.title.trim(),
+          description: moduleForm.description.trim() || undefined,
+          order: moduleForm.order,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao salvar módulo.");
+        return;
+      }
+      toast.push("success", isEdit ? "Módulo atualizado." : "Módulo criado.");
+      if (json.data?.modules) setModules(json.data.modules);
+      setModuleModal(null);
+    } finally {
+      setSavingModule(false);
     }
-    toast.push("success", isEdit ? "Módulo atualizado." : "Módulo criado.");
-    if (json.data?.modules) setModules(json.data.modules);
-    setModuleModal(null);
   }
 
   async function deleteModule(mod: ModuleWithLessons) {
@@ -165,7 +173,7 @@ export default function CoursesPage() {
   }
 
   function openLessonCreate(mod: ModuleWithLessons) {
-    setLessonForm({ title: "", order: mod.lessons.length, durationMinutes: "", videoUrl: "", contentRich: "" });
+    setLessonForm({ title: "", order: mod.lessons.length, durationMinutes: "", videoUrl: "", imageUrls: [], contentRich: "" });
     setLessonModal({ type: "create", module: mod });
   }
 
@@ -175,6 +183,7 @@ export default function CoursesPage() {
       order: les.order,
       durationMinutes: les.durationMinutes ?? "",
       videoUrl: les.videoUrl ?? "",
+      imageUrls: les.imageUrls ?? [],
       contentRich: les.contentRich ?? "",
     });
     setLessonModal({ type: "edit", module: mod, lesson: les });
@@ -182,44 +191,50 @@ export default function CoursesPage() {
 
   async function saveLesson(e: React.FormEvent) {
     e.preventDefault();
-    if (!editing?.id || !lessonModal || !lessonForm.title.trim()) return;
-    const mod = lessonModal.module;
-    const isEdit = lessonModal.type === "edit" && lessonModal.lesson;
-    const url = isEdit
-      ? `/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson!.id}`
-      : `/api/courses/${editing.id}/modules/${mod.id}/lessons`;
-    const method = isEdit ? "PATCH" : "POST";
-    const duration = lessonForm.durationMinutes === "" ? null : Number(lessonForm.durationMinutes);
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: lessonForm.title.trim(),
-        order: Number(lessonForm.order) || 0,
-        durationMinutes: duration,
-        videoUrl: lessonForm.videoUrl?.trim() || null,
-        contentRich: lessonForm.contentRich?.trim() || null,
-      }),
-    });
-    const text = await res.text();
-    let json: ApiResponse<{ modules: ModuleWithLessons[] }>;
+    if (!editing?.id || !lessonModal || !lessonForm.title.trim() || savingLesson) return;
+    setSavingLesson(true);
     try {
-      json = (text ? JSON.parse(text) : { ok: false }) as ApiResponse<{ modules: ModuleWithLessons[] }>;
-    } catch {
-      if (!res.ok) {
-        toast.push("error", res.status === 404 ? "Aula não encontrada. Recarregue a página e tente novamente." : `Erro ao salvar (${res.status}).`);
+      const mod = lessonModal.module;
+      const isEdit = lessonModal.type === "edit" && lessonModal.lesson;
+      const url = isEdit
+        ? `/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson!.id}`
+        : `/api/courses/${editing.id}/modules/${mod.id}/lessons`;
+      const method = isEdit ? "PATCH" : "POST";
+      const duration = lessonForm.durationMinutes === "" ? null : Number(lessonForm.durationMinutes);
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: lessonForm.title.trim(),
+          order: Number(lessonForm.order) || 0,
+          durationMinutes: duration,
+          videoUrl: lessonForm.videoUrl?.trim() || null,
+          imageUrls: lessonForm.imageUrls ?? [],
+          contentRich: lessonForm.contentRich?.trim() || null,
+        }),
+      });
+      const text = await res.text();
+      let json: ApiResponse<{ modules: ModuleWithLessons[] }>;
+      try {
+        json = (text ? JSON.parse(text) : { ok: false }) as ApiResponse<{ modules: ModuleWithLessons[] }>;
+      } catch {
+        if (!res.ok) {
+          toast.push("error", res.status === 404 ? "Aula não encontrada. Recarregue a página e tente novamente." : `Erro ao salvar (${res.status}).`);
+          return;
+        }
+        json = { ok: false } as ApiResponse<{ modules: ModuleWithLessons[] }>;
+      }
+      if (!res.ok || !json.ok) {
+        const errMsg = json && !(json as { ok?: boolean }).ok && "error" in json ? (json as { error?: { message?: string } }).error?.message : null;
+        toast.push("error", errMsg ?? (res.status === 404 ? "Aula não encontrada. Recarregue a página." : "Falha ao salvar aula."));
         return;
       }
-      json = { ok: false } as ApiResponse<{ modules: ModuleWithLessons[] }>;
+      toast.push("success", isEdit ? "Aula atualizada." : "Aula criada.");
+      if (json.data?.modules) setModules(json.data.modules);
+      setLessonModal(null);
+    } finally {
+      setSavingLesson(false);
     }
-    if (!res.ok || !json.ok) {
-      const errMsg = json && !(json as { ok?: boolean }).ok && "error" in json ? (json as { error?: { message?: string } }).error?.message : null;
-      toast.push("error", errMsg ?? (res.status === 404 ? "Aula não encontrada. Recarregue a página." : "Falha ao salvar aula."));
-      return;
-    }
-    toast.push("success", isEdit ? "Aula atualizada." : "Aula criada.");
-    if (json.data?.modules) setModules(json.data.modules);
-    setLessonModal(null);
   }
 
   async function deleteLesson(mod: ModuleWithLessons, les: Lesson) {
@@ -305,8 +320,9 @@ export default function CoursesPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
-
+    if (!canSubmit || savingCourse) return;
+    setSavingCourse(true);
+    try {
     const payload: {
       name: string;
       description: string;
@@ -342,6 +358,9 @@ export default function CoursesPage() {
     setOpen(false);
     resetForm();
     await load();
+    } finally {
+      setSavingCourse(false);
+    }
   }
 
   const visibleItems = showInactive ? items : items.filter((c) => c.status === "ACTIVE");
@@ -596,8 +615,8 @@ export default function CoursesPage() {
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              Salvar
+            <Button type="submit" disabled={!canSubmit || savingCourse}>
+              {savingCourse ? "Salvando" : "Salvar"}
             </Button>
           </div>
         </form>
@@ -623,8 +642,8 @@ export default function CoursesPage() {
               <Input type="number" min={0} className="mt-1" value={moduleForm.order} onChange={(e) => setModuleForm((f) => ({ ...f, order: parseInt(e.target.value, 10) || 0 }))} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="secondary" onClick={() => setModuleModal(null)}>Cancelar</Button>
-              <Button type="submit">Salvar</Button>
+              <Button type="button" variant="secondary" onClick={() => setModuleModal(null)} disabled={savingModule}>Cancelar</Button>
+              <Button type="submit" disabled={savingModule}>{savingModule ? "Salvando" : "Salvar"}</Button>
             </div>
           </form>
         </Modal>
@@ -662,6 +681,48 @@ export default function CoursesPage() {
               />
             </div>
             <div>
+              <label className="text-sm font-medium">Imagens da aula</label>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens para usar no conteúdo (copie o endereço e cole no rich text).</p>
+              <div className="mt-1">
+                <CloudinaryImageUpload
+                  kind="formations"
+                  currentUrl={undefined}
+                  onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
+                  label="Adicionar imagem"
+                />
+              </div>
+              {lessonForm.imageUrls && lessonForm.imageUrls.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {lessonForm.imageUrls.map((url, idx) => (
+                    <li key={`${url}-${idx}`} className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
+                      <img src={url} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
+                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(url);
+                          toast.push("success", "Endereço copiado.");
+                        }}
+                      >
+                        Copiar endereço
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="text-red-600"
+                        onClick={() => setLessonForm((f) => ({ ...f, imageUrls: (f.imageUrls ?? []).filter((_, i) => i !== idx) }))}
+                      >
+                        Remover
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
               <label className="text-sm font-medium">Conteúdo (rich text)</label>
               <RichTextEditor
                 key={lessonModal.type === "edit" ? lessonModal.lesson?.id : "new"}
@@ -672,8 +733,8 @@ export default function CoursesPage() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="secondary" onClick={() => setLessonModal(null)}>Cancelar</Button>
-              <Button type="submit">Salvar</Button>
+              <Button type="button" variant="secondary" onClick={() => setLessonModal(null)} disabled={savingLesson}>Cancelar</Button>
+              <Button type="submit" disabled={savingLesson}>{savingLesson ? "Salvando" : "Salvar"}</Button>
             </div>
           </form>
         </Modal>

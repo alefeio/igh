@@ -31,6 +31,7 @@ export default function TimeSlotsPage() {
   const [endTime, setEndTime] = useState("10:00");
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const canSubmit = useMemo(
     () => startTime.trim().length >= 3 && endTime.trim().length >= 3,
@@ -81,43 +82,47 @@ export default function TimeSlotsPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || saving) return;
+    setSaving(true);
+    try {
+      const payload = {
+        startTime: startTime.trim(),
+        endTime: endTime.trim(),
+        name: name.trim() || undefined,
+        isActive,
+      };
 
-    const payload = {
-      startTime: startTime.trim(),
-      endTime: endTime.trim(),
-      name: name.trim() || undefined,
-      isActive,
-    };
-
-    if (editing) {
-      const res = await fetch(`/api/time-slots/${editing.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = (await res.json()) as ApiResponse<{ timeSlot: TimeSlot }>;
-      if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar horário.");
-        return;
+      if (editing) {
+        const res = await fetch(`/api/time-slots/${editing.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = (await res.json()) as ApiResponse<{ timeSlot: TimeSlot }>;
+        if (!res.ok || !json.ok) {
+          toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar horário.");
+          return;
+        }
+        toast.push("success", "Horário atualizado.");
+      } else {
+        const res = await fetch("/api/time-slots", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = (await res.json()) as ApiResponse<{ timeSlot: TimeSlot }>;
+        if (!res.ok || !json.ok) {
+          toast.push("error", !json.ok ? json.error.message : "Falha ao criar horário.");
+          return;
+        }
+        toast.push("success", "Horário criado.");
       }
-      toast.push("success", "Horário atualizado.");
-    } else {
-      const res = await fetch("/api/time-slots", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = (await res.json()) as ApiResponse<{ timeSlot: TimeSlot }>;
-      if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao criar horário.");
-        return;
-      }
-      toast.push("success", "Horário criado.");
+      setOpen(false);
+      resetForm();
+      await load();
+    } finally {
+      setSaving(false);
     }
-    setOpen(false);
-    resetForm();
-    await load();
   }
 
   async function inactivateSlot(slot: TimeSlot) {
@@ -305,8 +310,8 @@ export default function TimeSlotsPage() {
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              Salvar
+            <Button type="submit" disabled={!canSubmit || saving}>
+              {saving ? "Salvando" : "Salvar"}
             </Button>
           </div>
         </form>

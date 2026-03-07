@@ -7,6 +7,7 @@ export type LessonForList = {
   order: number;
   durationMinutes: number | null;
   videoUrl: string | null;
+  imageUrls: string[];
   contentRich: string | null;
 };
 
@@ -35,6 +36,8 @@ export async function getModulesWithLessonsByCourseId(
           title: true,
           order: true,
           durationMinutes: true,
+          videoUrl: true,
+          imageUrls: true,
           contentRich: true,
         },
       },
@@ -51,6 +54,7 @@ export async function getModulesWithLessonsByCourseId(
       order: l.order,
       durationMinutes: l.durationMinutes,
       videoUrl: l.videoUrl,
+      imageUrls: l.imageUrls ?? [],
       contentRich: l.contentRich,
     })),
   }));

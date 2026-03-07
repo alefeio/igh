@@ -42,6 +42,7 @@ export default function HolidaysPage() {
   const [date, setDate] = useState("");
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const canSubmit = useMemo(() => date.trim().length >= 10, [date]);
 
@@ -90,44 +91,48 @@ export default function HolidaysPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || saving) return;
+    setSaving(true);
+    try {
+      const dateStr = date.trim();
+      const payload = {
+        recurring,
+        date: recurring && dateStr.length === 10 ? `2000-${dateStr.slice(5, 10)}` : dateStr,
+        name: name.trim() || undefined,
+        isActive,
+      };
 
-    const dateStr = date.trim();
-    const payload = {
-      recurring,
-      date: recurring && dateStr.length === 10 ? `2000-${dateStr.slice(5, 10)}` : dateStr,
-      name: name.trim() || undefined,
-      isActive,
-    };
-
-    if (editing) {
-      const res = await fetch(`/api/holidays/${editing.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = (await res.json()) as ApiResponse<{ holiday: Holiday }>;
-      if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar feriado.");
-        return;
+      if (editing) {
+        const res = await fetch(`/api/holidays/${editing.id}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = (await res.json()) as ApiResponse<{ holiday: Holiday }>;
+        if (!res.ok || !json.ok) {
+          toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar feriado.");
+          return;
+        }
+        toast.push("success", "Feriado atualizado.");
+      } else {
+        const res = await fetch("/api/holidays", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = (await res.json()) as ApiResponse<{ holiday: Holiday }>;
+        if (!res.ok || !json.ok) {
+          toast.push("error", !json.ok ? json.error.message : "Falha ao criar feriado.");
+          return;
+        }
+        toast.push("success", "Feriado criado.");
       }
-      toast.push("success", "Feriado atualizado.");
-    } else {
-      const res = await fetch("/api/holidays", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = (await res.json()) as ApiResponse<{ holiday: Holiday }>;
-      if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao criar feriado.");
-        return;
-      }
-      toast.push("success", "Feriado criado.");
+      setOpen(false);
+      resetForm();
+      await load();
+    } finally {
+      setSaving(false);
     }
-    setOpen(false);
-    resetForm();
-    await load();
   }
 
   async function inactivateHoliday(h: Holiday) {
@@ -341,8 +346,8 @@ export default function HolidaysPage() {
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              Salvar
+            <Button type="submit" disabled={!canSubmit || saving}>
+              {saving ? "Salvando" : "Salvar"}
             </Button>
           </div>
         </form>

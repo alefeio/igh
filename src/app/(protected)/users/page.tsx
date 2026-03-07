@@ -36,6 +36,8 @@ export default function UsersPage() {
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
+  const [savingCreate, setSavingCreate] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const canSubmit = useMemo(
     () => name.trim().length >= 2 && email.includes("@"),
@@ -77,29 +79,33 @@ export default function UsersPage() {
 
   async function updateAdmin(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmitEdit || !editing) return;
+    if (!canSubmitEdit || !editing || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      const payload: { name: string; email: string; isActive: boolean; password?: string } = {
+        name: editName,
+        email: editEmail,
+        isActive: editIsActive,
+      };
+      if (editPassword.trim() !== "") payload.password = editPassword;
 
-    const payload: { name: string; email: string; isActive: boolean; password?: string } = {
-      name: editName,
-      email: editEmail,
-      isActive: editIsActive,
-    };
-    if (editPassword.trim() !== "") payload.password = editPassword;
-
-    const res = await fetch(`/api/admin/users/${editing.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = (await res.json()) as ApiResponse<{ user: AdminUser }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar usuário.");
-      return;
+      const res = await fetch(`/api/admin/users/${editing.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = (await res.json()) as ApiResponse<{ user: AdminUser }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar usuário.");
+        return;
+      }
+      toast.push("success", "Usuário atualizado.");
+      setEditOpen(false);
+      setEditing(null);
+      await load();
+    } finally {
+      setSavingEdit(false);
     }
-    toast.push("success", "Usuário atualizado.");
-    setEditOpen(false);
-    setEditing(null);
-    await load();
   }
 
   async function deactivateUser(u: AdminUser) {
@@ -143,26 +149,27 @@ export default function UsersPage() {
 
   async function createAdmin(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
-
-    const res = await fetch("/api/admin/users", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, email }),
-    });
-    const json = (await res.json()) as ApiResponse<{
-      user: { id: string };
-      emailSent?: boolean;
-      temporaryPassword?: string;
-      alreadyRegisteredAs?: string;
-    }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao criar admin.");
-      return;
-    }
-    if (json.data.alreadyRegisteredAs) {
-      toast.push(
-        "success",
+    if (!canSubmit || savingCreate) return;
+    setSavingCreate(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, email }),
+      });
+      const json = (await res.json()) as ApiResponse<{
+        user: { id: string };
+        emailSent?: boolean;
+        temporaryPassword?: string;
+        alreadyRegisteredAs?: string;
+      }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao criar admin.");
+        return;
+      }
+      if (json.data.alreadyRegisteredAs) {
+        toast.push(
+          "success",
         `Usuário já cadastrado como ${json.data.alreadyRegisteredAs}. Foi concedido acesso como Admin. Ao entrar no sistema, ele poderá escolher usar como ${json.data.alreadyRegisteredAs} ou Admin.`
       );
     } else if (json.data.emailSent) {
@@ -171,10 +178,13 @@ export default function UsersPage() {
       const senha = json.data.temporaryPassword ? ` Senha temporária: ${json.data.temporaryPassword}.` : "";
       toast.push("error", `Admin criado, mas o e-mail não foi enviado. Passe o link de login e essa senha ao novo usuário.${senha}`);
     }
-    setOpen(false);
-    setName("");
-    setEmail("");
-    await load();
+      setOpen(false);
+      setName("");
+      setEmail("");
+      await load();
+    } finally {
+      setSavingCreate(false);
+    }
   }
 
   const visibleUsers = showInactive ? users : users.filter((u) => u.isActive);
@@ -311,8 +321,8 @@ export default function UsersPage() {
             <Button type="button" variant="secondary" onClick={() => { setEditOpen(false); setEditing(null); }}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!canSubmitEdit}>
-              Salvar
+            <Button type="submit" disabled={!canSubmitEdit || savingEdit}>
+              {savingEdit ? "Salvando" : "Salvar"}
             </Button>
           </div>
         </form>
@@ -339,8 +349,8 @@ export default function UsersPage() {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              Criar
+            <Button type="submit" disabled={!canSubmit || savingCreate}>
+              {savingCreate ? "Criando" : "Criar"}
             </Button>
           </div>
         </form>

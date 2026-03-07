@@ -45,6 +45,7 @@ export default function TeachersPage() {
   const [editing, setEditing] = useState<Teacher | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
 
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -98,31 +99,35 @@ export default function TeachersPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || saving) return;
+    setSaving(true);
+    try {
+      const payload = {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        isActive,
+      };
+      const url = editing ? `/api/teachers/${editing.id}` : "/api/teachers";
+      const method = editing ? "PATCH" : "POST";
 
-    const payload = {
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim() || undefined,
-      isActive,
-    };
-    const url = editing ? `/api/teachers/${editing.id}` : "/api/teachers";
-    const method = editing ? "PATCH" : "POST";
-
-    const res = await fetch(url, {
-      method,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await parseResponseJson<{ teacher: Teacher }>(res);
-    if (!res.ok || !json?.ok) {
-      toast.push("error", apiErrorMessage(json, "Falha ao salvar professor."));
-      return;
+      const res = await fetch(url, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await parseResponseJson<{ teacher: Teacher }>(res);
+      if (!res.ok || !json?.ok) {
+        toast.push("error", apiErrorMessage(json, "Falha ao salvar professor."));
+        return;
+      }
+      toast.push("success", editing ? "Professor atualizado." : "Professor criado.");
+      setOpen(false);
+      resetForm();
+      await load();
+    } finally {
+      setSaving(false);
     }
-    toast.push("success", editing ? "Professor atualizado." : "Professor criado.");
-    setOpen(false);
-    resetForm();
-    await load();
   }
 
   async function inactivateTeacher(t: Teacher) {
@@ -300,8 +305,8 @@ export default function TeachersPage() {
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              Salvar
+            <Button type="submit" disabled={!canSubmit || saving}>
+              {saving ? "Salvando" : "Salvar"}
             </Button>
           </div>
         </form>

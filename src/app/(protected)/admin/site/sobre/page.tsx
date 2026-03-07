@@ -114,7 +114,9 @@ export default function SobrePage() {
           <label className="text-sm font-medium">Foto</label>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">Imagem exibida na página Sobre do site. Cole a URL ou use o botão para enviar.</p>
           <Input className="mt-2" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
-          <CloudinaryImageUpload kind="about" currentUrl={imageUrl || undefined} onUploaded={setImageUrl} label="Ou envie uma imagem" className="mt-2" />
+          <div className="mt-2">
+            <CloudinaryImageUpload kind="about" currentUrl={imageUrl || undefined} onUploaded={setImageUrl} label="Ou envie uma imagem" />
+          </div>
         </div>
         <div>
           <label className="text-sm font-medium">Conteúdo</label>

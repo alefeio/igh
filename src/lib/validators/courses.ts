@@ -25,5 +25,6 @@ export const courseLessonSchema = z.object({
   order: z.number().int().min(0),
   durationMinutes: z.number().int().positive().optional().nullable(),
   videoUrl: z.union([z.string().url(), z.literal("")]).optional().nullable(),
+  imageUrls: z.array(z.string().url()).optional(),
   contentRich: z.string().optional().nullable().or(z.literal("")),
 });

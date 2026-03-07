@@ -109,6 +109,7 @@ model CourseLesson {
   order           Int          @default(0)
   durationMinutes Int?
   videoUrl        String?
+  imageUrls       String[]     @default([])
   contentRich     String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt

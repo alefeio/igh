@@ -53,6 +53,7 @@ export default function FormacoesPage() {
   const [prerequisites, setPrerequisites] = useState("");
   const [order, setOrder] = useState<string>("");
   const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
 
   function resetForm() {
@@ -126,41 +127,47 @@ export default function FormacoesPage() {
       toast.push("error", "Título é obrigatório.");
       return;
     }
-    const finalSlug = slug.trim() || slugify(title);
-    const outcomes = outcomesText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    if (saving) return;
+    setSaving(true);
+    try {
+      const finalSlug = slug.trim() || slugify(title);
+      const outcomes = outcomesText
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
 
-    const payload = {
-      title: title.trim(),
-      slug: finalSlug,
-      summary: summary.trim() || undefined,
-      audience: audience.trim() || undefined,
-      outcomes,
-      finalProject: finalProject.trim() || undefined,
-      prerequisites: prerequisites.trim() || undefined,
-      order: order.trim() !== "" ? parseInt(order, 10) : undefined,
-      isActive,
-      courseIds: selectedCourseIds,
-    };
+      const payload = {
+        title: title.trim(),
+        slug: finalSlug,
+        summary: summary.trim() || undefined,
+        audience: audience.trim() || undefined,
+        outcomes,
+        finalProject: finalProject.trim() || undefined,
+        prerequisites: prerequisites.trim() || undefined,
+        order: order.trim() !== "" ? parseInt(order, 10) : undefined,
+        isActive,
+        courseIds: selectedCourseIds,
+      };
 
-    const url = editing ? `/api/admin/site/formations/${editing.id}` : "/api/admin/site/formations";
-    const method = editing ? "PATCH" : "POST";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = (await res.json()) as ApiResponse<{ item: Formation }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error?.message ?? "Falha ao salvar." : "Falha ao salvar.");
-      return;
+      const url = editing ? `/api/admin/site/formations/${editing.id}` : "/api/admin/site/formations";
+      const method = editing ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = (await res.json()) as ApiResponse<{ item: Formation }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error?.message ?? "Falha ao salvar." : "Falha ao salvar.");
+        return;
+      }
+      toast.push("success", editing ? "Formação atualizada." : "Formação criada.");
+      setOpen(false);
+      resetForm();
+      await load();
+    } finally {
+      setSaving(false);
     }
-    toast.push("success", editing ? "Formação atualizada." : "Formação criada.");
-    setOpen(false);
-    resetForm();
-    await load();
   }
 
   async function remove(item: Formation) {
@@ -390,7 +397,7 @@ export default function FormacoesPage() {
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
-            <Button type="submit">Salvar</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Salvando" : "Salvar"}</Button>
           </div>
         </form>
       </Modal>

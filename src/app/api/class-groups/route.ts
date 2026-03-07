@@ -40,7 +40,6 @@ export async function GET() {
     ]);
 
     const classGroups = await prisma.classGroup.findMany({
-      where: { status: "ABERTA" },
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       include: {
         course: true,
@@ -120,7 +119,7 @@ export async function POST(request: Request) {
   if (workloadHours <= 0) {
     return jsonErr(
       "WORKLOAD_REQUIRED",
-      "O curso deve ter carga horária definida para gerar as aulas.",
+      "O curso selecionado não tem carga horária. Edite o curso em Cursos e informe a carga horária (em horas) para poder criar a turma e gerar as aulas.",
       400,
     );
   }

@@ -20,6 +20,7 @@ export default function MenuPage() {
   const [label, setLabel] = useState("");
   const [href, setHref] = useState("");
   const [isVisible, setIsVisible] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -55,21 +56,26 @@ export default function MenuPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!label.trim() || !href.trim()) return;
-    const url = editing ? `/api/admin/site/menu/${editing.id}` : "/api/admin/site/menu";
-    const res = await fetch(url, {
-      method: editing ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label: label.trim(), href: href.trim(), isVisible }),
-    });
-    const json = (await res.json()) as ApiResponse<{ item: MenuItem }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
-      return;
+    if (!label.trim() || !href.trim() || saving) return;
+    setSaving(true);
+    try {
+      const url = editing ? `/api/admin/site/menu/${editing.id}` : "/api/admin/site/menu";
+      const res = await fetch(url, {
+        method: editing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: label.trim(), href: href.trim(), isVisible }),
+      });
+      const json = (await res.json()) as ApiResponse<{ item: MenuItem }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
+        return;
+      }
+      toast.push("success", editing ? "Item atualizado." : "Item criado.");
+      setOpen(false);
+      load();
+    } finally {
+      setSaving(false);
     }
-    toast.push("success", editing ? "Item atualizado." : "Item criado.");
-    setOpen(false);
-    load();
   }
 
   async function remove(m: MenuItem) {
@@ -156,7 +162,7 @@ export default function MenuPage() {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button type="submit">Salvar</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Salvando" : "Salvar"}</Button>
           </div>
         </form>
       </Modal>

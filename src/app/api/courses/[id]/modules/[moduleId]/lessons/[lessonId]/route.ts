@@ -31,6 +31,7 @@ export async function PATCH(request: Request, context: Ctx) {
       order: parsed.data.order,
       durationMinutes: parsed.data.durationMinutes ?? null,
       videoUrl: parsed.data.videoUrl?.trim() || null,
+      imageUrls: parsed.data.imageUrls ?? [],
       contentRich: parsed.data.contentRich?.trim() || null,
     },
   });

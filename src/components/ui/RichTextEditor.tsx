@@ -4,6 +4,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
+import { TableKit } from "@tiptap/extension-table/kit";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /** Conteúdo pode ser HTML (string) ou JSON TipTap/ProseMirror (string com type "doc"). */
@@ -21,6 +22,33 @@ function parseContent(value: string): string | Record<string, unknown> {
   return s;
 }
 
+/** Imagem com redimensionamento e opção de largura em %. */
+const ImageWithResize = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      widthStyle: {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-width-style") ?? null,
+        renderHTML: (attrs) =>
+          attrs.widthStyle ? { "data-width-style": attrs.widthStyle, style: `max-width: ${attrs.widthStyle}` } : {},
+      },
+    };
+  },
+}).configure({
+  HTMLAttributes: { class: "max-w-full h-auto rounded-md" },
+  resize:
+    typeof document !== "undefined"
+      ? {
+          enabled: true,
+          directions: ["bottom", "right"],
+          minWidth: 80,
+          minHeight: 60,
+          alwaysPreserveAspectRatio: true,
+        }
+      : undefined,
+});
+
 type RichTextEditorProps = {
   value: string;
   onChange: (html: string) => void;
@@ -36,7 +64,8 @@ export function RichTextEditor({
   className = "",
   minHeight = "120px",
 }: RichTextEditorProps) {
-  const [blockType, setBlockType] = useState<"paragraph" | "title">("paragraph");
+  type BlockType = "paragraph" | "h1" | "h2" | "h3";
+  const [blockType, setBlockType] = useState<BlockType>("paragraph");
 
   const editor = useEditor({
     extensions: [
@@ -45,8 +74,10 @@ export function RichTextEditor({
         openOnClick: false,
         HTMLAttributes: { target: "_blank", rel: "noopener noreferrer" },
       }),
-      Image.configure({
-        HTMLAttributes: { class: "max-w-full h-auto rounded-md" },
+      ImageWithResize,
+      TableKit.configure({
+        resizable: true,
+        HTMLAttributes: { class: "rte-table border-collapse w-full my-3" },
       }),
     ],
     content: parseContent(value) || "",
@@ -54,15 +85,17 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "min-h-[120px] px-3 py-2 text-sm focus:outline-none [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-2 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mb-2 [&_a]:text-blue-600 [&_a]:underline [&_a]:cursor-pointer [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded",
+          "min-h-[120px] px-3 py-2 text-sm focus:outline-none [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-2 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mb-1 [&_a]:text-blue-600 [&_a]:underline [&_a]:cursor-pointer [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded [&_table]:border [&_table]:border-[var(--card-border)] [&_td]:border [&_td]:border-[var(--card-border)] [&_td]:p-2 [&_th]:border [&_th]:border-[var(--card-border)] [&_th]:p-2 [&_th]:bg-[var(--igh-surface)]",
       },
     },
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
     },
     onSelectionUpdate: ({ editor }) => {
-      const isTitle = editor.isActive("heading", { level: 1 }) || editor.isActive("heading", { level: 2 });
-      setBlockType(isTitle ? "title" : "paragraph");
+      if (editor.isActive("heading", { level: 1 })) setBlockType("h1");
+      else if (editor.isActive("heading", { level: 2 })) setBlockType("h2");
+      else if (editor.isActive("heading", { level: 3 })) setBlockType("h3");
+      else setBlockType("paragraph");
     },
   });
 
@@ -81,8 +114,10 @@ export function RichTextEditor({
 
   useEffect(() => {
     if (!editor) return;
-    const isTitle = editor.isActive("heading", { level: 1 }) || editor.isActive("heading", { level: 2 });
-    setBlockType(isTitle ? "title" : "paragraph");
+    if (editor.isActive("heading", { level: 1 })) setBlockType("h1");
+    else if (editor.isActive("heading", { level: 2 })) setBlockType("h2");
+    else if (editor.isActive("heading", { level: 3 })) setBlockType("h3");
+    else setBlockType("paragraph");
   }, [editor]);
 
   const setBold = useCallback(() => editor?.chain().focus().toggleBold().run(), [editor]);
@@ -116,19 +151,42 @@ export function RichTextEditor({
     editor.chain().focus().setImage({ src: withProtocol }).run();
   }, [editor]);
 
-  const onBlockTypeChange = useCallback(
-    (next: "paragraph" | "title") => {
+  const insertTable = useCallback(
+    (rows: number, cols: number) => {
+      editor?.chain().focus().insertTable({ rows, cols, withHeaderRow: false }).run();
+    },
+    [editor]
+  );
+
+  const setImageWidth = useCallback(
+    (pct: string | null) => {
       if (!editor) return;
-      if (next === "title") {
-        editor.chain().focus().setHeading({ level: 2 }).run();
-      } else {
+      editor.chain().focus().updateAttributes("image", { widthStyle: pct, width: null, height: null }).run();
+    },
+    [editor]
+  );
+
+  const onBlockTypeChange = useCallback(
+    (next: BlockType) => {
+      if (!editor) return;
+      if (next === "paragraph") {
         editor.chain().focus().setParagraph().run();
+      } else {
+        const level = next === "h1" ? 1 : next === "h2" ? 2 : 3;
+        editor.chain().focus().setHeading({ level }).run();
       }
     },
     [editor]
   );
 
-  const blockTypeLabel = useMemo(() => (blockType === "title" ? "Título" : "Texto"), [blockType]);
+  const blockTypeLabel = useMemo(
+    () =>
+      blockType === "paragraph" ? "Texto" : blockType === "h1" ? "Título 1" : blockType === "h2" ? "Título 2" : "Título 3",
+    [blockType]
+  );
+
+  const imageWidth = editor?.getAttributes("image").widthStyle ?? editor?.getAttributes("image").width ?? null;
+  const isImageSelected = editor?.isActive("image") ?? false;
 
   if (!editor) {
     return (
@@ -148,12 +206,30 @@ export function RichTextEditor({
           id="rte-blocktype"
           className="mr-2 h-8 rounded border border-[var(--card-border)] bg-[var(--input-bg)] px-2 text-sm text-[var(--input-text)]"
           value={blockType}
-          onChange={(e) => onBlockTypeChange(e.target.value as "paragraph" | "title")}
+          onChange={(e) => onBlockTypeChange(e.target.value as BlockType)}
           title={`Tipo atual: ${blockTypeLabel}`}
         >
-          <option value="paragraph">Texto</option>
-          <option value="title">Título</option>
+          <option value="paragraph">Parágrafo</option>
+          <option value="h1">Título 1</option>
+          <option value="h2">Título 2</option>
+          <option value="h3">Título 3</option>
         </select>
+        <button
+          type="button"
+          onClick={() => insertTable(1, 2)}
+          className="rounded px-2 py-1 text-sm hover:bg-zinc-200"
+          title="Linha com 2 colunas (ex.: imagem + texto)"
+        >
+          Linha imagem+texto
+        </button>
+        <button
+          type="button"
+          onClick={() => insertTable(3, 3)}
+          className="rounded px-2 py-1 text-sm hover:bg-zinc-200"
+          title="Inserir tabela 3×3"
+        >
+          Tabela
+        </button>
         <button
           type="button"
           onClick={setBold}
@@ -202,6 +278,22 @@ export function RichTextEditor({
         >
           Imagem
         </button>
+        {isImageSelected && (
+          <span className="flex items-center gap-1">
+            <label className="text-xs text-[var(--text-muted)]">Largura:</label>
+            <select
+              className="h-8 rounded border border-[var(--card-border)] bg-[var(--input-bg)] px-2 text-xs"
+              value={imageWidth ?? "100%"}
+              onChange={(e) => setImageWidth(e.target.value === "100%" ? null : e.target.value)}
+              title="Tamanho da imagem"
+            >
+              <option value="25%">25%</option>
+              <option value="50%">50%</option>
+              <option value="75%">75%</option>
+              <option value="100%">100%</option>
+            </select>
+          </span>
+        )}
         {editor.isActive("link") && (
           <button
             type="button"

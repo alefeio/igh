@@ -15,7 +15,7 @@ function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): s
   return fallback;
 }
 
-type Course = { id: string; name: string };
+type Course = { id: string; name: string; workloadHours: number | null };
 type Teacher = { id: string; name: string };
 
 type ClassGroup = {
@@ -71,7 +71,8 @@ export default function ClassGroupsPage() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
 
   const [open, setOpen] = useState(false);
-  const [showInactive, setShowInactive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilters, setStatusFilters] = useState<ClassGroup["status"][]>([]);
   const [editing, setEditing] = useState<ClassGroup | null>(null);
 
   const [courseId, setCourseId] = useState("");
@@ -87,6 +88,7 @@ export default function ClassGroupsPage() {
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState("");
 
   const [sessions, setSessions] = useState<ClassSession[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const locationSuggestions = useMemo(() => {
     const set = new Set<string>();
@@ -103,17 +105,23 @@ export default function ClassGroupsPage() {
   }, [locationSuggestions, location]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
+  const selectedCourse = useMemo(
+    () => courses.find((c) => c.id === courseId),
+    [courses, courseId],
+  );
+  const courseHasWorkload = selectedCourse != null && (selectedCourse.workloadHours ?? 0) > 0;
+
   const canSubmit = useMemo(() => {
-    return (
+    const base =
       courseId.length > 0 &&
       teacherId.length > 0 &&
       daysOfWeek.length > 0 &&
       startDate.trim().length > 0 &&
       startTime.trim().length > 0 &&
       endTime.trim().length > 0 &&
-      Number(capacity) > 0
-    );
-  }, [courseId, teacherId, daysOfWeek, startDate, startTime, endTime, capacity]);
+      Number(capacity) > 0;
+    return base && (editing != null || courseHasWorkload);
+  }, [courseId, teacherId, daysOfWeek, startDate, startTime, endTime, capacity, courseHasWorkload, editing]);
 
   function resetForm() {
     setCourseId("");
@@ -227,38 +235,42 @@ export default function ClassGroupsPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || saving) return;
+    setSaving(true);
+    try {
+      const isEditing = editing != null;
+      const payload = {
+        courseId,
+        teacherId,
+        daysOfWeek,
+        startDate,
+        startTime,
+        endTime,
+        capacity: Number(capacity),
+        status,
+        location,
+      };
 
-    const isEditing = editing != null;
-    const payload = {
-      courseId,
-      teacherId,
-      daysOfWeek,
-      startDate,
-      startTime,
-      endTime,
-      capacity: Number(capacity),
-      status,
-      location,
-    };
+      const url = isEditing ? `/api/class-groups/${editing!.id}` : "/api/class-groups";
+      const method = isEditing ? "PATCH" : "POST";
 
-    const url = isEditing ? `/api/class-groups/${editing!.id}` : "/api/class-groups";
-    const method = isEditing ? "PATCH" : "POST";
-
-    const res = await fetch(url, {
-      method,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await parseJsonSafe<{ classGroup: { id: string } }>(res);
-    if (!res.ok || !json?.ok) {
-      toast.push("error", apiErrorMessage(json, "Falha ao salvar turma."));
-      return;
+      const res = await fetch(url, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await parseJsonSafe<{ classGroup: { id: string } }>(res);
+      if (!res.ok || !json?.ok) {
+        toast.push("error", apiErrorMessage(json, "Falha ao salvar turma."));
+        return;
+      }
+      toast.push("success", isEditing ? "Turma atualizada." : "Turma criada.");
+      setOpen(false);
+      resetForm();
+      await loadAll();
+    } finally {
+      setSaving(false);
     }
-    toast.push("success", isEditing ? "Turma atualizada." : "Turma criada.");
-    setOpen(false);
-    resetForm();
-    await loadAll();
   }
 
   function toggleDay(day: string) {
@@ -318,7 +330,53 @@ export default function ClassGroupsPage() {
     await loadAll();
   }
 
-  const visibleItems = showInactive ? items : items.filter((cg) => cg.status !== "CANCELADA");
+  const normalizeForSearch = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const visibleItems = useMemo(() => {
+    let list = items;
+    if (statusFilters.length > 0) {
+      list = list.filter((cg) => statusFilters.includes(cg.status));
+    }
+    const q = searchQuery.trim();
+    if (q) {
+      const qNorm = normalizeForSearch(q);
+      const normDigits = (s: string) => s.replace(/\D/g, "");
+      list = list.filter((cg) => {
+        const courseName = cg.course?.name ?? "";
+        const courseMatch = normalizeForSearch(courseName).includes(qNorm);
+        const startDateStr = cg.startDate ? String(cg.startDate).slice(0, 10) : "";
+        const startDateBr = startDateStr ? startDateStr.split("-").reverse().join("/") : "";
+        const dateMatch =
+          startDateStr.includes(q) ||
+          startDateBr.includes(q) ||
+          normDigits(startDateStr).includes(normDigits(q)) ||
+          normDigits(startDateBr).includes(normDigits(q));
+        const timeMatch =
+          (cg.startTime ?? "").toLowerCase().includes(q.toLowerCase()) ||
+          (cg.endTime ?? "").toLowerCase().includes(q.toLowerCase());
+        return courseMatch || dateMatch || timeMatch;
+      });
+    }
+    return list;
+  }, [items, statusFilters, searchQuery]);
+
+  function toggleStatusFilter(status: ClassGroup["status"]) {
+    setStatusFilters((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
+  }
+
+  const STATUS_OPTIONS: { value: ClassGroup["status"]; label: string }[] = [
+    { value: "PLANEJADA", label: "Planejada" },
+    { value: "ABERTA", label: "Aberta" },
+    { value: "EM_ANDAMENTO", label: "Em andamento" },
+    { value: "ENCERRADA", label: "Encerrada" },
+    { value: "CANCELADA", label: "Cancelada" },
+  ];
 
   return (
     <div className="flex flex-col gap-4">
@@ -326,18 +384,38 @@ export default function ClassGroupsPage() {
         <div className="min-w-0">
           <div className="text-lg font-semibold">Turmas</div>
           <div className="text-sm text-[var(--text-secondary)]">
-            Por padrão, apenas ativas. Use &quot;Exibir inativos&quot; para reativar ou excluir turmas canceladas.
+            Todas as turmas. Pesquise por curso, data de início ou horário e filtre por status.
           </div>
         </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setShowInactive((prev) => !prev)}
-          >
-            {showInactive ? "Ocultar inativos" : "Exibir inativos"}
-          </Button>
-          <Button onClick={openCreate} className="w-full sm:w-auto">Nova</Button>
+        <Button onClick={openCreate} className="w-full sm:w-auto">Nova</Button>
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+        <div className="min-w-0 flex-1 sm:max-w-xs">
+          <Input
+            type="text"
+            placeholder="Pesquisar por curso, data ou horário"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="theme-input w-full rounded-md border px-3 py-2 text-sm"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-[var(--text-muted)]">Status:</span>
+          {STATUS_OPTIONS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => toggleStatusFilter(value)}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                statusFilters.includes(value)
+                  ? "bg-[var(--igh-primary)] text-white"
+                  : "bg-[var(--igh-surface)] text-[var(--igh-muted)] hover:bg-[var(--card-border)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -418,7 +496,9 @@ export default function ClassGroupsPage() {
               <tr>
                 <Td colSpan={7}>
                   <span className="text-[var(--text-secondary)]">
-                    {showInactive ? "Nenhuma turma encontrada." : "Nenhuma turma ativa cadastrada."}
+                    {items.length === 0
+                      ? "Nenhuma turma cadastrada."
+                      : "Nenhuma turma encontrada com os filtros aplicados."}
                   </span>
                 </Td>
               </tr>
@@ -445,10 +525,18 @@ export default function ClassGroupsPage() {
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
+                    {c.workloadHours != null && c.workloadHours > 0
+                      ? ` (${c.workloadHours}h)`
+                      : " (sem carga horária)"}
                   </option>
                 ))}
               </select>
             </div>
+            {courseId && !courseHasWorkload && !editing && (
+              <p className="mt-1 text-sm text-amber-600">
+                Este curso não tem carga horária. Para criar a turma e gerar as aulas, edite o curso em <strong>Cursos</strong> e preencha o campo &quot;Carga horária&quot; (em horas).
+              </p>
+            )}
           </div>
           <div>
             <label className="text-sm font-medium">Professor</label>
@@ -595,18 +683,18 @@ export default function ClassGroupsPage() {
                 onFocus={() => setLocationDropdownOpen(true)}
                 onBlur={() => setTimeout(() => setLocationDropdownOpen(false), 150)}
                 placeholder="Digite ou selecione um local"
-                className="h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--igh-primary)]"
+                className="theme-input h-10 w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--igh-primary)]"
               />
               {locationDropdownOpen && filteredLocationSuggestions.length > 0 && (
                 <ul
-                  className="absolute z-10 mt-0.5 max-h-40 w-full overflow-auto rounded-md border border-[var(--card-border)] bg-white py-1 shadow-md"
+                  className="absolute z-10 mt-0.5 max-h-40 w-full overflow-auto rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] py-1 shadow-md"
                   role="listbox"
                 >
                   {filteredLocationSuggestions.map((s) => (
                     <li
                       key={s}
                       role="option"
-                      className="cursor-pointer px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                      className="cursor-pointer px-3 py-2 text-sm text-[var(--input-text)] hover:bg-[var(--igh-surface)]"
                       onMouseDown={(e) => {
                         e.preventDefault();
                         setLocation(s);
@@ -625,8 +713,8 @@ export default function ClassGroupsPage() {
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              Salvar
+            <Button type="submit" disabled={!canSubmit || saving}>
+              {saving ? "Salvando" : "Salvar"}
             </Button>
           </div>
         </form>

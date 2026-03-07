@@ -229,6 +229,29 @@ ul.list-none {
   margin-top: 0;
   margin-bottom: 0;
 }
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+.prose th,
+.prose td {
+  border: 1px solid var(--card-border, #e5e7eb);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+.prose th {
+  font-weight: 600;
+  background: var(--igh-surface, #f9fafb);
+  color: var(--igh-secondary);
+}
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+}
 .prose-lg {
   font-size: 1.125rem;
 }
