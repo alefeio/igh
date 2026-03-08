@@ -466,7 +466,14 @@ export default function AulaConteudoPage() {
     }
   };
 
-  const prog = progress ?? { completed: false, percentWatched: 0, percentRead: 0, completedAt: null };
+  const prog: LessonProgress = progress ?? {
+    completed: false,
+    percentWatched: 0,
+    percentRead: 0,
+    completedAt: null,
+    lastAccessedAt: null,
+    totalMinutesStudied: 0,
+  };
 
   const orderedLessons = getOrderedLessons(data.modules);
   const currentIndex = orderedLessons.findIndex((l) => l.id === lessonId);
