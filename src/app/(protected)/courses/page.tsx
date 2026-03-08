@@ -946,7 +946,7 @@ export default function CoursesPage() {
           open={!!exerciseModal}
           title={exerciseModal.type === "edit" ? "Editar exercício" : "Novo exercício"}
           onClose={() => setExerciseModal(null)}
-          size="medium"
+          size="large"
         >
           <form onSubmit={saveExercise} className="flex flex-col gap-3">
             <div>
