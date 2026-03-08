@@ -7,6 +7,8 @@ type Progress = {
   percentWatched: number;
   percentRead: number;
   completedAt: string | null;
+  lastAccessedAt: string | null;
+  totalMinutesStudied: number;
 };
 
 /** Retorna o progresso da aula para a matrícula. Apenas STUDENT; aula deve estar liberada para a turma. */
@@ -57,12 +59,16 @@ export async function GET(
         percentWatched: Math.min(100, Math.max(0, progress.percentWatched)),
         percentRead: Math.min(100, Math.max(0, progress.percentRead)),
         completedAt: progress.completedAt?.toISOString() ?? null,
+        lastAccessedAt: progress.lastAccessedAt?.toISOString() ?? null,
+        totalMinutesStudied: progress.totalMinutesStudied ?? 0,
       }
     : {
         completed: false,
         percentWatched: 0,
         percentRead: 0,
         completedAt: null,
+        lastAccessedAt: null,
+        totalMinutesStudied: 0,
       };
 
   return jsonOk(data);
@@ -107,7 +113,12 @@ export async function PATCH(
     return jsonErr("NOT_FOUND", "Aula não encontrada.", 404);
   }
 
-  let body: { completed?: boolean; percentWatched?: number; percentRead?: number } = {};
+  let body: {
+    completed?: boolean;
+    percentWatched?: number;
+    percentRead?: number;
+    studyMinutesDelta?: number;
+  } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -128,6 +139,10 @@ export async function PATCH(
   const completed = completedByUser || autoComplete;
 
   const now = new Date();
+  const studyDelta = Math.max(
+    0,
+    Math.min(1440, Math.round(Number(body.studyMinutesDelta ?? 0)))
+  );
 
   const progress = await prisma.enrollmentLessonProgress.upsert({
     where: {
@@ -140,6 +155,8 @@ export async function PATCH(
       percentWatched: percentWatched ?? 0,
       percentRead: percentRead ?? 0,
       completedAt: completed ? now : null,
+      lastAccessedAt: now,
+      totalMinutesStudied: studyDelta,
       updatedAt: now,
     },
     update: {
@@ -148,6 +165,10 @@ export async function PATCH(
       ...(completed && {
         completed: true,
         completedAt: now,
+      }),
+      lastAccessedAt: now,
+      ...(studyDelta > 0 && {
+        totalMinutesStudied: { increment: studyDelta },
       }),
       updatedAt: now,
     },
@@ -158,6 +179,8 @@ export async function PATCH(
     percentWatched: Math.min(100, Math.max(0, progress.percentWatched)),
     percentRead: Math.min(100, Math.max(0, progress.percentRead)),
     completedAt: progress.completedAt?.toISOString() ?? null,
+    lastAccessedAt: progress.lastAccessedAt?.toISOString() ?? null,
+    totalMinutesStudied: progress.totalMinutesStudied,
   });
 }
 

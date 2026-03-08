@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  ClipboardList,
+  FileText,
+  Highlighter,
+  MessageCircleQuestion,
+  StickyNote,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -14,6 +21,8 @@ type LessonProgress = {
   percentWatched: number;
   percentRead: number;
   completedAt: string | null;
+  lastAccessedAt: string | null;
+  totalMinutesStudied: number;
 };
 
 type LessonNote = {
@@ -69,6 +78,56 @@ function getAttachmentLabel(url: string, index: number): string {
   return `Arquivo de apoio ${index + 1}`;
 }
 
+/** Botão que baixa o PDF da aula via fetch + blob para evitar erro "site não disponível" no navegador. */
+function PdfDownloadButton({
+  enrollmentId,
+  lessonId,
+  lessonTitle,
+}: {
+  enrollmentId: string;
+  lessonId: string;
+  lessonTitle: string;
+}) {
+  const toast = useToast();
+  const [loading, setLoading] = useState(false);
+  const pdfUrl = `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/pdf`;
+
+  async function handleDownload() {
+    setLoading(true);
+    try {
+      const res = await fetch(pdfUrl, { credentials: "include" });
+      if (!res.ok) throw new Error("Falha ao gerar PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const filename = `aula-${lessonTitle.slice(0, 30).replace(/[^a-zA-Z0-9\u00C0-\u00FF\-]/g, "-")}.pdf`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.push("error", "Não foi possível baixar o PDF. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleDownload}
+      disabled={loading}
+      className="inline-flex max-w-fit items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2.5 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+    >
+      <span aria-hidden>📄</span>
+      {loading ? "Gerando PDF…" : "PDF da aula"}
+    </button>
+  );
+}
+
 export default function AulaConteudoPage() {
   const params = useParams();
   const enrollmentId = params?.id as string;
@@ -93,11 +152,26 @@ export default function AulaConteudoPage() {
   const [exerciseSelected, setExerciseSelected] = useState<Record<string, string>>({});
   const [exerciseResult, setExerciseResult] = useState<Record<string, { correct: boolean; correctOptionId: string | null }>>({});
   const [submittingExerciseId, setSubmittingExerciseId] = useState<string | null>(null);
-  type LessonQuestion = { id: string; content: string; createdAt: string; enrollmentId: string; authorName: string };
+  type LessonQuestionReply = { id: string; content: string; createdAt: string; enrollmentId: string; authorName: string };
+  type LessonQuestion = {
+    id: string;
+    content: string;
+    createdAt: string;
+    updatedAt?: string;
+    enrollmentId: string;
+    authorName: string;
+    replies?: LessonQuestionReply[];
+  };
   const [questions, setQuestions] = useState<LessonQuestion[]>([]);
   const [questionContent, setQuestionContent] = useState("");
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [removingQuestionId, setRemovingQuestionId] = useState<string | null>(null);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editQuestionContent, setEditQuestionContent] = useState("");
+  const [savingEditQuestionId, setSavingEditQuestionId] = useState<string | null>(null);
+  const [replyingToQuestionId, setReplyingToQuestionId] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
 
   const loadProgress = useCallback(async () => {
     if (!enrollmentId || !lessonId) return;
@@ -106,7 +180,14 @@ export default function AulaConteudoPage() {
       const json = (await res.json()) as ApiResponse<LessonProgress>;
       if (res.ok && json?.ok) setProgress(json.data);
     } catch {
-      setProgress({ completed: false, percentWatched: 0, percentRead: 0, completedAt: null });
+      setProgress({
+        completed: false,
+        percentWatched: 0,
+        percentRead: 0,
+        completedAt: null,
+        lastAccessedAt: null,
+        totalMinutesStudied: 0,
+      });
     }
   }, [enrollmentId, lessonId]);
 
@@ -216,6 +297,75 @@ export default function AulaConteudoPage() {
       void loadQuestions();
     }
   }, [data, lessonId, loadProgress, loadNotes, loadPassages, loadFavorite, loadExercises, loadQuestions]);
+
+  /** Marca último acesso ao abrir a aula e envia tempo de estudo ao sair. */
+  useEffect(() => {
+    if (!enrollmentId || !lessonId || !data?.modules) return;
+    const lesson = findLesson(data.modules, lessonId)?.lesson;
+    if (!lesson?.isLiberada) return;
+
+    const startMs = Date.now();
+
+    const touchProgress = async () => {
+      try {
+        const res = await fetch(`/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            percentWatched: progress?.percentWatched ?? 0,
+            percentRead: progress?.percentRead ?? 0,
+          }),
+        });
+        if (res.ok) {
+          const json = (await res.json()) as ApiResponse<LessonProgress>;
+          if (json?.ok) setProgress(json.data);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    void touchProgress().then(() => { loadProgress(); });
+
+    const sendStudyTime = (minutes: number) => {
+      if (minutes <= 0) return;
+      const body = JSON.stringify({
+        percentWatched: progress?.percentWatched ?? 0,
+        percentRead: progress?.percentRead ?? 0,
+        studyMinutesDelta: minutes,
+      });
+      navigator.sendBeacon(
+        `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`,
+        new Blob([body], { type: "application/json" })
+      );
+    };
+
+    const onUnload = () => {
+      const minutes = Math.floor((Date.now() - startMs) / 60_000);
+      sendStudyTime(minutes);
+    };
+
+    window.addEventListener("beforeunload", onUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+      const minutes = Math.floor((Date.now() - startMs) / 60_000);
+      if (minutes > 0) {
+        fetch(`/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            percentWatched: progress?.percentWatched ?? 0,
+            percentRead: progress?.percentRead ?? 0,
+            studyMinutesDelta: minutes,
+          }),
+          keepalive: true,
+        }).then(async (res) => {
+          const json = (await res.json()) as ApiResponse<LessonProgress>;
+          if (res.ok && json?.ok) setProgress(json.data);
+        }).catch(() => {});
+      }
+    };
+  }, [enrollmentId, lessonId, data?.modules]);
 
   if (loading || !data) {
     return (
@@ -441,6 +591,93 @@ export default function AulaConteudoPage() {
     }
   };
 
+  const startEditQuestion = (q: LessonQuestion) => {
+    setEditingQuestionId(q.id);
+    setEditQuestionContent(q.content);
+  };
+
+  const cancelEditQuestion = () => {
+    setEditingQuestionId(null);
+    setEditQuestionContent("");
+  };
+
+  const handleSaveEditQuestion = async () => {
+    if (!editingQuestionId) return;
+    const content = editQuestionContent.trim();
+    if (!content) {
+      toast.push("error", "Digite o conteúdo.");
+      return;
+    }
+    setSavingEditQuestionId(editingQuestionId);
+    try {
+      const res = await fetch(
+        `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/questions/${editingQuestionId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        }
+      );
+      const json = (await res.json()) as ApiResponse<LessonQuestion>;
+      if (res.ok && json?.ok) {
+        setQuestions((prev) =>
+          prev.map((q) => (q.id === editingQuestionId ? { ...q, content: json.data!.content, updatedAt: json.data!.updatedAt } : q))
+        );
+        cancelEditQuestion();
+        toast.push("success", "Comentário atualizado.");
+      } else {
+        toast.push("error", json && "error" in json ? json.error.message : "Não foi possível atualizar.");
+      }
+    } finally {
+      setSavingEditQuestionId(null);
+    }
+  };
+
+  const startReply = (questionId: string) => {
+    setReplyingToQuestionId(questionId);
+    setReplyContent("");
+  };
+
+  const cancelReply = () => {
+    setReplyingToQuestionId(null);
+    setReplyContent("");
+  };
+
+  const handleSendReply = async (questionId: string) => {
+    const content = replyContent.trim();
+    if (!content) {
+      toast.push("error", "Digite sua resposta.");
+      return;
+    }
+    setSavingReplyQuestionId(questionId);
+    try {
+      const res = await fetch(
+        `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/questions/${questionId}/replies`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        }
+      );
+      const json = (await res.json()) as ApiResponse<LessonQuestionReply>;
+      if (res.ok && json?.ok) {
+        setQuestions((prev) =>
+          prev.map((q) =>
+            q.id === questionId
+              ? { ...q, replies: [...(q.replies ?? []), json.data!] }
+              : q
+          )
+        );
+        cancelReply();
+        toast.push("success", "Resposta enviada.");
+      } else {
+        toast.push("error", json && "error" in json ? json.error.message : "Não foi possível enviar.");
+      }
+    } finally {
+      setSavingReplyQuestionId(null);
+    }
+  };
+
   function formatNoteDate(iso: string) {
     return new Date(iso).toLocaleString("pt-BR", {
       day: "2-digit",
@@ -449,6 +686,14 @@ export default function AulaConteudoPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  function formatStudyDuration(minutes: number): string {
+    if (minutes <= 0) return "0 min";
+    if (minutes < 60) return `${minutes} min`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m > 0 ? `${h} h ${m} min` : `${h} h`;
   }
 
   const handleToggleFavorite = async () => {
@@ -567,17 +812,59 @@ export default function AulaConteudoPage() {
               {lesson.title}
             </h1>
           </div>
-          <button
-            type="button"
-            onClick={handleToggleFavorite}
-            disabled={togglingFavorite}
-            aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-            aria-pressed={isFavorite}
-            className="flex shrink-0 items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
-          >
-            <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
-            {isFavorite ? "Favorita" : "Favoritar"}
-          </button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleToggleFavorite}
+              disabled={togglingFavorite}
+              aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+              aria-pressed={isFavorite}
+              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+              title={isFavorite ? "Favorita" : "Favoritar"}
+            >
+              <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
+            </button>
+            <a
+              href="#trechos-destacados"
+              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              title="Trechos destacados"
+              aria-label="Ir para Trechos destacados"
+            >
+              <Highlighter className="h-5 w-5" aria-hidden />
+            </a>
+            <a
+              href="#material-complementar"
+              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              title="Material complementar"
+              aria-label="Ir para Material complementar"
+            >
+              <FileText className="h-5 w-5" aria-hidden />
+            </a>
+            <a
+              href="#anotacoes"
+              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              title="Bloco de anotações"
+              aria-label="Ir para Bloco de anotações"
+            >
+              <StickyNote className="h-5 w-5" aria-hidden />
+            </a>
+            <a
+              href="#duvidas"
+              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              title="Dúvidas sobre esta aula"
+              aria-label="Ir para Dúvidas sobre esta aula"
+            >
+              <MessageCircleQuestion className="h-5 w-5" aria-hidden />
+            </a>
+            <a
+              href="#exercicios"
+              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              title="Exercícios"
+              aria-label="Ir para Exercícios"
+            >
+              <ClipboardList className="h-5 w-5" aria-hidden />
+            </a>
+          </div>
         </div>
         <div className="card-body space-y-8">
           <section
@@ -607,6 +894,35 @@ export default function AulaConteudoPage() {
             )}
           </section>
 
+          <section
+            className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
+            aria-labelledby="historico-heading"
+          >
+            <h2 id="historico-heading" className="mb-3 text-base font-semibold text-[var(--text-primary)]">
+              Histórico de estudo
+            </h2>
+            <dl className="grid gap-2 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-[var(--text-muted)]">Última vez que acessou</dt>
+                <dd className="font-medium text-[var(--text-primary)]">
+                  {prog.lastAccessedAt ? formatNoteDate(prog.lastAccessedAt) : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[var(--text-muted)]">Quanto tempo estudou</dt>
+                <dd className="font-medium text-[var(--text-primary)]">
+                  {formatStudyDuration(prog.totalMinutesStudied)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[var(--text-muted)]">Quando concluiu</dt>
+                <dd className="font-medium text-[var(--text-primary)]">
+                  {prog.completedAt ? formatNoteDate(prog.completedAt) : "—"}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
           {lesson.summary && lesson.summary.trim() && (
             <section
               className="rounded-lg border border-[var(--card-border)] border-l-4 border-l-[var(--igh-primary)] bg-[var(--igh-surface)] p-4 pl-4"
@@ -618,22 +934,29 @@ export default function AulaConteudoPage() {
               <p className="mb-2 text-xs text-[var(--text-muted)]">
                 O que você vai aprender:
               </p>
-              <div className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--text-secondary)]">
-                {lesson.summary.trim()}
-              </div>
+              <ul className="list-disc pl-6 space-y-1 text-sm leading-relaxed text-[var(--text-secondary)]">
+                {lesson.summary
+                  .trim()
+                  .split(/\n/)
+                  .map((line) => line.trim())
+                  .filter(Boolean)
+                  .map((line, i) => (
+                    <li key={i}>{line.replace(/^[•\-*]\s*/, "")}</li>
+                  ))}
+              </ul>
             </section>
           )}
 
           {lesson.videoUrl && (
-            <section className="rounded-lg overflow-hidden bg-black" aria-label="Vídeo da aula">
-              <div className="aspect-video max-w-3xl">
+            <section className="flex justify-center rounded-lg overflow-hidden bg-black" aria-label="Vídeo da aula">
+              <div className="aspect-video w-full max-w-3xl">
                 <LessonVideoPlayer videoUrl={lesson.videoUrl} />
               </div>
             </section>
           )}
 
           {lesson.contentRich && lesson.contentRich.trim() && (
-            <section>
+            <section id="trechos-destacados">
               <HighlightableContentViewer
                 content={lesson.contentRich}
                 passages={passages}
@@ -683,7 +1006,7 @@ export default function AulaConteudoPage() {
           )}
 
           {(hasPdfToDownload || (lesson.attachmentUrls?.length ?? 0) > 0) && (
-            <section className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="material-heading">
+            <section id="material-complementar" className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="material-heading">
               <h2 id="material-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
                 Material complementar
               </h2>
@@ -693,16 +1016,11 @@ export default function AulaConteudoPage() {
               <ul className="flex flex-col gap-2">
                 {hasPdfToDownload && (
                   <li>
-                    <a
-                      href={`/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/pdf`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download="aula.pdf"
-                      className="inline-flex max-w-fit items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2.5 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                    >
-                      <span aria-hidden>📄</span>
-                      PDF da aula
-                    </a>
+                    <PdfDownloadButton
+                      enrollmentId={enrollmentId}
+                      lessonId={lessonId}
+                      lessonTitle={lesson.title}
+                    />
                   </li>
                 )}
                 {lesson.attachmentUrls?.map((url, i) => {
@@ -730,7 +1048,7 @@ export default function AulaConteudoPage() {
             <p className="text-sm text-[var(--text-muted)]">Nenhum conteúdo adicional para esta aula.</p>
           )}
 
-          <section className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="anotacoes-heading">
+          <section id="anotacoes" className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="anotacoes-heading">
             <h2 id="anotacoes-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
               Bloco de anotações
             </h2>
@@ -806,12 +1124,12 @@ export default function AulaConteudoPage() {
             )}
           </section>
 
-          <section className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
+          <section id="duvidas" className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
             <h2 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">
               Dúvidas sobre esta aula
             </h2>
             <p className="mb-3 text-xs text-[var(--text-muted)]">
-              Envie sua dúvida ou comente sobre a aula. Os demais alunos da turma também podem ver as dúvidas.
+              Envie sua dúvida ou comente sobre a aula. Você pode editar seus próprios comentários. Qualquer aluno pode responder a um comentário.
             </p>
             <div className="mb-4 flex flex-col gap-2">
               <textarea
@@ -837,26 +1155,127 @@ export default function AulaConteudoPage() {
                 {questions.map((q) => (
                   <li
                     key={q.id}
-                    className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm"
+                    className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm"
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs text-[var(--text-muted)]">
-                        <span className="font-medium text-[var(--text-secondary)]">{q.authorName}</span>
-                        <span>{formatNoteDate(q.createdAt)}</span>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs text-[var(--text-muted)]">
+                          <span className="font-medium text-[var(--text-secondary)]">{q.authorName}</span>
+                          <span>{formatNoteDate(q.createdAt)}</span>
+                          {q.updatedAt && q.updatedAt !== q.createdAt && (
+                            <span className="italic">(editado)</span>
+                          )}
+                        </div>
+                        {editingQuestionId === q.id ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={editQuestionContent}
+                              onChange={(e) => setEditQuestionContent(e.target.value)}
+                              rows={3}
+                              className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                              placeholder="Editar comentário..."
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={handleSaveEditQuestion}
+                                disabled={savingEditQuestionId === q.id || !editQuestionContent.trim()}
+                                className="rounded bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                              >
+                                {savingEditQuestionId === q.id ? "Salvando..." : "Salvar"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditQuestion}
+                                disabled={savingEditQuestionId === q.id}
+                                className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap text-[var(--text-primary)]">{q.content}</p>
+                        )}
                       </div>
-                      <p className="whitespace-pre-wrap text-[var(--text-primary)]">{q.content}</p>
+                      {editingQuestionId !== q.id && q.enrollmentId === enrollmentId && (
+                        <div className="flex shrink-0 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => startEditQuestion(q)}
+                            className="rounded px-2 py-1 text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                            title="Editar comentário"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteQuestion(q.id)}
+                            disabled={removingQuestionId === q.id}
+                            className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 focus-visible:outline focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-60"
+                            title="Excluir dúvida"
+                          >
+                            {removingQuestionId === q.id ? "Excluindo..." : "Excluir"}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {q.enrollmentId === enrollmentId && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteQuestion(q.id)}
-                        disabled={removingQuestionId === q.id}
-                        className="shrink-0 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 focus-visible:outline focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-60"
-                        title="Excluir dúvida"
-                      >
-                        {removingQuestionId === q.id ? "Excluindo..." : "Excluir"}
-                      </button>
-                    )}
+                    {/* Respostas ao comentário */}
+                    <div className="mt-3 border-t border-[var(--card-border)] pt-3 pl-3">
+                      {(q.replies ?? []).length > 0 && (
+                        <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">
+                          Respostas ({(q.replies ?? []).length})
+                        </p>
+                      )}
+                      {(q.replies ?? []).map((r) => (
+                        <div
+                          key={r.id}
+                          className="mb-2 flex flex-wrap items-baseline gap-2 text-xs"
+                        >
+                          <span className="font-medium text-[var(--text-secondary)]">{r.authorName}</span>
+                          <span className="text-[var(--text-muted)]">{formatNoteDate(r.createdAt)}</span>
+                          <p className="w-full whitespace-pre-wrap text-[var(--text-primary)]">{r.content}</p>
+                        </div>
+                      ))}
+                      {replyingToQuestionId === q.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={replyContent}
+                            onChange={(e) => setReplyContent(e.target.value)}
+                            rows={2}
+                            className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                            placeholder="Escreva sua resposta..."
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSendReply(q.id)}
+                              disabled={savingReplyQuestionId === q.id || !replyContent.trim()}
+                              className="rounded bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                            >
+                              {savingReplyQuestionId === q.id ? "Enviando..." : "Enviar resposta"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelReply}
+                              disabled={savingReplyQuestionId === q.id}
+                              className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startReply(q.id)}
+                          className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+                          title="Responder ao comentário"
+                        >
+                          Responder ao comentário
+                        </button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -864,9 +1283,9 @@ export default function AulaConteudoPage() {
           </section>
 
           {exercises.length > 0 && (
-            <section className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="exercicios-heading">
+            <section id="exercicios" className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="exercicios-heading">
               <h2 id="exercicios-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
-                Exercício ao final
+                Exercícios
               </h2>
               <p className="mb-4 text-xs text-[var(--text-muted)]">
                 Responda às questões e clique em Verificar para conferir.

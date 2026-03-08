@@ -61,17 +61,47 @@ export async function GET(
       enrollment: {
         select: { id: true, student: { select: { name: true } } },
       },
+      replies: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          enrollment: {
+            select: { id: true, student: { select: { name: true } } },
+          },
+        },
+      },
     },
   });
 
-  type QuestionRow = { id: string; content: string; createdAt: Date; enrollmentId: string; enrollment: { student: { name: string } } };
+  type QuestionRow = {
+    id: string;
+    content: string;
+    createdAt: Date;
+    updatedAt: Date;
+    enrollmentId: string;
+    enrollment: { student: { name: string } };
+    replies: Array<{
+      id: string;
+      content: string;
+      createdAt: Date;
+      enrollmentId: string;
+      enrollment: { student: { name: string } };
+    }>;
+  };
   return jsonOk(
     (questions as QuestionRow[]).map((q) => ({
       id: q.id,
       content: q.content,
       createdAt: q.createdAt.toISOString(),
+      updatedAt: (q as { updatedAt?: Date }).updatedAt?.toISOString() ?? q.createdAt.toISOString(),
       enrollmentId: q.enrollmentId,
       authorName: q.enrollment.student.name,
+      replies: (q.replies ?? []).map((r) => ({
+        id: r.id,
+        content: r.content,
+        createdAt: r.createdAt.toISOString(),
+        enrollmentId: r.enrollmentId,
+        authorName: r.enrollment.student.name,
+      })),
     }))
   );
 }
@@ -146,7 +176,9 @@ export async function POST(
     id: question.id,
     content: question.content,
     createdAt: question.createdAt.toISOString(),
+    updatedAt: question.createdAt.toISOString(),
     enrollmentId,
     authorName: studentName?.name ?? "Aluno",
+    replies: [],
   });
 }

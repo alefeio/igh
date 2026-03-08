@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { requireRole } from "@/lib/auth";
 import { jsonErr } from "@/lib/http";
-import { contentRichToPlainText } from "@/lib/lesson-pdf";
+import { contentRichToPdfBlocks } from "@/lib/lesson-pdf";
 import { prisma } from "@/lib/prisma";
 
 const MARGIN = 50;
@@ -11,9 +11,43 @@ const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 const FONT_SIZE_TITLE = 18;
 const FONT_SIZE_HEADING = 12;
 const FONT_SIZE_BODY = 11;
+const FONT_SIZE_H1 = 16;
+const FONT_SIZE_H2 = 14;
+const FONT_SIZE_H3 = 12;
+const FONT_SIZE_CODE = 9;
 const LINE_HEIGHT_BODY = 14;
 const LINE_HEIGHT_HEADING = 18;
-const CHARS_PER_LINE = 75; // aproximação para fonte 11
+const LINE_HEIGHT_CODE = 11;
+const CHARS_PER_LINE = 75;
+const CODE_CHARS_PER_LINE = 82;
+const BULLET_INDENT = 18;
+const QUOTE_INDENT = 24;
+
+/** Converte texto para caracteres compatíveis com WinAnsi (Helvetica no pdf-lib). */
+function toWinAnsiSafe(text: string): string {
+  const replacements: [RegExp | string, string][] = [
+    ["→", "->"],
+    ["←", "<-"],
+    ["↑", "^"],
+    ["↓", "v"],
+    ["⇒", "=>"],
+    ["⇐", "<="],
+    ["•", "-"],
+    ["–", "-"],
+    ["—", "-"],
+    ["\"", '"'],
+    ["\"", '"'],
+    ["'", "'"],
+    ["'", "'"],
+    ["…", "..."],
+  ];
+  let out = text;
+  for (const [from, to] of replacements) {
+    out = out.split(from as string).join(to);
+  }
+  // Substitui qualquer outro caractere fora do Latin-1/WinAnsi por espaço
+  return out.replace(/[\u0100-\uFFFF]/g, " ");
+}
 
 /** Gera PDF da aula a partir do conteúdo (título, resumo, conteúdo rico). Apenas STUDENT. */
 export async function GET(
@@ -48,8 +82,8 @@ export async function GET(
   }
 
   const summaryText = (lesson.summary ?? "").trim();
-  const bodyText = contentRichToPlainText(lesson.contentRich ?? "").trim();
-  const hasContent = summaryText.length > 0 || bodyText.length > 0;
+  const bodyBlocks = contentRichToPdfBlocks(lesson.contentRich ?? "");
+  const hasContent = summaryText.length > 0 || bodyBlocks.length > 0;
   if (!hasContent) {
     return jsonErr("BAD_REQUEST", "Esta aula não possui conteúdo para gerar o PDF.", 400);
   }
@@ -57,8 +91,10 @@ export async function GET(
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontCourier = await pdfDoc.embedFont(StandardFonts.Courier);
   const black = rgb(0, 0, 0);
   const darkGray = rgb(0.25, 0.25, 0.25);
+  const quoteGray = rgb(0.35, 0.35, 0.35);
 
   let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   let y = PAGE_HEIGHT - MARGIN;
@@ -98,7 +134,7 @@ export async function GET(
   const titleLines = wrapLines(lesson.title, 50);
   ensureSpace(titleLines.length * LINE_HEIGHT_HEADING + 10);
   for (const line of titleLines) {
-    page.drawText(line, {
+    page.drawText(toWinAnsiSafe(line), {
       x: MARGIN,
       y,
       size: FONT_SIZE_TITLE,
@@ -110,7 +146,7 @@ export async function GET(
   y -= 10;
 
   // Módulo (opcional)
-  const moduleLine = `Módulo: ${lesson.module.title}`;
+  const moduleLine = toWinAnsiSafe(`Módulo: ${lesson.module.title}`);
   ensureSpace(LINE_HEIGHT_BODY);
   page.drawText(moduleLine, {
     x: MARGIN,
@@ -124,7 +160,7 @@ export async function GET(
   // Resumo rápido
   if (summaryText) {
     ensureSpace(LINE_HEIGHT_HEADING + 5);
-    page.drawText("Resumo rápido da aula – O que você vai aprender:", {
+    page.drawText(toWinAnsiSafe("Resumo rápido da aula – O que você vai aprender:"), {
       x: MARGIN,
       y,
       size: FONT_SIZE_HEADING,
@@ -136,16 +172,16 @@ export async function GET(
     const summaryLines = wrapLines(summaryText, CHARS_PER_LINE);
     for (const line of summaryLines) {
       ensureSpace(LINE_HEIGHT_BODY);
-      page.drawText(line, { x: MARGIN, y, size: FONT_SIZE_BODY, font, color: black });
+      page.drawText(toWinAnsiSafe(line), { x: MARGIN, y, size: FONT_SIZE_BODY, font, color: black });
       y -= LINE_HEIGHT_BODY;
     }
     y -= 16;
   }
 
-  // Conteúdo
-  if (bodyText) {
+  // Conteúdo (formatado como no HTML: títulos, listas, citações, código)
+  if (bodyBlocks.length > 0) {
     ensureSpace(LINE_HEIGHT_HEADING + 5);
-    page.drawText("Conteúdo:", {
+    page.drawText(toWinAnsiSafe("Conteúdo:"), {
       x: MARGIN,
       y,
       size: FONT_SIZE_HEADING,
@@ -154,11 +190,128 @@ export async function GET(
     });
     y -= LINE_HEIGHT_HEADING + 4;
 
-    const bodyLines = wrapLines(bodyText, CHARS_PER_LINE);
-    for (const line of bodyLines) {
-      ensureSpace(LINE_HEIGHT_BODY);
-      page.drawText(line || " ", { x: MARGIN, y, size: FONT_SIZE_BODY, font, color: black });
-      y -= LINE_HEIGHT_BODY;
+    function wrapCodeLines(text: string, maxChars: number): string[] {
+      const out: string[] = [];
+      for (const line of text.split(/\n/)) {
+        let rest = line;
+        while (rest.length > 0) {
+          if (rest.length <= maxChars) {
+            out.push(rest);
+            break;
+          }
+          out.push(rest.slice(0, maxChars));
+          rest = rest.slice(maxChars);
+        }
+      }
+      return out;
+    }
+
+    for (const block of bodyBlocks) {
+      if (block.type === "heading1") {
+        ensureSpace(LINE_HEIGHT_HEADING + 8);
+        const lines = wrapLines(block.text, 50);
+        for (const line of lines) {
+          page.drawText(toWinAnsiSafe(line), { x: MARGIN, y, size: FONT_SIZE_H1, font: fontBold, color: black });
+          y -= LINE_HEIGHT_HEADING;
+        }
+        y -= 6;
+        continue;
+      }
+      if (block.type === "heading2") {
+        ensureSpace(LINE_HEIGHT_HEADING + 6);
+        const lines = wrapLines(block.text, 55);
+        for (const line of lines) {
+          page.drawText(toWinAnsiSafe(line), { x: MARGIN, y, size: FONT_SIZE_H2, font: fontBold, color: black });
+          y -= LINE_HEIGHT_HEADING - 1;
+        }
+        y -= 4;
+        continue;
+      }
+      if (block.type === "heading3") {
+        ensureSpace(LINE_HEIGHT_HEADING + 4);
+        const lines = wrapLines(block.text, 60);
+        for (const line of lines) {
+          page.drawText(toWinAnsiSafe(line), { x: MARGIN, y, size: FONT_SIZE_H3, font: fontBold, color: black });
+          y -= LINE_HEIGHT_BODY + 2;
+        }
+        y -= 2;
+        continue;
+      }
+      if (block.type === "paragraph") {
+        const lines = wrapLines(block.text, CHARS_PER_LINE);
+        for (const line of lines) {
+          ensureSpace(LINE_HEIGHT_BODY);
+          page.drawText(toWinAnsiSafe(line || " "), { x: MARGIN, y, size: FONT_SIZE_BODY, font, color: black });
+          y -= LINE_HEIGHT_BODY;
+        }
+        y -= 4;
+        continue;
+      }
+      if (block.type === "bullet") {
+        const indent = MARGIN + BULLET_INDENT * (block.level + 1);
+        const prefix = "- ";
+        const lines = wrapLines(block.text, CHARS_PER_LINE - Math.ceil(prefix.length));
+        if (lines.length > 0) {
+          ensureSpace(LINE_HEIGHT_BODY * lines.length);
+          page.drawText(toWinAnsiSafe(prefix + lines[0]), { x: MARGIN, y, size: FONT_SIZE_BODY, font, color: black });
+          y -= LINE_HEIGHT_BODY;
+          for (let i = 1; i < lines.length; i++) {
+            page.drawText(toWinAnsiSafe(lines[i]), { x: indent, y, size: FONT_SIZE_BODY, font, color: black });
+            y -= LINE_HEIGHT_BODY;
+          }
+        }
+        y -= 2;
+        continue;
+      }
+      if (block.type === "ordered") {
+        const prefix = `${block.number}. `;
+        const indent = MARGIN + BULLET_INDENT;
+        const lines = wrapLines(block.text, CHARS_PER_LINE - prefix.length);
+        if (lines.length > 0) {
+          ensureSpace(LINE_HEIGHT_BODY * lines.length);
+          page.drawText(toWinAnsiSafe(prefix + lines[0]), { x: MARGIN, y, size: FONT_SIZE_BODY, font, color: black });
+          y -= LINE_HEIGHT_BODY;
+          for (let i = 1; i < lines.length; i++) {
+            page.drawText(toWinAnsiSafe(lines[i]), { x: indent, y, size: FONT_SIZE_BODY, font, color: black });
+            y -= LINE_HEIGHT_BODY;
+          }
+        }
+        y -= 2;
+        continue;
+      }
+      if (block.type === "blockquote") {
+        const lines = wrapLines(block.text, CHARS_PER_LINE - 2);
+        for (const line of lines) {
+          ensureSpace(LINE_HEIGHT_BODY);
+          page.drawText(toWinAnsiSafe(line || " "), {
+            x: MARGIN + QUOTE_INDENT,
+            y,
+            size: FONT_SIZE_BODY,
+            font,
+            color: quoteGray,
+          });
+          y -= LINE_HEIGHT_BODY;
+        }
+        y -= 4;
+        continue;
+      }
+      if (block.type === "code") {
+        const codeLines = wrapCodeLines(block.text, CODE_CHARS_PER_LINE);
+        ensureSpace(codeLines.length * LINE_HEIGHT_CODE + 8);
+        y -= 4;
+        for (const line of codeLines) {
+          ensureSpace(LINE_HEIGHT_CODE);
+          page.drawText(toWinAnsiSafe(line || " "), {
+            x: MARGIN + 12,
+            y,
+            size: FONT_SIZE_CODE,
+            font: fontCourier,
+            color: black,
+          });
+          y -= LINE_HEIGHT_CODE;
+        }
+        y -= 6;
+      }
     }
   }
 

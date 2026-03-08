@@ -289,6 +289,7 @@ model Enrollment {
   lessonFavorites       EnrollmentLessonFavorite[]
   lessonPassages        EnrollmentLessonPassage[]
   lessonQuestions       EnrollmentLessonQuestion[]
+  questionReplies      EnrollmentLessonQuestionReply[]
   exerciseAnswers       EnrollmentLessonExerciseAnswer[]
 }
 
@@ -331,31 +332,49 @@ model EnrollmentLessonPassage {
 }
 
 model EnrollmentLessonProgress {
-  id             String     @id @default(uuid())
-  enrollmentId   String
-  lessonId       String
-  completed      Boolean    @default(false)
-  percentWatched Int       @default(0)
-  percentRead    Int       @default(0)
-  completedAt    DateTime?
-  updatedAt      DateTime  @updatedAt
-  enrollment     Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  lesson         CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  id                  String     @id @default(uuid())
+  enrollmentId        String
+  lessonId            String
+  completed           Boolean    @default(false)
+  percentWatched      Int        @default(0)
+  percentRead         Int        @default(0)
+  completedAt         DateTime?
+  lastAccessedAt      DateTime?
+  totalMinutesStudied Int        @default(0)
+  updatedAt           DateTime   @updatedAt
+  enrollment          Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson              CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@unique([enrollmentId, lessonId])
 }
 
 /** Dúvida ou comentário do aluno sobre a aula (fórum por aula). */
 model EnrollmentLessonQuestion {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   enrollmentId String
   lessonId     String
   content      String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  replies      EnrollmentLessonQuestionReply[]
 
   @@index([enrollmentId, lessonId])
   @@index([lessonId])
+}
+
+/** Resposta de um aluno ao comentário/dúvida de outro (em "Dúvidas sobre esta aula"). */
+model EnrollmentLessonQuestionReply {
+  id           String   @id @default(uuid())
+  questionId   String
+  enrollmentId String
+  content      String
+  createdAt    DateTime @default(now())
+  question     EnrollmentLessonQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([enrollmentId])
 }
 
 /** Resposta do aluno a um exercício de múltipla escolha (uma por exercício por matrícula). */
