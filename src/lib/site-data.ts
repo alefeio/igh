@@ -139,7 +139,7 @@ export async function getBanners(): Promise<BannerPublic[]> {
   try {
     const list = await prisma.siteBanner.findMany({
       where: { isActive: true },
-      orderBy: [{ order: "asc" }],
+      orderBy: [{ createdAt: "desc" }],
     });
     return list.map((b) => ({
       id: b.id,

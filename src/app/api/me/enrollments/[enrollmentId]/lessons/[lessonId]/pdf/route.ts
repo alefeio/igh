@@ -164,8 +164,13 @@ export async function GET(
 
   const pdfBytes = await pdfDoc.save();
   const filename = `aula-${lesson.title.slice(0, 30).replace(/[^a-zA-Z0-9\u00C0-\u00FF\-]/g, "-")}.pdf`;
+  const buffer = pdfBytes.buffer.slice(
+    pdfBytes.byteOffset,
+    pdfBytes.byteOffset + pdfBytes.byteLength
+  );
+  const body: BodyInit = new Blob([buffer], { type: "application/pdf" });
 
-  return new Response(pdfBytes, {
+  return new Response(body, {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
