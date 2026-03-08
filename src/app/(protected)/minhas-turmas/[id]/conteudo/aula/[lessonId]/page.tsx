@@ -495,7 +495,8 @@ export default function AulaConteudoPage() {
         }));
         toast.push(json.data!.correct ? "success" : "error", json.data!.correct ? "Resposta correta!" : "Resposta incorreta. Veja a correção abaixo.");
       } else {
-        toast.push("error", json && "error" in json ? (json as { error?: { message?: string } }).error?.message : "Erro ao enviar resposta.");
+        const errMsg = json && "error" in json ? (json as { error?: { message?: string } }).error?.message : null;
+        toast.push("error", errMsg ?? "Erro ao enviar resposta.");
       }
     } catch {
       toast.push("error", "Erro ao enviar resposta.");
