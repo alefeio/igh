@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateClassGroupSchema } from "@/lib/validators/class-groups";
 import { createAuditLog } from "@/lib/audit";
+import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
 import {
   generateSessionsByWorkload,
   parseDateOnly,
@@ -127,6 +128,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         ? true
         : undefined;
 
+  const lessonIds = shouldRegenerate && result
+    ? await getCourseLessonIdsInOrder(courseIdForGen)
+    : [];
+
   const { updated, sessionsCount, endDate, totalHours } = await prisma.$transaction(async (tx) => {
     const computedEndDate = result?.endDate ?? existing.endDate ?? updatedStartDate;
     const dates = result?.dates ?? [];
@@ -153,12 +158,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
       if (dates.length > 0) {
         await tx.classSession.createMany({
-          data: dates.map((d) => ({
+          data: dates.map((d, i) => ({
             classGroupId: id,
             sessionDate: d,
             startTime: startTimeForGeneration,
             endTime: endTimeForGeneration,
             status: "SCHEDULED",
+            lessonId: lessonIds[i] ?? null,
           })),
         });
       }

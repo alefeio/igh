@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createClassGroupSchema } from "@/lib/validators/class-groups";
 import { createAuditLog } from "@/lib/audit";
+import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
 import {
   generateSessionsByWorkload,
   parseDateOnly,
@@ -158,6 +159,8 @@ export async function POST(request: Request) {
 
   const { dates, endDate, totalHours, totalSessions } = result;
 
+  const lessonIds = await getCourseLessonIdsInOrder(courseId);
+
   const { classGroup } = await prisma.$transaction(async (tx) => {
     const created = await tx.classGroup.create({
       data: {
@@ -176,12 +179,13 @@ export async function POST(request: Request) {
 
     if (dates.length > 0) {
       await tx.classSession.createMany({
-        data: dates.map((d) => ({
+        data: dates.map((d, i) => ({
           classGroupId: created.id,
           sessionDate: d,
           startTime,
           endTime,
           status: "SCHEDULED",
+          lessonId: lessonIds[i] ?? null,
         })),
       });
     }

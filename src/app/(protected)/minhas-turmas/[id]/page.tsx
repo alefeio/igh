@@ -29,6 +29,16 @@ type EnrollmentDetail = {
     startTime: string;
     endTime: string;
     status: string;
+    lessonTitle: string;
+    lesson: {
+      id: string;
+      title: string;
+      order: number;
+      durationMinutes: number | null;
+      videoUrl: string | null;
+      contentRich: string | null;
+      imageUrls: string[];
+    } | null;
   }>;
 };
 
@@ -38,6 +48,9 @@ const STATUS_TONE: Record<string, "zinc" | "green" | "red" | "blue" | "amber"> =
   EM_ANDAMENTO: "amber",
   ENCERRADA: "green",
   CANCELADA: "red",
+  SCHEDULED: "zinc",
+  LIBERADA: "green",
+  CANCELED: "red",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -47,6 +60,7 @@ const STATUS_LABEL: Record<string, string> = {
   ENCERRADA: "Encerrada",
   CANCELADA: "Cancelada",
   SCHEDULED: "Agendada",
+  LIBERADA: "Liberada",
   CANCELED: "Cancelada",
 };
 
@@ -79,118 +93,159 @@ export default function MinhasTurmasDetailPage() {
 
   if (loading || !data) {
     return (
-      <div className="flex flex-col gap-4">
-        <Link className="text-sm text-blue-600 underline" href="/minhas-turmas">
+      <div className="container-page flex flex-col gap-6">
+        <Link
+          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          href="/minhas-turmas"
+        >
           ← Voltar às turmas
         </Link>
         <div className="card">
-          <div className="card-body">{loading ? "Carregando..." : "Turma não encontrada."}</div>
+          <div className="card-body py-10 text-center text-[var(--text-secondary)]">
+            {loading ? "Carregando turma..." : "Turma não encontrada."}
+          </div>
         </div>
       </div>
     );
   }
 
   const e = data.enrollment;
+  const hasConteudo = e.sessions.some((s) => s.status === "LIBERADA");
 
   return (
-    <div className="flex flex-col gap-4">
-      <Link className="text-sm text-blue-600 underline" href="/minhas-turmas">
-        ← Voltar às turmas
-      </Link>
+    <div className="container-page flex flex-col gap-6">
+      <nav aria-label="Navegação">
+        <Link
+          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          href="/minhas-turmas"
+        >
+          ← Voltar às turmas
+        </Link>
+      </nav>
 
       <div className="card">
-        <div className="card-header">
-          <div className="text-lg font-semibold text-[var(--text-primary)]">{e.course.name}</div>
-          <div className="mt-1 flex items-center gap-2">
+        <header className="card-header">
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
+            {e.course.name}
+          </h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
           </div>
-        </div>
-        <div className="card-body space-y-6">
+        </header>
+        <div className="card-body space-y-8">
           {e.course.description ? (
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Descrição do curso</div>
-              <p className="mt-1 text-[var(--text-primary)]">{e.course.description}</p>
-            </div>
+            <section aria-labelledby="desc-heading">
+              <h2 id="desc-heading" className="text-base font-semibold text-[var(--text-primary)]">
+                Descrição do curso
+              </h2>
+              <p className="mt-2 leading-relaxed text-[var(--text-secondary)]">{e.course.description}</p>
+            </section>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Carga horária</div>
-              <p className="mt-1">{e.course.workloadHours != null ? `${e.course.workloadHours} horas` : "—"}</p>
+          <section
+            className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
+            aria-labelledby="info-heading"
+          >
+            <h2 id="info-heading" className="sr-only">Informações da turma</h2>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Carga horária</div>
+                <p className="mt-1 text-[var(--text-primary)]">{e.course.workloadHours != null ? `${e.course.workloadHours} horas` : "—"}</p>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Professor</div>
+                <p className="mt-1 text-[var(--text-primary)]">{e.teacher}</p>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Dias da semana</div>
+                <p className="mt-1 text-[var(--text-primary)]">{e.daysOfWeek?.length ? e.daysOfWeek.join(", ") : "—"}</p>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Data de início</div>
+                <p className="mt-1 text-[var(--text-primary)]">{formatDate(e.startDate)}</p>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Status</div>
+                <p className="mt-1">
+                  <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
+                </p>
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Local</div>
+                <p className="mt-1 text-[var(--text-primary)]">{e.location ?? "—"}</p>
+              </div>
             </div>
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Professor</div>
-              <p className="mt-1">{e.teacher}</p>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Dias da semana</div>
-              <p className="mt-1">{e.daysOfWeek?.length ? e.daysOfWeek.join(", ") : "—"}</p>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Data de início</div>
-              <p className="mt-1">{formatDate(e.startDate)}</p>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Status</div>
-              <p className="mt-1">
-                <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
-              </p>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Local</div>
-              <p className="mt-1">{e.location ?? "—"}</p>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Horário</div>
-              <p className="mt-1">{e.startTime} às {e.endTime}</p>
-            </div>
-          </div>
+          </section>
 
           {e.certificateUrl ? (
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Certificado</div>
-              <p className="mt-1">
+            <section aria-labelledby="cert-heading">
+              <h2 id="cert-heading" className="text-base font-semibold text-[var(--text-primary)]">
+                Certificado
+              </h2>
+              <p className="mt-2">
                 <a
                   href={e.certificateUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 underline hover:no-underline"
+                  className="text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
                 >
                   {e.certificateFileName || "Ver certificado"}
                 </a>
               </p>
+            </section>
+          ) : null}
+
+          {hasConteudo ? (
+            <div>
+              <Link
+                href={`/minhas-turmas/${e.id}/conteudo`}
+                className="inline-flex items-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              >
+                Acessar conteúdo do curso
+              </Link>
             </div>
           ) : null}
 
-          <div>
-            <div className="mb-2 text-sm font-medium text-[var(--text-secondary)]">Data e horário das aulas</div>
+          <section aria-labelledby="aulas-heading">
+            <h2 id="aulas-heading" className="mb-3 text-base font-semibold text-[var(--text-primary)]">
+              Data e horário das aulas
+            </h2>
             {e.sessions.length === 0 ? (
-              <p className="text-[var(--text-secondary)]">Nenhuma aula agendada.</p>
+              <div
+                className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-8 text-center"
+                role="status"
+              >
+                <p className="text-sm text-[var(--text-muted)]">Nenhuma aula agendada.</p>
+              </div>
             ) : (
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Data</Th>
-                    <Th>Horário</Th>
-                    <Th>Status</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {e.sessions.map((s) => (
-                    <tr key={s.id}>
-                      <Td>{formatDate(s.sessionDate)}</Td>
-                      <Td>{s.startTime} às {s.endTime}</Td>
-                      <Td>
-                        <Badge tone={s.status === "CANCELED" ? "red" : "zinc"}>
-                          {STATUS_LABEL[s.status] ?? s.status}
-                        </Badge>
-                      </Td>
+              <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>Data</Th>
+                      <Th>Horário</Th>
+                      <Th>Aula do curso</Th>
+                      <Th>Status</Th>
                     </tr>
-                  ))}
-                </tbody>
-              </Table>
+                  </thead>
+                  <tbody>
+                    {e.sessions.map((s) => (
+                      <tr key={s.id}>
+                        <Td>{formatDate(s.sessionDate)}</Td>
+                        <Td>{s.startTime} às {s.endTime}</Td>
+                        <Td>{s.lessonTitle}</Td>
+                        <Td>
+                          <Badge tone={STATUS_TONE[s.status] ?? "zinc"}>
+                            {STATUS_LABEL[s.status] ?? s.status}
+                          </Badge>
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
             )}
-          </div>
+          </section>
         </div>
       </div>
     </div>

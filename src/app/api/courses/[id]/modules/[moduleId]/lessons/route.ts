@@ -32,6 +32,9 @@ export async function POST(request: Request, context: Ctx) {
       videoUrl: parsed.data.videoUrl?.trim() || null,
       imageUrls: parsed.data.imageUrls ?? [],
       contentRich: parsed.data.contentRich?.trim() || null,
+      summary: parsed.data.summary?.trim() || null,
+      pdfUrl: parsed.data.pdfUrl?.trim() || null,
+      attachmentUrls: parsed.data.attachmentUrls ?? [],
     },
   });
   const modules = await getModulesWithLessonsByCourseId(courseId);

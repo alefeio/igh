@@ -103,19 +103,59 @@ model CourseModule {
 }
 
 model CourseLesson {
-  id              String       @id @default(uuid())
+  id              String                    @id @default(uuid())
   moduleId        String
   title           String
-  order           Int          @default(0)
+  order           Int                       @default(0)
   durationMinutes Int?
   videoUrl        String?
-  imageUrls       String[]     @default([])
+  imageUrls       String[]                  @default([])
   contentRich     String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  module          CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  /** Resumo rápido da aula: o que será aprendido (exibido no topo para o aluno). */
+  summary         String?
+  /** URL do PDF da aula (material complementar). */
+  pdfUrl          String?
+  /** URLs dos arquivos de apoio da aula (material complementar). */
+  attachmentUrls  String[]                  @default([])
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  module          CourseModule              @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  classSessions   ClassSession[]
+  lessonProgress EnrollmentLessonProgress[]
+  lessonNotes     EnrollmentLessonNote[]
+  lessonFavorites EnrollmentLessonFavorite[]
+  lessonPassages  EnrollmentLessonPassage[]
+  exercises       CourseLessonExercise[]
 
   @@unique([moduleId, order])
+}
+
+/** Exercício de múltipla escolha vinculado à aula. */
+model CourseLessonExercise {
+  id        String   @id @default(uuid())
+  lessonId  String
+  order     Int      @default(0)
+  question  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lesson    CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  options   CourseLessonExerciseOption[]
+
+  @@index([lessonId])
+}
+
+/** Opção de resposta de um exercício de múltipla escolha. */
+model CourseLessonExerciseOption {
+  id         String   @id @default(uuid())
+  exerciseId String
+  order      Int      @default(0)
+  text       String
+  isCorrect  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  exercise   CourseLessonExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@index([exerciseId])
 }
 
 model ClassGroup {
@@ -142,6 +182,7 @@ model ClassGroup {
 model ClassSession {
   id           String             @id @default(uuid())
   classGroupId String
+  lessonId     String?
   sessionDate  DateTime           @db.Date
   startTime    String
   endTime      String
@@ -149,6 +190,7 @@ model ClassSession {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   classGroup   ClassGroup         @relation(fields: [classGroupId], references: [id])
+  lesson       CourseLesson?      @relation(fields: [lessonId], references: [id], onDelete: SetNull)
 
   @@unique([classGroupId, sessionDate])
 }
@@ -223,25 +265,110 @@ model Student {
 }
 
 model Enrollment {
-  id                    String              @id @default(uuid())
+  id                    String                    @id @default(uuid())
   studentId             String
   classGroupId          String
-  enrolledAt            DateTime            @default(now())
-  status                String              @default("ACTIVE")
+  enrolledAt            DateTime                  @default(now())
+  status                String                    @default("ACTIVE")
   enrollmentConfirmedAt DateTime?
   termsAcceptedAt       DateTime?
   termsVersion          String?
   confirmationMethod    String?
   confirmedIp           String?
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
   certificateUrl        String?
   certificatePublicId   String?
   certificateFileName   String?
-  isPreEnrollment       Boolean             @default(false)
-  classGroup            ClassGroup          @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
-  student               Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  isPreEnrollment       Boolean                   @default(false)
+  classGroup            ClassGroup                @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  student               Student                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   verificationTokens    VerificationToken[]
+  lessonProgress        EnrollmentLessonProgress[]
+  lessonNotes           EnrollmentLessonNote[]
+  lessonFavorites       EnrollmentLessonFavorite[]
+  lessonPassages        EnrollmentLessonPassage[]
+  lessonQuestions       EnrollmentLessonQuestion[]
+  exerciseAnswers       EnrollmentLessonExerciseAnswer[]
+}
+
+model EnrollmentLessonFavorite {
+  id           String       @id @default(uuid())
+  enrollmentId String
+  lessonId     String
+  createdAt    DateTime     @default(now())
+  enrollment   Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson       CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, lessonId])
+}
+
+model EnrollmentLessonNote {
+  id                  String       @id @default(uuid())
+  enrollmentId        String
+  lessonId           String
+  content            String
+  videoTimestampSecs Int?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  enrollment         Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson             CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId, lessonId])
+}
+
+model EnrollmentLessonPassage {
+  id           String       @id @default(uuid())
+  enrollmentId String
+  lessonId     String
+  text         String       // trecho selecionado (como marca-texto)
+  startOffset  Int          // índice do caractere no texto plano do conteúdo (para localizar o trecho)
+  createdAt    DateTime     @default(now())
+  enrollment   Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson       CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId, lessonId])
+}
+
+model EnrollmentLessonProgress {
+  id             String     @id @default(uuid())
+  enrollmentId   String
+  lessonId       String
+  completed      Boolean    @default(false)
+  percentWatched Int       @default(0)
+  percentRead    Int       @default(0)
+  completedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+  enrollment     Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson         CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, lessonId])
+}
+
+/** Dúvida ou comentário do aluno sobre a aula (fórum por aula). */
+model EnrollmentLessonQuestion {
+  id           String   @id @default(uuid())
+  enrollmentId String
+  lessonId     String
+  content      String
+  createdAt    DateTime @default(now())
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId, lessonId])
+  @@index([lessonId])
+}
+
+/** Resposta do aluno a um exercício de múltipla escolha (uma por exercício por matrícula). */
+model EnrollmentLessonExerciseAnswer {
+  id               String     @id @default(uuid())
+  enrollmentId     String
+  exerciseId       String
+  selectedOptionId String
+  correct          Boolean
+  createdAt        DateTime   @default(now())
+  enrollment       Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, exerciseId])
 }
 
 model StudentAttachment {
@@ -513,8 +640,9 @@ enum VerificationTokenType {
 }
 
 enum ClassSessionStatus {
-  SCHEDULED
-  CANCELED
+  SCHEDULED  // Agendada (data futura)
+  LIBERADA   // Liberada (data da aula já passou ou é hoje — aluno pode acessar conteúdo)
+  CANCELED   // Cancelada
 }
 
 enum UserRole {

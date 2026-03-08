@@ -9,6 +9,9 @@ export type LessonForList = {
   videoUrl: string | null;
   imageUrls: string[];
   contentRich: string | null;
+  summary: string | null;
+  pdfUrl: string | null;
+  attachmentUrls: string[];
 };
 
 export type ModuleWithLessons = {
@@ -39,6 +42,9 @@ export async function getModulesWithLessonsByCourseId(
           videoUrl: true,
           imageUrls: true,
           contentRich: true,
+          summary: true,
+          pdfUrl: true,
+          attachmentUrls: true,
         },
       },
     },
@@ -56,8 +62,29 @@ export async function getModulesWithLessonsByCourseId(
       videoUrl: l.videoUrl,
       imageUrls: l.imageUrls ?? [],
       contentRich: l.contentRich,
+      summary: l.summary,
+      pdfUrl: l.pdfUrl,
+      attachmentUrls: l.attachmentUrls ?? [],
     })),
   }));
+}
+
+/**
+ * Retorna os IDs das aulas do curso na ordem em que aparecem (módulos ordenados, aulas ordenadas).
+ * Usado para associar cada sessão da turma à aula do curso correspondente.
+ */
+export async function getCourseLessonIdsInOrder(courseId: string): Promise<string[]> {
+  const modules = await prisma.courseModule.findMany({
+    where: { courseId },
+    orderBy: { order: "asc" },
+    select: {
+      lessons: {
+        orderBy: { order: "asc" },
+        select: { id: true },
+      },
+    },
+  });
+  return modules.flatMap((m) => m.lessons.map((l) => l.id));
 }
 
 /**

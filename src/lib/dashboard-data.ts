@@ -50,10 +50,22 @@ export type DashboardDataTeacher = {
   classGroups: ClassGroupSummary[];
 };
 
+export type StudentEnrollmentSummary = {
+  id: string;
+  courseName: string;
+  teacherName: string;
+  startDate: Date;
+  status: string;
+  location: string | null;
+  lessonsTotal: number;
+  lessonsCompleted: number;
+};
+
 export type DashboardDataStudent = {
   role: "STUDENT";
   roleLabel: string;
   activeEnrollmentsCount: number;
+  enrollments: StudentEnrollmentSummary[];
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -66,15 +78,69 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       where: { userId: user.id, deletedAt: null },
       select: { id: true },
     });
-    const activeEnrollmentsCount = student
-      ? await prisma.enrollment.count({
-          where: { studentId: student.id, status: "ACTIVE" },
-        })
-      : 0;
+    if (!student) {
+      return {
+        role: "STUDENT",
+        roleLabel,
+        activeEnrollmentsCount: 0,
+        enrollments: [],
+      };
+    }
+    const enrollmentsRaw = await prisma.enrollment.findMany({
+      where: { studentId: student.id, status: "ACTIVE" },
+      orderBy: { enrolledAt: "desc" },
+      include: {
+        classGroup: {
+          include: {
+            course: { select: { id: true, name: true } },
+            teacher: { select: { name: true } },
+          },
+        },
+      },
+    });
+    const enrollmentIds = enrollmentsRaw.map((e) => e.id);
+    const courseIds = [...new Set(enrollmentsRaw.map((e) => e.classGroup.courseId))];
+    const [modulesWithCount, progressCounts] = await Promise.all([
+      prisma.courseModule.findMany({
+        where: { courseId: { in: courseIds } },
+        select: { courseId: true, _count: { select: { lessons: true } } },
+      }),
+      prisma.enrollmentLessonProgress.groupBy({
+        by: ["enrollmentId"],
+        where: { enrollmentId: { in: enrollmentIds }, completed: true },
+        _count: { id: true },
+      }),
+    ]);
+    const lessonsByCourseId = new Map<string, number>();
+    for (const m of modulesWithCount) {
+      lessonsByCourseId.set(
+        m.courseId,
+        (lessonsByCourseId.get(m.courseId) ?? 0) + m._count.lessons
+      );
+    }
+    const completedByEnrollmentId = new Map(
+      progressCounts.map((p) => [p.enrollmentId, p._count.id])
+    );
+    const enrollments: StudentEnrollmentSummary[] = enrollmentsRaw.map((e) => {
+      const courseId = e.classGroup.courseId;
+      const lessonsTotal = lessonsByCourseId.get(courseId) ?? 0;
+      const lessonsCompleted = completedByEnrollmentId.get(e.id) ?? 0;
+      return {
+        id: e.id,
+        courseName: e.classGroup.course.name,
+        teacherName: e.classGroup.teacher.name,
+        startDate: e.classGroup.startDate,
+        status: e.classGroup.status,
+        location: e.classGroup.location,
+        lessonsTotal,
+        lessonsCompleted,
+      };
+    });
     return {
       role: "STUDENT",
       roleLabel,
-      activeEnrollmentsCount,
+      activeEnrollmentsCount: enrollments.length,
+      enrollments,
     };
   }
 

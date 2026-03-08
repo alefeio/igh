@@ -43,7 +43,7 @@ type ClassSession = {
   sessionDate: string;
   startTime: string;
   endTime: string;
-  status: "SCHEDULED" | "CANCELED";
+  status: "SCHEDULED" | "LIBERADA" | "CANCELED";
 };
 
 type TimeSlot = {

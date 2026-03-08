@@ -260,16 +260,28 @@ export function MeusDadosForm() {
     }
   }
 
-  if (loading) return <p className="text-sm text-[var(--text-secondary)]">Carregando...</p>;
-  if (!profile) return <p className="text-sm text-[var(--text-secondary)]">Cadastro não encontrado.</p>;
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] py-10 text-center text-[var(--text-secondary)]" role="status">
+        Carregando seus dados...
+      </div>
+    );
+  }
+  if (!profile) {
+    return (
+      <div className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-10 text-center" role="status">
+        <p className="text-sm text-[var(--text-muted)]">Cadastro não encontrado.</p>
+      </div>
+    );
+  }
 
   const idDoc = attachments.find((a) => a.type === "ID_DOCUMENT");
   const addressProof = attachments.find((a) => a.type === "ADDRESS_PROOF");
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
-        <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">Identificação</h2>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5" role="region" aria-labelledby="identificacao-heading">
+        <h2 id="identificacao-heading" className="mb-4 text-base font-semibold text-[var(--text-primary)]">Identificação</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium">Nome</label>
@@ -357,8 +369,8 @@ export function MeusDadosForm() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
-        <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">Responsável (menores de 18 anos)</h2>
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5" role="region" aria-labelledby="responsavel-heading">
+        <h2 id="responsavel-heading" className="mb-4 text-base font-semibold text-[var(--text-primary)]">Responsável (menores de 18 anos)</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium">Nome do responsável</label>
@@ -383,8 +395,8 @@ export function MeusDadosForm() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
-        <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">Endereço</h2>
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5" role="region" aria-labelledby="endereco-heading">
+        <h2 id="endereco-heading" className="mb-4 text-base font-semibold text-[var(--text-primary)]">Endereço</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium">CEP</label>
@@ -447,15 +459,15 @@ export function MeusDadosForm() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
-        <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">Anexos</h2>
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5" role="region" aria-labelledby="anexos-heading">
+        <h2 id="anexos-heading" className="mb-4 text-base font-semibold text-[var(--text-primary)]">Anexos</h2>
         <p className="mb-4 text-xs text-[var(--text-muted)]">Envie documento de identidade (RG ou CPF) e comprovante de residência (PDF ou imagem, máx. 5MB).</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-sm font-medium">Documento de identidade</label>
             {idDoc ? (
               <div className="mt-1">
-                <a href={idDoc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline">
+                <a href={idDoc.url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded">
                   {idDoc.fileName ?? "Ver arquivo"}
                 </a>
                 <span className="ml-2 text-xs text-[var(--text-muted)]">— envie outro para substituir</span>
@@ -478,7 +490,7 @@ export function MeusDadosForm() {
             <label className="text-sm font-medium">Comprovante de residência</label>
             {addressProof ? (
               <div className="mt-1">
-                <a href={addressProof.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline">
+                <a href={addressProof.url} target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded">
                   {addressProof.fileName ?? "Ver arquivo"}
                 </a>
                 <span className="ml-2 text-xs text-[var(--text-muted)]">— envie outro para substituir</span>
@@ -501,7 +513,11 @@ export function MeusDadosForm() {
       </div>
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={saving}>
+        <Button
+          type="submit"
+          disabled={saving}
+          className="rounded-lg focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+        >
           {saving ? "Salvando..." : "Salvar dados"}
         </Button>
       </div>

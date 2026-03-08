@@ -13,13 +13,15 @@ export default async function MeusDadosPage() {
     redirect("/login");
   }
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-lg font-semibold text-[var(--text-primary)]">Meus dados</h1>
-        <p className="text-sm text-[var(--text-secondary)]">
+    <div className="container-page flex flex-col gap-6">
+      <header>
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
+          Meus dados
+        </h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">
           Complete seu cadastro com os dados restantes e anexe documento de identidade e comprovante de residência.
         </p>
-      </div>
+      </header>
       <MeusDadosForm />
     </div>
   );

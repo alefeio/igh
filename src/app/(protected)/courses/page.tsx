@@ -24,8 +24,11 @@ type Course = {
   createdAt: string;
 };
 
-type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null };
+type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[] };
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
+
+type LessonExerciseOption = { id: string; text: string; isCorrect: boolean; order: number };
+type LessonExercise = { id: string; lessonId: string; order: number; question: string; options: LessonExerciseOption[] };
 
 export default function CoursesPage() {
   const toast = useToast();
@@ -46,10 +49,15 @@ export default function CoursesPage() {
   const [moduleModal, setModuleModal] = useState<{ type: "create" | "edit"; module?: ModuleWithLessons } | null>(null);
   const [lessonModal, setLessonModal] = useState<{ type: "create" | "edit"; module: ModuleWithLessons; lesson?: Lesson } | null>(null);
   const [moduleForm, setModuleForm] = useState({ title: "", description: "", order: 0 });
-  const [lessonForm, setLessonForm] = useState({ title: "", order: 0, durationMinutes: "" as string | number, videoUrl: "", imageUrls: [] as string[], contentRich: "" });
+  const [lessonForm, setLessonForm] = useState({ title: "", order: 0, durationMinutes: "" as string | number, videoUrl: "", imageUrls: [] as string[], contentRich: "", summary: "", attachmentUrls: [] as string[], attachmentUrlInput: "" });
   const [savingCourse, setSavingCourse] = useState(false);
   const [savingModule, setSavingModule] = useState(false);
   const [savingLesson, setSavingLesson] = useState(false);
+  const [lessonExercises, setLessonExercises] = useState<LessonExercise[]>([]);
+  const [loadingExercises, setLoadingExercises] = useState(false);
+  const [exerciseModal, setExerciseModal] = useState<{ type: "add" | "edit"; exercise?: LessonExercise } | null>(null);
+  const [exerciseForm, setExerciseForm] = useState({ question: "", options: [] as { text: string; isCorrect: boolean }[] });
+  const [savingExercise, setSavingExercise] = useState(false);
 
   const canSubmit = useMemo(() => name.trim().length >= 2, [name]);
 
@@ -117,6 +125,97 @@ export default function CoursesPage() {
     }
   }
 
+  useEffect(() => {
+    if (!editing?.id || !lessonModal || lessonModal.type !== "edit" || !lessonModal.lesson?.id) return;
+    const mod = lessonModal.module;
+    setLoadingExercises(true);
+    fetch(`/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson.id}/exercises`)
+      .then((r) => r.json() as Promise<ApiResponse<LessonExercise[]>>)
+      .then((json) => {
+        if (json.ok && json.data) setLessonExercises(json.data);
+        else setLessonExercises([]);
+      })
+      .catch(() => setLessonExercises([]))
+      .finally(() => setLoadingExercises(false));
+  }, [editing?.id, lessonModal?.type, lessonModal?.lesson?.id, lessonModal?.module?.id]);
+
+  function openExerciseAdd() {
+    setExerciseForm({ question: "", options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] });
+    setExerciseModal({ type: "add" });
+  }
+
+  function openExerciseEdit(ex: LessonExercise) {
+    setExerciseForm({
+      question: ex.question,
+      options: ex.options.length >= 2 ? ex.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect })) : [{ text: "", isCorrect: true }, { text: "", isCorrect: false }],
+    });
+    setExerciseModal({ type: "edit", exercise: ex });
+  }
+
+  async function saveExercise(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editing?.id || !lessonModal || lessonModal.type !== "edit" || !lessonModal.lesson?.id || savingExercise) return;
+    const question = exerciseForm.question.trim();
+    const options = exerciseForm.options.filter((o) => o.text.trim());
+    if (!question) {
+      toast.push("error", "Digite a pergunta.");
+      return;
+    }
+    if (options.length < 2) {
+      toast.push("error", "Adicione pelo menos 2 opções.");
+      return;
+    }
+    if (!options.some((o) => o.isCorrect)) {
+      toast.push("error", "Marque uma opção como correta.");
+      return;
+    }
+    setSavingExercise(true);
+    try {
+      const mod = lessonModal.module;
+      const base = `/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson.id}/exercises`;
+      const isEdit = exerciseModal?.type === "edit" && exerciseModal?.exercise;
+      const url = isEdit ? `${base}/${exerciseModal.exercise!.id}` : base;
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question,
+          order: isEdit ? exerciseModal.exercise!.order : lessonExercises.length,
+          options: options.map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect })),
+        }),
+      });
+      const json = await res.json() as ApiResponse<LessonExercise>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", (json as { error?: { message?: string } }).error?.message ?? "Erro ao salvar exercício.");
+        return;
+      }
+      toast.push("success", isEdit ? "Exercício atualizado." : "Exercício adicionado.");
+      if (isEdit) setLessonExercises((prev) => prev.map((ex) => (ex.id === json.data!.id ? json.data! : ex)));
+      else setLessonExercises((prev) => [...prev, json.data!]);
+      setExerciseModal(null);
+    } finally {
+      setSavingExercise(false);
+    }
+  }
+
+  async function deleteExercise(ex: LessonExercise) {
+    if (!editing?.id || !lessonModal || lessonModal.type !== "edit" || !lessonModal.lesson?.id) return;
+    if (!confirm("Excluir este exercício?")) return;
+    const mod = lessonModal.module;
+    const res = await fetch(
+      `/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson.id}/exercises/${ex.id}`,
+      { method: "DELETE" }
+    );
+    const json = await res.json() as ApiResponse<{ deleted: boolean }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", (json as { error?: { message?: string } }).error?.message ?? "Erro ao excluir.");
+      return;
+    }
+    toast.push("success", "Exercício excluído.");
+    setLessonExercises((prev) => prev.filter((e) => e.id !== ex.id));
+  }
+
   function openModuleCreate() {
     setModuleForm({ title: "", description: "", order: modules.length });
     setModuleModal({ type: "create" });
@@ -173,8 +272,9 @@ export default function CoursesPage() {
   }
 
   function openLessonCreate(mod: ModuleWithLessons) {
-    setLessonForm({ title: "", order: mod.lessons.length, durationMinutes: "", videoUrl: "", imageUrls: [], contentRich: "" });
+    setLessonForm({ title: "", order: mod.lessons.length, durationMinutes: "", videoUrl: "", imageUrls: [], contentRich: "", summary: "", attachmentUrls: [], attachmentUrlInput: "" });
     setLessonModal({ type: "create", module: mod });
+    setLessonExercises([]);
   }
 
   function openLessonEdit(mod: ModuleWithLessons, les: Lesson) {
@@ -185,8 +285,12 @@ export default function CoursesPage() {
       videoUrl: les.videoUrl ?? "",
       imageUrls: les.imageUrls ?? [],
       contentRich: les.contentRich ?? "",
+      summary: les.summary ?? "",
+      attachmentUrls: les.attachmentUrls ?? [],
+      attachmentUrlInput: "",
     });
     setLessonModal({ type: "edit", module: mod, lesson: les });
+    setLessonExercises([]);
   }
 
   async function saveLesson(e: React.FormEvent) {
@@ -211,6 +315,9 @@ export default function CoursesPage() {
           videoUrl: lessonForm.videoUrl?.trim() || null,
           imageUrls: lessonForm.imageUrls ?? [],
           contentRich: lessonForm.contentRich?.trim() || null,
+          summary: lessonForm.summary?.trim() || null,
+          pdfUrl: null,
+          attachmentUrls: lessonForm.attachmentUrls ?? [],
         }),
       });
       const text = await res.text();
@@ -723,6 +830,67 @@ export default function CoursesPage() {
               )}
             </div>
             <div>
+              <label className="text-sm font-medium">Arquivos de apoio (URLs, opcional)</label>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Links para download de arquivos de apoio da aula (planilhas, documentos, etc.).</p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <Input
+                  className="max-w-xs"
+                  type="url"
+                  placeholder="Cole a URL e clique em Adicionar"
+                  value={lessonForm.attachmentUrlInput ?? ""}
+                  onChange={(e) => setLessonForm((f) => ({ ...f, attachmentUrlInput: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const url = (lessonForm.attachmentUrlInput ?? "").trim();
+                    if (url) {
+                      setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentUrlInput: "" }));
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    const url = (lessonForm.attachmentUrlInput ?? "").trim();
+                    if (url) setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentUrlInput: "" }));
+                  }}
+                >
+                  Adicionar
+                </Button>
+              </div>
+              {lessonForm.attachmentUrls && lessonForm.attachmentUrls.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {lessonForm.attachmentUrls.map((url, idx) => (
+                    <li key={`${url}-${idx}`} className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
+                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="text-red-600"
+                        onClick={() => setLessonForm((f) => ({ ...f, attachmentUrls: (f.attachmentUrls ?? []).filter((_, i) => i !== idx) }))}
+                      >
+                        Remover
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <label className="text-sm font-medium">Resumo rápido da aula (o que será aprendido)</label>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Texto exibido no topo da aula para o aluno. Ex.: tópicos ou objetivos da aula.</p>
+              <textarea
+                className="mt-1 w-full min-h-[80px] rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
+                value={lessonForm.summary}
+                onChange={(e) => setLessonForm((f) => ({ ...f, summary: e.target.value }))}
+                placeholder={"Ex.: Nesta aula você verá:\n• Conceitos de...\n• Prática de...\n• Exercícios..."}
+                rows={4}
+              />
+            </div>
+            <div>
               <label className="text-sm font-medium">Conteúdo (rich text)</label>
               <RichTextEditor
                 key={lessonModal.type === "edit" ? lessonModal.lesson?.id : "new"}
@@ -732,9 +900,131 @@ export default function CoursesPage() {
                 className="mt-1"
               />
             </div>
+            {lessonModal.type === "edit" && lessonModal.lesson?.id && (
+              <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-sm font-medium">Exercícios de múltipla escolha</label>
+                  <Button type="button" variant="secondary" size="sm" onClick={openExerciseAdd}>
+                    Adicionar exercício
+                  </Button>
+                </div>
+                <p className="mb-2 text-xs text-[var(--text-muted)]">Exibidos ao final da aula para o aluno responder.</p>
+                {loadingExercises ? (
+                  <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
+                ) : lessonExercises.length === 0 ? (
+                  <p className="text-sm text-[var(--text-muted)]">Nenhum exercício. Clique em &quot;Adicionar exercício&quot; para criar.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {lessonExercises.map((ex, idx) => (
+                      <li key={ex.id} className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+                        <p className="mb-2 font-medium text-[var(--text-primary)]">{idx + 1}. {ex.question}</p>
+                        <ul className="mb-2 list-inside list-disc text-sm text-[var(--text-secondary)]">
+                          {ex.options.map((o) => (
+                            <li key={o.id}>{o.text}{o.isCorrect ? " ✓" : ""}</li>
+                          ))}
+                        </ul>
+                        <div className="flex gap-2">
+                          <Button type="button" variant="secondary" size="sm" onClick={() => openExerciseEdit(ex)}>Editar</Button>
+                          <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => deleteExercise(ex)}>Excluir</Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="secondary" onClick={() => setLessonModal(null)} disabled={savingLesson}>Cancelar</Button>
               <Button type="submit" disabled={savingLesson}>{savingLesson ? "Salvando" : "Salvar"}</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {exerciseModal && (
+        <Modal
+          open={!!exerciseModal}
+          title={exerciseModal.type === "edit" ? "Editar exercício" : "Novo exercício"}
+          onClose={() => setExerciseModal(null)}
+          size="medium"
+        >
+          <form onSubmit={saveExercise} className="flex flex-col gap-3">
+            <div>
+              <label className="text-sm font-medium">Pergunta</label>
+              <textarea
+                className="mt-1 w-full min-h-[60px] rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
+                value={exerciseForm.question}
+                onChange={(e) => setExerciseForm((f) => ({ ...f, question: e.target.value }))}
+                placeholder="Ex.: Qual a principal vantagem de..."
+                required
+                rows={2}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Opções (marque a correta)</label>
+              <div className="mt-2 space-y-2">
+                {exerciseForm.options.map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="correctOption"
+                      checked={opt.isCorrect}
+                      onChange={() =>
+                        setExerciseForm((f) => ({
+                          ...f,
+                          options: f.options.map((o, i) => ({ ...o, isCorrect: i === idx })),
+                        }))
+                      }
+                      className="shrink-0"
+                    />
+                    <Input
+                      className="flex-1"
+                      value={opt.text}
+                      onChange={(e) =>
+                        setExerciseForm((f) => ({
+                          ...f,
+                          options: f.options.map((o, i) => (i === idx ? { ...o, text: e.target.value } : o)),
+                        }))
+                      }
+                      placeholder={`Opção ${idx + 1}`}
+                    />
+                    {exerciseForm.options.length > 2 && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="text-red-600 shrink-0"
+                        onClick={() => {
+                          setExerciseForm((f) => {
+                            const next = f.options.filter((_, i) => i !== idx);
+                            const hasCorrect = next.some((o) => o.isCorrect);
+                            return { ...f, options: hasCorrect ? next : next.map((o, i) => (i === 0 ? { ...o, isCorrect: true } : o)) };
+                          });
+                        }}
+                      >
+                        Remover
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setExerciseForm((f) => ({
+                      ...f,
+                      options: [...f.options, { text: "", isCorrect: false }],
+                    }))
+                  }
+                >
+                  + Opção
+                </Button>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => setExerciseModal(null)} disabled={savingExercise}>Cancelar</Button>
+              <Button type="submit" disabled={savingExercise}>{savingExercise ? "Salvando" : "Salvar"}</Button>
             </div>
           </form>
         </Modal>

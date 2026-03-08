@@ -59,48 +59,79 @@ export default function MinhasTurmasPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="container-page flex flex-col gap-6">
+      <nav aria-label="Navegação" className="flex flex-wrap items-center justify-end gap-2">
+        <Link
+          href="/minhas-turmas/favoritos"
+          className="text-sm font-medium text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+        >
+          ★ Minha lista de favoritos
+        </Link>
+      </nav>
+
       <div className="card">
-        <div className="card-header">
-          <div className="text-lg font-semibold text-[var(--text-primary)]">Minhas turmas</div>
-          <div className="mt-1 text-sm text-[var(--text-secondary)]">Turmas em que você está matriculado.</div>
-        </div>
+        <header className="card-header">
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
+            Minhas turmas
+          </h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            {loading
+              ? "Turmas em que você está matriculado."
+              : enrollments.length === 0
+                ? "Você não está matriculado em nenhuma turma no momento."
+                : `${enrollments.length} ${enrollments.length === 1 ? "turma" : "turmas"}`}
+          </p>
+        </header>
         <div className="card-body">
           {loading ? (
-            <p className="text-[var(--text-secondary)]">Carregando...</p>
+            <div className="py-10 text-center text-[var(--text-secondary)]" role="status">
+              Carregando turmas...
+            </div>
           ) : enrollments.length === 0 ? (
-            <p className="text-[var(--text-secondary)]">Você não está matriculado em nenhuma turma no momento.</p>
+            <div
+              className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-10 text-center"
+              role="status"
+            >
+              <p className="text-sm text-[var(--text-muted)]">
+                Você não está matriculado em nenhuma turma no momento.
+              </p>
+            </div>
           ) : (
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Curso</Th>
-                  <Th>Professor</Th>
-                  <Th>Início</Th>
-                  <Th>Status</Th>
-                  <Th>Local</Th>
-                  <Th></Th>
-                </tr>
-              </thead>
-              <tbody>
-                {enrollments.map((e) => (
-                  <tr key={e.id}>
-                    <Td>{e.courseName}</Td>
-                    <Td>{e.teacherName}</Td>
-                    <Td>{formatDate(e.startDate)}</Td>
-                    <Td>
-                      <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
-                    </Td>
-                    <Td>{e.location ?? "—"}</Td>
-                    <Td>
-                      <Link className="text-blue-600 underline hover:no-underline" href={`/minhas-turmas/${e.id}`}>
-                        Ver detalhes
-                      </Link>
-                    </Td>
+            <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Curso</Th>
+                    <Th>Professor</Th>
+                    <Th>Início</Th>
+                    <Th>Status</Th>
+                    <Th>Local</Th>
+                    <Th></Th>
                   </tr>
-                ))}
-              </tbody>
-            </Table>
+                </thead>
+                <tbody>
+                  {enrollments.map((e) => (
+                    <tr key={e.id}>
+                      <Td>{e.courseName}</Td>
+                      <Td>{e.teacherName}</Td>
+                      <Td>{formatDate(e.startDate)}</Td>
+                      <Td>
+                        <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
+                      </Td>
+                      <Td>{e.location ?? "—"}</Td>
+                      <Td>
+                        <Link
+                          href={`/minhas-turmas/${e.id}`}
+                          className="text-[var(--igh-primary)] font-medium underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+                        >
+                          Ver detalhes
+                        </Link>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
           )}
         </div>
       </div>
