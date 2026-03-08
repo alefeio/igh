@@ -7,6 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 function RedefinirSenhaContent() {
   const router = useRouter();
@@ -78,10 +79,9 @@ function RedefinirSenhaContent() {
               <div>
                 <label className="text-sm font-medium">Nova senha</label>
                 <div className="mt-1">
-                  <Input
+                  <PasswordInput
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    type="password"
                     required
                     minLength={8}
                     placeholder="Mínimo 8 caracteres"
@@ -91,10 +91,9 @@ function RedefinirSenhaContent() {
               <div>
                 <label className="text-sm font-medium">Confirmar senha</label>
                 <div className="mt-1">
-                  <Input
+                  <PasswordInput
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    type="password"
                     required
                     minLength={8}
                   />

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { ApiResponse } from "@/lib/api-types";
 
 export default function TrocarSenhaPage() {
@@ -61,8 +62,7 @@ export default function TrocarSenhaPage() {
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)]">Senha atual</label>
             <div className="mt-1">
-              <Input
-                type="password"
+              <PasswordInput
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 autoComplete="current-password"
@@ -72,8 +72,7 @@ export default function TrocarSenhaPage() {
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)]">Nova senha</label>
             <div className="mt-1">
-              <Input
-                type="password"
+              <PasswordInput
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 minLength={8}
@@ -85,8 +84,7 @@ export default function TrocarSenhaPage() {
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)]">Confirmar nova senha</label>
             <div className="mt-1">
-              <Input
-                type="password"
+              <PasswordInput
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"

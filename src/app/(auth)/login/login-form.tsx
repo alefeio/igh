@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { ApiResponse } from "@/lib/api-types";
 
 type LoginFormProps = { redirectTo?: string };
@@ -67,7 +68,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       <div>
         <label className="text-sm font-medium text-[var(--text-primary)]">Senha</label>
         <div className="mt-1">
-          <Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" />
+          <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
       </div>
       <Button type="submit" disabled={loading}>

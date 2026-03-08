@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+type YTPlayerInstance = { destroy: () => void };
+
 declare global {
   interface Window {
     YT?: {
@@ -11,9 +13,7 @@ declare global {
           videoId: string;
           playerVars?: { start?: number };
         }
-      ) => {
-        destroy: () => void;
-      };
+      ) => YTPlayerInstance;
     };
     onYouTubeIframeAPIReady?: () => void;
   }
@@ -40,7 +40,7 @@ type Props = {
 
 export function YouTubePlayer({ videoUrl }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<ReturnType<Window["YT"]["Player"]> | null>(null);
+  const playerRef = useRef<YTPlayerInstance | null>(null);
 
   useEffect(() => {
     const videoId = getYouTubeVideoId(videoUrl);
@@ -60,7 +60,7 @@ export function YouTubePlayer({ videoUrl }: Props) {
           enablejsapi: 1,
         },
       });
-      playerRef.current = player as unknown as ReturnType<Window["YT"]["Player"]>;
+      playerRef.current = player as YTPlayerInstance;
     }
 
     let prevReady: (() => void) | undefined;

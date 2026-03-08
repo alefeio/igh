@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { ApiResponse } from "@/lib/api-types";
 
 export function SetupForm() {
@@ -59,11 +60,10 @@ export function SetupForm() {
       <div>
         <label className="text-sm font-medium">Senha</label>
         <div className="mt-1">
-          <Input
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="mínimo 8 caracteres"
-            type="password"
           />
         </div>
       </div>

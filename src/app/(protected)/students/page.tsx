@@ -13,24 +13,6 @@ import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
-const STUDY_SHIFT_LABELS: Record<string, string> = {
-  MORNING: "Manhã",
-  AFTERNOON: "Tarde",
-  EVENING: "Noite",
-  FULL: "Integral",
-};
-
-const EDUCATION_LEVEL_LABELS: Record<string, string> = {
-  NONE: "Nenhuma",
-  ELEMENTARY_INCOMPLETE: "Fundamental incompleto",
-  ELEMENTARY_COMPLETE: "Fundamental completo",
-  HIGH_INCOMPLETE: "Médio incompleto",
-  HIGH_COMPLETE: "Médio completo",
-  COLLEGE_INCOMPLETE: "Superior incompleto",
-  COLLEGE_COMPLETE: "Superior completo",
-  OTHER: "Outro",
-};
-
 function formatCpf(v: string): string {
   const d = v.replace(/\D/g, "");
   if (d.length <= 3) return d;
@@ -175,8 +157,7 @@ export default function StudentsPage() {
               <Th>Nome</Th>
               <Th>CPF</Th>
               <Th>Celular</Th>
-              <Th>Escolaridade</Th>
-              <Th>Estudando?</Th>
+              <Th>E-mail</Th>
               <Th />
             </tr>
           </thead>
@@ -191,8 +172,7 @@ export default function StudentsPage() {
                 </Td>
                 <Td>{formatCpf(s.cpf)}</Td>
                 <Td>{formatPhone(s.phone)}</Td>
-                <Td>{EDUCATION_LEVEL_LABELS[s.educationLevel] ?? s.educationLevel}</Td>
-                <Td>{s.isStudying ? STUDY_SHIFT_LABELS[s.studyShift ?? ""] ?? s.studyShift : "Não"}</Td>
+                <Td>{s.email ?? "—"}</Td>
                 <Td>
                   <div className="flex justify-end gap-2">
                     {!s.deletedAt && (
@@ -230,7 +210,7 @@ export default function StudentsPage() {
             ))}
             {items.length === 0 && (
               <tr>
-                <Td colSpan={6} className="text-[var(--text-secondary)]">
+                <Td colSpan={5} className="text-[var(--text-secondary)]">
                   Nenhum aluno encontrado.
                 </Td>
               </tr>

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
@@ -297,10 +298,9 @@ export default function UsersPage() {
           <div>
             <label className="text-sm font-medium">Nova senha (opcional)</label>
             <div className="mt-1">
-              <Input
+              <PasswordInput
                 value={editPassword}
                 onChange={(e) => setEditPassword(e.target.value)}
-                type="password"
                 placeholder="Deixe em branco para manter"
               />
             </div>
