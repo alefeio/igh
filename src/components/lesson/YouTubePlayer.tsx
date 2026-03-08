@@ -11,7 +11,7 @@ declare global {
         elementId: string,
         options: {
           videoId: string;
-          playerVars?: { start?: number };
+          playerVars?: { start?: number; enablejsapi?: number };
         }
       ) => YTPlayerInstance;
     };
@@ -43,8 +43,9 @@ export function YouTubePlayer({ videoUrl }: Props) {
   const playerRef = useRef<YTPlayerInstance | null>(null);
 
   useEffect(() => {
-    const videoId = getYouTubeVideoId(videoUrl);
-    if (!videoId || !containerRef.current) return;
+    const rawId = getYouTubeVideoId(videoUrl);
+    if (!rawId || !containerRef.current) return;
+    const videoId: string = rawId;
 
     const container = containerRef.current;
     const id = "yt-player-" + Math.random().toString(36).slice(2);

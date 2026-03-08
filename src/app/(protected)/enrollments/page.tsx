@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import { BarChart, Bar, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import * as XLSX from "xlsx";
 
 import { StudentForm } from "@/components/students/StudentForm";
@@ -9,9 +9,23 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+
+const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Ativa",
+  SUSPENDED: "Suspensa",
+  CANCELLED: "Cancelada",
+  COMPLETED: "Concluída",
+};
+const ENROLLMENT_STATUS_TONE: Record<string, "zinc" | "green" | "red" | "blue" | "amber"> = {
+  ACTIVE: "green",
+  SUSPENDED: "amber",
+  CANCELLED: "red",
+  COMPLETED: "blue",
+};
 
 const CLOUDINARY_UPLOAD_URL = "https://api.cloudinary.com/v1_1";
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -88,6 +102,9 @@ export default function EnrollmentsPage() {
   const [listFilter, setListFilter] = useState("");
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
+  const [statusFilterState, setStatusFilterState] = useState("");
+  const [preEnrollmentFilterState, setPreEnrollmentFilterState] = useState<"" | "pre" | "confirmed">("");
+  const [turmaFilterId, setTurmaFilterId] = useState("");
 
   async function load() {
     setLoading(true);
@@ -118,7 +135,7 @@ export default function EnrollmentsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [listFilter, pageSize]);
+  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterId]);
 
   const dashboard = (() => {
     const byClassGroup = new Map<string, { classGroup: ClassGroup; count: number }>();
@@ -162,15 +179,44 @@ export default function EnrollmentsPage() {
     return m;
   })();
 
+  const kpis = useMemo(() => {
+    const active = items.filter((e) => e.status === "ACTIVE").length;
+    const pre = items.filter((e) => e.isPreEnrollment).length;
+    const confirmed = items.filter((e) => e.enrollmentConfirmedAt != null).length;
+    return { total: items.length, active, pre, confirmed };
+  }, [items]);
+
   const filteredItems = useMemo(() => {
+    let list = items;
     const q = listFilter.trim().toLowerCase();
-    if (q.length === 0) return items;
-    return items.filter(
-      (e) =>
-        e.student.name.toLowerCase().includes(q) ||
-        e.classGroup.course.name.toLowerCase().includes(q)
-    );
-  }, [items, listFilter]);
+    if (q.length > 0) {
+      list = list.filter(
+        (e) =>
+          e.student.name.toLowerCase().includes(q) ||
+          (e.student.email?.toLowerCase().includes(q) ?? false) ||
+          e.classGroup.course.name.toLowerCase().includes(q)
+      );
+    }
+    if (statusFilterState) list = list.filter((e) => e.status === statusFilterState);
+    if (preEnrollmentFilterState === "pre") list = list.filter((e) => e.isPreEnrollment);
+    if (preEnrollmentFilterState === "confirmed") list = list.filter((e) => e.enrollmentConfirmedAt != null);
+    if (turmaFilterId) list = list.filter((e) => e.classGroup.id === turmaFilterId);
+    return list;
+  }, [items, listFilter, statusFilterState, preEnrollmentFilterState, turmaFilterId]);
+
+  const turmaOptions = useMemo(() => {
+    const opts: { id: string; label: string }[] = [];
+    for (const [, { courseName, turmas }] of dashboard.courses) {
+      for (const { classGroup: cg } of turmas) {
+        const start = formatDateOnly(cg.startDate).slice(0, 5);
+        opts.push({
+          id: cg.id,
+          label: `${courseName} — ${start} ${cg.startTime}-${cg.endTime}`,
+        });
+      }
+    }
+    return opts;
+  }, [dashboard.courses]);
 
   const totalFiltered = filteredItems.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
@@ -421,32 +467,121 @@ export default function EnrollmentsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="container-page flex flex-col gap-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="text-lg font-semibold text-[var(--text-primary)]">Matrículas</div>
-          <div className="text-sm text-[var(--text-secondary)]">
-            Ao matricular um aluno em uma turma, um e-mail com link de confirmação e credenciais é enviado.
-          </div>
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
+            Matrículas
+          </h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Análise de matrículas por status, turma e data. Crie matrículas, confira vagas e exporte dados. E-mail de boas-vindas pode ser enviado ao aluno.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 shrink-0">
           <Button variant="secondary" onClick={exportToExcel} disabled={items.length === 0}>
-            Exportar para Excel
+            Exportar Excel
           </Button>
-          <Button onClick={openCreate} className="w-full shrink-0 sm:w-auto">Nova matrícula</Button>
+          <Button onClick={openCreate} className="w-full sm:w-auto">Nova matrícula</Button>
         </div>
-      </div>
+      </header>
 
       {loading ? (
-        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
+        <div
+          className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-12 text-center text-[var(--text-muted)]"
+          role="status"
+        >
+          Carregando matrículas...
+        </div>
       ) : (
         <div className="flex flex-col gap-6">
-          {(pieData.length > 0 || columnData.length > 0) && (
-            <section
-              className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm"
-              aria-label="Gráficos de matrículas"
+          {kpis.pre > 0 && isMaster && (
+            <div
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30"
+              role="status"
             >
-              <h2 className="text-base font-semibold text-[var(--text-primary)] mb-4">Gráficos</h2>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                {kpis.pre} pré-matrícula{kpis.pre !== 1 ? "s" : ""} aguardando confirmação.
+              </p>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setPreEnrollmentFilterState("pre");
+                  setStatusFilterState("");
+                  setTurmaFilterId("");
+                }}
+              >
+                Filtrar e confirmar
+              </Button>
+            </div>
+          )}
+
+          <section aria-labelledby="enrollments-kpis-heading" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <h2 id="enrollments-kpis-heading" className="sr-only">
+              Resumo de matrículas
+            </h2>
+            <button
+              type="button"
+              onClick={() => { setStatusFilterState(""); setPreEnrollmentFilterState(""); setTurmaFilterId(""); }}
+              className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                !statusFilterState && !preEnrollmentFilterState && !turmaFilterId
+                  ? "border-[var(--igh-primary)]/50 bg-[var(--igh-primary)]/5"
+                  : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/30"
+              }`}
+            >
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Total</p>
+              <p className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{kpis.total}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setStatusFilterState("ACTIVE"); setPreEnrollmentFilterState(""); setTurmaFilterId(""); }}
+              className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                statusFilterState === "ACTIVE" && !preEnrollmentFilterState && !turmaFilterId
+                  ? "border-green-500/50 bg-green-500/5"
+                  : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/30"
+              }`}
+            >
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Ativas</p>
+              <p className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{kpis.active}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPreEnrollmentFilterState("pre"); setStatusFilterState(""); setTurmaFilterId(""); }}
+              className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                preEnrollmentFilterState === "pre"
+                  ? "border-amber-500/50 bg-amber-500/5"
+                  : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/30"
+              }`}
+            >
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Pré-matrículas</p>
+              <p className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{kpis.pre}</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPreEnrollmentFilterState("confirmed"); setStatusFilterState(""); setTurmaFilterId(""); }}
+              className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                preEnrollmentFilterState === "confirmed"
+                  ? "border-[var(--igh-primary)]/50 bg-[var(--igh-primary)]/5"
+                  : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/30"
+              }`}
+            >
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Confirmadas</p>
+              <p className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{kpis.confirmed}</p>
+            </button>
+          </section>
+
+          {(pieData.length > 0 || columnData.length > 0) && (
+            <section className="card" aria-labelledby="enrollments-charts-heading">
+              <header className="card-header">
+                <h2 id="enrollments-charts-heading" className="text-base font-semibold text-[var(--text-primary)]">
+                  Análise visual
+                </h2>
+                <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+                  Distribuição por curso e por data de matrícula.
+                </p>
+              </header>
+              <div className="card-body pt-0">
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {pieData.length > 0 && (
                   <div className="flex flex-col">
@@ -471,13 +606,20 @@ export default function EnrollmentsPage() {
                           </Pie>
                           <Tooltip
                             formatter={(value: number | undefined) => [value ?? 0, "Matrículas"]}
-                            contentStyle={{
+                            wrapperStyle={{
                               backgroundColor: "var(--card-bg)",
                               border: "1px solid var(--card-border)",
+                              borderRadius: "8px",
+                              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+                            }}
+                            contentStyle={{
+                              backgroundColor: "var(--card-bg)",
+                              border: "none",
                               borderRadius: "8px",
                               color: "var(--text-primary)",
                             }}
                             labelStyle={{ color: "var(--text-primary)" }}
+                            itemStyle={{ color: "var(--text-primary)" }}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -502,13 +644,20 @@ export default function EnrollmentsPage() {
                           />
                           <Tooltip
                             formatter={(value: number | undefined) => [value ?? 0, "Matrículas"]}
-                            labelStyle={{ color: "var(--text-primary)" }}
-                            contentStyle={{
+                            wrapperStyle={{
                               backgroundColor: "var(--card-bg)",
                               border: "1px solid var(--card-border)",
                               borderRadius: "8px",
+                              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+                            }}
+                            contentStyle={{
+                              backgroundColor: "var(--card-bg)",
+                              border: "none",
+                              borderRadius: "8px",
                               color: "var(--text-primary)",
                             }}
+                            labelStyle={{ color: "var(--text-primary)" }}
+                            itemStyle={{ color: "var(--text-primary)" }}
                           />
                           <Bar dataKey="quantidade" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} name="Matrículas" />
                         </BarChart>
@@ -517,14 +666,20 @@ export default function EnrollmentsPage() {
                   </div>
                 )}
               </div>
+              </div>
             </section>
           )}
 
-          <section
-            className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm"
-            aria-label="Resumo de matrículas por curso e turma"
-          >
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">Resumo por curso e turma</h2>
+          <section className="card" aria-labelledby="enrollments-summary-heading">
+            <header className="card-header">
+              <h2 id="enrollments-summary-heading" className="text-base font-semibold text-[var(--text-primary)]">
+                Vagas por curso e turma
+              </h2>
+              <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+                Matrículas ativas e capacidade. Use «Ver listagem» para filtrar a tabela.
+              </p>
+            </header>
+            <div className="card-body">
             {dashboard.courses.length === 0 ? (
               <p className="mt-3 text-sm text-[var(--text-secondary)]">Nenhuma matrícula para exibir.</p>
             ) : (
@@ -543,7 +698,7 @@ export default function EnrollmentsPage() {
                             Total: {totalCurso}
                           </span>
                         </div>
-                        <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-[var(--text-secondary)]">
+                        <ul className="mt-2 list-none space-y-1.5 text-sm text-[var(--text-secondary)]">
                           {turmas.map(({ classGroup: cg, count }) => {
                             const start = formatDateOnly(cg.startDate).slice(0, 5);
                             const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
@@ -551,13 +706,25 @@ export default function EnrollmentsPage() {
                             const cap = cg.capacity != null ? cg.capacity : 0;
                             const fechada = cap > 0 && count >= cap;
                             return (
-                              <li key={cg.id}>
-                                {label}:{" "}
-                                <strong
-                                  className={fechada ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
+                              <li key={cg.id} className="flex flex-wrap items-center justify-between gap-2">
+                                <span>
+                                  {label}:{" "}
+                                  <strong
+                                    className={fechada ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
+                                  >
+                                    {count} / {cap || "—"}
+                                  </strong>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTurmaFilterId(cg.id);
+                                    document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                  }}
+                                  className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
                                 >
-                                  {count} / {cap || "—"}
-                                </strong>
+                                  Ver listagem
+                                </button>
                               </li>
                             );
                           })}
@@ -575,47 +742,126 @@ export default function EnrollmentsPage() {
                 </div>
               </>
             )}
+            </div>
           </section>
 
-          <section aria-label="Listagem de matrículas">
-            <div className="mb-4 flex flex-wrap items-end gap-4">
-              <div>
-                <label htmlFor="enrollments-list-filter" className="text-sm font-medium text-[var(--text-secondary)]">
-                  Filtrar por nome do aluno ou curso
-                </label>
-                <input
-                  id="enrollments-list-filter"
-                  type="text"
-                  value={listFilter}
-                  onChange={(e) => setListFilter(e.target.value)}
-                  placeholder="Digite para pesquisar..."
-                  className="theme-input mt-1 max-w-md rounded border px-3 py-2 text-sm"
-                />
+          <section id="enrollments-list" className="card scroll-mt-4" aria-labelledby="enrollments-list-heading">
+            <header className="card-header flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="min-w-0 flex-1">
+                <h2 id="enrollments-list-heading" className="text-base font-semibold text-[var(--text-primary)]">
+                  Listagem de matrículas
+                </h2>
+                <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+                  {totalFiltered === 0
+                    ? "Nenhuma matrícula na listagem"
+                    : `Exibindo ${totalFiltered} matrícula(s)`}
+                </p>
               </div>
-              <div className="flex items-center gap-2">
-                <label htmlFor="enrollments-page-size" className="text-sm font-medium text-[var(--text-secondary)]">
-                  Registros por página
-                </label>
-                <select
-                  id="enrollments-page-size"
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="theme-input rounded border px-3 py-2 text-sm"
-                >
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                  <option value={200}>200</option>
-                  <option value={500}>500</option>
-                </select>
+              <div className="flex flex-wrap items-end gap-3">
+                {(listFilter || statusFilterState || preEnrollmentFilterState || turmaFilterId) && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setListFilter("");
+                      setStatusFilterState("");
+                      setPreEnrollmentFilterState("");
+                      setTurmaFilterId("");
+                    }}
+                  >
+                    Limpar filtros
+                  </Button>
+                )}
+                <div className="min-w-[200px]">
+                  <label htmlFor="enrollments-list-filter" className="sr-only">
+                    Buscar por nome, e-mail ou curso
+                  </label>
+                  <Input
+                    id="enrollments-list-filter"
+                    type="search"
+                    value={listFilter}
+                    onChange={(e) => setListFilter(e.target.value)}
+                    placeholder="Nome, e-mail ou curso..."
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="enrollments-status-filter" className="sr-only">
+                    Status
+                  </label>
+                  <select
+                    id="enrollments-status-filter"
+                    value={statusFilterState}
+                    onChange={(e) => setStatusFilterState(e.target.value)}
+                    className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
+                  >
+                    <option value="">Todos os status</option>
+                    {Object.entries(ENROLLMENT_STATUS_LABELS).map(([val, label]) => (
+                      <option key={val} value={val}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="enrollments-pre-filter" className="sr-only">
+                    Tipo de matrícula
+                  </label>
+                  <select
+                    id="enrollments-pre-filter"
+                    value={preEnrollmentFilterState}
+                    onChange={(e) => setPreEnrollmentFilterState((e.target.value || "") as "" | "pre" | "confirmed")}
+                    className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
+                  >
+                    <option value="">Todas</option>
+                    <option value="pre">Só pré-matrículas</option>
+                    <option value="confirmed">Só confirmadas</option>
+                  </select>
+                </div>
+                {turmaOptions.length > 0 && (
+                  <div className="min-w-[200px]">
+                    <label htmlFor="enrollments-turma-filter" className="sr-only">
+                      Turma
+                    </label>
+                    <select
+                      id="enrollments-turma-filter"
+                      value={turmaFilterId}
+                      onChange={(e) => setTurmaFilterId(e.target.value)}
+                      className="theme-input min-h-[44px] w-full rounded-md border px-3 py-2 text-sm sm:h-10"
+                    >
+                      <option value="">Todas as turmas</option>
+                      {turmaOptions.map((o) => (
+                        <option key={o.id} value={o.id}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label htmlFor="enrollments-page-size" className="sr-only">
+                    Registros por página
+                  </label>
+                  <select
+                    id="enrollments-page-size"
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
+                  >
+                    <option value={20}>20 por página</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                    <option value={500}>500</option>
+                  </select>
+                </div>
               </div>
-            </div>
+            </header>
+            <div className="card-body overflow-x-auto">
             <Table>
           <thead>
             <tr>
               <Th>Aluno</Th>
               <Th>Curso / Turma</Th>
               <Th>Data matrícula</Th>
+              <Th>Status</Th>
               <Th>Dados completos</Th>
               <Th>Ações</Th>
             </tr>
@@ -625,20 +871,32 @@ export default function EnrollmentsPage() {
               <tr key={e.id}>
                 <Td>
                   <div>
-                    <div className="font-medium">{e.student.name}</div>
-                    <div className="text-xs text-[var(--text-muted)]">{e.student.email ?? "-"}</div>
+                    <div className="font-medium text-[var(--text-primary)]">{e.student.name}</div>
+                    <div className="text-xs text-[var(--text-muted)]">{e.student.email ?? "—"}</div>
                   </div>
                 </Td>
                 <Td>
                   <div>
-                    <div>{e.classGroup.course.name}</div>
+                    <div className="text-[var(--text-primary)]">{e.classGroup.course.name}</div>
                     <div className="text-xs text-[var(--text-muted)]">
-                      {e.classGroup.startTime} - {e.classGroup.endTime} •{" "}
-                      {Array.isArray(e.classGroup.daysOfWeek) ? e.classGroup.daysOfWeek.join(", ") : "-"}
+                      {e.classGroup.startTime}–{e.classGroup.endTime}
+                      {Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length
+                        ? ` • ${e.classGroup.daysOfWeek.join(", ")}`
+                        : ""}
                     </div>
                   </div>
                 </Td>
                 <Td>{new Date(e.enrolledAt).toLocaleDateString("pt-BR")}</Td>
+                <Td>
+                  <span className="flex flex-wrap items-center gap-1">
+                    <Badge tone={ENROLLMENT_STATUS_TONE[e.status] ?? "zinc"}>
+                      {ENROLLMENT_STATUS_LABELS[e.status] ?? e.status}
+                    </Badge>
+                    {e.isPreEnrollment && (
+                      <Badge tone="amber">Pré-matrícula</Badge>
+                    )}
+                  </span>
+                </Td>
                 <Td>
                   {e.studentDataComplete === true ? (
                     <Badge tone="green">Sim</Badge>
@@ -681,16 +939,24 @@ export default function EnrollmentsPage() {
             ))}
             {paginatedItems.length === 0 && (
               <tr>
-                <Td colSpan={5} className="text-[var(--text-secondary)]">
-                  {items.length === 0
-                    ? "Nenhuma matrícula cadastrada."
-                    : "Nenhuma matrícula encontrada com esse filtro."}
+                <Td colSpan={6} className="py-10">
+                  <div
+                    className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-8 text-center"
+                    role="status"
+                  >
+                    <p className="text-sm text-[var(--text-muted)]">
+                      {items.length === 0
+                        ? "Nenhuma matrícula cadastrada. Use «Nova matrícula» para começar."
+                        : "Nenhuma matrícula encontrada com os filtros aplicados. Tente alterar ou limpar os filtros."}
+                    </p>
+                  </div>
                 </Td>
               </tr>
             )}
           </tbody>
         </Table>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--card-border)] pt-3">
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--card-border)] px-3 py-3 sm:px-4">
               <p className="text-sm text-[var(--text-muted)]">
                 {totalFiltered === 0
                   ? "Nenhuma matrícula na listagem"
@@ -935,6 +1201,7 @@ export default function EnrollmentsPage() {
           editing={null}
           onSuccess={handleNewStudentSuccess}
           onCancel={() => setOpenNewStudent(false)}
+          isMaster={isMaster}
         />
       </Modal>
     </div>

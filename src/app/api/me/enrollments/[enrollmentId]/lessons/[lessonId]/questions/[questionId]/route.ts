@@ -16,7 +16,9 @@ export async function DELETE(
   });
   if (!student) return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
 
-  const question = await prisma.enrollmentLessonQuestion.findFirst({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- delegate enrollmentLessonQuestion pode não estar no tipo gerado
+  const enrollmentLessonQuestion = (prisma as any).enrollmentLessonQuestion;
+  const question = await enrollmentLessonQuestion.findFirst({
     where: {
       id: questionId,
       enrollmentId,
@@ -25,7 +27,7 @@ export async function DELETE(
   });
   if (!question) return jsonErr("NOT_FOUND", "Dúvida não encontrada ou você não pode excluí-la.", 404);
 
-  await prisma.enrollmentLessonQuestion.delete({
+  await enrollmentLessonQuestion.delete({
     where: { id: questionId },
   });
 

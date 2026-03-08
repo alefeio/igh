@@ -478,111 +478,148 @@ export default function CoursesPage() {
   }, [open]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="container-page flex flex-col gap-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="text-lg font-semibold">Cursos</div>
-          <div className="text-sm text-[var(--text-secondary)]">
-            Listagem em ordem alfabética. Por padrão, mostra apenas cursos ativos.
-          </div>
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
+            Cursos
+          </h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Cadastre cursos, módulos e aulas. Por padrão são exibidos apenas os ativos.
+          </p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Button
             type="button"
             variant="secondary"
             onClick={() => setShowInactive((prev) => !prev)}
+            className="w-full sm:w-auto"
           >
             {showInactive ? "Ocultar inativos" : "Exibir inativos"}
           </Button>
-          <Button onClick={openCreate} className="w-full sm:w-auto">Novo</Button>
+          <Button onClick={openCreate} className="w-full sm:w-auto">
+            Novo curso
+          </Button>
         </div>
-      </div>
+      </header>
 
       {loading ? (
-        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
+        <div
+          className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-12 text-center text-[var(--text-muted)]"
+          role="status"
+          aria-live="polite"
+        >
+          Carregando cursos...
+        </div>
       ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Foto</Th>
-              <Th>Nome</Th>
-              <Th>Status</Th>
-              <Th>Carga horária</Th>
-              <Th />
-            </tr>
-          </thead>
-          <tbody>
-            {visibleItems.map((c) => (
-              <tr key={c.id}>
-                <Td>
-                  {c.imageUrl ? (
-                    <img src={c.imageUrl} alt="" className="h-10 w-10 rounded object-cover" />
-                  ) : (
-                    <span className="text-xs text-[var(--text-muted)]">—</span>
-                  )}
-                </Td>
-                <Td>
-                  <div className="flex flex-col">
-                    <span className="font-medium text-[var(--text-primary)]">{c.name}</span>
-                    <span className="text-xs text-[var(--text-muted)]">{c.description ?? ""}</span>
-                  </div>
-                </Td>
-                <Td>
-                  {c.status === "ACTIVE" ? (
-                    <Badge tone="green">Ativo</Badge>
-                  ) : (
-                    <Badge tone="red">Inativo</Badge>
-                  )}
-                </Td>
-                <Td>{c.workloadHours ?? "-"}</Td>
-                <Td>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="secondary" onClick={() => openEdit(c)}>
-                      Editar
-                    </Button>
-                    {c.status === "ACTIVE" ? (
-                      <Button
-                        variant="secondary"
-                        onClick={() => inactivateCourse(c)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Inativar
-                      </Button>
-                    ) : (
-                      <>
-                        <Button variant="secondary" onClick={() => reactivateCourse(c)}>
-                          Reativar
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => deleteCourse(c)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          Excluir
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </Td>
-              </tr>
-            ))}
+        <div className="card">
+          <div className="card-header">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">
+              Listagem de cursos
+            </h2>
+            <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+              {visibleItems.length === 0
+                ? "Nenhum curso para exibir"
+                : `${visibleItems.length} ${visibleItems.length === 1 ? "curso" : "cursos"}`}
+            </p>
+          </div>
+          <div className="card-body overflow-x-auto p-0">
             {visibleItems.length === 0 ? (
-              <tr>
-                <Td />
-                <Td>
-                  <span className="text-[var(--text-secondary)]">
-                    {showInactive
-                      ? "Nenhum curso encontrado."
-                      : "Nenhum curso ativo cadastrado."}
-                  </span>
-                </Td>
-                <Td />
-                <Td />
-                <Td />
-              </tr>
-            ) : null}
-          </tbody>
-        </Table>
+              <div
+                className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-10 text-center"
+                role="status"
+              >
+                <p className="text-sm text-[var(--text-muted)]">
+                  {showInactive
+                    ? "Nenhum curso encontrado."
+                    : "Nenhum curso ativo cadastrado. Clique em «Novo curso» para começar."}
+                </p>
+                {!showInactive && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    className="mt-3"
+                    onClick={openCreate}
+                  >
+                    Novo curso
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Foto</Th>
+                    <Th>Nome</Th>
+                    <Th>Status</Th>
+                    <Th>Carga horária</Th>
+                    <Th aria-label="Ações" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleItems.map((c) => (
+                    <tr key={c.id}>
+                      <Td>
+                        {c.imageUrl ? (
+                          <img src={c.imageUrl} alt="" className="h-10 w-10 rounded object-cover" />
+                        ) : (
+                          <span className="text-xs text-[var(--text-muted)]">—</span>
+                        )}
+                      </Td>
+                      <Td>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-[var(--text-primary)]">{c.name}</span>
+                          {c.description && (
+                            <span className="text-xs text-[var(--text-muted)] line-clamp-1">{c.description}</span>
+                          )}
+                        </div>
+                      </Td>
+                      <Td>
+                        {c.status === "ACTIVE" ? (
+                          <Badge tone="green">Ativo</Badge>
+                        ) : (
+                          <Badge tone="zinc">Inativo</Badge>
+                        )}
+                      </Td>
+                      <Td>{c.workloadHours ?? "—"}</Td>
+                      <Td>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => openEdit(c)}>
+                            Editar
+                          </Button>
+                          {c.status === "ACTIVE" ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => inactivateCourse(c)}
+                              className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Inativar
+                            </Button>
+                          ) : (
+                            <>
+                              <Button variant="secondary" size="sm" onClick={() => reactivateCourse(c)}>
+                                Reativar
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => deleteCourse(c)}
+                                className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                              >
+                                Excluir
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </div>
+        </div>
       )}
 
       <Modal
@@ -592,19 +629,19 @@ export default function CoursesPage() {
       >
         <form ref={formRef} className="flex max-h-[85vh] flex-col gap-3 overflow-y-auto" onSubmit={save}>
           <div>
-            <label className="text-sm font-medium">Nome</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Nome</label>
             <div className="mt-1">
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">Descrição (opcional)</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Descrição (opcional)</label>
             <div className="mt-1">
               <Input value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">Conteúdo (rich text, opcional)</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Conteúdo (rich text, opcional)</label>
             <div className="mt-1">
               <RichTextEditor
                 key={editing?.id ?? "new"}
@@ -616,7 +653,7 @@ export default function CoursesPage() {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">URL da foto (opcional)</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">URL da foto (opcional)</label>
             <div className="mt-1">
               <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
               <CloudinaryImageUpload
@@ -631,7 +668,7 @@ export default function CoursesPage() {
             )}
           </div>
           <div>
-            <label className="text-sm font-medium">Carga horária (opcional)</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Carga horária (opcional)</label>
             <div className="mt-1">
               <Input
                 value={workloadHours}
@@ -641,10 +678,10 @@ export default function CoursesPage() {
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">Status</label>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Status</label>
             <div className="mt-1">
               <select
-                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)] focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as Course["status"])}
               >
@@ -654,31 +691,38 @@ export default function CoursesPage() {
             </div>
           </div>
           {editing && (
-            <div className="border-t border-[var(--card-border)] pt-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium text-[var(--text-secondary)]">Módulos e aulas</span>
-                <Button type="button" variant="secondary" onClick={openModuleCreate}>
+            <div className="border-t border-[var(--card-border)] pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Módulos e aulas</h3>
+                <Button type="button" variant="secondary" size="sm" onClick={openModuleCreate}>
                   Novo módulo
                 </Button>
               </div>
               {modulesLoading ? (
-                <p className="mt-1 text-xs text-[var(--text-muted)]">Carregando...</p>
+                <div className="mt-3 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-6 text-center text-sm text-[var(--text-muted)]" role="status">
+                  Carregando módulos...
+                </div>
               ) : modules.length === 0 ? (
-                <p className="mt-1 text-xs text-[var(--text-muted)]">Nenhum módulo. Clique em &quot;Novo módulo&quot; para adicionar.</p>
+                <div className="mt-3 rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-4 text-center">
+                  <p className="text-sm text-[var(--text-muted)]">Nenhum módulo ainda.</p>
+                  <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={openModuleCreate}>
+                    Adicionar primeiro módulo
+                  </Button>
+                </div>
               ) : (
-                <ul className="mt-2 max-h-64 overflow-y-auto text-sm">
+                <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto text-sm">
                   {modules.map((mod) => (
-                    <li key={mod.id} className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-3">
+                    <li key={mod.id} className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium text-[var(--text-primary)]">Módulo {mod.order + 1}: {mod.title}</span>
-                        <div className="flex gap-1">
-                          <Button type="button" variant="secondary" onClick={() => openModuleEdit(mod)}>
+                        <div className="flex flex-wrap gap-1">
+                          <Button type="button" variant="secondary" size="sm" onClick={() => openModuleEdit(mod)}>
                             Editar
                           </Button>
-                          <Button type="button" variant="secondary" className="text-red-600" onClick={() => deleteModule(mod)}>
+                          <Button type="button" variant="secondary" size="sm" className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" onClick={() => deleteModule(mod)}>
                             Excluir
                           </Button>
-                          <Button type="button" variant="secondary" onClick={() => openLessonCreate(mod)}>
+                          <Button type="button" variant="secondary" size="sm" onClick={() => openLessonCreate(mod)}>
                             Nova aula
                           </Button>
                         </div>
@@ -694,20 +738,23 @@ export default function CoursesPage() {
                               )}
                             </span>
                             <div className="flex gap-1">
-                              <button
+                              <Button
                                 type="button"
-                                className="text-xs text-blue-600 hover:underline"
+                                variant="secondary"
+                                size="sm"
                                 onClick={() => openLessonEdit(mod, les)}
                               >
                                 Editar
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
-                                className="text-xs text-red-600 hover:underline"
+                                variant="secondary"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                                 onClick={() => deleteLesson(mod, les)}
                               >
                                 Excluir
-                              </button>
+                              </Button>
                             </div>
                           </li>
                         ))}
@@ -718,12 +765,12 @@ export default function CoursesPage() {
               )}
             </div>
           )}
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="flex items-center justify-end gap-2 border-t border-[var(--card-border)] pt-3">
             <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
               Cancelar
             </Button>
             <Button type="submit" disabled={!canSubmit || savingCourse}>
-              {savingCourse ? "Salvando" : "Salvar"}
+              {savingCourse ? "Salvando…" : "Salvar"}
             </Button>
           </div>
         </form>
@@ -735,22 +782,22 @@ export default function CoursesPage() {
           title={moduleModal.type === "edit" ? "Editar módulo" : "Novo módulo"}
           onClose={() => setModuleModal(null)}
         >
-          <form className="flex flex-col gap-3" onSubmit={saveModule}>
+          <form className="flex flex-col gap-4" onSubmit={saveModule}>
             <div>
-              <label className="text-sm font-medium">Título</label>
-              <Input className="mt-1" value={moduleForm.title} onChange={(e) => setModuleForm((f) => ({ ...f, title: e.target.value }))} />
+              <label className="text-sm font-medium text-[var(--text-primary)]">Título</label>
+              <Input className="mt-1" value={moduleForm.title} onChange={(e) => setModuleForm((f) => ({ ...f, title: e.target.value }))} placeholder="Ex.: Módulo 1 - Introdução" />
             </div>
             <div>
-              <label className="text-sm font-medium">Descrição (opcional)</label>
-              <Input className="mt-1" value={moduleForm.description} onChange={(e) => setModuleForm((f) => ({ ...f, description: e.target.value }))} />
+              <label className="text-sm font-medium text-[var(--text-primary)]">Descrição (opcional)</label>
+              <Input className="mt-1" value={moduleForm.description} onChange={(e) => setModuleForm((f) => ({ ...f, description: e.target.value }))} placeholder="Breve descrição do módulo" />
             </div>
             <div>
-              <label className="text-sm font-medium">Ordem</label>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Ordem</label>
               <Input type="number" min={0} className="mt-1" value={moduleForm.order} onChange={(e) => setModuleForm((f) => ({ ...f, order: parseInt(e.target.value, 10) || 0 }))} />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
               <Button type="button" variant="secondary" onClick={() => setModuleModal(null)} disabled={savingModule}>Cancelar</Button>
-              <Button type="submit" disabled={savingModule}>{savingModule ? "Salvando" : "Salvar"}</Button>
+              <Button type="submit" disabled={savingModule}>{savingModule ? "Salvando…" : "Salvar"}</Button>
             </div>
           </form>
         </Modal>
@@ -763,21 +810,23 @@ export default function CoursesPage() {
           onClose={() => setLessonModal(null)}
           size="large"
         >
-          <form className="flex max-h-[80vh] flex-col gap-3 overflow-y-auto" onSubmit={saveLesson}>
+          <form className="flex max-h-[80vh] flex-col gap-4 overflow-y-auto" onSubmit={saveLesson}>
             <div>
-              <label className="text-sm font-medium">Título</label>
-              <Input className="mt-1" value={lessonForm.title} onChange={(e) => setLessonForm((f) => ({ ...f, title: e.target.value }))} />
+              <label className="text-sm font-medium text-[var(--text-primary)]">Título</label>
+              <Input className="mt-1" value={lessonForm.title} onChange={(e) => setLessonForm((f) => ({ ...f, title: e.target.value }))} placeholder="Ex.: Aula 1 - Conceitos iniciais" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-[var(--text-primary)]">Ordem</label>
+                <Input type="number" min={0} className="mt-1" value={lessonForm.order} onChange={(e) => setLessonForm((f) => ({ ...f, order: parseInt(e.target.value, 10) || 0 }))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[var(--text-primary)]">Duração (min)</label>
+                <Input type="number" min={0} className="mt-1" value={lessonForm.durationMinutes} onChange={(e) => setLessonForm((f) => ({ ...f, durationMinutes: e.target.value }))} placeholder="Ex: 75" />
+              </div>
             </div>
             <div>
-              <label className="text-sm font-medium">Ordem</label>
-              <Input type="number" min={0} className="mt-1" value={lessonForm.order} onChange={(e) => setLessonForm((f) => ({ ...f, order: parseInt(e.target.value, 10) || 0 }))} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Duração (minutos, opcional)</label>
-              <Input type="number" min={0} className="mt-1" value={lessonForm.durationMinutes} onChange={(e) => setLessonForm((f) => ({ ...f, durationMinutes: e.target.value }))} placeholder="Ex: 75" />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Vídeo (URL, opcional)</label>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Vídeo (URL, opcional)</label>
               <p className="mt-0.5 text-xs text-[var(--text-muted)]">Cole o link do vídeo (YouTube, Vimeo, etc.).</p>
               <Input
                 className="mt-1"
@@ -788,7 +837,7 @@ export default function CoursesPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Imagens da aula</label>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Imagens da aula</label>
               <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens para usar no conteúdo (copie o endereço e cole no rich text).</p>
               <div className="mt-1">
                 <CloudinaryImageUpload
@@ -880,7 +929,7 @@ export default function CoursesPage() {
               )}
             </div>
             <div>
-              <label className="text-sm font-medium">Resumo rápido da aula (o que será aprendido)</label>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Resumo rápido da aula (o que será aprendido)</label>
               <p className="mt-0.5 text-xs text-[var(--text-muted)]">Texto exibido no topo da aula para o aluno. Ex.: tópicos ou objetivos da aula.</p>
               <textarea
                 className="mt-1 w-full min-h-[80px] rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
@@ -891,7 +940,7 @@ export default function CoursesPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Conteúdo (rich text)</label>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Conteúdo (rich text)</label>
               <RichTextEditor
                 key={lessonModal.type === "edit" ? lessonModal.lesson?.id : "new"}
                 value={lessonForm.contentRich}
@@ -933,9 +982,9 @@ export default function CoursesPage() {
                 )}
               </div>
             )}
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
               <Button type="button" variant="secondary" onClick={() => setLessonModal(null)} disabled={savingLesson}>Cancelar</Button>
-              <Button type="submit" disabled={savingLesson}>{savingLesson ? "Salvando" : "Salvar"}</Button>
+              <Button type="submit" disabled={savingLesson}>{savingLesson ? "Salvando…" : "Salvar"}</Button>
             </div>
           </form>
         </Modal>
@@ -948,9 +997,9 @@ export default function CoursesPage() {
           onClose={() => setExerciseModal(null)}
           size="large"
         >
-          <form onSubmit={saveExercise} className="flex flex-col gap-3">
+          <form onSubmit={saveExercise} className="flex flex-col gap-4">
             <div>
-              <label className="text-sm font-medium">Pergunta</label>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Pergunta</label>
               <textarea
                 className="mt-1 w-full min-h-[60px] rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
                 value={exerciseForm.question}
@@ -961,7 +1010,7 @@ export default function CoursesPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Opções (marque a correta)</label>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Opções (marque a correta)</label>
               <div className="mt-2 space-y-2">
                 {exerciseForm.options.map((opt, idx) => (
                   <div key={idx} className="flex items-center gap-2">
@@ -1022,9 +1071,9 @@ export default function CoursesPage() {
                 </Button>
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
               <Button type="button" variant="secondary" onClick={() => setExerciseModal(null)} disabled={savingExercise}>Cancelar</Button>
-              <Button type="submit" disabled={savingExercise}>{savingExercise ? "Salvando" : "Salvar"}</Button>
+              <Button type="submit" disabled={savingExercise}>{savingExercise ? "Salvando…" : "Salvar"}</Button>
             </div>
           </form>
         </Modal>

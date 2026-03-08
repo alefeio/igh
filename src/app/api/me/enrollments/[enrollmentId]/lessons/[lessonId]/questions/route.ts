@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
+/** Delegate de dúvidas por aula. Cast usado quando o tipo do PrismaClient não expõe enrollmentLessonQuestion (ex.: client desatualizado). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- delegate pode não estar no tipo gerado
+const enrollmentLessonQuestion = (prisma as any).enrollmentLessonQuestion;
+
 /** Lista dúvidas/comentários da aula (todos os alunos do curso). Apenas STUDENT. */
 export async function GET(
   _request: Request,
@@ -50,7 +54,7 @@ export async function GET(
   });
   if (!liberadaIds.has(lessonId)) return jsonErr("FORBIDDEN", "Aula não liberada.", 403);
 
-  const questions = await prisma.enrollmentLessonQuestion.findMany({
+  const questions = await enrollmentLessonQuestion.findMany({
     where: { lessonId },
     orderBy: { createdAt: "asc" },
     include: {
@@ -60,8 +64,9 @@ export async function GET(
     },
   });
 
+  type QuestionRow = { id: string; content: string; createdAt: Date; enrollmentId: string; enrollment: { student: { name: string } } };
   return jsonOk(
-    questions.map((q) => ({
+    (questions as QuestionRow[]).map((q) => ({
       id: q.id,
       content: q.content,
       createdAt: q.createdAt.toISOString(),
@@ -127,7 +132,7 @@ export async function POST(
   const content = typeof body.content === "string" ? body.content.trim() : "";
   if (!content) return jsonErr("BAD_REQUEST", "Digite sua dúvida.", 400);
 
-  const question = await prisma.enrollmentLessonQuestion.create({
+  const question = await enrollmentLessonQuestion.create({
     data: { enrollmentId, lessonId, content },
     select: { id: true, content: true, createdAt: true },
   });

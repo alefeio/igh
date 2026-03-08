@@ -259,6 +259,22 @@ ul.list-none {
   margin-bottom: 1.125em;
 }
 
+/* Tooltip dos gráficos Recharts: herda tema claro/escuro */
+.recharts-default-tooltip {
+  background-color: var(--card-bg) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 10px 14px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+.recharts-default-tooltip .recharts-tooltip-label {
+  color: var(--text-primary);
+}
+.recharts-default-tooltip .recharts-tooltip-item {
+  color: var(--text-secondary);
+}
+
 /* Evitar overflow horizontal em telas pequenas */
 html {
   overflow-x: hidden;
