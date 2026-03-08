@@ -24,13 +24,15 @@ export async function PATCH(request: Request, context: Ctx) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
+  const videoUrl = parsed.data.videoUrl == null || parsed.data.videoUrl === "" ? null : parsed.data.videoUrl.trim() || null;
+
   await prisma.courseLesson.update({
     where: { id: lessonId },
     data: {
       title: parsed.data.title.trim(),
       order: parsed.data.order,
       durationMinutes: parsed.data.durationMinutes ?? null,
-      videoUrl: parsed.data.videoUrl?.trim() || null,
+      videoUrl,
       imageUrls: parsed.data.imageUrls ?? [],
       contentRich: parsed.data.contentRich?.trim() || null,
       summary: parsed.data.summary?.trim() || null,

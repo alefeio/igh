@@ -7,7 +7,8 @@ export type PdfBlock =
   | { type: "bullet"; text: string; level: number }
   | { type: "ordered"; text: string; level: number; number: number }
   | { type: "blockquote"; text: string }
-  | { type: "code"; text: string };
+  | { type: "code"; text: string }
+  | { type: "image"; url: string };
 
 /**
  * Converte contentRich (JSON TipTap ou HTML) em blocos para desenhar no PDF com formatação.
@@ -109,6 +110,14 @@ function tipTapContentToPdfBlocks(nodes: TipTapNode[]): PdfBlock[] {
         continue;
       }
 
+      if (type === "image") {
+        const src = (node.attrs as { src?: string } | undefined)?.src;
+        if (typeof src === "string" && src.trim().length > 0) {
+          blocks.push({ type: "image", url: src.trim() });
+        }
+        continue;
+      }
+
       if (Array.isArray(node.content)) walk(node.content, orderedIndex, listLevel, listKind);
     }
   }
@@ -117,9 +126,13 @@ function tipTapContentToPdfBlocks(nodes: TipTapNode[]): PdfBlock[] {
   return blocks;
 }
 
-/** Extrai blocos de HTML (h1–h3, p, ul/ol/li, blockquote, pre). */
+/** Item com índice para ordenar blocos e imagens na ordem do documento. */
+type HtmlItem =
+  | { index: number; kind: "img"; url: string }
+  | { index: number; kind: "block"; tag: string; raw: string; text: string; preIdx?: number };
+
+/** Extrai blocos de HTML (h1–h3, p, ul/ol/li, blockquote, pre, img) na ordem do documento. */
 function htmlToPdfBlocks(html: string): PdfBlock[] {
-  const blocks: PdfBlock[] = [];
   const decoded = html
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
@@ -130,32 +143,46 @@ function htmlToPdfBlocks(html: string): PdfBlock[] {
 
   const stripTags = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-  const reBlock = /<(h[1-3]|p|li|blockquote|pre)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
-  const reUl = /<ul[\s\S]*?<\/ul>/gi;
-  const reOl = /<ol[\s\S]*?<\/ol>/gi;
-
-  let match: RegExpExecArray | null;
   const preParts: string[] = [];
-  let rest = decoded;
   const pres = decoded.match(/<pre[\s\S]*?<\/pre>/gi);
   if (pres) {
     for (const pre of pres) {
       const inner = pre.replace(/<\/?pre[^>]*>/gi, "").replace(/<code[^>]*>|<\/code>/gi, "").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ");
       preParts.push(inner);
     }
-    rest = decoded.replace(/<pre[\s\S]*?<\/pre>/gi, "\u0000");
   }
 
+  const items: HtmlItem[] = [];
+  const reBlock = /<(h[1-3]|p|li|blockquote|pre)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
+  let match: RegExpExecArray | null;
   let preIdx = 0;
-  const listStack: { kind: "bullet" | "ordered"; count: number }[] = [];
 
   while ((match = reBlock.exec(decoded)) !== null) {
     const tag = match[1].toLowerCase();
     const raw = match[2];
     const text = stripTags(raw).trim();
+    const blockPreIdx = tag === "pre" ? preIdx++ : undefined;
+    items.push({ index: match.index, kind: "block", tag, raw, text, preIdx: blockPreIdx });
+  }
 
+  const imgRegex = /<img[^>]+src=["']([^"']+)["']/gi;
+  let imgMatch: RegExpExecArray | null;
+  while ((imgMatch = imgRegex.exec(decoded)) !== null) {
+    const url = imgMatch[1].trim();
+    if (url) items.push({ index: imgMatch.index, kind: "img", url });
+  }
+
+  items.sort((a, b) => a.index - b.index);
+
+  const blocks: PdfBlock[] = [];
+  for (const item of items) {
+    if (item.kind === "img") {
+      blocks.push({ type: "image", url: item.url });
+      continue;
+    }
+    const { tag, raw, text } = item;
     if (tag === "pre") {
-      const codeText = preParts[preIdx++] ?? text;
+      const codeText = item.preIdx !== undefined ? (preParts[item.preIdx] ?? text) : text;
       blocks.push({ type: "code", text: codeText ? codeText : " " });
       continue;
     }
@@ -176,8 +203,8 @@ function htmlToPdfBlocks(html: string): PdfBlock[] {
       continue;
     }
     if (tag === "li") {
-      const inOl = decoded.slice(0, match.index).replace(/<ol[\s\S]*?<\/ol>/g, "").lastIndexOf("<ol") > decoded.slice(0, match.index).lastIndexOf("<ul");
-      const olMatch = decoded.slice(0, match.index).match(/<ol/gi);
+      const inOl = decoded.slice(0, item.index).replace(/<ol[\s\S]*?<\/ol>/g, "").lastIndexOf("<ol") > decoded.slice(0, item.index).lastIndexOf("<ul");
+      const olMatch = decoded.slice(0, item.index).match(/<ol/gi);
       const num = olMatch ? olMatch.length : 0;
       if (inOl && num > 0) blocks.push({ type: "ordered", text, level: 0, number: num });
       else blocks.push({ type: "bullet", text, level: 0 });
@@ -186,10 +213,6 @@ function htmlToPdfBlocks(html: string): PdfBlock[] {
     if (tag === "p") {
       if (!/<(ul|ol|li|h[1-3]|blockquote|pre)/i.test(raw)) blocks.push({ type: "paragraph", text: text || " " });
     }
-  }
-
-  if (preParts.length > 0 && blocks.filter((b) => b.type === "code").length === 0) {
-    for (const p of preParts) blocks.push({ type: "code", text: p || " " });
   }
 
   if (blocks.length === 0) {

@@ -22,6 +22,7 @@ const CHARS_PER_LINE = 75;
 const CODE_CHARS_PER_LINE = 82;
 const BULLET_INDENT = 18;
 const QUOTE_INDENT = 24;
+const MAX_IMAGE_HEIGHT = 380;
 
 /** Converte texto para caracteres compatíveis com WinAnsi (Helvetica no pdf-lib). */
 function toWinAnsiSafe(text: string): string {
@@ -311,6 +312,44 @@ export async function GET(
           y -= LINE_HEIGHT_CODE;
         }
         y -= 6;
+        continue;
+      }
+      if (block.type === "image") {
+        try {
+          const imgRes = await fetch(block.url, { signal: AbortSignal.timeout(15000) });
+          if (!imgRes.ok) continue;
+          const contentType = imgRes.headers.get("content-type") ?? "";
+          const bytes = new Uint8Array(await imgRes.arrayBuffer());
+          const isPng = contentType.includes("png") || (bytes[0] === 0x89 && bytes[1] === 0x50);
+          const isJpeg = contentType.includes("jpeg") || contentType.includes("jpg") || (bytes[0] === 0xff && bytes[1] === 0xd8);
+          let img: Awaited<ReturnType<PDFDocument["embedPng"]>> | Awaited<ReturnType<PDFDocument["embedJpg"]>>;
+          if (isPng) {
+            img = await pdfDoc.embedPng(bytes);
+          } else if (isJpeg) {
+            img = await pdfDoc.embedJpg(bytes);
+          } else {
+            continue;
+          }
+          const iw = img.width;
+          const ih = img.height;
+          let drawWidth = CONTENT_WIDTH;
+          let drawHeight = (ih / iw) * drawWidth;
+          if (drawHeight > MAX_IMAGE_HEIGHT) {
+            drawHeight = MAX_IMAGE_HEIGHT;
+            drawWidth = (iw / ih) * drawHeight;
+          }
+          ensureSpace(drawHeight + 12);
+          y -= 6;
+          page.drawImage(img, {
+            x: MARGIN,
+            y: y - drawHeight,
+            width: drawWidth,
+            height: drawHeight,
+          });
+          y -= drawHeight + 6;
+        } catch {
+          // ignorar falha de fetch/embed (URL inválida, timeout, etc.)
+        }
       }
     }
   }

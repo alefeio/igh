@@ -845,6 +845,7 @@ export default function CoursesPage() {
                   currentUrl={undefined}
                   onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
                   label="Adicionar imagem"
+                  multiple
                 />
               </div>
               {lessonForm.imageUrls && lessonForm.imageUrls.length > 0 && (

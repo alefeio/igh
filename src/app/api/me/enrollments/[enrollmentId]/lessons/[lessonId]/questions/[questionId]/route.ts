@@ -2,8 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- delegate pode não estar no tipo gerado
-const enrollmentLessonQuestion = (prisma as any).enrollmentLessonQuestion;
+const enrollmentLessonQuestion = prisma.enrollmentLessonQuestion;
 
 async function getEnrollmentAndLesson(
   user: { id: string },

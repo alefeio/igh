@@ -5,7 +5,7 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table/kit";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /** Conteúdo pode ser HTML (string) ou JSON TipTap/ProseMirror (string com type "doc"). */
 function parseContent(value: string): string | Record<string, unknown> {
@@ -186,6 +186,99 @@ export function RichTextEditor({
   const imageWidth = editor?.getAttributes("image").widthStyle ?? editor?.getAttributes("image").width ?? null;
   const isImageSelected = editor?.isActive("image") ?? false;
 
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
+
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    let scrollRoot: Element | null = null;
+    for (let p = el.parentElement; p; p = p.parentElement) {
+      const { overflowY } = getComputedStyle(p);
+      if (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") {
+        scrollRoot = p;
+        break;
+      }
+    }
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        setShowFloatingToolbar(!entry.isIntersecting);
+      },
+      { threshold: 0, root: scrollRoot ?? null, rootMargin: "0px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const toolbarClassName = "flex flex-wrap gap-1 border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-2 py-1 shadow-sm";
+  const toolbarContent = (
+    <>
+      <label className="sr-only" htmlFor="rte-blocktype">
+        Tipo de texto
+      </label>
+      <select
+        id="rte-blocktype"
+        className="mr-2 h-8 rounded border border-[var(--card-border)] bg-[var(--input-bg)] px-2 text-sm text-[var(--input-text)]"
+        value={blockType}
+        onChange={(e) => onBlockTypeChange(e.target.value as BlockType)}
+        title={`Tipo atual: ${blockTypeLabel}`}
+      >
+        <option value="paragraph">Parágrafo</option>
+        <option value="h1">Título 1</option>
+        <option value="h2">Título 2</option>
+        <option value="h3">Título 3</option>
+      </select>
+      <button type="button" onClick={() => insertTable(1, 2)} className="rounded px-2 py-1 text-sm hover:bg-zinc-200" title="Linha com 2 colunas (ex.: imagem + texto)">
+        Linha imagem+texto
+      </button>
+      <button type="button" onClick={() => insertTable(3, 3)} className="rounded px-2 py-1 text-sm hover:bg-zinc-200" title="Inserir tabela 3×3">
+        Tabela
+      </button>
+      <button type="button" onClick={setBold} className="rounded px-2 py-1 text-sm font-bold hover:bg-zinc-200" title="Negrito">
+        B
+      </button>
+      <button type="button" onClick={setItalic} className="rounded px-2 py-1 text-sm italic hover:bg-zinc-200" title="Itálico">
+        I
+      </button>
+      <button type="button" onClick={setBulletList} className="rounded px-2 py-1 text-sm hover:bg-zinc-200" title="Lista com marcadores">
+        • Lista
+      </button>
+      <button type="button" onClick={setOrderedList} className="rounded px-2 py-1 text-sm hover:bg-zinc-200" title="Lista numerada">
+        1. Lista
+      </button>
+      <button type="button" onClick={setCodeBlock} className="rounded px-2 py-1 text-sm font-mono hover:bg-zinc-200" title="Bloco de código (HTML, etc.)">
+        &lt;/&gt; Código
+      </button>
+      <button type="button" onClick={setLink} className="rounded px-2 py-1 text-sm text-blue-600 hover:bg-zinc-200" title="Inserir ou editar link">
+        Link
+      </button>
+      <button type="button" onClick={setImage} className="rounded px-2 py-1 text-sm hover:bg-zinc-200" title="Inserir imagem (URL)">
+        Imagem
+      </button>
+      {isImageSelected && (
+        <span className="flex items-center gap-1">
+          <label className="text-xs text-[var(--text-muted)]">Largura:</label>
+          <select
+            className="h-8 rounded border border-[var(--card-border)] bg-[var(--input-bg)] px-2 text-xs"
+            value={imageWidth ?? "100%"}
+            onChange={(e) => setImageWidth(e.target.value === "100%" ? null : e.target.value)}
+            title="Tamanho da imagem"
+          >
+            <option value="25%">25%</option>
+            <option value="50%">50%</option>
+            <option value="75%">75%</option>
+            <option value="100%">100%</option>
+          </select>
+        </span>
+      )}
+      {editor?.isActive("link") && (
+        <button type="button" onClick={unsetLink} className="rounded px-2 py-1 text-sm text-red-600 hover:bg-zinc-200" title="Remover link">
+          Remover link
+        </button>
+      )}
+    </>
+  );
+
   if (!editor) {
     return (
       <div className={`rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] ${className}`} style={{ minHeight }}>
@@ -195,123 +288,23 @@ export function RichTextEditor({
   }
 
   return (
-    <div className={`rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] overflow-hidden ${className}`} style={{ minHeight }}>
-      <div className="flex flex-wrap gap-1 border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-2 py-1">
-        <label className="sr-only" htmlFor="rte-blocktype">
-          Tipo de texto
-        </label>
-        <select
-          id="rte-blocktype"
-          className="mr-2 h-8 rounded border border-[var(--card-border)] bg-[var(--input-bg)] px-2 text-sm text-[var(--input-text)]"
-          value={blockType}
-          onChange={(e) => onBlockTypeChange(e.target.value as BlockType)}
-          title={`Tipo atual: ${blockTypeLabel}`}
+    <>
+      {showFloatingToolbar && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--card-border)] bg-[var(--igh-surface)] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
+          style={{ paddingLeft: "max(1rem, env(safe-area-inset-left))", paddingRight: "max(1rem, env(safe-area-inset-right))", paddingBottom: "env(safe-area-inset-bottom)" }}
         >
-          <option value="paragraph">Parágrafo</option>
-          <option value="h1">Título 1</option>
-          <option value="h2">Título 2</option>
-          <option value="h3">Título 3</option>
-        </select>
-        <button
-          type="button"
-          onClick={() => insertTable(1, 2)}
-          className="rounded px-2 py-1 text-sm hover:bg-zinc-200"
-          title="Linha com 2 colunas (ex.: imagem + texto)"
-        >
-          Linha imagem+texto
-        </button>
-        <button
-          type="button"
-          onClick={() => insertTable(3, 3)}
-          className="rounded px-2 py-1 text-sm hover:bg-zinc-200"
-          title="Inserir tabela 3×3"
-        >
-          Tabela
-        </button>
-        <button
-          type="button"
-          onClick={setBold}
-          className="rounded px-2 py-1 text-sm font-bold hover:bg-zinc-200"
-          title="Negrito"
-        >
-          B
-        </button>
-        <button
-          type="button"
-          onClick={setItalic}
-          className="rounded px-2 py-1 text-sm italic hover:bg-zinc-200"
-          title="Itálico"
-        >
-          I
-        </button>
-        <button
-          type="button"
-          onClick={setBulletList}
-          className="rounded px-2 py-1 text-sm hover:bg-zinc-200"
-          title="Lista com marcadores"
-        >
-          • Lista
-        </button>
-        <button
-          type="button"
-          onClick={setOrderedList}
-          className="rounded px-2 py-1 text-sm hover:bg-zinc-200"
-          title="Lista numerada"
-        >
-          1. Lista
-        </button>
-        <button
-          type="button"
-          onClick={setCodeBlock}
-          className="rounded px-2 py-1 text-sm font-mono hover:bg-zinc-200"
-          title="Bloco de código (HTML, etc.)"
-        >
-          &lt;/&gt; Código
-        </button>
-        <button
-          type="button"
-          onClick={setLink}
-          className="rounded px-2 py-1 text-sm text-blue-600 hover:bg-zinc-200"
-          title="Inserir ou editar link"
-        >
-          Link
-        </button>
-        <button
-          type="button"
-          onClick={setImage}
-          className="rounded px-2 py-1 text-sm hover:bg-zinc-200"
-          title="Inserir imagem (URL)"
-        >
-          Imagem
-        </button>
-        {isImageSelected && (
-          <span className="flex items-center gap-1">
-            <label className="text-xs text-[var(--text-muted)]">Largura:</label>
-            <select
-              className="h-8 rounded border border-[var(--card-border)] bg-[var(--input-bg)] px-2 text-xs"
-              value={imageWidth ?? "100%"}
-              onChange={(e) => setImageWidth(e.target.value === "100%" ? null : e.target.value)}
-              title="Tamanho da imagem"
-            >
-              <option value="25%">25%</option>
-              <option value="50%">50%</option>
-              <option value="75%">75%</option>
-              <option value="100%">100%</option>
-            </select>
-          </span>
-        )}
-        {editor.isActive("link") && (
-          <button
-            type="button"
-            onClick={unsetLink}
-            className="rounded px-2 py-1 text-sm text-red-600 hover:bg-zinc-200"
-            title="Remover link"
-          >
-            Remover link
-          </button>
-        )}
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-1 px-2 py-2">
+            {toolbarContent}
+          </div>
+        </div>
+      )}
+      <div className={`rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] overflow-hidden ${className}`} style={{ minHeight }}>
+        <div ref={toolbarRef} className={toolbarClassName}>
+          {toolbarContent}
+        </div>
+        <EditorContent editor={editor} />
       </div>
-      <EditorContent editor={editor} />
-    </div>
+    </>
   );
 }

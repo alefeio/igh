@@ -3,9 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
-/** Delegate de dúvidas por aula. Cast usado quando o tipo do PrismaClient não expõe enrollmentLessonQuestion (ex.: client desatualizado). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- delegate pode não estar no tipo gerado
-const enrollmentLessonQuestion = (prisma as any).enrollmentLessonQuestion;
+// Modelo de dúvidas por aula (Prisma gera enrollmentLessonQuestion a partir de EnrollmentLessonQuestion)
+const enrollmentLessonQuestion = prisma.enrollmentLessonQuestion;
 
 /** Lista dúvidas/comentários da aula (todos os alunos do curso). Apenas STUDENT. */
 export async function GET(

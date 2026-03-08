@@ -23,6 +23,8 @@ type Props = {
   currentUrl?: string;
   label?: string;
   accept?: string;
+  /** Quando true, o input permite selecionar vários arquivos; cada um é enviado e onUploaded é chamado por cada URL. */
+  multiple?: boolean;
 };
 
 export function CloudinaryImageUpload({
@@ -32,48 +34,55 @@ export function CloudinaryImageUpload({
   currentUrl,
   label = "Upload de imagem",
   accept = "image/*",
+  multiple = false,
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const uploadOne = useCallback(
+    async (file: File): Promise<string | null> => {
+      const signRes = await fetch("/api/admin/site/uploads/signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, ...(id && { id }) }),
+      });
+      const signJson = await signRes.json();
+      if (!signRes.ok || !signJson.ok) return null;
+      const { timestamp, signature, apiKey, cloudName, folder } = signJson.data;
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("api_key", apiKey);
+      formData.append("timestamp", String(timestamp));
+      formData.append("signature", signature);
+      formData.append("folder", folder);
+
+      const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const uploadJson = (await uploadRes.json()) as { secure_url?: string; error?: { message?: string } };
+      if (!uploadRes.ok || uploadJson.error) return null;
+      return uploadJson.secure_url ?? null;
+    },
+    [kind, id]
+  );
+
   const handleFile = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const files = e.target.files;
+      if (!files?.length) return;
+      const fileList = multiple ? Array.from(files) : [files[0]];
       setError(null);
       setUploading(true);
+      let lastError: string | null = null;
       try {
-        const signRes = await fetch("/api/admin/site/uploads/signature", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind, ...(id && { id }) }),
-        });
-        const signJson = await signRes.json();
-        if (!signRes.ok || !signJson.ok) {
-          setError(signJson.error?.message ?? "Falha ao obter assinatura.");
-          return;
+        for (const file of fileList) {
+          const url = await uploadOne(file);
+          if (url) onUploaded(url);
+          else lastError = lastError ?? "Falha no upload de algum arquivo.";
         }
-        const { timestamp, signature, apiKey, cloudName, folder } = signJson.data;
-
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("api_key", apiKey);
-        formData.append("timestamp", String(timestamp));
-        formData.append("signature", signature);
-        formData.append("folder", folder);
-
-        const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-          method: "POST",
-          body: formData,
-        });
-        const uploadJson = (await uploadRes.json()) as { secure_url?: string; error?: { message?: string } };
-        if (!uploadRes.ok || uploadJson.error) {
-          setError(uploadJson.error?.message ?? "Falha no upload.");
-          return;
-        }
-        if (uploadJson.secure_url) {
-          onUploaded(uploadJson.secure_url);
-        }
+        if (lastError) setError(lastError);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erro ao enviar.");
       } finally {
@@ -81,7 +90,7 @@ export function CloudinaryImageUpload({
         e.target.value = "";
       }
     },
-    [kind, id, onUploaded]
+    [multiple, onUploaded, uploadOne]
   );
 
   return (
@@ -95,8 +104,9 @@ export function CloudinaryImageUpload({
             className="hidden"
             disabled={uploading}
             onChange={handleFile}
+            multiple={multiple}
           />
-          {uploading ? "Enviando…" : "Escolher arquivo"}
+          {uploading ? "Enviando…" : multiple ? "Escolher arquivos" : "Escolher arquivo"}
         </label>
         {currentUrl && (
           <a
