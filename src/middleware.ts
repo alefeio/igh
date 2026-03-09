@@ -29,8 +29,16 @@ export async function middleware(request: NextRequest) {
   }
 
   // Rotas apenas MASTER
-  if (["/users", "/teachers", "/courses", "/class-groups", "/approvacoes"].some((p) => pathname.startsWith(p))) {
+  if (["/users", "/teachers", "/class-groups", "/approvacoes"].some((p) => pathname.startsWith(p))) {
     if (role !== "MASTER") {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Cursos: MASTER ou TEACHER (professor vê apenas os cursos que leciona)
+  if (pathname.startsWith("/courses")) {
+    if (role !== "MASTER" && role !== "TEACHER") {
       const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
     }

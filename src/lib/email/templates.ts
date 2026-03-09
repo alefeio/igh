@@ -96,6 +96,24 @@ export function templateProfessorWelcome(params: {
   return { subject: "Bem-vindo(a) - Acesso de Professor", html: wrapHtml(body) };
 }
 
+/** E-mail enviado quando um usuário existente (ex.: admin) recebe o perfil de professor. Não inclui senha; usa o login atual. */
+export function templateAddedAsProfessor(params: { name: string; email: string }): { subject: string; html: string } {
+  const { name, email } = params;
+  const loginUrl = getAppUrl("/login");
+  const body = `
+<h2>Novo perfil: Professor</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Você foi adicionado(a) como <strong>professor(a)</strong> no sistema do ${escapeHtml(COMPANY_NAME)}.</p>
+<p>Use seu <strong>login atual</strong> (e-mail e senha que você já utiliza) para acessar:</p>
+<ul>
+  <li><strong>Link de acesso:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
+  <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
+</ul>
+<p>Após entrar no sistema, escolha o perfil <strong>Professor</strong> no seletor de perfis para acessar suas turmas e o conteúdo dos cursos que você leciona. Sua senha permanece a mesma.</p>
+`;
+  return { subject: "Você foi adicionado(a) como Professor", html: wrapHtml(body) };
+}
+
 /** E-mail enviado ao cadastrar o aluno (com e-mail), antes de matrícula em turma. */
 export function templateStudentRegistered(params: {
   name: string;

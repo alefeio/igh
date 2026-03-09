@@ -5,7 +5,7 @@ import { updateTeacherSchema } from "@/lib/validators/teachers";
 import { createAuditLog } from "@/lib/audit";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
-import { templateProfessorWelcome } from "@/lib/email/templates";
+import { templateProfessorWelcome, templateAddedAsProfessor } from "@/lib/email/templates";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await requireRole("MASTER");
@@ -26,52 +26,78 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   const newEmail = parsed.data.email === "" ? null : (parsed.data.email ?? existing.email);
-  if (newEmail && newEmail !== existing.email) {
-    const emailTaken = await prisma.user.findUnique({
-      where: { email: newEmail },
-      select: { id: true },
-    });
-    if (emailTaken) {
-      return jsonErr("EMAIL_IN_USE", "Já existe um usuário com este e-mail.", 409);
-    }
-  }
-
   let teacherUserId: string | null = existing.userId;
-  if (existing.userId && existing.user) {
+  let linkedToExistingUser = false;
+
+  if (newEmail && newEmail !== existing.email) {
+    const existingUserByEmail = await prisma.user.findUnique({
+      where: { email: newEmail },
+      select: { id: true, name: true },
+    });
+    if (existingUserByEmail) {
+      const otherTeacher = await prisma.teacher.findFirst({
+        where: { userId: existingUserByEmail.id, deletedAt: null, id: { not: id } },
+        select: { id: true },
+      });
+      if (otherTeacher) {
+        return jsonErr("ALREADY_TEACHER", "Este usuário já está cadastrado como professor.", 409);
+      }
+      teacherUserId = existingUserByEmail.id;
+      linkedToExistingUser = true;
+      const { subject, html } = templateAddedAsProfessor({
+        name: existingUserByEmail.name,
+        email: newEmail,
+      });
+      await sendEmailAndRecord({
+        to: newEmail,
+        subject,
+        html,
+        emailType: "added_as_professor",
+        entityType: "Teacher",
+        entityId: id,
+        performedByUserId: user.id,
+      });
+    } else if (existing.userId && existing.user) {
+      await prisma.user.update({
+        where: { id: existing.userId },
+        data: {
+          ...(parsed.data.name != null && { name: parsed.data.name }),
+          email: newEmail,
+        },
+      });
+    } else {
+      const tempPassword = generateTempPassword();
+      const passwordHash = await hashPassword(tempPassword);
+      const createdUser = await prisma.user.create({
+        data: {
+          name: parsed.data.name ?? existing.name,
+          email: newEmail,
+          passwordHash,
+          role: "TEACHER",
+          isActive: true,
+          mustChangePassword: true,
+        },
+      });
+      teacherUserId = createdUser.id;
+      const { subject, html } = templateProfessorWelcome({
+        name: existing.name,
+        email: newEmail,
+        tempPassword,
+      });
+      await sendEmailAndRecord({
+        to: newEmail,
+        subject,
+        html,
+        emailType: "welcome_professor",
+        entityType: "Teacher",
+        entityId: id,
+        performedByUserId: user.id,
+      });
+    }
+  } else if (!linkedToExistingUser && existing.userId && existing.user && parsed.data.name != null) {
     await prisma.user.update({
       where: { id: existing.userId },
-      data: {
-        ...(parsed.data.name != null && { name: parsed.data.name }),
-        ...(newEmail != null && { email: newEmail }),
-      },
-    });
-  } else if (!existing.userId && newEmail) {
-    const tempPassword = generateTempPassword();
-    const passwordHash = await hashPassword(tempPassword);
-    const createdUser = await prisma.user.create({
-      data: {
-        name: parsed.data.name ?? existing.name,
-        email: newEmail,
-        passwordHash,
-        role: "TEACHER",
-        isActive: true,
-        mustChangePassword: true,
-      },
-    });
-    teacherUserId = createdUser.id;
-    const { subject, html } = templateProfessorWelcome({
-      name: existing.name,
-      email: newEmail,
-      tempPassword,
-    });
-    await sendEmailAndRecord({
-      to: newEmail,
-      subject,
-      html,
-      emailType: "welcome_professor",
-      entityType: "Teacher",
-      entityId: id,
-      performedByUserId: user.id,
+      data: { name: parsed.data.name },
     });
   }
 
@@ -85,14 +111,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       phone: parsed.data.phone === "" ? null : (parsed.data.phone ?? existing.phone),
       email: newEmail ?? existing.email,
       isActive: parsed.data.isActive ?? existing.isActive,
-      ...(!existing.userId && teacherUserId != null ? { userId: teacherUserId } : {}),
+      ...(teacherUserId != null ? { userId: teacherUserId } : {}),
       ...(parsed.data.isActive === true ? { deletedAt: null } : {}),
     },
   });
 
-  if (isReactivating && existing.userId) {
+  if (isReactivating && teacherUserId) {
     await prisma.user.update({
-      where: { id: existing.userId },
+      where: { id: teacherUserId },
       data: { isActive: true },
     });
   }
