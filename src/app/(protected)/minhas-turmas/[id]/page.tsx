@@ -87,7 +87,14 @@ export default function MinhasTurmasDetailPage() {
     void load();
   }, [id, toast]);
 
+  /** Formata ISO date ou date-time em pt-BR. Usa só a parte da data para evitar dia errado em fusos à esquerda de UTC. */
   function formatDate(iso: string) {
+    if (!iso) return "";
+    const datePart = /^\d{4}-\d{2}-\d{2}/.exec(iso)?.[0];
+    if (datePart) {
+      const [y, m, d] = datePart.split("-");
+      return `${d}/${m}/${y}`;
+    }
     return new Date(iso).toLocaleDateString("pt-BR");
   }
 
