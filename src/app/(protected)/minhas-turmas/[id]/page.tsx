@@ -79,7 +79,7 @@ export default function MinhasTurmasDetailPage() {
         const res = await fetch(`/api/me/enrollments/${id}`);
         const json = (await res.json()) as ApiResponse<{ enrollment: EnrollmentDetail }>;
         if (res.ok && json?.ok) setData(json.data);
-        else toast.push("error", json && "error" in json ? (json as { error?: { message?: string } }).error?.message : "Falha ao carregar detalhes.");
+        else toast.push("error", (json && "error" in json ? (json as { error?: { message?: string } }).error?.message : "Falha ao carregar detalhes.") ?? "Falha ao carregar detalhes.");
       } finally {
         setLoading(false);
       }
