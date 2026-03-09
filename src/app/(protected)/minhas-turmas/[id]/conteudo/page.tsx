@@ -1,5 +1,6 @@
 "use client";
 
+import { BookOpen } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -73,6 +74,15 @@ export default function ConteudoPage() {
     0
   );
 
+  const moduleInProgress = (() => {
+    for (const mod of data.modules) {
+      const hasIncomplete = mod.lessons.some((l) => l.isLiberada && !l.completed);
+      if (hasIncomplete) return mod;
+    }
+    return null;
+  })();
+  const allCompleted = totalLessons > 0 && completedCount === totalLessons;
+
   return (
     <div className="container-page flex flex-col gap-6">
       <nav aria-label="Navegação">
@@ -83,6 +93,32 @@ export default function ConteudoPage() {
           ← Voltar à turma
         </Link>
       </nav>
+
+      {totalLessons > 0 && (
+        <section
+          className="flex flex-wrap items-center gap-4 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
+          aria-labelledby="progress-heading"
+        >
+          <h2 id="progress-heading" className="sr-only">
+            Trilha de progresso
+          </h2>
+          <div className="flex items-center gap-2 text-[var(--text-primary)]">
+            <BookOpen className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+            <span className="text-sm font-medium">
+              {completedCount} de {totalLessons} {totalLessons === 1 ? "aula concluída" : "aulas concluídas"}
+            </span>
+          </div>
+          {allCompleted ? (
+            <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300">
+              Curso concluído
+            </span>
+          ) : moduleInProgress ? (
+            <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              Módulo {moduleInProgress.order + 1} em andamento
+            </span>
+          ) : null}
+        </section>
+      )}
 
       <div className="card">
         <header className="card-header">

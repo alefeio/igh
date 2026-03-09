@@ -66,6 +66,12 @@ export type DashboardDataStudent = {
   roleLabel: string;
   activeEnrollmentsCount: number;
   enrollments: StudentEnrollmentSummary[];
+  /** Total de aulas concluídas em todos os cursos */
+  totalLessonsCompleted: number;
+  /** Total de aulas (em todos os cursos) */
+  totalLessonsTotal: number;
+  /** Matrícula recomendada para "continuar de onde parou" (primeira em andamento) */
+  recommendedEnrollmentId: string | null;
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -84,6 +90,9 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         roleLabel,
         activeEnrollmentsCount: 0,
         enrollments: [],
+        totalLessonsCompleted: 0,
+        totalLessonsTotal: 0,
+        recommendedEnrollmentId: null,
       };
     }
     const enrollmentsRaw = await prisma.enrollment.findMany({
@@ -136,11 +145,19 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         lessonsCompleted,
       };
     });
+    const totalLessonsCompleted = enrollments.reduce((s, e) => s + e.lessonsCompleted, 0);
+    const totalLessonsTotal = enrollments.reduce((s, e) => s + e.lessonsTotal, 0);
+    const recommended = enrollments.find(
+      (e) => e.lessonsTotal > 0 && e.lessonsCompleted > 0 && e.lessonsCompleted < e.lessonsTotal
+    );
     return {
       role: "STUDENT",
       roleLabel,
       activeEnrollmentsCount: enrollments.length,
       enrollments,
+      totalLessonsCompleted,
+      totalLessonsTotal,
+      recommendedEnrollmentId: recommended?.id ?? null,
     };
   }
 

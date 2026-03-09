@@ -1,5 +1,6 @@
 "use client";
 
+import { Highlighter } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 
 import { RichTextViewer } from "@/components/ui/RichTextViewer";
@@ -177,8 +178,9 @@ export function HighlightableContentViewer({
           type="button"
           onClick={handleDestacar}
           disabled={saving}
-          className="rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-60"
         >
+          <Highlighter className="h-4 w-4 shrink-0" aria-hidden />
           {saving ? "Salvando..." : "Destacar trecho selecionado"}
         </button>
         <span className="text-xs text-[var(--text-muted)]">
