@@ -162,8 +162,7 @@ export function Sidebar({
             <img src="/images/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
           )}
         </div>
-        <div className="mt-3 text-sm font-semibold text-[var(--text-primary)]">Cadastro de Cursos</div>
-        <div className="mt-2 text-xs text-[var(--text-secondary)]">{user.name}</div>
+        <div className="mt-3 text-xs text-[var(--text-secondary)]">{user.name}</div>
         <div className="truncate text-xs text-[var(--text-muted)]" title={user.email}>{user.email}</div>
         {showRoleSwitcher ? (
           <div className="mt-2">

@@ -5,7 +5,7 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table/kit";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 /** Conteúdo pode ser HTML (string) ou JSON TipTap/ProseMirror (string com type "doc"). */
 function parseContent(value: string): string | Record<string, unknown> {
@@ -186,31 +186,8 @@ export function RichTextEditor({
   const imageWidth = editor?.getAttributes("image").widthStyle ?? editor?.getAttributes("image").width ?? null;
   const isImageSelected = editor?.isActive("image") ?? false;
 
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
-
-  useEffect(() => {
-    const el = toolbarRef.current;
-    if (!el) return;
-    let scrollRoot: Element | null = null;
-    for (let p = el.parentElement; p; p = p.parentElement) {
-      const { overflowY } = getComputedStyle(p);
-      if (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") {
-        scrollRoot = p;
-        break;
-      }
-    }
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        setShowFloatingToolbar(!entry.isIntersecting);
-      },
-      { threshold: 0, root: scrollRoot ?? null, rootMargin: "0px" }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
-  const toolbarClassName = "flex flex-wrap gap-1 border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-2 py-1 shadow-sm";
+  const toolbarClassName =
+    "flex flex-wrap gap-1 border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-2 py-1 shadow-sm sticky top-0 z-[100] rounded-t-md";
   const toolbarContent = (
     <>
       <label className="sr-only" htmlFor="rte-blocktype">
@@ -288,23 +265,13 @@ export function RichTextEditor({
   }
 
   return (
-    <>
-      {showFloatingToolbar && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--card-border)] bg-[var(--igh-surface)] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
-          style={{ paddingLeft: "max(1rem, env(safe-area-inset-left))", paddingRight: "max(1rem, env(safe-area-inset-right))", paddingBottom: "env(safe-area-inset-bottom)" }}
-        >
-          <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-1 px-2 py-2">
-            {toolbarContent}
-          </div>
-        </div>
-      )}
-      <div className={`rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] overflow-hidden ${className}`} style={{ minHeight }}>
-        <div ref={toolbarRef} className={toolbarClassName}>
-          {toolbarContent}
-        </div>
+    <div className={`rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] ${className}`} style={{ minHeight }}>
+      <div className={toolbarClassName}>
+        {toolbarContent}
+      </div>
+      <div className="overflow-hidden rounded-b-md">
         <EditorContent editor={editor} />
       </div>
-    </>
+    </div>
   );
 }

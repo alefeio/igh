@@ -145,6 +145,7 @@ model CourseLessonExercise {
   updatedAt DateTime @updatedAt
   lesson    CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   options   CourseLessonExerciseOption[]
+  answers   EnrollmentLessonExerciseAnswer[]
 
   @@index([lessonId])
 }
@@ -382,7 +383,7 @@ model EnrollmentLessonQuestionReply {
   @@index([enrollmentId])
 }
 
-/** Resposta do aluno a um exercício de múltipla escolha (uma por exercício por matrícula). */
+/** Resposta do aluno a um exercício de múltipla escolha (várias tentativas por exercício; usa-se a mais recente para exibir). */
 model EnrollmentLessonExerciseAnswer {
   id               String     @id @default(uuid())
   enrollmentId     String
@@ -391,8 +392,9 @@ model EnrollmentLessonExerciseAnswer {
   correct          Boolean
   createdAt        DateTime   @default(now())
   enrollment       Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  exercise         CourseLessonExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 
-  @@unique([enrollmentId, exerciseId])
+  @@index([enrollmentId, exerciseId, createdAt])
 }
 
 model StudentAttachment {

@@ -75,17 +75,10 @@ export async function POST(
 
   const correct = option.isCorrect;
 
-  await prisma.enrollmentLessonExerciseAnswer.upsert({
-    where: {
-      enrollmentId_exerciseId: { enrollmentId, exerciseId },
-    },
-    create: {
+  await prisma.enrollmentLessonExerciseAnswer.create({
+    data: {
       enrollmentId,
       exerciseId,
-      selectedOptionId: optionId,
-      correct,
-    },
-    update: {
       selectedOptionId: optionId,
       correct,
     },

@@ -314,7 +314,7 @@ function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
 
   return (
     <Link
-      href={`/minhas-turmas/${enrollment.id}`}
+      href={`/minhas-turmas/${enrollment.id}/conteudo`}
       className="group flex flex-col rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:shadow-md focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
     >
       <div className="flex flex-1 flex-col gap-3">
@@ -351,8 +351,18 @@ function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
             </div>
           </div>
         )}
+        {enrollment.exerciseTotalAttempts > 0 && (
+          <p className="text-xs text-[var(--text-muted)]">
+            Exercícios: {enrollment.exerciseCorrectAttempts}/{enrollment.exerciseTotalAttempts} acertos
+            {enrollment.exerciseTotalAttempts > 0 && (
+              <span className="font-medium text-[var(--igh-primary)]">
+                {" "}({Math.round((enrollment.exerciseCorrectAttempts / enrollment.exerciseTotalAttempts) * 100)}%)
+              </span>
+            )}
+          </p>
+        )}
         <p className="mt-auto text-sm text-[var(--text-muted)]">
-          {isComplete ? "Curso concluído" : hasProgress ? "Continuar estudando" : "Acessar conteúdo"}
+          {isComplete ? "Curso concluído" : hasProgress ? "Continuar estudando" : "Acessar conteúdo e desempenho"}
         </p>
       </div>
     </Link>
@@ -372,6 +382,8 @@ function DashboardStudent({
     totalLessonsCompleted,
     totalLessonsTotal,
     recommendedEnrollmentId,
+    totalExerciseCorrect,
+    totalExerciseAttempts,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
   const points = totalLessonsCompleted * POINTS_PER_LESSON;
@@ -437,6 +449,42 @@ function DashboardStudent({
               </div>
             </section>
           )}
+
+          <section
+            className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5"
+            aria-labelledby="exercicios-heading"
+          >
+            <h2 id="exercicios-heading" className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Desempenho nos exercícios
+            </h2>
+            {totalExerciseAttempts > 0 ? (
+                <div className="mt-3 flex flex-wrap items-center gap-4">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-[var(--text-primary)]">
+                      {totalExerciseCorrect}
+                    </span>
+                    <span className="text-sm text-[var(--text-muted)]">
+                      acertos em {totalExerciseAttempts} {totalExerciseAttempts === 1 ? "tentativa" : "tentativas"}
+                      {totalExerciseAttempts > 0 && (
+                        <span className="ml-1 font-medium text-[var(--igh-primary)]">
+                          ({Math.round((totalExerciseCorrect / totalExerciseAttempts) * 100)}%)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <Link
+                    href="/minhas-turmas"
+                    className="text-sm font-medium text-[var(--igh-primary)] underline hover:no-underline"
+                  >
+                    Ver detalhes por curso (tópicos em que está bem e que precisam de atenção)
+                  </Link>
+                </div>
+            ) : (
+              <p className="mt-3 text-sm text-[var(--text-muted)]">
+                Você ainda não respondeu exercícios. Responda às questões ao final das aulas para ver aqui seu desempenho e quais tópicos precisam de revisão.
+              </p>
+            )}
+          </section>
 
           {recommendedEnrollment && (
             <section aria-labelledby="continuar-heading">

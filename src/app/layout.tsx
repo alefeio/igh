@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const defaultTitle = "Cadastro de Cursos";
+const defaultTitle = "Painel";
 const defaultDescription = "Sistema de cadastro de cursos, turmas e professores.";
 
 export async function generateMetadata(): Promise<Metadata> {

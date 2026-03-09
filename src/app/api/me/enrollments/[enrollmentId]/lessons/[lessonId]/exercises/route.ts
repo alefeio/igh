@@ -59,20 +59,25 @@ export async function GET(
   });
 
   const exerciseIds = exercises.map((ex) => ex.id);
-  const answers = await prisma.enrollmentLessonExerciseAnswer.findMany({
+  const allAnswers = await prisma.enrollmentLessonExerciseAnswer.findMany({
     where: { enrollmentId, exerciseId: { in: exerciseIds } },
-    select: { exerciseId: true, selectedOptionId: true, correct: true },
+    select: { exerciseId: true, selectedOptionId: true, correct: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
   });
+  const latestByExerciseId = new Map<string, (typeof allAnswers)[0]>();
+  for (const a of allAnswers) {
+    if (!latestByExerciseId.has(a.exerciseId)) latestByExerciseId.set(a.exerciseId, a);
+  }
   const correctOptionIds = await prisma.courseLessonExerciseOption.findMany({
     where: { exerciseId: { in: exerciseIds }, isCorrect: true },
     select: { exerciseId: true, id: true },
   });
   const correctOptionByExerciseId = new Map(correctOptionIds.map((o) => [o.exerciseId, o.id]));
-  const answersPayload = answers.map((a) => ({
-    exerciseId: a.exerciseId,
+  const answersPayload = Array.from(latestByExerciseId.entries()).map(([exerciseId, a]) => ({
+    exerciseId,
     selectedOptionId: a.selectedOptionId,
     correct: a.correct,
-    correctOptionId: correctOptionByExerciseId.get(a.exerciseId) ?? null,
+    correctOptionId: correctOptionByExerciseId.get(exerciseId) ?? null,
   }));
 
   return jsonOk({

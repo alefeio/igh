@@ -59,6 +59,10 @@ export type StudentEnrollmentSummary = {
   location: string | null;
   lessonsTotal: number;
   lessonsCompleted: number;
+  /** Respostas corretas nos exercícios desta matrícula */
+  exerciseCorrectAttempts: number;
+  /** Total de tentativas nos exercícios desta matrícula */
+  exerciseTotalAttempts: number;
 };
 
 export type DashboardDataStudent = {
@@ -72,6 +76,10 @@ export type DashboardDataStudent = {
   totalLessonsTotal: number;
   /** Matrícula recomendada para "continuar de onde parou" (primeira em andamento) */
   recommendedEnrollmentId: string | null;
+  /** Total de acertos em exercícios (todas as matrículas) */
+  totalExerciseCorrect: number;
+  /** Total de tentativas em exercícios (todas as matrículas) */
+  totalExerciseAttempts: number;
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -93,6 +101,8 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         totalLessonsCompleted: 0,
         totalLessonsTotal: 0,
         recommendedEnrollmentId: null,
+        totalExerciseCorrect: 0,
+        totalExerciseAttempts: 0,
       };
     }
     const enrollmentsRaw = await prisma.enrollment.findMany({
@@ -109,7 +119,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     });
     const enrollmentIds = enrollmentsRaw.map((e) => e.id);
     const courseIds = [...new Set(enrollmentsRaw.map((e) => e.classGroup.courseId))];
-    const [modulesWithCount, progressCounts] = await Promise.all([
+    const [modulesWithCount, progressCounts, exerciseAnswers] = await Promise.all([
       prisma.courseModule.findMany({
         where: { courseId: { in: courseIds } },
         select: { courseId: true, _count: { select: { lessons: true } } },
@@ -119,6 +129,12 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         where: { enrollmentId: { in: enrollmentIds }, completed: true },
         _count: { id: true },
       }),
+      enrollmentIds.length > 0
+        ? prisma.enrollmentLessonExerciseAnswer.findMany({
+            where: { enrollmentId: { in: enrollmentIds } },
+            select: { enrollmentId: true, correct: true },
+          })
+        : Promise.resolve([]),
     ]);
     const lessonsByCourseId = new Map<string, number>();
     for (const m of modulesWithCount) {
@@ -130,10 +146,18 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     const completedByEnrollmentId = new Map(
       progressCounts.map((p) => [p.enrollmentId, p._count.id])
     );
+    const exerciseByEnrollmentId = new Map<string, { correct: number; total: number }>();
+    for (const a of exerciseAnswers) {
+      const cur = exerciseByEnrollmentId.get(a.enrollmentId) ?? { correct: 0, total: 0 };
+      cur.total += 1;
+      if (a.correct) cur.correct += 1;
+      exerciseByEnrollmentId.set(a.enrollmentId, cur);
+    }
     const enrollments: StudentEnrollmentSummary[] = enrollmentsRaw.map((e) => {
       const courseId = e.classGroup.courseId;
       const lessonsTotal = lessonsByCourseId.get(courseId) ?? 0;
       const lessonsCompleted = completedByEnrollmentId.get(e.id) ?? 0;
+      const ex = exerciseByEnrollmentId.get(e.id) ?? { correct: 0, total: 0 };
       return {
         id: e.id,
         courseName: e.classGroup.course.name,
@@ -143,10 +167,14 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         location: e.classGroup.location,
         lessonsTotal,
         lessonsCompleted,
+        exerciseCorrectAttempts: ex.correct,
+        exerciseTotalAttempts: ex.total,
       };
     });
     const totalLessonsCompleted = enrollments.reduce((s, e) => s + e.lessonsCompleted, 0);
     const totalLessonsTotal = enrollments.reduce((s, e) => s + e.lessonsTotal, 0);
+    const totalExerciseCorrect = enrollments.reduce((s, e) => s + e.exerciseCorrectAttempts, 0);
+    const totalExerciseAttempts = enrollments.reduce((s, e) => s + e.exerciseTotalAttempts, 0);
     const recommended = enrollments.find(
       (e) => e.lessonsTotal > 0 && e.lessonsCompleted > 0 && e.lessonsCompleted < e.lessonsTotal
     );
@@ -158,6 +186,8 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       totalLessonsCompleted,
       totalLessonsTotal,
       recommendedEnrollmentId: recommended?.id ?? null,
+      totalExerciseCorrect,
+      totalExerciseAttempts,
     };
   }
 

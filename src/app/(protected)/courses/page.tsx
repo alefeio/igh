@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { useUser } from "@/components/layout/UserProvider";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Modal } from "@/components/ui/Modal";
-import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
@@ -24,338 +22,15 @@ type Course = {
   createdAt: string;
 };
 
-type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[]; lastEditedAt?: string | null; lastEditedByUserName?: string | null };
-type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
-
-type LessonExerciseOption = { id: string; text: string; isCorrect: boolean; order: number };
-type LessonExercise = { id: string; lessonId: string; order: number; question: string; options: LessonExerciseOption[] };
-
 export default function CoursesPage() {
+  const router = useRouter();
   const toast = useToast();
+  const user = useUser();
+  const isTeacher = user.role === "TEACHER";
+
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Course[]>([]);
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Course | null>(null);
   const [showInactive, setShowInactive] = useState(false);
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [content, setContent] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [workloadHours, setWorkloadHours] = useState<string>("");
-  const [status, setStatus] = useState<Course["status"]>("ACTIVE");
-  const [modules, setModules] = useState<ModuleWithLessons[]>([]);
-  const [modulesLoading, setModulesLoading] = useState(false);
-  const [moduleModal, setModuleModal] = useState<{ type: "create" | "edit"; module?: ModuleWithLessons } | null>(null);
-  const [lessonModal, setLessonModal] = useState<{ type: "create" | "edit"; module: ModuleWithLessons; lesson?: Lesson } | null>(null);
-  const [moduleForm, setModuleForm] = useState({ title: "", description: "", order: 0 });
-  const [lessonForm, setLessonForm] = useState({ title: "", order: 0, durationMinutes: "" as string | number, videoUrl: "", imageUrls: [] as string[], contentRich: "", summary: "", attachmentUrls: [] as string[], attachmentUrlInput: "" });
-  const [savingCourse, setSavingCourse] = useState(false);
-  const [savingModule, setSavingModule] = useState(false);
-  const [savingLesson, setSavingLesson] = useState(false);
-  const [lessonExercises, setLessonExercises] = useState<LessonExercise[]>([]);
-  const [loadingExercises, setLoadingExercises] = useState(false);
-  const [exerciseModal, setExerciseModal] = useState<{ type: "add" | "edit"; exercise?: LessonExercise } | null>(null);
-  const [exerciseForm, setExerciseForm] = useState({ question: "", options: [] as { text: string; isCorrect: boolean }[] });
-  const [savingExercise, setSavingExercise] = useState(false);
-
-  const canSubmit = useMemo(() => name.trim().length >= 2, [name]);
-
-  function resetForm() {
-    setName("");
-    setDescription("");
-    setContent("");
-    setImageUrl("");
-    setWorkloadHours("");
-    setStatus("ACTIVE");
-    setEditing(null);
-    setModules([]);
-    setModuleModal(null);
-    setLessonModal(null);
-  }
-
-  function openCreate() {
-    resetForm();
-    setOpen(true);
-  }
-
-  function openEdit(c: Course) {
-    setEditing(c);
-    setName(c.name);
-    setDescription(c.description ?? "");
-    setContent(c.content ?? "");
-    setImageUrl(c.imageUrl ?? "");
-    setWorkloadHours(c.workloadHours?.toString() ?? "");
-    setStatus(c.status);
-    setModules([]);
-    setModuleModal(null);
-    setLessonModal(null);
-    setOpen(true);
-    setModulesLoading(true);
-    fetch(`/api/courses/${c.id}/modules`)
-      .then(async (r) => {
-        const text = await r.text();
-        if (!text.trim()) return { ok: false as const, data: { modules: [] as ModuleWithLessons[] } };
-        try {
-          return JSON.parse(text) as ApiResponse<{ modules: ModuleWithLessons[] }>;
-        } catch {
-          return { ok: false as const, data: { modules: [] as ModuleWithLessons[] } };
-        }
-      })
-      .then((json) => {
-        if (json.ok && json.data?.modules) setModules(json.data.modules);
-      })
-      .catch(() => setModules([]))
-      .finally(() => setModulesLoading(false));
-  }
-
-  async function refetchModules() {
-    if (!editing?.id) return;
-    setModulesLoading(true);
-    try {
-      const r = await fetch(`/api/courses/${editing.id}/modules`);
-      const text = await r.text();
-      if (!text.trim()) return;
-      const json = JSON.parse(text) as ApiResponse<{ modules: ModuleWithLessons[] }>;
-      if (json.ok && json.data?.modules) setModules(json.data.modules);
-    } catch {
-      setModules([]);
-    } finally {
-      setModulesLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!editing?.id || !lessonModal || lessonModal.type !== "edit" || !lessonModal.lesson?.id) return;
-    const mod = lessonModal.module;
-    setLoadingExercises(true);
-    fetch(`/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson.id}/exercises`)
-      .then((r) => r.json() as Promise<ApiResponse<LessonExercise[]>>)
-      .then((json) => {
-        if (json.ok && json.data) setLessonExercises(json.data);
-        else setLessonExercises([]);
-      })
-      .catch(() => setLessonExercises([]))
-      .finally(() => setLoadingExercises(false));
-  }, [editing?.id, lessonModal?.type, lessonModal?.lesson?.id, lessonModal?.module?.id]);
-
-  function openExerciseAdd() {
-    setExerciseForm({ question: "", options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] });
-    setExerciseModal({ type: "add" });
-  }
-
-  function openExerciseEdit(ex: LessonExercise) {
-    setExerciseForm({
-      question: ex.question,
-      options: ex.options.length >= 2 ? ex.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect })) : [{ text: "", isCorrect: true }, { text: "", isCorrect: false }],
-    });
-    setExerciseModal({ type: "edit", exercise: ex });
-  }
-
-  async function saveExercise(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editing?.id || !lessonModal || lessonModal.type !== "edit" || !lessonModal.lesson?.id || savingExercise) return;
-    const question = exerciseForm.question.trim();
-    const options = exerciseForm.options.filter((o) => o.text.trim());
-    if (!question) {
-      toast.push("error", "Digite a pergunta.");
-      return;
-    }
-    if (options.length < 2) {
-      toast.push("error", "Adicione pelo menos 2 opções.");
-      return;
-    }
-    if (!options.some((o) => o.isCorrect)) {
-      toast.push("error", "Marque uma opção como correta.");
-      return;
-    }
-    setSavingExercise(true);
-    try {
-      const mod = lessonModal.module;
-      const base = `/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson.id}/exercises`;
-      const isEdit = exerciseModal?.type === "edit" && exerciseModal?.exercise;
-      const url = isEdit ? `${base}/${exerciseModal.exercise!.id}` : base;
-      const method = isEdit ? "PATCH" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question,
-          order: isEdit ? exerciseModal.exercise!.order : lessonExercises.length,
-          options: options.map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect })),
-        }),
-      });
-      const json = await res.json() as ApiResponse<LessonExercise>;
-      if (!res.ok || !json.ok) {
-        toast.push("error", (json as { error?: { message?: string } }).error?.message ?? "Erro ao salvar exercício.");
-        return;
-      }
-      toast.push("success", isEdit ? "Exercício atualizado." : "Exercício adicionado.");
-      if (isEdit) setLessonExercises((prev) => prev.map((ex) => (ex.id === json.data!.id ? json.data! : ex)));
-      else setLessonExercises((prev) => [...prev, json.data!]);
-      setExerciseModal(null);
-    } finally {
-      setSavingExercise(false);
-    }
-  }
-
-  async function deleteExercise(ex: LessonExercise) {
-    if (!editing?.id || !lessonModal || lessonModal.type !== "edit" || !lessonModal.lesson?.id) return;
-    if (!confirm("Excluir este exercício?")) return;
-    const mod = lessonModal.module;
-    const res = await fetch(
-      `/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson.id}/exercises/${ex.id}`,
-      { method: "DELETE" }
-    );
-    const json = await res.json() as ApiResponse<{ deleted: boolean }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", (json as { error?: { message?: string } }).error?.message ?? "Erro ao excluir.");
-      return;
-    }
-    toast.push("success", "Exercício excluído.");
-    setLessonExercises((prev) => prev.filter((e) => e.id !== ex.id));
-  }
-
-  function openModuleCreate() {
-    setModuleForm({ title: "", description: "", order: modules.length });
-    setModuleModal({ type: "create" });
-  }
-
-  function openModuleEdit(mod: ModuleWithLessons) {
-    setModuleForm({ title: mod.title, description: mod.description ?? "", order: mod.order });
-    setModuleModal({ type: "edit", module: mod });
-  }
-
-  async function saveModule(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editing?.id || !moduleForm.title.trim() || savingModule) return;
-    setSavingModule(true);
-    try {
-      const isEdit = moduleModal?.type === "edit" && moduleModal?.module;
-      const url = isEdit
-        ? `/api/courses/${editing.id}/modules/${moduleModal!.module!.id}`
-        : `/api/courses/${editing.id}/modules`;
-      const method = isEdit ? "PATCH" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: moduleForm.title.trim(),
-          description: moduleForm.description.trim() || undefined,
-          order: moduleForm.order,
-        }),
-      });
-      const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
-      if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao salvar módulo.");
-        return;
-      }
-      toast.push("success", isEdit ? "Módulo atualizado." : "Módulo criado.");
-      if (json.data?.modules) setModules(json.data.modules);
-      setModuleModal(null);
-    } finally {
-      setSavingModule(false);
-    }
-  }
-
-  async function deleteModule(mod: ModuleWithLessons) {
-    if (!editing?.id || !confirm(`Excluir o módulo "${mod.title}" e todas as suas aulas?`)) return;
-    const res = await fetch(`/api/courses/${editing.id}/modules/${mod.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao excluir.");
-      return;
-    }
-    toast.push("success", "Módulo excluído.");
-    if (json.data?.modules) setModules(json.data.modules);
-    setModuleModal(null);
-  }
-
-  function openLessonCreate(mod: ModuleWithLessons) {
-    setLessonForm({ title: "", order: mod.lessons.length, durationMinutes: "", videoUrl: "", imageUrls: [], contentRich: "", summary: "", attachmentUrls: [], attachmentUrlInput: "" });
-    setLessonModal({ type: "create", module: mod });
-    setLessonExercises([]);
-  }
-
-  function openLessonEdit(mod: ModuleWithLessons, les: Lesson) {
-    setLessonForm({
-      title: les.title,
-      order: les.order,
-      durationMinutes: les.durationMinutes ?? "",
-      videoUrl: les.videoUrl ?? "",
-      imageUrls: les.imageUrls ?? [],
-      contentRich: les.contentRich ?? "",
-      summary: les.summary ?? "",
-      attachmentUrls: les.attachmentUrls ?? [],
-      attachmentUrlInput: "",
-    });
-    setLessonModal({ type: "edit", module: mod, lesson: les });
-    setLessonExercises([]);
-  }
-
-  async function saveLesson(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editing?.id || !lessonModal || !lessonForm.title.trim() || savingLesson) return;
-    setSavingLesson(true);
-    try {
-      const mod = lessonModal.module;
-      const isEdit = lessonModal.type === "edit" && lessonModal.lesson;
-      const url = isEdit
-        ? `/api/courses/${editing.id}/modules/${mod.id}/lessons/${lessonModal.lesson!.id}`
-        : `/api/courses/${editing.id}/modules/${mod.id}/lessons`;
-      const method = isEdit ? "PATCH" : "POST";
-      const duration = lessonForm.durationMinutes === "" ? null : Number(lessonForm.durationMinutes);
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: lessonForm.title.trim(),
-          order: Number(lessonForm.order) || 0,
-          durationMinutes: duration,
-          videoUrl: lessonForm.videoUrl?.trim() || null,
-          imageUrls: lessonForm.imageUrls ?? [],
-          contentRich: lessonForm.contentRich?.trim() || null,
-          summary: lessonForm.summary?.trim() || null,
-          pdfUrl: null,
-          attachmentUrls: lessonForm.attachmentUrls ?? [],
-        }),
-      });
-      const text = await res.text();
-      let json: ApiResponse<{ modules: ModuleWithLessons[] }>;
-      try {
-        json = (text ? JSON.parse(text) : { ok: false }) as ApiResponse<{ modules: ModuleWithLessons[] }>;
-      } catch {
-        if (!res.ok) {
-          toast.push("error", res.status === 404 ? "Aula não encontrada. Recarregue a página e tente novamente." : `Erro ao salvar (${res.status}).`);
-          return;
-        }
-        json = { ok: false } as ApiResponse<{ modules: ModuleWithLessons[] }>;
-      }
-      if (!res.ok || !json.ok) {
-        const errMsg = json && !(json as { ok?: boolean }).ok && "error" in json ? (json as { error?: { message?: string } }).error?.message : null;
-        toast.push("error", errMsg ?? (res.status === 404 ? "Aula não encontrada. Recarregue a página." : "Falha ao salvar aula."));
-        return;
-      }
-      toast.push("success", isEdit ? "Aula atualizada." : "Aula criada.");
-      if (json.data?.modules) setModules(json.data.modules);
-      setLessonModal(null);
-    } finally {
-      setSavingLesson(false);
-    }
-  }
-
-  async function deleteLesson(mod: ModuleWithLessons, les: Lesson) {
-    if (!editing?.id || !confirm(`Excluir a aula "${les.title}"?`)) return;
-    const res = await fetch(`/api/courses/${editing.id}/modules/${mod.id}/lessons/${les.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ modules: ModuleWithLessons[] }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Erro" : "Falha ao excluir.");
-      return;
-    }
-    toast.push("success", "Aula excluída.");
-    if (json.data?.modules) setModules(json.data.modules);
-    setLessonModal(null);
-  }
 
   async function load() {
     setLoading(true);
@@ -374,8 +49,7 @@ export default function CoursesPage() {
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [toast]);
 
   async function inactivateCourse(c: Course) {
     if (!confirm(`Inativar o curso "${c.name}"?`)) return;
@@ -425,57 +99,7 @@ export default function CoursesPage() {
     await load();
   }
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmit || savingCourse) return;
-    setSavingCourse(true);
-    try {
-    const payload: {
-      name: string;
-      description: string;
-      content: string;
-      imageUrl: string;
-      status: Course["status"];
-      workloadHours?: number;
-    } = {
-      name,
-      description,
-      content,
-      imageUrl,
-      status,
-    };
-    if (workloadHours.trim() !== "") {
-      payload.workloadHours = Number(workloadHours);
-    }
-
-    const url = editing ? `/api/courses/${editing.id}` : "/api/courses";
-    const method = editing ? "PATCH" : "POST";
-
-    const res = await fetch(url, {
-      method,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = (await res.json()) as ApiResponse<{ course: Course }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao salvar curso.");
-      return;
-    }
-    toast.push("success", editing ? "Curso atualizado." : "Curso criado.");
-    setOpen(false);
-    resetForm();
-    await load();
-    } finally {
-      setSavingCourse(false);
-    }
-  }
-
   const visibleItems = showInactive ? items : items.filter((c) => c.status === "ACTIVE");
-  const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (open) formRef.current?.scrollTo?.({ top: 0 });
-  }, [open]);
 
   return (
     <div className="container-page flex flex-col gap-6">
@@ -497,7 +121,7 @@ export default function CoursesPage() {
           >
             {showInactive ? "Ocultar inativos" : "Exibir inativos"}
           </Button>
-          <Button onClick={openCreate} className="w-full sm:w-auto">
+          <Button onClick={() => router.push("/courses/new")} className="w-full sm:w-auto">
             Novo curso
           </Button>
         </div>
@@ -539,7 +163,7 @@ export default function CoursesPage() {
                     type="button"
                     variant="primary"
                     className="mt-3"
-                    onClick={openCreate}
+                    onClick={() => router.push("/courses/new")}
                   >
                     Novo curso
                   </Button>
@@ -584,31 +208,35 @@ export default function CoursesPage() {
                       <Td>{c.workloadHours ?? "—"}</Td>
                       <Td>
                         <div className="flex justify-end gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => openEdit(c)}>
+                          <Button variant="secondary" size="sm" onClick={() => router.push(`/courses/${c.id}/edit`)}>
                             Editar
                           </Button>
-                          {c.status === "ACTIVE" ? (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => inactivateCourse(c)}
-                              className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                            >
-                              Inativar
-                            </Button>
-                          ) : (
+                          {!isTeacher && (
                             <>
-                              <Button variant="secondary" size="sm" onClick={() => reactivateCourse(c)}>
-                                Reativar
-                              </Button>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => deleteCourse(c)}
-                                className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                              >
-                                Excluir
-                              </Button>
+                              {c.status === "ACTIVE" ? (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => inactivateCourse(c)}
+                                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                >
+                                  Inativar
+                                </Button>
+                              ) : (
+                                <>
+                                  <Button variant="secondary" size="sm" onClick={() => reactivateCourse(c)}>
+                                    Reativar
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => deleteCourse(c)}
+                                    className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                  >
+                                    Excluir
+                                  </Button>
+                                </>
+                              )}
                             </>
                           )}
                         </div>
@@ -620,474 +248,6 @@ export default function CoursesPage() {
             )}
           </div>
         </div>
-      )}
-
-      <Modal
-        open={open}
-        title={editing ? "Editar curso" : "Novo curso"}
-        onClose={() => { setOpen(false); resetForm(); }}
-      >
-        <form ref={formRef} className="flex max-h-[85vh] flex-col gap-3 overflow-y-auto" onSubmit={save}>
-          <div>
-            <label className="text-sm font-medium text-[var(--text-primary)]">Nome</label>
-            <div className="mt-1">
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[var(--text-primary)]">Descrição (opcional)</label>
-            <div className="mt-1">
-              <Input value={description} onChange={(e) => setDescription(e.target.value)} />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[var(--text-primary)]">Conteúdo (rich text, opcional)</label>
-            <div className="mt-1">
-              <RichTextEditor
-                key={editing?.id ?? "new"}
-                value={content}
-                onChange={setContent}
-                placeholder="Digite o conteúdo do curso..."
-                minHeight="160px"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[var(--text-primary)]">URL da foto (opcional)</label>
-            <div className="mt-1">
-              <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
-              <CloudinaryImageUpload
-                kind="formations"
-                currentUrl={imageUrl || undefined}
-                onUploaded={setImageUrl}
-                label="Ou envie uma imagem"
-              />
-            </div>
-            {imageUrl && (
-              <img src={imageUrl} alt="Preview" className="mt-2 h-20 rounded object-cover" />
-            )}
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[var(--text-primary)]">Carga horária (opcional)</label>
-            <div className="mt-1">
-              <Input
-                value={workloadHours}
-                onChange={(e) => setWorkloadHours(e.target.value)}
-                inputMode="numeric"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-[var(--text-primary)]">Status</label>
-            <div className="mt-1">
-              <select
-                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)] focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                value={status}
-                onChange={(e) => setStatus(e.target.value as Course["status"])}
-              >
-                <option value="ACTIVE">Ativo</option>
-                <option value="INACTIVE">Inativo</option>
-              </select>
-            </div>
-          </div>
-          {editing && (
-            <div className="border-t border-[var(--card-border)] pt-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Módulos e aulas</h3>
-                <Button type="button" variant="secondary" size="sm" onClick={openModuleCreate}>
-                  Novo módulo
-                </Button>
-              </div>
-              {modulesLoading ? (
-                <div className="mt-3 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-6 text-center text-sm text-[var(--text-muted)]" role="status">
-                  Carregando módulos...
-                </div>
-              ) : modules.length === 0 ? (
-                <div className="mt-3 rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-4 text-center">
-                  <p className="text-sm text-[var(--text-muted)]">Nenhum módulo ainda.</p>
-                  <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={openModuleCreate}>
-                    Adicionar primeiro módulo
-                  </Button>
-                </div>
-              ) : (
-                <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto text-sm">
-                  {modules.map((mod) => (
-                    <li key={mod.id} className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium text-[var(--text-primary)]">Módulo {mod.order + 1}: {mod.title}</span>
-                        <div className="flex flex-wrap gap-1">
-                          <Button type="button" variant="secondary" size="sm" onClick={() => openModuleEdit(mod)}>
-                            Editar
-                          </Button>
-                          <Button type="button" variant="secondary" size="sm" className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" onClick={() => deleteModule(mod)}>
-                            Excluir
-                          </Button>
-                          <Button type="button" variant="secondary" size="sm" onClick={() => openLessonCreate(mod)}>
-                            Nova aula
-                          </Button>
-                        </div>
-                      </div>
-                      {mod.description && <p className="mt-0.5 text-xs text-[var(--text-muted)]">{mod.description}</p>}
-                      <ul className="mt-2 pl-2">
-                        {mod.lessons.map((les) => (
-                          <li key={les.id} className="flex flex-wrap items-center justify-between gap-1 rounded py-1">
-                            <div className="min-w-0 flex-1">
-                              <span className="text-[var(--text-secondary)]">
-                                Aula {les.order + 1}: {les.title}
-                                {les.durationMinutes != null && (
-                                  <span className="text-[var(--text-muted)]"> ({les.durationMinutes} min)</span>
-                                )}
-                              </span>
-                              {les.lastEditedByUserName && (
-                                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                                  Última edição: {les.lastEditedByUserName}
-                                  {les.lastEditedAt && (
-                                    <> em {new Date(les.lastEditedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</>
-                                  )}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex gap-1">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => openLessonEdit(mod, les)}
-                              >
-                                Editar
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                                onClick={() => deleteLesson(mod, les)}
-                              >
-                                Excluir
-                              </Button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          <div className="flex items-center justify-end gap-2 border-t border-[var(--card-border)] pt-3">
-            <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={!canSubmit || savingCourse}>
-              {savingCourse ? "Salvando…" : "Salvar"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {moduleModal && (
-        <Modal
-          open={!!moduleModal}
-          title={moduleModal.type === "edit" ? "Editar módulo" : "Novo módulo"}
-          onClose={() => setModuleModal(null)}
-        >
-          <form className="flex flex-col gap-4" onSubmit={saveModule}>
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Título</label>
-              <Input className="mt-1" value={moduleForm.title} onChange={(e) => setModuleForm((f) => ({ ...f, title: e.target.value }))} placeholder="Ex.: Módulo 1 - Introdução" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Descrição (opcional)</label>
-              <Input className="mt-1" value={moduleForm.description} onChange={(e) => setModuleForm((f) => ({ ...f, description: e.target.value }))} placeholder="Breve descrição do módulo" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Ordem</label>
-              <Input type="number" min={0} className="mt-1" value={moduleForm.order} onChange={(e) => setModuleForm((f) => ({ ...f, order: parseInt(e.target.value, 10) || 0 }))} />
-            </div>
-            <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
-              <Button type="button" variant="secondary" onClick={() => setModuleModal(null)} disabled={savingModule}>Cancelar</Button>
-              <Button type="submit" disabled={savingModule}>{savingModule ? "Salvando…" : "Salvar"}</Button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {lessonModal && (
-        <Modal
-          open={!!lessonModal}
-          title={lessonModal.type === "edit" ? "Editar aula" : "Nova aula"}
-          onClose={() => setLessonModal(null)}
-          size="large"
-        >
-          <form className="flex max-h-[80vh] flex-col gap-4 overflow-y-auto" onSubmit={saveLesson}>
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Título</label>
-              <Input className="mt-1" value={lessonForm.title} onChange={(e) => setLessonForm((f) => ({ ...f, title: e.target.value }))} placeholder="Ex.: Aula 1 - Conceitos iniciais" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium text-[var(--text-primary)]">Ordem</label>
-                <Input type="number" min={0} className="mt-1" value={lessonForm.order} onChange={(e) => setLessonForm((f) => ({ ...f, order: parseInt(e.target.value, 10) || 0 }))} />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-[var(--text-primary)]">Duração (min)</label>
-                <Input type="number" min={0} className="mt-1" value={lessonForm.durationMinutes} onChange={(e) => setLessonForm((f) => ({ ...f, durationMinutes: e.target.value }))} placeholder="Ex: 75" />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Vídeo (URL, opcional)</label>
-              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Cole o link do vídeo (YouTube, Vimeo, etc.).</p>
-              <Input
-                className="mt-1"
-                type="url"
-                value={lessonForm.videoUrl}
-                onChange={(e) => setLessonForm((f) => ({ ...f, videoUrl: e.target.value }))}
-                placeholder="Ex: https://www.youtube.com/watch?v=..."
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Imagens da aula</label>
-              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens para usar no conteúdo (copie o endereço e cole no rich text).</p>
-              <div className="mt-1">
-                <CloudinaryImageUpload
-                  kind="formations"
-                  currentUrl={undefined}
-                  onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
-                  label="Adicionar imagem"
-                  multiple
-                />
-              </div>
-              {lessonForm.imageUrls && lessonForm.imageUrls.length > 0 && (
-                <ul className="mt-3 space-y-2">
-                  {lessonForm.imageUrls.map((url, idx) => (
-                    <li key={`${url}-${idx}`} className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
-                      <img src={url} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
-                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          navigator.clipboard.writeText(url);
-                          toast.push("success", "Endereço copiado.");
-                        }}
-                      >
-                        Copiar endereço
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="text-red-600"
-                        onClick={() => setLessonForm((f) => ({ ...f, imageUrls: (f.imageUrls ?? []).filter((_, i) => i !== idx) }))}
-                      >
-                        Remover
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div>
-              <label className="text-sm font-medium">Arquivos de apoio (URLs, opcional)</label>
-              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Links para download de arquivos de apoio da aula (planilhas, documentos, etc.).</p>
-              <div className="mt-1 flex flex-wrap gap-2">
-                <Input
-                  className="max-w-xs"
-                  type="url"
-                  placeholder="Cole a URL e clique em Adicionar"
-                  value={lessonForm.attachmentUrlInput ?? ""}
-                  onChange={(e) => setLessonForm((f) => ({ ...f, attachmentUrlInput: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
-                    const url = (lessonForm.attachmentUrlInput ?? "").trim();
-                    if (url) {
-                      setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentUrlInput: "" }));
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    const url = (lessonForm.attachmentUrlInput ?? "").trim();
-                    if (url) setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentUrlInput: "" }));
-                  }}
-                >
-                  Adicionar
-                </Button>
-              </div>
-              {lessonForm.attachmentUrls && lessonForm.attachmentUrls.length > 0 && (
-                <ul className="mt-3 space-y-2">
-                  {lessonForm.attachmentUrls.map((url, idx) => (
-                    <li key={`${url}-${idx}`} className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
-                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="text-red-600"
-                        onClick={() => setLessonForm((f) => ({ ...f, attachmentUrls: (f.attachmentUrls ?? []).filter((_, i) => i !== idx) }))}
-                      >
-                        Remover
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Resumo rápido da aula (o que será aprendido)</label>
-              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Texto exibido no topo da aula para o aluno. Ex.: tópicos ou objetivos da aula.</p>
-              <textarea
-                className="mt-1 w-full min-h-[80px] rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
-                value={lessonForm.summary}
-                onChange={(e) => setLessonForm((f) => ({ ...f, summary: e.target.value }))}
-                placeholder={"Ex.: Nesta aula você verá:\n• Conceitos de...\n• Prática de...\n• Exercícios..."}
-                rows={4}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Conteúdo (rich text)</label>
-              <RichTextEditor
-                key={lessonModal.type === "edit" ? lessonModal.lesson?.id : "new"}
-                value={lessonForm.contentRich}
-                onChange={(v) => setLessonForm((f) => ({ ...f, contentRich: v }))}
-                minHeight="180px"
-                className="mt-1"
-              />
-            </div>
-            {lessonModal.type === "edit" && lessonModal.lesson?.id && (
-              <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="text-sm font-medium">Exercícios de múltipla escolha</label>
-                  <Button type="button" variant="secondary" size="sm" onClick={openExerciseAdd}>
-                    Adicionar exercício
-                  </Button>
-                </div>
-                <p className="mb-2 text-xs text-[var(--text-muted)]">Exibidos ao final da aula para o aluno responder.</p>
-                {loadingExercises ? (
-                  <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
-                ) : lessonExercises.length === 0 ? (
-                  <p className="text-sm text-[var(--text-muted)]">Nenhum exercício. Clique em &quot;Adicionar exercício&quot; para criar.</p>
-                ) : (
-                  <ul className="space-y-3">
-                    {lessonExercises.map((ex, idx) => (
-                      <li key={ex.id} className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
-                        <p className="mb-2 font-medium text-[var(--text-primary)]">{idx + 1}. {ex.question}</p>
-                        <ul className="mb-2 list-inside list-disc text-sm text-[var(--text-secondary)]">
-                          {ex.options.map((o) => (
-                            <li key={o.id}>{o.text}{o.isCorrect ? " ✓" : ""}</li>
-                          ))}
-                        </ul>
-                        <div className="flex gap-2">
-                          <Button type="button" variant="secondary" size="sm" onClick={() => openExerciseEdit(ex)}>Editar</Button>
-                          <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => deleteExercise(ex)}>Excluir</Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-            <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
-              <Button type="button" variant="secondary" onClick={() => setLessonModal(null)} disabled={savingLesson}>Cancelar</Button>
-              <Button type="submit" disabled={savingLesson}>{savingLesson ? "Salvando…" : "Salvar"}</Button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {exerciseModal && (
-        <Modal
-          open={!!exerciseModal}
-          title={exerciseModal.type === "edit" ? "Editar exercício" : "Novo exercício"}
-          onClose={() => setExerciseModal(null)}
-          size="large"
-        >
-          <form onSubmit={saveExercise} className="flex flex-col gap-4">
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Pergunta</label>
-              <textarea
-                className="mt-1 w-full min-h-[60px] rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
-                value={exerciseForm.question}
-                onChange={(e) => setExerciseForm((f) => ({ ...f, question: e.target.value }))}
-                placeholder="Ex.: Qual a principal vantagem de..."
-                required
-                rows={2}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Opções (marque a correta)</label>
-              <div className="mt-2 space-y-2">
-                {exerciseForm.options.map((opt, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="correctOption"
-                      checked={opt.isCorrect}
-                      onChange={() =>
-                        setExerciseForm((f) => ({
-                          ...f,
-                          options: f.options.map((o, i) => ({ ...o, isCorrect: i === idx })),
-                        }))
-                      }
-                      className="shrink-0"
-                    />
-                    <Input
-                      className="flex-1"
-                      value={opt.text}
-                      onChange={(e) =>
-                        setExerciseForm((f) => ({
-                          ...f,
-                          options: f.options.map((o, i) => (i === idx ? { ...o, text: e.target.value } : o)),
-                        }))
-                      }
-                      placeholder={`Opção ${idx + 1}`}
-                    />
-                    {exerciseForm.options.length > 2 && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="text-red-600 shrink-0"
-                        onClick={() => {
-                          setExerciseForm((f) => {
-                            const next = f.options.filter((_, i) => i !== idx);
-                            const hasCorrect = next.some((o) => o.isCorrect);
-                            return { ...f, options: hasCorrect ? next : next.map((o, i) => (i === 0 ? { ...o, isCorrect: true } : o)) };
-                          });
-                        }}
-                      >
-                        Remover
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() =>
-                    setExerciseForm((f) => ({
-                      ...f,
-                      options: [...f.options, { text: "", isCorrect: false }],
-                    }))
-                  }
-                >
-                  + Opção
-                </Button>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
-              <Button type="button" variant="secondary" onClick={() => setExerciseModal(null)} disabled={savingExercise}>Cancelar</Button>
-              <Button type="submit" disabled={savingExercise}>{savingExercise ? "Salvando…" : "Salvar"}</Button>
-            </div>
-          </form>
-        </Modal>
       )}
     </div>
   );

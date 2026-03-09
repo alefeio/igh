@@ -45,7 +45,7 @@ export function ResponsiveShell({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text-primary)]">Cadastro de Cursos</span>
+          <span className="min-w-0 flex-1" aria-hidden />
           <ThemeToggle />
         </header>
         <main className="min-h-0 flex-1">

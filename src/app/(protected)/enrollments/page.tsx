@@ -186,15 +186,23 @@ export default function EnrollmentsPage() {
     return { total: items.length, active, pre, confirmed };
   }, [items]);
 
+  /** Normaliza string removendo acentos: permite digitar "Jose" e encontrar "José". */
+  const normalizeForSearch = (s: string) =>
+    String(s)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
   const filteredItems = useMemo(() => {
     let list = items;
-    const q = listFilter.trim().toLowerCase();
+    const q = listFilter.trim();
     if (q.length > 0) {
+      const qNorm = normalizeForSearch(q);
       list = list.filter(
         (e) =>
-          e.student.name.toLowerCase().includes(q) ||
-          (e.student.email?.toLowerCase().includes(q) ?? false) ||
-          e.classGroup.course.name.toLowerCase().includes(q)
+          normalizeForSearch(e.student.name).includes(qNorm) ||
+          (e.student.email != null && normalizeForSearch(e.student.email).includes(qNorm)) ||
+          normalizeForSearch(e.classGroup.course.name).includes(qNorm)
       );
     }
     if (statusFilterState) list = list.filter((e) => e.status === statusFilterState);
@@ -1026,14 +1034,15 @@ export default function EnrollmentsPage() {
                 role="listbox"
               >
                 {(() => {
-                  const q = studentSearchQuery.trim().toLowerCase();
+                  const q = studentSearchQuery.trim();
+                  const qNorm = q.length > 0 ? normalizeForSearch(q) : "";
                   const filtered =
-                    q.length === 0
+                    qNorm.length === 0
                       ? students
                       : students.filter(
                           (s) =>
-                            s.name.toLowerCase().includes(q) ||
-                            (s.email?.toLowerCase().includes(q) ?? false)
+                            normalizeForSearch(s.name).includes(qNorm) ||
+                            (s.email != null && normalizeForSearch(s.email).includes(qNorm))
                         );
                   if (filtered.length === 0) {
                     return (

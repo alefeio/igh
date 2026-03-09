@@ -4,6 +4,50 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { updateCourseSchema } from "@/lib/validators/courses";
 import { createAuditLog } from "@/lib/audit";
 
+async function teacherCanAccessCourse(userId: string, courseId: string): Promise<boolean> {
+  const teacher = await prisma.teacher.findFirst({
+    where: { userId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!teacher) return false;
+  const count = await prisma.classGroup.count({
+    where: { teacherId: teacher.id, courseId },
+  });
+  return count > 0;
+}
+
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER"]);
+  const { id } = await context.params;
+
+  const course = await prisma.course.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      content: true,
+      imageUrl: true,
+      workloadHours: true,
+      status: true,
+      createdAt: true,
+    },
+  });
+  if (!course) {
+    return jsonErr("NOT_FOUND", "Curso não encontrado.", 404);
+  }
+
+  if (user.role === "TEACHER") {
+    const can = await teacherCanAccessCourse(user.id, id);
+    if (!can) {
+      return jsonErr("FORBIDDEN", "Você não é professor deste curso.", 403);
+    }
+  }
+
+  return jsonOk({ course });
+}
+
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await requireRole("MASTER");
   const { id } = await context.params;

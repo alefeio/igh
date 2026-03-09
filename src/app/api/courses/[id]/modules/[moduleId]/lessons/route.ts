@@ -64,5 +64,5 @@ export async function POST(request: Request, context: Ctx) {
   });
 
   const modules = await getModulesWithLessonsByCourseId(courseId);
-  return jsonOk({ modules }, { status: 201 });
+  return jsonOk({ modules, lesson: { id: newLesson.id, title: newLesson.title, order: newLesson.order, durationMinutes: newLesson.durationMinutes, videoUrl: newLesson.videoUrl, imageUrls: newLesson.imageUrls, contentRich: newLesson.contentRich, summary: newLesson.summary, pdfUrl: newLesson.pdfUrl, attachmentUrls: newLesson.attachmentUrls } }, { status: 201 });
 }

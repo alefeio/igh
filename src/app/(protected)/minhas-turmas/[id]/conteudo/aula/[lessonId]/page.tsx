@@ -829,7 +829,7 @@ export default function AulaConteudoPage() {
           >
             <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
           </button>
-          <a href="#trechos-destacados" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Trechos destacados" aria-label="Ir para Trechos destacados">
+          <a href="#lista-trechos-destacados" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Trechos destacados" aria-label="Ir para Trechos destacados">
             <BookMarked className="h-5 w-5" aria-hidden />
           </a>
           <a href="#material-complementar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Material complementar" aria-label="Ir para Material complementar">
@@ -871,43 +871,40 @@ export default function AulaConteudoPage() {
 
       <nav
         aria-label="Navegação entre aulas"
-        className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
+        className="flex flex-nowrap items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
       >
-        {prevLesson ? (
+        <div className="flex shrink-0">
+          {prevLesson ? (
+            <Link
+              href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLesson.id}`}
+              className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+            >
+              ← Anterior
+            </Link>
+          ) : (
+            <span className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm text-[var(--text-muted)]">← Anterior</span>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 justify-center">
           <Link
-            href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLesson.id}`}
-            className="rounded px-2 py-1 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+            href="/minhas-turmas/favoritos"
+            className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
           >
-            ← Anterior
+            Favoritos
           </Link>
-        ) : (
-          <span className="rounded px-2 py-1 text-sm text-[var(--text-muted)]">← Anterior</span>
-        )}
-        <span className="text-[var(--card-border)]" aria-hidden>|</span>
-        <Link
-          href={`/minhas-turmas/${enrollmentId}/conteudo`}
-          className="rounded px-2 py-1 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-        >
-          Visão do módulo
-        </Link>
-        <span className="text-[var(--card-border)]" aria-hidden>|</span>
-        <Link
-          href="/minhas-turmas/favoritos"
-          className="rounded px-2 py-1 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-        >
-          Favoritos
-        </Link>
-        <span className="text-[var(--card-border)]" aria-hidden>|</span>
-        {nextLesson ? (
-          <Link
-            href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`}
-            className="rounded px-2 py-1 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-          >
-            Próxima →
-          </Link>
-        ) : (
-          <span className="rounded px-2 py-1 text-sm text-[var(--text-muted)]">Próxima →</span>
-        )}
+        </div>
+        <div className="flex shrink-0">
+          {nextLesson ? (
+            <Link
+              href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`}
+              className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+            >
+              Próxima →
+            </Link>
+          ) : (
+            <span className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm text-[var(--text-muted)]">Próxima →</span>
+          )}
+        </div>
       </nav>
 
       <div className="card">
@@ -931,7 +928,7 @@ export default function AulaConteudoPage() {
               <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
             </button>
             <a
-              href="#trechos-destacados"
+              href="#lista-trechos-destacados"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               title="Trechos destacados"
               aria-label="Ir para Trechos destacados"
@@ -1069,11 +1066,11 @@ export default function AulaConteudoPage() {
                 onSavePassage={handleSavePassage}
                 saving={savingPassage}
               />
-              {passages.length > 0 && (
-                <div className="mt-4 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
-                  <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
-                    Trechos destacados
-                  </h3>
+              <div id="lista-trechos-destacados" className="mt-4 scroll-mt-24 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
+                <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
+                  Trechos destacados
+                </h3>
+                {passages.length > 0 ? (
                   <ul className="space-y-2">
                     {passages.map((p) => (
                       <li
@@ -1094,8 +1091,12 @@ export default function AulaConteudoPage() {
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-[var(--text-muted)]">
+                    Nenhum trecho destacado ainda. Selecione um texto no conteúdo acima e use o botão &ldquo;Destacar trecho selecionado&rdquo; para adicionar.
+                  </p>
+                )}
+              </div>
             </section>
           )}
 
@@ -1217,6 +1218,141 @@ export default function AulaConteudoPage() {
               </ul>
             )}
           </section>
+
+          {exercises.length > 0 && (
+            <section id="exercicios" className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="exercicios-heading">
+              <h2 id="exercicios-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
+                Exercícios
+              </h2>
+              <p className="mb-4 text-xs text-[var(--text-muted)]">
+                Responda às questões e clique em Verificar para conferir. Você pode refazer quantas vezes quiser; o histórico das tentativas é mantido.
+              </p>
+              {Object.keys(exerciseResult).length > 0 && (
+                <div className="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3" role="status" aria-live="polite">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                    Seu desempenho nesta aula (última tentativa):{" "}
+                    <span className="text-[var(--igh-primary)]">
+                      {Object.values(exerciseResult).filter((r) => r.correct).length} de {Object.keys(exerciseResult).length} acertos
+                    </span>
+                    {Object.keys(exerciseResult).length > 0 && (
+                      <span className="ml-1 text-[var(--text-muted)]">
+                        ({Math.round((Object.values(exerciseResult).filter((r) => r.correct).length / Object.keys(exerciseResult).length) * 100)}%)
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">
+                    Abaixo você vê cada questão com a indicação de acerto ou erro. Use &ldquo;Refazer&rdquo; para tentar de novo; o histórico é mantido.
+                  </p>
+                </div>
+              )}
+              {Object.keys(exerciseResult).length === exercises.length && exercises.length > 0 && (
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExerciseResult({});
+                      setExerciseSelected({});
+                    }}
+                    className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                  >
+                    Refazer todos os exercícios
+                  </button>
+                </div>
+              )}
+              <ul className="space-y-6">
+                {exercises.map((ex, idx) => {
+                  const result = exerciseResult[ex.id];
+                  const selectedId = exerciseSelected[ex.id];
+                  const correctOptionText = result?.correctOptionId
+                    ? ex.options.find((o) => o.id === result.correctOptionId)?.text
+                    : null;
+                  return (
+                    <li
+                      key={ex.id}
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] p-4"
+                    >
+                      <p className="mb-3 font-medium text-[var(--text-primary)]">
+                        {idx + 1}. {ex.question}
+                      </p>
+                      <div className="space-y-2">
+                        {ex.options.map((opt) => (
+                          <label
+                            key={opt.id}
+                            className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                              result
+                                ? opt.id === result.correctOptionId
+                                  ? "border-green-500 bg-green-50 dark:bg-green-950/30"
+                                  : selectedId === opt.id && !result.correct
+                                    ? "border-red-400 bg-red-50 dark:bg-red-950/30"
+                                    : "border-[var(--card-border)]"
+                                : "border-[var(--card-border)] hover:bg-[var(--igh-surface)] focus-within:ring-2 focus-within:ring-[var(--igh-primary)] focus-within:ring-offset-1"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={`exercise-${ex.id}`}
+                              checked={selectedId === opt.id}
+                              onChange={() =>
+                                setExerciseSelected((prev) => ({ ...prev, [ex.id]: opt.id }))
+                              }
+                              disabled={!!result}
+                              className="mt-0.5 shrink-0"
+                            />
+                            <span className="text-[var(--text-secondary)]">{opt.text}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {result ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <p
+                            className={`text-sm font-medium ${
+                              result.correct ? "text-green-600" : "text-amber-600"
+                            }`}
+                          >
+                            {result.correct
+                              ? "✓ Correto!"
+                              : correctOptionText
+                                ? `Resposta correta: ${correctOptionText}`
+                                : "Resposta incorreta."}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExerciseResult((prev) => {
+                                const next = { ...prev };
+                                delete next[ex.id];
+                                return next;
+                              });
+                              setExerciseSelected((prev) => {
+                                const next = { ...prev };
+                                delete next[ex.id];
+                                return next;
+                              });
+                            }}
+                            className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                          >
+                            Refazer
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={() => handleSubmitExercise(ex.id)}
+                            disabled={submittingExerciseId === ex.id || !selectedId}
+                            aria-busy={submittingExerciseId === ex.id}
+                            className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+                          >
+                            {submittingExerciseId === ex.id ? "Verificando..." : "Verificar"}
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           <section id="duvidas" className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
             <h2 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">
@@ -1375,89 +1511,6 @@ export default function AulaConteudoPage() {
               </ul>
             )}
           </section>
-
-          {exercises.length > 0 && (
-            <section id="exercicios" className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="exercicios-heading">
-              <h2 id="exercicios-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
-                Exercícios
-              </h2>
-              <p className="mb-4 text-xs text-[var(--text-muted)]">
-                Responda às questões e clique em Verificar para conferir.
-              </p>
-              <ul className="space-y-6">
-                {exercises.map((ex, idx) => {
-                  const result = exerciseResult[ex.id];
-                  const selectedId = exerciseSelected[ex.id];
-                  const correctOptionText = result?.correctOptionId
-                    ? ex.options.find((o) => o.id === result.correctOptionId)?.text
-                    : null;
-                  return (
-                    <li
-                      key={ex.id}
-                      className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] p-4"
-                    >
-                      <p className="mb-3 font-medium text-[var(--text-primary)]">
-                        {idx + 1}. {ex.question}
-                      </p>
-                      <div className="space-y-2">
-                        {ex.options.map((opt) => (
-                          <label
-                            key={opt.id}
-                            className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
-                              result
-                                ? opt.id === result.correctOptionId
-                                  ? "border-green-500 bg-green-50 dark:bg-green-950/30"
-                                  : selectedId === opt.id && !result.correct
-                                    ? "border-red-400 bg-red-50 dark:bg-red-950/30"
-                                    : "border-[var(--card-border)]"
-                                : "border-[var(--card-border)] hover:bg-[var(--igh-surface)] focus-within:ring-2 focus-within:ring-[var(--igh-primary)] focus-within:ring-offset-1"
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name={`exercise-${ex.id}`}
-                              checked={selectedId === opt.id}
-                              onChange={() =>
-                                setExerciseSelected((prev) => ({ ...prev, [ex.id]: opt.id }))
-                              }
-                              disabled={!!result}
-                              className="mt-0.5 shrink-0"
-                            />
-                            <span className="text-[var(--text-secondary)]">{opt.text}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {result ? (
-                        <p
-                          className={`mt-3 text-sm font-medium ${
-                            result.correct ? "text-green-600" : "text-amber-600"
-                          }`}
-                        >
-                          {result.correct
-                            ? "✓ Correto!"
-                            : correctOptionText
-                              ? `Resposta correta: ${correctOptionText}`
-                              : "Resposta incorreta."}
-                        </p>
-                      ) : (
-                        <div className="mt-3">
-                          <button
-                            type="button"
-                            onClick={() => handleSubmitExercise(ex.id)}
-                            disabled={submittingExerciseId === ex.id || !selectedId}
-                            aria-busy={submittingExerciseId === ex.id}
-                            className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
-                          >
-                            {submittingExerciseId === ex.id ? "Verificando..." : "Verificar"}
-                          </button>
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
         </div>
       </div>
     </div>
