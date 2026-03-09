@@ -6,8 +6,20 @@ import { courseModuleSchema } from "@/lib/validators/courses";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+async function teacherCanAccessCourse(userId: string, courseId: string): Promise<boolean> {
+  const teacher = await prisma.teacher.findFirst({
+    where: { userId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!teacher) return false;
+  const count = await prisma.classGroup.count({
+    where: { teacherId: teacher.id, courseId },
+  });
+  return count > 0;
+}
+
 export async function GET(_request: Request, context: Ctx) {
-  await requireRole(["MASTER", "ADMIN"]);
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER"]);
   const { id: courseId } = await context.params;
 
   const course = await prisma.course.findUnique({
@@ -16,6 +28,13 @@ export async function GET(_request: Request, context: Ctx) {
   });
   if (!course) {
     return jsonErr("NOT_FOUND", "Curso não encontrado.", 404);
+  }
+
+  if (user.role === "TEACHER") {
+    const can = await teacherCanAccessCourse(user.id, courseId);
+    if (!can) {
+      return jsonErr("FORBIDDEN", "Você não é professor deste curso.", 403);
+    }
   }
 
   const modules = await getModulesWithLessonsByCourseId(courseId);

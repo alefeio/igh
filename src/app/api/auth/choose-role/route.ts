@@ -18,10 +18,20 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", "Escolha inválida.", 400);
   }
 
-  const full = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { id: true, name: true, email: true, role: true, isAdmin: true, isActive: true, mustChangePassword: true },
-  });
+  const [full, hasStudent, hasTeacher] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { id: true, name: true, email: true, role: true, isAdmin: true, isActive: true, mustChangePassword: true },
+    }),
+    prisma.student.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    }),
+    prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    }),
+  ]);
   if (!full || !full.isActive) {
     return jsonErr("UNAUTHORIZED", "Sessão inválida.", 401);
   }
@@ -34,12 +44,20 @@ export async function POST(request: Request) {
     return jsonOk({ role: "ADMIN" });
   }
 
-  if (role === "STUDENT" || role === "TEACHER") {
-    if (full.role !== role) {
-      return jsonErr("FORBIDDEN", "Você não tem esse perfil.", 403);
+  if (role === "STUDENT") {
+    if (!hasStudent) {
+      return jsonErr("FORBIDDEN", "Você não tem perfil de aluno.", 403);
     }
-    await createSessionCookie(full, role);
-    return jsonOk({ role });
+    await createSessionCookie(full, "STUDENT");
+    return jsonOk({ role: "STUDENT" });
+  }
+
+  if (role === "TEACHER") {
+    if (!hasTeacher) {
+      return jsonErr("FORBIDDEN", "Você não tem perfil de professor.", 403);
+    }
+    await createSessionCookie(full, "TEACHER");
+    return jsonOk({ role: "TEACHER" });
   }
 
   return jsonErr("VALIDATION_ERROR", "Escolha inválida.", 400);

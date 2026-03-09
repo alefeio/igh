@@ -29,7 +29,27 @@ function ensureUniqueSlug(base: string, excludeId?: string): Promise<string> {
 }
 
 export async function GET() {
-  await requireRole(["MASTER", "ADMIN"]);
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER"]);
+
+  if (user.role === "TEACHER") {
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!teacher) {
+      return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
+    }
+    const classGroups = await prisma.classGroup.findMany({
+      where: { teacherId: teacher.id },
+      select: { courseId: true },
+    });
+    const courseIds = [...new Set(classGroups.map((cg) => cg.courseId))];
+    const courses = await prisma.course.findMany({
+      where: { id: { in: courseIds } },
+      orderBy: { name: "asc" },
+    });
+    return jsonOk({ courses });
+  }
 
   const courses = await prisma.course.findMany({
     orderBy: { name: "asc" },

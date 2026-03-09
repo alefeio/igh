@@ -10,7 +10,7 @@ export function ResponsiveShell({
   logoUrl = null,
   children,
 }: {
-  user: { name: string; email: string; role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; isAdmin?: boolean };
+  user: { name: string; email: string; role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; isAdmin?: boolean; hasStudentProfile?: boolean; hasTeacherProfile?: boolean };
   logoUrl?: string | null;
   children: React.ReactNode;
 }) {

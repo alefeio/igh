@@ -1,7 +1,8 @@
-import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { requireCourseEditAccess } from "@/lib/course-edit-access";
 import { prisma } from "@/lib/prisma";
 import { courseLessonExerciseSchema } from "@/lib/validators/courses";
+import { createAuditLog } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string; moduleId: string; lessonId: string }> };
 
@@ -14,10 +15,12 @@ async function getLessonAndCheck(courseId: string, moduleId: string, lessonId: s
   return lesson;
 }
 
-/** Lista exercícios da aula (admin). */
+/** Lista exercícios da aula (admin ou professor do curso). */
 export async function GET(_request: Request, context: Ctx) {
-  await requireRole(["MASTER", "ADMIN"]);
   const { id: courseId, moduleId, lessonId } = await context.params;
+
+  const access = await requireCourseEditAccess(courseId);
+  if ("err" in access) return access.err;
 
   const lesson = await getLessonAndCheck(courseId, moduleId, lessonId);
   if (!lesson) return jsonErr("NOT_FOUND", "Aula não encontrada.", 404);
@@ -41,10 +44,13 @@ export async function GET(_request: Request, context: Ctx) {
   );
 }
 
-/** Cria exercício de múltipla escolha (admin). */
+/** Cria exercício de múltipla escolha (admin ou professor do curso). */
 export async function POST(request: Request, context: Ctx) {
-  await requireRole(["MASTER", "ADMIN"]);
   const { id: courseId, moduleId, lessonId } = await context.params;
+
+  const access = await requireCourseEditAccess(courseId);
+  if ("err" in access) return access.err;
+  const { user, teacherId } = access;
 
   const lesson = await getLessonAndCheck(courseId, moduleId, lessonId);
   if (!lesson) return jsonErr("NOT_FOUND", "Aula não encontrada.", 404);
@@ -70,6 +76,22 @@ export async function POST(request: Request, context: Ctx) {
       },
     },
     include: { options: { orderBy: { order: "asc" } } },
+  });
+
+  const teacherRecord =
+    teacherId ? await prisma.teacher.findUnique({ where: { id: teacherId }, select: { name: true } }) : null;
+  await createAuditLog({
+    entityType: "CourseLessonExercise",
+    entityId: exercise.id,
+    action: "CREATE",
+    diff: {
+      lessonId,
+      courseId,
+      performedByRole: user.role,
+      performedByUserName: user.name,
+      ...(teacherId && { teacherId, teacherName: teacherRecord?.name ?? "Professor" }),
+    },
+    performedByUserId: user.id,
   });
 
   return jsonOk(

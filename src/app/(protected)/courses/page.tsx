@@ -24,7 +24,7 @@ type Course = {
   createdAt: string;
 };
 
-type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[] };
+type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[]; lastEditedAt?: string | null; lastEditedByUserName?: string | null };
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
 
 type LessonExerciseOption = { id: string; text: string; isCorrect: boolean; order: number };
@@ -730,13 +730,23 @@ export default function CoursesPage() {
                       {mod.description && <p className="mt-0.5 text-xs text-[var(--text-muted)]">{mod.description}</p>}
                       <ul className="mt-2 pl-2">
                         {mod.lessons.map((les) => (
-                          <li key={les.id} className="flex flex-wrap items-center justify-between gap-1 rounded py-0.5">
-                            <span className="text-[var(--text-secondary)]">
-                              Aula {les.order + 1}: {les.title}
-                              {les.durationMinutes != null && (
-                                <span className="text-[var(--text-muted)]"> ({les.durationMinutes} min)</span>
+                          <li key={les.id} className="flex flex-wrap items-center justify-between gap-1 rounded py-1">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[var(--text-secondary)]">
+                                Aula {les.order + 1}: {les.title}
+                                {les.durationMinutes != null && (
+                                  <span className="text-[var(--text-muted)]"> ({les.durationMinutes} min)</span>
+                                )}
+                              </span>
+                              {les.lastEditedByUserName && (
+                                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                                  Última edição: {les.lastEditedByUserName}
+                                  {les.lastEditedAt && (
+                                    <> em {new Date(les.lastEditedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</>
+                                  )}
+                                </p>
                               )}
-                            </span>
+                            </div>
                             <div className="flex gap-1">
                               <Button
                                 type="button"

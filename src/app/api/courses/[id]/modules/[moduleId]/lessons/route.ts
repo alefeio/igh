@@ -1,17 +1,22 @@
-import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
+import { requireCourseEditAccess } from "@/lib/course-edit-access";
 import { prisma } from "@/lib/prisma";
 import { courseLessonSchema } from "@/lib/validators/courses";
+import { createAuditLog } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string; moduleId: string }> };
 
 export async function POST(request: Request, context: Ctx) {
-  await requireRole(["MASTER", "ADMIN"]);
   const { id: courseId, moduleId } = await context.params;
+
+  const access = await requireCourseEditAccess(courseId);
+  if ("err" in access) return access.err;
+  const { user, teacherId } = access;
 
   const moduleRow = await prisma.courseModule.findFirst({
     where: { id: moduleId, courseId },
+    include: { course: { select: { name: true } } },
   });
   if (!moduleRow) {
     return jsonErr("NOT_FOUND", "Módulo não encontrado.", 404);
@@ -23,7 +28,8 @@ export async function POST(request: Request, context: Ctx) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  await prisma.courseLesson.create({
+  const now = new Date();
+  const newLesson = await prisma.courseLesson.create({
     data: {
       moduleId,
       title: parsed.data.title.trim(),
@@ -35,8 +41,28 @@ export async function POST(request: Request, context: Ctx) {
       summary: parsed.data.summary?.trim() || null,
       pdfUrl: parsed.data.pdfUrl?.trim() || null,
       attachmentUrls: parsed.data.attachmentUrls ?? [],
+      lastEditedByUserId: user.id,
+      lastEditedAt: now,
     },
   });
+
+  const teacherRecord =
+    teacherId ? await prisma.teacher.findUnique({ where: { id: teacherId }, select: { name: true } }) : null;
+  await createAuditLog({
+    entityType: "CourseLesson",
+    entityId: newLesson.id,
+    action: "CREATE",
+    diff: {
+      courseId,
+      courseName: moduleRow.course.name,
+      lessonTitle: newLesson.title,
+      performedByRole: user.role,
+      performedByUserName: user.name,
+      ...(teacherId && { teacherId, teacherName: teacherRecord?.name ?? "Professor" }),
+    },
+    performedByUserId: user.id,
+  });
+
   const modules = await getModulesWithLessonsByCourseId(courseId);
   return jsonOk({ modules }, { status: 201 });
 }

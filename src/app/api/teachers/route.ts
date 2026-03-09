@@ -8,7 +8,7 @@ import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateProfessorWelcome } from "@/lib/email/templates";
 
 export async function GET(request: Request) {
-  await requireRole("MASTER");
+  await requireRole(["MASTER", "ADMIN"]);
 
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get("status") ?? "active"; // active | inactive | all
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole("MASTER");
+  const user = await requireRole(["MASTER", "ADMIN"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createTeacherSchema.safeParse(body);
@@ -41,32 +41,75 @@ export async function POST(request: Request) {
     where: { email: parsed.data.email },
     select: { id: true },
   });
+
+  let teacher: { id: string; name: string; email: string | null; userId: string | null; [key: string]: unknown };
+  let emailSent = false;
+
+  let linkedToExistingUser = false;
   if (existingUser) {
-    return jsonErr("EMAIL_IN_USE", "Já existe um usuário com este e-mail.", 409);
+    const existingTeacher = await prisma.teacher.findFirst({
+      where: { userId: existingUser.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (existingTeacher) {
+      return jsonErr("ALREADY_TEACHER", "Este usuário já está cadastrado como professor.", 409);
+    }
+    // Multi-perfil: permite vincular perfil de professor a usuário que já possui outro perfil (aluno ou admin).
+    teacher = await prisma.teacher.create({
+      data: {
+        name: parsed.data.name,
+        phone: parsed.data.phone || null,
+        email: parsed.data.email,
+        isActive: true,
+        userId: existingUser.id,
+      },
+    });
+    linkedToExistingUser = true;
+  } else {
+    const tempPassword = generateTempPassword();
+    const passwordHash = await hashPassword(tempPassword);
+    const createdUser = await prisma.user.create({
+      data: {
+        name: parsed.data.name,
+        email: parsed.data.email,
+        passwordHash,
+        role: "TEACHER",
+        isActive: true,
+        mustChangePassword: true,
+      },
+    });
+    teacher = await prisma.teacher.create({
+      data: {
+        name: parsed.data.name,
+        phone: parsed.data.phone || null,
+        email: parsed.data.email,
+        isActive: true,
+        userId: createdUser.id,
+      },
+    });
+    const { subject, html } = templateProfessorWelcome({
+      name: teacher.name,
+      email: teacher.email!,
+      tempPassword,
+    });
+    const emailResult = await sendEmailAndRecord({
+      to: teacher.email!,
+      subject,
+      html,
+      emailType: "welcome_professor",
+      entityType: "Teacher",
+      entityId: teacher.id,
+      performedByUserId: user.id,
+    });
+    emailSent = emailResult.success;
+    await createAuditLog({
+      entityType: "Teacher",
+      entityId: teacher.id,
+      action: "EMAIL_SENT",
+      diff: { type: "welcome_professor", success: emailResult.success },
+      performedByUserId: user.id,
+    });
   }
-
-  const tempPassword = generateTempPassword();
-  const passwordHash = await hashPassword(tempPassword);
-  const createdUser = await prisma.user.create({
-    data: {
-      name: parsed.data.name,
-      email: parsed.data.email,
-      passwordHash,
-      role: "TEACHER",
-      isActive: true,
-      mustChangePassword: true,
-    },
-  });
-
-  const teacher = await prisma.teacher.create({
-    data: {
-      name: parsed.data.name,
-      phone: parsed.data.phone || null,
-      email: parsed.data.email,
-      isActive: true,
-      userId: createdUser.id,
-    },
-  });
 
   await createAuditLog({
     entityType: "Teacher",
@@ -76,27 +119,5 @@ export async function POST(request: Request) {
     performedByUserId: user.id,
   });
 
-  const { subject, html } = templateProfessorWelcome({
-    name: teacher.name,
-    email: teacher.email!,
-    tempPassword,
-  });
-  const emailResult = await sendEmailAndRecord({
-    to: teacher.email!,
-    subject,
-    html,
-    emailType: "welcome_professor",
-    entityType: "Teacher",
-    entityId: teacher.id,
-    performedByUserId: user.id,
-  });
-  await createAuditLog({
-    entityType: "Teacher",
-    entityId: teacher.id,
-    action: "EMAIL_SENT",
-    diff: { type: "welcome_professor", success: emailResult.success },
-    performedByUserId: user.id,
-  });
-
-  return jsonOk({ teacher, emailSent: emailResult.success }, { status: 201 });
+  return jsonOk({ teacher, emailSent, linkedToExistingUser }, { status: 201 });
 }

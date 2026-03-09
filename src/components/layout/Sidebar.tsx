@@ -11,6 +11,7 @@ type Item = {
   href: string;
   label: string;
   masterOnly?: boolean;
+  masterOrTeacher?: boolean;
   adminOrMaster?: boolean;
   studentOnly?: boolean;
   alwaysShow?: boolean;
@@ -23,9 +24,9 @@ const ITEMS: Item[] = [
   { href: "/meus-dados", label: "Meus dados", studentOnly: true, category: "Aluno" },
   { href: "/users", label: "Usuários (Admin)", masterOnly: true, category: "Administração" },
   { href: "/approvacoes", label: "Aprovações (Site)", masterOnly: true, category: "Administração" },
-  { href: "/teachers", label: "Professores", masterOnly: true, category: "Administração" },
+  { href: "/teachers", label: "Professores", adminOrMaster: true, category: "Administração" },
   { href: "/admin/site/formacoes", label: "Formações", adminOrMaster: true, category: "Administração" },
-  { href: "/courses", label: "Cursos", masterOnly: true, category: "Administração" },
+  { href: "/courses", label: "Cursos", masterOrTeacher: true, category: "Administração" },
   { href: "/class-groups", label: "Turmas", masterOnly: true, category: "Administração" },
   { href: "/enrollments", label: "Matrículas", adminOrMaster: true, category: "Administração" },
   { href: "/students", label: "Alunos", category: "Administração" },
@@ -55,7 +56,15 @@ export function Sidebar({
   mobileOpen = false,
   onMobileClose,
 }: {
-  user: { name: string; email: string; role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; isAdmin?: boolean };
+  user: {
+    name: string;
+    email: string;
+    role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+    isAdmin?: boolean;
+    hasStudentProfile?: boolean;
+    hasTeacherProfile?: boolean;
+  };
   logoUrl?: string | null;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
@@ -65,8 +74,8 @@ export function Sidebar({
   const [loading, setLoading] = useState(false);
   const [switchingRole, setSwitchingRole] = useState(false);
 
-  const canStudent = user.baseRole === "STUDENT" || user.role === "STUDENT";
-  const canTeacher = user.baseRole === "TEACHER" || user.role === "TEACHER";
+  const canStudent = user.hasStudentProfile === true;
+  const canTeacher = user.hasTeacherProfile === true;
   const canAdmin = user.isAdmin === true && user.baseRole !== "MASTER";
   const roleOptions: RoleOption[] = [
     ...(canStudent ? [{ value: "STUDENT" as const, label: "Aluno" }] : []),
@@ -94,6 +103,7 @@ export function Sidebar({
     if (i.alwaysShow) return true;
     if (i.studentOnly) return user.role === "STUDENT";
     if (i.masterOnly) return user.role === "MASTER";
+    if (i.masterOrTeacher) return user.role === "MASTER" || user.role === "TEACHER";
     if (i.adminOrMaster) return user.role === "ADMIN" || user.role === "MASTER";
     return user.role !== "STUDENT";
   });

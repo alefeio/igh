@@ -84,13 +84,22 @@ export async function POST(request: Request) {
   }
 
   const emailTrimmed = data.email?.trim() ? data.email.trim() : null;
+  let existingUser: { id: string } | null = null;
   if (emailTrimmed) {
-    const existingUser = await prisma.user.findUnique({
+    const u = await prisma.user.findUnique({
       where: { email: emailTrimmed },
       select: { id: true },
     });
-    if (existingUser) {
-      return jsonErr("EMAIL_IN_USE", "Já existe um usuário com este e-mail.", 409);
+    if (u) {
+      const existingStudent = await prisma.student.findFirst({
+        where: { userId: u.id, deletedAt: null },
+        select: { id: true },
+      });
+      if (existingStudent) {
+        return jsonErr("ALREADY_STUDENT", "Este usuário já está cadastrado como aluno.", 409);
+      }
+      // Multi-perfil: vincula ao usuário existente (pode ser professor ou admin); só bloqueia se já for aluno.
+      existingUser = u;
     }
   }
 
@@ -129,7 +138,13 @@ export async function POST(request: Request) {
   });
 
   let birthDateFormattedForEmail: string | null = null;
-  if (emailTrimmed) {
+  if (existingUser) {
+    await prisma.student.update({
+      where: { id: student.id },
+      data: { userId: existingUser.id },
+    });
+    student.userId = existingUser.id;
+  } else if (emailTrimmed) {
     const d = birthDate.getDate();
     const m = birthDate.getMonth() + 1;
     const y = birthDate.getFullYear();
@@ -180,5 +195,5 @@ export async function POST(request: Request) {
     performedByUserId: user.id,
   });
 
-  return jsonOk({ student }, { status: 201 });
+  return jsonOk({ student, linkedToExistingUser: !!existingUser }, { status: 201 });
 }

@@ -116,12 +116,16 @@ export default function TeachersPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = await parseResponseJson<{ teacher: Teacher }>(res);
+      const json = await parseResponseJson<{ teacher: Teacher; linkedToExistingUser?: boolean }>(res);
       if (!res.ok || !json?.ok) {
         toast.push("error", apiErrorMessage(json, "Falha ao salvar professor."));
         return;
       }
-      toast.push("success", editing ? "Professor atualizado." : "Professor criado.");
+      if (!editing && json.data?.linkedToExistingUser) {
+        toast.push("success", "Professor criado e vinculado ao usuário existente.");
+      } else {
+        toast.push("success", editing ? "Professor atualizado." : "Professor criado.");
+      }
       setOpen(false);
       resetForm();
       await load();
@@ -280,10 +284,12 @@ export default function TeachersPage() {
             <div className="mt-1">
               <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
             </div>
+            {!editing && (
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Um mesmo usuário pode ter vários perfis. Se o e-mail já existir como <strong>aluno</strong> ou <strong>admin</strong>, o perfil de professor será vinculado (a pessoa poderá acessar como Professor) e nenhuma senha será enviada. E-mail novo: senha temporária será enviada por e-mail.
+              </p>
+            )}
           </div>
-          <p className="text-xs text-[var(--text-muted)]">
-            Uma senha temporária será gerada e enviada por e-mail ao professor.
-          </p>
           <div>
             <label className="text-sm font-medium">Telefone (opcional)</label>
             <div className="mt-1">

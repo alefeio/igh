@@ -441,7 +441,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = (await res.json()) as ApiResponse<{ student: StudentFormStudent }>;
+      const json = (await res.json()) as ApiResponse<{ student: StudentFormStudent; linkedToExistingUser?: boolean }>;
       if (!res.ok || !json.ok) {
         toast.push("error", json && "error" in json ? json.error.message : "Falha ao salvar aluno.");
         return;
@@ -465,7 +465,11 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
         }
       }
 
-      toast.push("success", editing ? "Aluno atualizado." : "Aluno criado.");
+      if (!editing && json.data?.linkedToExistingUser) {
+        toast.push("success", "Aluno criado e vinculado ao usuário existente (professor ou admin).");
+      } else {
+        toast.push("success", editing ? "Aluno atualizado." : "Aluno criado.");
+      }
       onSuccess(savedStudent);
     } finally {
       setSaving(false);
@@ -566,7 +570,9 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)]">E-mail</label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1" placeholder="exemplo@email.com" />
-            <p className="mt-1 text-xs text-[var(--text-muted)]">Se preenchido, o aluno poderá acessar o sistema com este e-mail e senha.</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              {editing ? "Alterar o e-mail pode afetar o acesso do aluno ao sistema." : "Se preenchido, o aluno poderá acessar o sistema. Se o e-mail já existir como professor ou admin, o perfil de aluno será vinculado e a pessoa poderá acessar também como Aluno."}
+            </p>
           </div>
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)]">Celular *</label>
