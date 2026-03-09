@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "secondary" | "danger";
+type Variant = "primary" | "secondary" | "danger" | "ghost";
 type Size = "sm" | "md" | "lg";
 
 export function Button({
@@ -18,6 +18,8 @@ export function Button({
     secondary:
       "bg-[var(--igh-surface)] text-[var(--text-primary)] border border-[var(--card-border)] hover:opacity-90 hover:brightness-95",
     danger: "bg-red-600 text-white hover:bg-red-700 hover:brightness-95",
+    ghost:
+      "bg-transparent text-[var(--text-muted)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)]",
   };
 
   const sizes: Record<Size, string> = {
