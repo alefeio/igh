@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowUp,
   BookMarked,
   ClipboardList,
   FileText,
@@ -175,6 +176,7 @@ export default function AulaConteudoPage() {
   const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
   const headerActionsRef = useRef<HTMLDivElement>(null);
   const [showFloatingActions, setShowFloatingActions] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
   const loadProgress = useCallback(async () => {
     if (!enrollmentId || !lessonId) return;
@@ -397,6 +399,14 @@ export default function AulaConteudoPage() {
       obs.disconnect();
       window.removeEventListener("scroll", updateVisibility);
     };
+  }, [showLessonCard, lessonId]);
+
+  useEffect(() => {
+    if (!showLessonCard) return;
+    const onScroll = () => setShowBackToTop(window.scrollY > 400);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, [showLessonCard, lessonId]);
 
   if (loading || !data) {
@@ -835,6 +845,18 @@ export default function AulaConteudoPage() {
             <ClipboardList className="h-5 w-5" aria-hidden />
           </a>
         </div>
+      )}
+      {showBackToTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] shadow-md hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+          style={{ bottom: showFloatingActions ? "5.5rem" : "1.5rem" }}
+          title="Voltar ao topo"
+          aria-label="Voltar ao topo"
+        >
+          <ArrowUp className="h-5 w-5" aria-hidden />
+        </button>
       )}
       <nav aria-label="Navegação da aula" className="flex flex-wrap items-center gap-2 text-sm">
         <Link
