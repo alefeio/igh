@@ -164,6 +164,12 @@ export function HighlightableContentViewer({
     selection.removeAllRanges();
   }, [onSavePassage]);
 
+  useEffect(() => {
+    const onRequestDestacar = () => handleDestacar();
+    window.addEventListener("highlightable-content-destacar", onRequestDestacar);
+    return () => window.removeEventListener("highlightable-content-destacar", onRequestDestacar);
+  }, [handleDestacar]);
+
   return (
     <div ref={containerRef} className={className}>
       <div className="mb-2 flex flex-wrap items-center gap-2">

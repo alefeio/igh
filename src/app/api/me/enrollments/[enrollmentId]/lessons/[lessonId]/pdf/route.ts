@@ -1,13 +1,19 @@
+import type { PDFFont, PDFImage, PDFPage } from "pdf-lib";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { requireRole } from "@/lib/auth";
 import { jsonErr } from "@/lib/http";
 import { contentRichToPdfBlocks } from "@/lib/lesson-pdf";
 import { prisma } from "@/lib/prisma";
+import { getSiteSettings } from "@/lib/site-data";
 
 const MARGIN = 50;
 const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const HEADER_HEIGHT = 58;
+const WATERMARK_OPACITY = 0.09;
+const LOGO_HEADER_MAX_HEIGHT = 28;
+const WATERMARK_SIZE_RATIO = 0.5; // logo como marca d'água ocupa 50% da largura da página
 const FONT_SIZE_TITLE = 18;
 const FONT_SIZE_HEADING = 12;
 const FONT_SIZE_BODY = 11;
@@ -50,6 +56,103 @@ function toWinAnsiSafe(text: string): string {
   return out.replace(/[\u0100-\uFFFF]/g, " ");
 }
 
+function drawWatermark(page: PDFPage, logoImage: PDFImage | null): void {
+  if (!logoImage) return;
+  const w = logoImage.width;
+  const h = logoImage.height;
+  const maxW = PAGE_WIDTH * WATERMARK_SIZE_RATIO;
+  const scale = maxW / w;
+  const drawW = maxW;
+  const drawH = h * scale;
+  const x = (PAGE_WIDTH - drawW) / 2;
+  const y = (PAGE_HEIGHT - drawH) / 2;
+  page.drawImage(logoImage, {
+    x,
+    y,
+    width: drawW,
+    height: drawH,
+    opacity: WATERMARK_OPACITY,
+  });
+}
+
+function drawHeader(
+  page: PDFPage,
+  opts: {
+    font: PDFFont,
+    fontBold: PDFFont,
+    logoImage: PDFImage | null,
+    siteName: string | null,
+    courseName: string,
+    moduleTitle: string,
+    lessonTitle: string,
+    toWinAnsi: (t: string) => string,
+  }
+): void {
+  const { font, fontBold, logoImage, siteName, courseName, moduleTitle, lessonTitle, toWinAnsi } = opts;
+  const black = rgb(0, 0, 0);
+  const darkGray = rgb(0.25, 0.25, 0.25);
+  const headerY = PAGE_HEIGHT - 12;
+  let leftX = MARGIN;
+
+  if (logoImage) {
+    const iw = logoImage.width;
+    const ih = logoImage.height;
+    const logoH = Math.min(LOGO_HEADER_MAX_HEIGHT, ih);
+    const logoW = (iw / ih) * logoH;
+    page.drawImage(logoImage, {
+      x: leftX,
+      y: headerY - logoH,
+      width: logoW,
+      height: logoH,
+    });
+    leftX += logoW + 14;
+  }
+
+  const sizeSmall = 7;
+  const sizeTitle = 10;
+  const lineHeight = 10;
+  let y = headerY;
+
+  if (siteName && siteName.trim()) {
+    const instituteLine = toWinAnsi(siteName.trim().length <= 60 ? siteName.trim() : siteName.trim().slice(0, 57) + "...");
+    page.drawText(instituteLine, {
+      x: leftX,
+      y: y - sizeSmall,
+      size: sizeSmall,
+      font,
+      color: darkGray,
+    });
+    y -= lineHeight;
+  }
+
+  const courseModuleLine = toWinAnsi(`Curso: ${courseName} · Módulo: ${moduleTitle}`);
+  page.drawText(courseModuleLine.length <= 72 ? courseModuleLine : toWinAnsi(`Curso: ${courseName}`), {
+    x: leftX,
+    y: y - sizeSmall,
+    size: sizeSmall,
+    font,
+    color: darkGray,
+  });
+  y -= lineHeight;
+
+  const lessonLine = toWinAnsi(lessonTitle.length <= 55 ? lessonTitle : lessonTitle.slice(0, 52) + "...");
+  page.drawText(lessonLine, {
+    x: leftX,
+    y: y - sizeTitle,
+    size: sizeTitle,
+    font: fontBold,
+    color: black,
+  });
+
+  const lineY = PAGE_HEIGHT - HEADER_HEIGHT + 4;
+  page.drawLine({
+    start: { x: MARGIN, y: lineY },
+    end: { x: PAGE_WIDTH - MARGIN, y: lineY },
+    thickness: 0.5,
+    color: darkGray,
+  });
+}
+
 /** Gera PDF da aula a partir do conteúdo (título, resumo, conteúdo rico). Apenas STUDENT. */
 export async function GET(
   _request: Request,
@@ -89,7 +192,37 @@ export async function GET(
     return jsonErr("BAD_REQUEST", "Esta aula não possui conteúdo para gerar o PDF.", 400);
   }
 
+  const [course, siteSettings] = await Promise.all([
+    prisma.course.findUnique({
+      where: { id: enrollment.classGroup.courseId },
+      select: { name: true },
+    }),
+    getSiteSettings(),
+  ]);
+  const courseName = course?.name ?? "Curso";
+  const moduleTitle = lesson.module.title;
+  const lessonTitle = lesson.title;
+  const siteName = siteSettings?.siteName ?? null;
+
+  const logoUrl = siteSettings?.logoUrl ?? null;
   const pdfDoc = await PDFDocument.create();
+  let logoImage: PDFImage | null = null;
+  if (logoUrl && logoUrl.startsWith("http")) {
+    try {
+      const imgRes = await fetch(logoUrl, { signal: AbortSignal.timeout(8000) });
+      if (imgRes.ok) {
+        const contentType = imgRes.headers.get("content-type") ?? "";
+        const bytes = new Uint8Array(await imgRes.arrayBuffer());
+        const isPng = contentType.includes("png") || (bytes[0] === 0x89 && bytes[1] === 0x50);
+        const isJpeg = contentType.includes("jpeg") || contentType.includes("jpg") || (bytes[0] === 0xff && bytes[1] === 0xd8);
+        if (isPng) logoImage = await pdfDoc.embedPng(bytes);
+        else if (isJpeg) logoImage = await pdfDoc.embedJpg(bytes);
+      }
+    } catch {
+      // ignora falha ao carregar logo
+    }
+  }
+
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontCourier = await pdfDoc.embedFont(StandardFonts.Courier);
@@ -98,12 +231,34 @@ export async function GET(
   const quoteGray = rgb(0.35, 0.35, 0.35);
 
   let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  let y = PAGE_HEIGHT - MARGIN;
+  drawWatermark(page, logoImage);
+  drawHeader(page, {
+    font,
+    fontBold,
+    logoImage,
+    siteName,
+    courseName,
+    moduleTitle,
+    lessonTitle,
+    toWinAnsi: toWinAnsiSafe,
+  });
+  let y = PAGE_HEIGHT - MARGIN - HEADER_HEIGHT;
 
   function ensureSpace(needed: number): void {
     if (y - needed < MARGIN) {
       page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-      y = PAGE_HEIGHT - MARGIN;
+      drawWatermark(page, logoImage);
+      drawHeader(page, {
+        font,
+        fontBold,
+        logoImage,
+        siteName,
+        courseName,
+        moduleTitle,
+        lessonTitle,
+        toWinAnsi: toWinAnsiSafe,
+      });
+      y = PAGE_HEIGHT - MARGIN - HEADER_HEIGHT;
     }
   }
 
@@ -322,7 +477,7 @@ export async function GET(
           const bytes = new Uint8Array(await imgRes.arrayBuffer());
           const isPng = contentType.includes("png") || (bytes[0] === 0x89 && bytes[1] === 0x50);
           const isJpeg = contentType.includes("jpeg") || contentType.includes("jpg") || (bytes[0] === 0xff && bytes[1] === 0xd8);
-          let img: Awaited<ReturnType<PDFDocument["embedPng"]>> | Awaited<ReturnType<PDFDocument["embedJpg"]>>;
+          let img: PDFImage;
           if (isPng) {
             img = await pdfDoc.embedPng(bytes);
           } else if (isJpeg) {

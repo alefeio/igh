@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BookMarked,
   ClipboardList,
   FileText,
   Highlighter,
@@ -9,7 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
 import { HighlightableContentViewer, type LessonPassage } from "@/components/lesson/HighlightableContentViewer";
@@ -172,6 +173,8 @@ export default function AulaConteudoPage() {
   const [replyingToQuestionId, setReplyingToQuestionId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
   const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
+  const headerActionsRef = useRef<HTMLDivElement>(null);
+  const [showFloatingActions, setShowFloatingActions] = useState(false);
 
   const loadProgress = useCallback(async () => {
     if (!enrollmentId || !lessonId) return;
@@ -367,6 +370,35 @@ export default function AulaConteudoPage() {
     };
   }, [enrollmentId, lessonId, data?.modules]);
 
+  // Só observar o header quando estamos de fato renderizando o card da aula.
+  // Se dependermos só de [data, lessonId], o effect pode rodar quando data existe
+  // mas a tela mostra "Aula não encontrada" (ref ainda null) e não roda de novo.
+  const foundForEffect = data ? findLesson(data.modules, lessonId) : null;
+  const showLessonCard = !!(foundForEffect && foundForEffect.lesson.isLiberada);
+
+  useLayoutEffect(() => {
+    if (!showLessonCard) return;
+    const el = headerActionsRef.current;
+    if (!el) return;
+    const updateVisibility = () => {
+      const rect = el.getBoundingClientRect();
+      setShowFloatingActions(rect.bottom < 0);
+    };
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry) setShowFloatingActions(!entry.isIntersecting);
+      },
+      { threshold: 0, root: null, rootMargin: "0px" }
+    );
+    obs.observe(el);
+    updateVisibility();
+    window.addEventListener("scroll", updateVisibility, { passive: true });
+    return () => {
+      obs.disconnect();
+      window.removeEventListener("scroll", updateVisibility);
+    };
+  }, [showLessonCard, lessonId]);
+
   if (loading || !data) {
     return (
       <div className="container-page flex flex-col gap-6">
@@ -382,7 +414,7 @@ export default function AulaConteudoPage() {
     );
   }
 
-  const found = findLesson(data.modules, lessonId);
+  const found = foundForEffect;
   if (!found || !found.lesson.isLiberada) {
     return (
       <div className="container-page flex flex-col gap-6">
@@ -759,6 +791,51 @@ export default function AulaConteudoPage() {
 
   return (
     <div className="container-page flex flex-col gap-6">
+      {showFloatingActions && (
+        <div
+          className="fixed bottom-0 left-0 right-0 z-50 flex flex-wrap items-center justify-center gap-2 border-t border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          {lesson.contentRich && lesson.contentRich.trim() && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("highlightable-content-destacar"))}
+              disabled={savingPassage}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+              title={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
+              aria-label={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
+            >
+              <Highlighter className="h-5 w-5" aria-hidden />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleToggleFavorite}
+            disabled={togglingFavorite}
+            aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+            aria-pressed={isFavorite}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+            title={isFavorite ? "Favorita" : "Favoritar"}
+          >
+            <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
+          </button>
+          <a href="#trechos-destacados" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Trechos destacados" aria-label="Ir para Trechos destacados">
+            <BookMarked className="h-5 w-5" aria-hidden />
+          </a>
+          <a href="#material-complementar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Material complementar" aria-label="Ir para Material complementar">
+            <FileText className="h-5 w-5" aria-hidden />
+          </a>
+          <a href="#anotacoes" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Bloco de anotações" aria-label="Ir para Bloco de anotações">
+            <StickyNote className="h-5 w-5" aria-hidden />
+          </a>
+          <a href="#duvidas" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Dúvidas sobre esta aula" aria-label="Ir para Dúvidas sobre esta aula">
+            <MessageCircleQuestion className="h-5 w-5" aria-hidden />
+          </a>
+          <a href="#exercicios" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Exercícios" aria-label="Ir para Exercícios">
+            <ClipboardList className="h-5 w-5" aria-hidden />
+          </a>
+        </div>
+      )}
       <nav aria-label="Navegação da aula" className="flex flex-wrap items-center gap-2 text-sm">
         <Link
           href={`/minhas-turmas/${enrollmentId}/conteudo`}
@@ -812,7 +889,7 @@ export default function AulaConteudoPage() {
       </nav>
 
       <div className="card">
-        <div className="card-header flex flex-wrap items-start justify-between gap-4">
+        <div ref={headerActionsRef} className="card-header flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <p className="text-sm text-[var(--text-muted)]">{moduleTitle}</p>
             <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
@@ -826,22 +903,22 @@ export default function AulaConteudoPage() {
               disabled={togglingFavorite}
               aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
               aria-pressed={isFavorite}
-              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
               title={isFavorite ? "Favorita" : "Favoritar"}
             >
               <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
             </button>
             <a
               href="#trechos-destacados"
-              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               title="Trechos destacados"
               aria-label="Ir para Trechos destacados"
             >
-              <Highlighter className="h-5 w-5" aria-hidden />
+              <BookMarked className="h-5 w-5" aria-hidden />
             </a>
             <a
               href="#material-complementar"
-              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               title="Material complementar"
               aria-label="Ir para Material complementar"
             >
@@ -849,7 +926,7 @@ export default function AulaConteudoPage() {
             </a>
             <a
               href="#anotacoes"
-              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               title="Bloco de anotações"
               aria-label="Ir para Bloco de anotações"
             >
@@ -857,7 +934,7 @@ export default function AulaConteudoPage() {
             </a>
             <a
               href="#duvidas"
-              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               title="Dúvidas sobre esta aula"
               aria-label="Ir para Dúvidas sobre esta aula"
             >
@@ -865,7 +942,7 @@ export default function AulaConteudoPage() {
             </a>
             <a
               href="#exercicios"
-              className="flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               title="Exercícios"
               aria-label="Ir para Exercícios"
             >
@@ -997,18 +1074,6 @@ export default function AulaConteudoPage() {
                   </ul>
                 </div>
               )}
-            </section>
-          )}
-
-          {lesson.imageUrls.length > 0 && (
-            <section>
-              <div className="flex flex-wrap gap-4">
-                {lesson.imageUrls.map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                    <img src={url} alt={`Aula ${i + 1}`} className="max-h-64 rounded-lg object-contain shadow" />
-                  </a>
-                ))}
-              </div>
             </section>
           )}
 
