@@ -198,6 +198,7 @@ export async function PATCH(
         name: updated.name,
         email: updated.email,
         birthDateFormatted,
+        birthDateAsPassword,
       });
       await sendEmailAndRecord({
         to: updated.email,

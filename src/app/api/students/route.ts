@@ -138,6 +138,7 @@ export async function POST(request: Request) {
   });
 
   let birthDateFormattedForEmail: string | null = null;
+  let birthDateAsPasswordForEmail: string | null = null;
   if (existingUser) {
     await prisma.student.update({
       where: { id: student.id },
@@ -152,6 +153,7 @@ export async function POST(request: Request) {
     const month = String(m).padStart(2, "0");
     const birthDateAsPassword = `${day}${month}${y}`;
     birthDateFormattedForEmail = `${day}/${month}/${y}`;
+    birthDateAsPasswordForEmail = birthDateAsPassword;
     const passwordHash = await hashPassword(birthDateAsPassword);
     const createdUser = await prisma.user.create({
       data: {
@@ -175,6 +177,7 @@ export async function POST(request: Request) {
       name: student.name,
       email: emailTrimmed,
       birthDateFormatted: birthDateFormattedForEmail,
+      ...(birthDateAsPasswordForEmail && { birthDateAsPassword: birthDateAsPasswordForEmail }),
     });
     await sendEmailAndRecord({
       to: emailTrimmed,

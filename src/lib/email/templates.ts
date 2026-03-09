@@ -119,10 +119,15 @@ export function templateStudentRegistered(params: {
   name: string;
   email: string;
   birthDateFormatted: string;
+  /** Senha de primeiro acesso: data de nascimento no formato DDMMAAAA (8 dígitos). */
+  birthDateAsPassword?: string;
 }): { subject: string; html: string } {
-  const { name, email, birthDateFormatted } = params;
+  const { name, email, birthDateFormatted, birthDateAsPassword } = params;
   const loginUrl = getAppUrl("/login");
   const meusDadosUrl = getAppUrl("/meus-dados");
+  const senhaLine = birthDateAsPassword
+    ? `<li><strong>Senha para primeiro acesso:</strong> sua data de nascimento no formato <strong>DDMMAAAA</strong> (8 dígitos, sem barras). Para a data ${escapeHtml(birthDateFormatted)}, use: <code style="background:#f0f0f0;padding:2px 6px;">${escapeHtml(birthDateAsPassword)}</code></li>`
+    : `<li><strong>Senha para primeiro acesso:</strong> use sua data de nascimento no formato <strong>DDMMAAAA</strong> (8 dígitos, sem barras). Ex.: para 15/03/1990 digite 15031990.</li>`;
   const body = `
 <h2>Cadastro realizado</h2>
 <p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
@@ -130,7 +135,7 @@ export function templateStudentRegistered(params: {
 <ul>
   <li><strong>Link de acesso:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
   <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
-  <li><strong>Senha para primeiro acesso:</strong> use sua <strong>data de nascimento</strong> no formato DD/MM/AAAA (${escapeHtml(birthDateFormatted)}).</li>
+  ${senhaLine}
 </ul>
 <p><strong>Para sua matrícula ser concluída</strong>, após fazer login você deve:</p>
 <ol>

@@ -13,8 +13,8 @@ export function Modal({
   title: string;
   children: React.ReactNode;
   onClose: () => void;
-  /** "large" usa max-w-4xl e mais altura para o conteúdo. */
-  size?: "default" | "large";
+  /** "default" e "large" usam max-w-4xl (igual ao modal de edição da aula). "small" usa max-w-lg. */
+  size?: "default" | "large" | "small";
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -26,8 +26,8 @@ export function Modal({
 
   if (!open) return null;
 
-  const maxWidthClass = size === "large" ? "max-w-4xl" : "max-w-lg";
-  const contentMaxHeightClass = size === "large" ? "max-h-[calc(100vh-5rem)]" : "max-h-[calc(100vh-6rem)]";
+  const maxWidthClass = size === "small" ? "max-w-lg" : "max-w-4xl";
+  const contentMaxHeightClass = size === "small" ? "max-h-[calc(100vh-6rem)]" : "max-h-[calc(100vh-5rem)]";
 
   return (
     <div
