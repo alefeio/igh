@@ -3,9 +3,12 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 
-function getTodayUtcDate(): Date {
+/** Fim do dia de hoje em UTC (23:59:59.999). Usado para liberar sessões cuja data é “hoje” mesmo que estejam armazenadas com horário (ex. meia-noite em outro fuso). */
+function getEndOfTodayUtc(): Date {
   const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)
+  );
 }
 
 /** Detalhes de uma matrícula (turma) do aluno logado. Apenas role STUDENT. */
@@ -42,13 +45,13 @@ export async function GET(
   }
 
   const g = enrollment.classGroup;
-  const today = getTodayUtcDate();
+  const endOfTodayUtc = getEndOfTodayUtc();
 
   await prisma.classSession.updateMany({
     where: {
       classGroupId: g.id,
       status: "SCHEDULED",
-      sessionDate: { lte: today },
+      sessionDate: { lte: endOfTodayUtc },
     },
     data: { status: "LIBERADA" },
   });

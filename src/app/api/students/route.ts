@@ -5,7 +5,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { createStudentSchema, normalizeDigits } from "@/lib/validators/students";
 import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
-import { templateStudentRegistered } from "@/lib/email/templates";
+import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
 
 export async function GET(request: Request) {
   const user = await requireRole(["ADMIN", "MASTER"]);
@@ -145,6 +145,18 @@ export async function POST(request: Request) {
       data: { userId: existingUser.id },
     });
     student.userId = existingUser.id;
+    if (emailTrimmed) {
+      const { subject, html } = templateAddedAsStudent({ name: student.name, email: emailTrimmed });
+      await sendEmailAndRecord({
+        to: emailTrimmed,
+        subject,
+        html,
+        emailType: "added_as_student",
+        entityType: "Student",
+        entityId: student.id,
+        performedByUserId: user.id,
+      });
+    }
   } else if (emailTrimmed) {
     const d = birthDate.getDate();
     const m = birthDate.getMonth() + 1;
@@ -172,7 +184,7 @@ export async function POST(request: Request) {
     student.userId = createdUser.id;
   }
 
-  if (emailTrimmed && birthDateFormattedForEmail) {
+  if (emailTrimmed && birthDateFormattedForEmail && !existingUser) {
     const { subject, html } = templateStudentRegistered({
       name: student.name,
       email: emailTrimmed,

@@ -4,7 +4,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { updateStudentSchema } from "@/lib/validators/students";
 import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
-import { templateStudentRegistered } from "@/lib/email/templates";
+import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
 
 export async function GET(
   _request: Request,
@@ -82,13 +82,21 @@ export async function PATCH(
   }
 
   const newEmail = data.email !== undefined ? (data.email?.trim() ? data.email.trim() : null) : existing.email;
+  let linkToUserId: string | null = null;
   if (newEmail && newEmail !== existing.email) {
-    const emailTaken = await prisma.user.findUnique({
+    const existingUserByEmail = await prisma.user.findUnique({
       where: { email: newEmail },
-      select: { id: true },
+      select: { id: true, name: true },
     });
-    if (emailTaken) {
-      return jsonErr("EMAIL_IN_USE", "Já existe um usuário com este e-mail.", 409);
+    if (existingUserByEmail && existingUserByEmail.id !== existing.userId) {
+      const otherStudent = await prisma.student.findFirst({
+        where: { userId: existingUserByEmail.id, deletedAt: null, id: { not: id } },
+        select: { id: true },
+      });
+      if (otherStudent) {
+        return jsonErr("EMAIL_IN_USE", "Já existe um aluno com este e-mail.", 409);
+      }
+      linkToUserId = existingUserByEmail.id;
     }
   }
 
@@ -133,39 +141,50 @@ export async function PATCH(
 
   if (updated.email) {
     const emailWasAddedOrChanged = !existing.email || existing.email !== updated.email;
-    if (existing.userId) {
-      const userUpdateData: { name: string; email: string; isActive: boolean; passwordHash?: string } = {
-        name: updated.name,
-        email: updated.email,
-        isActive: true,
-      };
-      if (emailWasAddedOrChanged) {
-        const birth = updated.birthDate;
-        const day = String(birth.getDate()).padStart(2, "0");
-        const month = String(birth.getMonth() + 1).padStart(2, "0");
-        const year = birth.getFullYear();
-        userUpdateData.passwordHash = await hashPassword(`${day}${month}${year}`);
+    if (linkToUserId) {
+      await prisma.student.update({
+        where: { id },
+        data: { userId: linkToUserId },
+      });
+      (updated as { userId: string | null }).userId = linkToUserId;
+      const linkedUser = await prisma.user.findUnique({
+        where: { id: linkToUserId },
+        select: { name: true, email: true },
+      });
+      if (linkedUser?.email) {
+        const { subject, html } = templateAddedAsStudent({
+          name: linkedUser.name,
+          email: linkedUser.email,
+        });
+        await sendEmailAndRecord({
+          to: linkedUser.email,
+          subject,
+          html,
+          emailType: "added_as_student",
+          entityType: "Student",
+          entityId: id,
+          performedByUserId: user.id,
+        });
       }
+    } else if (existing.userId) {
       await prisma.user.update({
         where: { id: existing.userId },
-        data: userUpdateData,
-      });
-      if (emailWasAddedOrChanged) {
-        const birth = updated.birthDate;
-        const day = String(birth.getDate()).padStart(2, "0");
-        const month = String(birth.getMonth() + 1).padStart(2, "0");
-        const year = birth.getFullYear();
-        const birthDateFormatted = `${day}/${month}/${year}`;
-        const { subject, html } = templateStudentRegistered({
+        data: {
           name: updated.name,
           email: updated.email,
-          birthDateFormatted,
+          isActive: true,
+        },
+      });
+      if (emailWasAddedOrChanged) {
+        const { subject, html } = templateAddedAsStudent({
+          name: updated.name,
+          email: updated.email,
         });
         await sendEmailAndRecord({
           to: updated.email,
           subject,
           html,
-          emailType: "student_registered",
+          emailType: "added_as_student",
           entityType: "Student",
           entityId: id,
           performedByUserId: user.id,

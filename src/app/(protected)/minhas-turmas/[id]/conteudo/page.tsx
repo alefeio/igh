@@ -169,7 +169,9 @@ export default function ConteudoPage() {
                 href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${recommendedLesson.id}`}
                 className="inline-flex items-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               >
-                Continuar de onde parou: {recommendedLesson.title}
+                {completedCount > 0
+                  ? `Continuar de onde parou: ${recommendedLesson.title}`
+                  : "Inicie sua jornada"}
               </Link>
             </div>
           )}

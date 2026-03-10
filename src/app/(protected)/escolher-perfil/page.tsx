@@ -6,7 +6,7 @@ import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 
-type RolesResponse = { canStudent: boolean; canTeacher: boolean; canAdmin: boolean };
+type RolesResponse = { canStudent: boolean; canTeacher: boolean; canAdmin: boolean; canMaster?: boolean };
 
 export default function EscolherPerfilPage() {
   const user = useUser();
@@ -29,7 +29,8 @@ export default function EscolherPerfilPage() {
   const canAdmin = roles?.canAdmin === true;
   const canStudent = roles?.canStudent === true;
   const canTeacher = roles?.canTeacher === true;
-  const hasAny = canAdmin || canStudent || canTeacher;
+  const canMaster = roles?.canMaster === true;
+  const hasAny = canAdmin || canStudent || canTeacher || canMaster;
 
   useEffect(() => {
     if (roles !== null && !hasAny) {
@@ -49,7 +50,7 @@ export default function EscolherPerfilPage() {
     return null;
   }
 
-  async function enterAs(role: "STUDENT" | "TEACHER" | "ADMIN") {
+  async function enterAs(role: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER") {
     const res = await fetch("/api/auth/choose-role", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -70,29 +71,22 @@ export default function EscolherPerfilPage() {
         </p>
         <div className="mt-6 flex flex-col gap-3">
           {canStudent && (
-            <Button
-              variant="primary"
-              className="w-full"
-              onClick={() => enterAs("STUDENT")}
-            >
+            <Button variant="primary" className="w-full" onClick={() => enterAs("STUDENT")}>
               Entrar como Aluno
             </Button>
           )}
           {canTeacher && (
-            <Button
-              variant="primary"
-              className="w-full"
-              onClick={() => enterAs("TEACHER")}
-            >
+            <Button variant="primary" className="w-full" onClick={() => enterAs("TEACHER")}>
               Entrar como Professor
             </Button>
           )}
-          {canAdmin && (
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={() => enterAs("ADMIN")}
-            >
+          {canMaster && (
+            <Button variant="primary" className="w-full" onClick={() => enterAs("MASTER")}>
+              Entrar como Administrador Master
+            </Button>
+          )}
+          {canAdmin && !canMaster && (
+            <Button variant="secondary" className="w-full" onClick={() => enterAs("ADMIN")}>
               Entrar como Admin
             </Button>
           )}

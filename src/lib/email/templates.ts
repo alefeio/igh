@@ -149,6 +149,26 @@ export function templateStudentRegistered(params: {
   return { subject: "Cadastro realizado - Instituto Gustavo Hessel", html: wrapHtml(body) };
 }
 
+/** E-mail quando um usuário existente (ex.: admin ou professor) recebe o perfil de aluno. Não inclui senha; usa o login atual. */
+export function templateAddedAsStudent(params: { name: string; email: string }): { subject: string; html: string } {
+  const { name, email } = params;
+  const loginUrl = getAppUrl("/login");
+  const meusDadosUrl = getAppUrl("/meus-dados");
+  const body = `
+<h2>Novo perfil: Aluno</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Você foi adicionado(a) como <strong>aluno(a)</strong> no sistema do ${escapeHtml(COMPANY_NAME)}.</p>
+<p>Use seu <strong>login atual</strong> (e-mail e senha que você já utiliza) para acessar:</p>
+<ul>
+  <li><strong>Link de acesso:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
+  <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
+</ul>
+<p>Após entrar, escolha o perfil <strong>Aluno</strong> no seletor de perfis. Sua senha permanece a mesma.</p>
+<p>Em <strong>Meus dados</strong> (<a href="${meusDadosUrl}">${meusDadosUrl}</a>) você pode completar seu cadastro e anexar documentos para confirmar sua matrícula.</p>
+`;
+  return { subject: "Você foi adicionado(a) como Aluno", html: wrapHtml(body) };
+}
+
 function wrapStudentHtml(body: string): string {
   return `
 <!DOCTYPE html>

@@ -24,5 +24,6 @@ export async function GET() {
     canStudent: !!hasStudent,
     canTeacher: !!hasTeacher,
     canAdmin: user.isAdmin === true,
+    canMaster: user.baseRole === "MASTER",
   });
 }

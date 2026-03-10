@@ -5,7 +5,7 @@ import { createTeacherSchema } from "@/lib/validators/teachers";
 import { createAuditLog } from "@/lib/audit";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
-import { templateProfessorWelcome } from "@/lib/email/templates";
+import { templateProfessorWelcome, templateAddedAsProfessor } from "@/lib/email/templates";
 
 export async function GET(request: Request) {
   await requireRole(["MASTER", "ADMIN"]);
@@ -65,6 +65,24 @@ export async function POST(request: Request) {
       },
     });
     linkedToExistingUser = true;
+    const { subject, html } = templateAddedAsProfessor({ name: teacher.name, email: parsed.data.email });
+    const emailResult = await sendEmailAndRecord({
+      to: parsed.data.email,
+      subject,
+      html,
+      emailType: "added_as_professor",
+      entityType: "Teacher",
+      entityId: teacher.id,
+      performedByUserId: user.id,
+    });
+    emailSent = emailResult.success;
+    await createAuditLog({
+      entityType: "Teacher",
+      entityId: teacher.id,
+      action: "EMAIL_SENT",
+      diff: { type: "added_as_professor", success: emailResult.success },
+      performedByUserId: user.id,
+    });
   } else {
     const tempPassword = generateTempPassword();
     const passwordHash = await hashPassword(tempPassword);

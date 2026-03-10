@@ -48,7 +48,7 @@ const ITEMS: Item[] = [
   { href: "/holidays", label: "Feriados", masterOnly: true, category: "Configurações" },
 ];
 
-type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN"; label: string };
+type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER"; label: string };
 
 export function Sidebar({
   user,
@@ -77,14 +77,19 @@ export function Sidebar({
   const canStudent = user.hasStudentProfile === true;
   const canTeacher = user.hasTeacherProfile === true;
   const canAdmin = user.isAdmin === true && user.baseRole !== "MASTER";
-  const roleOptions: RoleOption[] = [
+  const canMaster = user.baseRole === "MASTER";
+  let roleOptions: RoleOption[] = [
+    ...(canMaster ? [{ value: "MASTER" as const, label: "Administrador Master" }] : []),
     ...(canStudent ? [{ value: "STUDENT" as const, label: "Aluno" }] : []),
     ...(canTeacher ? [{ value: "TEACHER" as const, label: "Professor" }] : []),
     ...(canAdmin ? [{ value: "ADMIN" as const, label: "Admin" }] : []),
   ];
+  if (!roleOptions.some((o) => o.value === user.role)) {
+    roleOptions = [...roleOptions, { value: user.role as RoleOption["value"], label: { MASTER: "Administrador Master", ADMIN: "Admin", TEACHER: "Professor", STUDENT: "Aluno" }[user.role] ?? user.role }];
+  }
   const showRoleSwitcher = roleOptions.length > 1;
 
-  async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN") {
+  async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER") {
     if (newRole === user.role) return;
     setSwitchingRole(true);
     try {
@@ -171,7 +176,7 @@ export function Sidebar({
               id="sidebar-role"
               value={user.role}
               disabled={switchingRole}
-              onChange={(e) => onRoleChange(e.target.value as "STUDENT" | "TEACHER" | "ADMIN")}
+              onChange={(e) => onRoleChange(e.target.value as "STUDENT" | "TEACHER" | "ADMIN" | "MASTER")}
               className="w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-xs text-[var(--input-text)] focus:border-[var(--igh-primary)] focus:outline-none"
             >
               {roleOptions.map((opt) => (

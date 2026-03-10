@@ -15,7 +15,7 @@ const bodySchema = z.object({
 );
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
 
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
@@ -24,6 +24,12 @@ export async function POST(request: Request) {
   }
 
   const { kind, id } = parsed.data;
+  if (user.role === "TEACHER" && kind !== "formations") {
+    return jsonErr("FORBIDDEN", "Professores podem enviar apenas imagens de formações (aulas/cursos).", 403);
+  }
+  if (user.role === "TEACHER" && id) {
+    return jsonErr("FORBIDDEN", "Uso não permitido.", 403);
+  }
   let folder: string;
   if (id && ["banners", "projects", "news", "transparency"].includes(kind)) {
     folder = getSiteUploadFolderWithId(kind as "banners" | "projects" | "news" | "transparency", id);

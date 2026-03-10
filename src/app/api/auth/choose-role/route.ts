@@ -3,7 +3,7 @@ import { createSessionCookie, getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import type { UserRole } from "@/generated/prisma/client";
 
-const ALLOWED_ROLES: UserRole[] = ["STUDENT", "TEACHER", "ADMIN"];
+const ALLOWED_ROLES: UserRole[] = ["STUDENT", "TEACHER", "ADMIN", "MASTER"];
 
 /** Define o papel com o qual o usuário vai acessar (Aluno, Professor ou Admin quando tem múltiplos perfis). */
 export async function POST(request: Request) {
@@ -34,6 +34,14 @@ export async function POST(request: Request) {
   ]);
   if (!full || !full.isActive) {
     return jsonErr("UNAUTHORIZED", "Sessão inválida.", 401);
+  }
+
+  if (role === "MASTER") {
+    if (full.role !== "MASTER") {
+      return jsonErr("FORBIDDEN", "Você não tem acesso como Administrador Master.", 403);
+    }
+    await createSessionCookie(full, "MASTER");
+    return jsonOk({ role: "MASTER" });
   }
 
   if (role === "ADMIN") {

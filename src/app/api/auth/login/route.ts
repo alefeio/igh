@@ -34,6 +34,14 @@ export async function POST(request: Request) {
     return jsonErr("INVALID_CREDENTIALS", "E-mail ou senha inválidos.", 401);
   }
 
+  const [hasStudent, hasTeacher] = await Promise.all([
+    prisma.student.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } }).then((r) => !!r),
+    prisma.teacher.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } }).then((r) => !!r),
+  ]);
+  const hasAdmin = user.isAdmin === true;
+  const profileCount = [hasStudent, hasTeacher, hasAdmin].filter(Boolean).length;
+  const needsRoleChoice = profileCount >= 2;
+
   const sessionUser = {
     id: user.id,
     name: user.name,
@@ -45,8 +53,6 @@ export async function POST(request: Request) {
   } as const;
 
   await createSessionCookie(sessionUser);
-  const needsRoleChoice =
-    (user.role === "STUDENT" || user.role === "TEACHER") && (user.isAdmin === true);
   return jsonOk({
     user: {
       id: sessionUser.id,

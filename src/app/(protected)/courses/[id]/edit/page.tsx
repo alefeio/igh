@@ -173,7 +173,7 @@ export default function CourseEditPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || savingCourse) return;
+    if (isTeacher || !canSubmit || savingCourse) return;
     setSavingCourse(true);
     try {
       const payload: { name: string; description: string; content: string; imageUrl: string; status: Course["status"]; workloadHours?: number } = {
@@ -225,9 +225,9 @@ export default function CourseEditPage() {
             ← Voltar aos cursos
           </Button>
           <h1 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-            Editar curso
+            {isTeacher ? "Curso" : "Editar curso"}
           </h1>
-          <p className="mt-0.5 text-sm text-[var(--text-muted)]">{course.name}</p>
+          <p className="mt-0.5 text-sm text-[var(--text-muted)]">{course.name}{isTeacher && " — Você pode editar apenas o conteúdo das aulas."}</p>
         </div>
       </header>
 
@@ -235,77 +235,88 @@ export default function CourseEditPage() {
         <div className="card">
           <div className="card-header">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Dados do curso</h2>
+            {isTeacher && <p className="mt-0.5 text-xs text-[var(--text-muted)]">Somente visualização</p>}
           </div>
           <div className="card-body flex flex-col gap-4">
             <div>
               <label className="text-sm font-medium text-[var(--text-primary)]">Nome</label>
               <div className="mt-1">
-                <Input value={name} onChange={(e) => setName(e.target.value)} />
+                <Input value={name} onChange={(e) => setName(e.target.value)} disabled={isTeacher} />
               </div>
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--text-primary)]">Descrição (opcional)</label>
               <div className="mt-1">
-                <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+                <Input value={description} onChange={(e) => setDescription(e.target.value)} disabled={isTeacher} />
               </div>
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--text-primary)]">URL da foto (opcional)</label>
               <div className="mt-1">
-                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
-                <CloudinaryImageUpload kind="formations" currentUrl={imageUrl || undefined} onUploaded={setImageUrl} label="Ou envie uma imagem" />
+                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." disabled={isTeacher} />
+                {!isTeacher && <CloudinaryImageUpload kind="formations" currentUrl={imageUrl || undefined} onUploaded={setImageUrl} label="Ou envie uma imagem" />}
               </div>
               {imageUrl && <img src={imageUrl} alt="Preview" className="mt-2 h-20 rounded object-cover" />}
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--text-primary)]">Carga horária (opcional)</label>
               <div className="mt-1">
-                <Input value={workloadHours} onChange={(e) => setWorkloadHours(e.target.value)} inputMode="numeric" />
+                <Input value={workloadHours} onChange={(e) => setWorkloadHours(e.target.value)} inputMode="numeric" disabled={isTeacher} />
               </div>
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--text-primary)]">Status</label>
               <div className="mt-1">
                 <select
-                  className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)] focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                  className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)] focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed"
                   value={status}
                   onChange={(e) => setStatus(e.target.value as Course["status"])}
+                  disabled={isTeacher}
                 >
                   <option value="ACTIVE">Ativo</option>
                   <option value="INACTIVE">Inativo</option>
                 </select>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
-              <Button type="submit" disabled={!canSubmit || savingCourse}>
-                {savingCourse ? "Salvando…" : "Salvar curso"}
-              </Button>
-            </div>
+            {!isTeacher && (
+              <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
+                <Button type="submit" disabled={!canSubmit || savingCourse}>
+                  {savingCourse ? "Salvando…" : "Salvar curso"}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Painel Conteúdo (rich text) flutuante: sticky ao fazer scroll */}
+        {/* Painel Conteúdo (rich text): flutuante para admin; somente leitura para professor */}
         <div className="card sticky top-4 z-10 self-start shadow-md transition-shadow">
           <div className="card-header">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Conteúdo (rich text, opcional)</h2>
+            {isTeacher && <p className="mt-0.5 text-xs text-[var(--text-muted)]">Somente visualização</p>}
           </div>
           <div className="card-body">
-            <RichTextEditor
-              key={course.id}
-              value={content}
-              onChange={setContent}
-              placeholder="Digite o conteúdo do curso..."
-              minHeight="160px"
-            />
+            {isTeacher ? (
+              <div className="prose prose-sm dark:prose-invert max-w-none min-h-[120px] rounded-md border border-[var(--card-border)] bg-[var(--input-bg)] px-3 py-2 text-sm [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-2" dangerouslySetInnerHTML={{ __html: content || "<p class=\"text-[var(--text-muted)]\">Nenhum conteúdo.</p>" }} />
+            ) : (
+              <RichTextEditor
+                key={course.id}
+                value={content}
+                onChange={setContent}
+                placeholder="Digite o conteúdo do curso..."
+                minHeight="160px"
+              />
+            )}
           </div>
         </div>
 
         <div className="card">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--card-border)] px-4 py-3">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Módulos e aulas</h2>
-            <Button type="button" variant="secondary" size="sm" onClick={openModuleCreate}>
-              Novo módulo
-            </Button>
+            {!isTeacher && (
+              <Button type="button" variant="secondary" size="sm" onClick={openModuleCreate}>
+                Novo módulo
+              </Button>
+            )}
           </div>
           <div className="card-body">
             {modulesLoading ? (
@@ -315,9 +326,11 @@ export default function CourseEditPage() {
             ) : modules.length === 0 ? (
               <div className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-4 text-center">
                 <p className="text-sm text-[var(--text-muted)]">Nenhum módulo ainda.</p>
-                <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={openModuleCreate}>
-                  Adicionar primeiro módulo
-                </Button>
+                {!isTeacher && (
+                  <Button type="button" variant="secondary" size="sm" className="mt-2" onClick={openModuleCreate}>
+                    Adicionar primeiro módulo
+                  </Button>
+                )}
               </div>
             ) : (
               <ul className="space-y-2 text-sm">
@@ -326,9 +339,11 @@ export default function CourseEditPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium text-[var(--text-primary)]">Módulo {mod.order + 1}: {mod.title}</span>
                       <div className="flex flex-wrap gap-1">
-                        <Button type="button" variant="secondary" size="sm" onClick={() => openModuleEdit(mod)}>
-                          Editar
-                        </Button>
+                        {!isTeacher && (
+                          <Button type="button" variant="secondary" size="sm" onClick={() => openModuleEdit(mod)}>
+                            Editar
+                          </Button>
+                        )}
                         {!isTeacher && (
                           <>
                             <Button type="button" variant="secondary" size="sm" className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" onClick={() => deleteModule(mod)}>
