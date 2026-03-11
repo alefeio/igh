@@ -42,7 +42,7 @@ type EnrollmentDetail = {
   }>;
 };
 
-const STATUS_TONE: Record<string, "zinc" | "green" | "red" | "blue" | "amber"> = {
+const STATUS_TONE: Record<string, "zinc" | "green" | "red" | "blue" | "amber" | "violet"> = {
   PLANEJADA: "zinc",
   ABERTA: "blue",
   EM_ANDAMENTO: "amber",

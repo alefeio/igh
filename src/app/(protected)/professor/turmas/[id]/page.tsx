@@ -149,7 +149,7 @@ export default function ProfessorTurmaDetailPage() {
       );
       const json = (await res.json()) as ApiResponse<unknown>;
       if (res.ok && json?.ok) toast.push("success", "Frequência salva.");
-      else toast.push("error", json && "error" in json ? (json.error as { message?: string }).message : "Erro ao salvar.");
+      else toast.push("error", (json && "error" in json ? (json.error as { message?: string }).message : "Erro ao salvar.") ?? "Erro ao salvar.");
     } finally {
       setSavingAttendance(false);
     }
