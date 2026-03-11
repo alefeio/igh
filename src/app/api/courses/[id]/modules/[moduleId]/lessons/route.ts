@@ -28,6 +28,10 @@ export async function POST(request: Request, context: Ctx) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
+  const urls = parsed.data.attachmentUrls ?? [];
+  const names = (parsed.data.attachmentNames ?? []).slice(0, urls.length).map((s) => String(s).trim());
+  while (names.length < urls.length) names.push("");
+
   const now = new Date();
   const newLesson = await prisma.courseLesson.create({
     data: {
@@ -40,7 +44,8 @@ export async function POST(request: Request, context: Ctx) {
       contentRich: parsed.data.contentRich?.trim() || null,
       summary: parsed.data.summary?.trim() || null,
       pdfUrl: parsed.data.pdfUrl?.trim() || null,
-      attachmentUrls: parsed.data.attachmentUrls ?? [],
+      attachmentUrls: urls,
+      attachmentNames: names,
       lastEditedByUserId: user.id,
       lastEditedAt: now,
     },
@@ -64,5 +69,5 @@ export async function POST(request: Request, context: Ctx) {
   });
 
   const modules = await getModulesWithLessonsByCourseId(courseId);
-  return jsonOk({ modules, lesson: { id: newLesson.id, title: newLesson.title, order: newLesson.order, durationMinutes: newLesson.durationMinutes, videoUrl: newLesson.videoUrl, imageUrls: newLesson.imageUrls, contentRich: newLesson.contentRich, summary: newLesson.summary, pdfUrl: newLesson.pdfUrl, attachmentUrls: newLesson.attachmentUrls } }, { status: 201 });
+  return jsonOk({ modules, lesson: { id: newLesson.id, title: newLesson.title, order: newLesson.order, durationMinutes: newLesson.durationMinutes, videoUrl: newLesson.videoUrl, imageUrls: newLesson.imageUrls, contentRich: newLesson.contentRich, summary: newLesson.summary, pdfUrl: newLesson.pdfUrl, attachmentUrls: newLesson.attachmentUrls, attachmentNames: newLesson.attachmentNames } }, { status: 201 });
 }

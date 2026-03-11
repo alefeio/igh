@@ -8,12 +8,14 @@ import {
   ClipboardList,
   FileText,
   Highlighter,
+  Maximize2,
   MessageCircleQuestion,
+  Minimize2,
   StickyNote,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
 import { HighlightableContentViewer, type LessonPassage } from "@/components/lesson/HighlightableContentViewer";
@@ -27,6 +29,7 @@ type LessonProgress = {
   completedAt: string | null;
   lastAccessedAt: string | null;
   totalMinutesStudied: number;
+  lastContentPageIndex: number | null;
 };
 
 type LessonNote = {
@@ -48,6 +51,7 @@ type Lesson = {
   imageUrls: string[];
   pdfUrl: string | null;
   attachmentUrls: string[];
+  attachmentNames?: string[];
   isLiberada: boolean;
 };
 
@@ -72,14 +76,35 @@ function getOrderedLessons(modules: Module[]): Lesson[] {
   return modules.flatMap((m) => m.lessons);
 }
 
-/** Nome amigável para download: extrai da URL ou usa "Arquivo de apoio N". */
-function getAttachmentLabel(url: string, index: number): string {
+/** Nome amigável para o link: usa o nome definido pelo professor ou extrai da URL. */
+function getAttachmentLabel(url: string, index: number, customName?: string): string {
+  const trimmed = customName?.trim();
+  if (trimmed && trimmed.length > 0) return trimmed;
   try {
     const pathname = new URL(url).pathname;
     const name = pathname.split("/").filter(Boolean).pop();
     if (name && name.length > 0) return decodeURIComponent(name);
   } catch {}
   return `Arquivo de apoio ${index + 1}`;
+}
+
+/** Divide o HTML do conteúdo em páginas separadas por cada título H1. Retorna HTML e offset de cada seção no texto original. */
+function splitContentByH1(html: string): { html: string; startOffset: number }[] {
+  const trimmed = (html || "").trim();
+  if (!trimmed) return [];
+  const regex = /<h1(?:\s[^>]*)?>/gi;
+  const indices: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(trimmed)) !== null) indices.push(m.index);
+  if (indices.length === 0) return [{ html: trimmed, startOffset: 0 }];
+  const sections: { html: string; startOffset: number }[] = [];
+  if (indices[0]! > 0) sections.push({ html: trimmed.slice(0, indices[0]!), startOffset: 0 });
+  for (let i = 0; i < indices.length; i++) {
+    const start = indices[i]!;
+    const end = indices[i + 1] ?? trimmed.length;
+    sections.push({ html: trimmed.slice(start, end), startOffset: start });
+  }
+  return sections;
 }
 
 /** Botão que baixa o PDF da aula via fetch + blob para evitar erro "site não disponível" no navegador. */
@@ -191,6 +216,12 @@ export default function AulaConteudoPage() {
   /** Menu do painel: true = recolhido (só ícones). Padrão recolhido. */
   const [panelMenuCollapsed, setPanelMenuCollapsed] = useState(true);
   const sectionPanelRef = useRef<HTMLDivElement>(null);
+  const [contentPageIndex, setContentPageIndex] = useState(0);
+  const contentWrapperRef = useRef<HTMLDivElement>(null);
+  const [isContentFullscreen, setIsContentFullscreen] = useState(false);
+  const hasRestoredSlideRef = useRef(false);
+  const contentPageIndexForUnmountRef = useRef(0);
+  const contentPagesLengthForUnmountRef = useRef(0);
 
   const openSectionPanel = useCallback((key: SectionKey) => {
     setOpenSection((prev) => (prev === key ? null : key));
@@ -217,6 +248,7 @@ export default function AulaConteudoPage() {
         completedAt: null,
         lastAccessedAt: null,
         totalMinutesStudied: 0,
+        lastContentPageIndex: null,
       });
     }
   }, [enrollmentId, lessonId]);
@@ -236,6 +268,18 @@ export default function AulaConteudoPage() {
       setPassages([]);
     }
   }, [enrollmentId, lessonId]);
+
+  useEffect(() => {
+    setContentPageIndex(0);
+    hasRestoredSlideRef.current = false;
+  }, [lessonId]);
+
+  useEffect(() => {
+    const onFullscreenChange = () =>
+      setIsContentFullscreen(!!document.fullscreenElement && document.fullscreenElement === contentWrapperRef.current);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
 
   useEffect(() => {
     if (!enrollmentId || !lessonId) return;
@@ -413,6 +457,89 @@ export default function AulaConteudoPage() {
   // mas a tela mostra "Aula não encontrada" (ref ainda null) e não roda de novo.
   const foundForEffect = data ? findLesson(data.modules, lessonId) : null;
   const showLessonCard = !!(foundForEffect && foundForEffect.lesson.isLiberada);
+  const lessonForContent = foundForEffect?.lesson;
+  const contentPages = useMemo(() => {
+    const sections = splitContentByH1(lessonForContent?.contentRich ?? "");
+    if (typeof document === "undefined") return sections.map((s) => ({ ...s, textLength: 0 }));
+    return sections.map((s) => {
+      const div = document.createElement("div");
+      div.innerHTML = s.html;
+      return { ...s, textLength: div.textContent?.length ?? 0 };
+    });
+  }, [lessonForContent?.contentRich]);
+  const hasMultiplePages = contentPages.length > 1;
+  const currentContentSection = contentPages[contentPageIndex];
+
+  /** Restaura o último slide visualizado ao carregar a aula (uma vez por aula). */
+  useEffect(() => {
+    if (hasRestoredSlideRef.current || !progress?.lastContentPageIndex || contentPages.length === 0) return;
+    const saved = Math.max(0, Math.min(progress.lastContentPageIndex, contentPages.length - 1));
+    hasRestoredSlideRef.current = true;
+    setContentPageIndex(saved);
+  }, [progress?.lastContentPageIndex, contentPages.length]);
+
+  /** Persiste o slide atual ao mudar (debounce). Ao concluir a aula, o backend zera lastContentPageIndex. */
+  useEffect(() => {
+    if (!enrollmentId || !lessonId || !hasMultiplePages || progress?.completed) return;
+    const t = setTimeout(() => {
+      fetch(`/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lastContentPageIndex: contentPageIndex }),
+      }).then(async (res) => {
+        const json = (await res.json()) as ApiResponse<LessonProgress>;
+        if (res.ok && json?.ok && json.data) setProgress(json.data);
+      }).catch(() => {});
+    }, 500);
+    return () => clearTimeout(t);
+  }, [contentPageIndex, hasMultiplePages, enrollmentId, lessonId, progress?.completed]);
+
+  const contentToShow = hasMultiplePages && currentContentSection ? currentContentSection.html : (lessonForContent?.contentRich ?? "");
+  const passagesForCurrentPage = useMemo(() => {
+    if (!hasMultiplePages || !currentContentSection) return passages;
+    const { startOffset, textLength } = currentContentSection;
+    return passages
+      .filter((p) => p.startOffset >= startOffset && p.startOffset + p.text.length <= startOffset + textLength)
+      .map((p) => ({ ...p, startOffset: p.startOffset - startOffset }));
+  }, [hasMultiplePages, currentContentSection, passages]);
+
+  const handleSavePassage = useCallback(
+    async (payload: { text: string; startOffset: number }) => {
+      setSavingPassage(true);
+      try {
+        const res = await fetch(
+          `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/passages`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: payload.text, startOffset: payload.startOffset }),
+          }
+        );
+        const json = (await res.json()) as ApiResponse<{ id: string; text: string; startOffset: number; createdAt: string }>;
+        if (res.ok && json?.ok) {
+          setPassages((prev) => [...prev, json.data]);
+          toast.push("success", "Trecho destacado salvo.");
+        } else {
+          const errMsg = (json && "error" in json ? (json as { error?: { message?: string } }).error?.message : undefined) ?? "Não foi possível salvar o trecho.";
+          toast.push("error", errMsg);
+        }
+      } finally {
+        setSavingPassage(false);
+      }
+    },
+    [enrollmentId, lessonId, toast]
+  );
+
+  const handleSavePassageForPage = useCallback(
+    (payload: { text: string; startOffset: number }) => {
+      if (hasMultiplePages && currentContentSection) {
+        handleSavePassage({ text: payload.text, startOffset: payload.startOffset + currentContentSection.startOffset });
+      } else {
+        handleSavePassage(payload);
+      }
+    },
+    [hasMultiplePages, currentContentSection, handleSavePassage]
+  );
 
   useLayoutEffect(() => {
     if (!showLessonCard) return;
@@ -482,29 +609,6 @@ export default function AulaConteudoPage() {
   const hasPdfToDownload =
     !!(lesson.summary && lesson.summary.trim()) || !!(lesson.contentRich && lesson.contentRich.trim());
 
-  const handleSavePassage = async (payload: { text: string; startOffset: number }) => {
-    setSavingPassage(true);
-    try {
-      const res = await fetch(
-        `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/passages`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: payload.text, startOffset: payload.startOffset }),
-        }
-      );
-      const json = (await res.json()) as ApiResponse<{ id: string; text: string; startOffset: number; createdAt: string }>;
-      if (res.ok && json?.ok) {
-        setPassages((prev) => [...prev, json.data]);
-        toast.push("success", "Trecho destacado salvo.");
-      } else {
-        toast.push("error", json && "error" in json ? json.error.message : "Não foi possível salvar o trecho.");
-      }
-    } finally {
-      setSavingPassage(false);
-    }
-  };
-
   const handleRemovePassage = async (passageId: string) => {
     setRemovingPassageId(passageId);
     try {
@@ -551,6 +655,7 @@ export default function AulaConteudoPage() {
     completedAt: null,
     lastAccessedAt: null,
     totalMinutesStudied: 0,
+    lastContentPageIndex: null,
   };
 
   const orderedLessons = getOrderedLessons(data.modules);
@@ -915,10 +1020,10 @@ export default function AulaConteudoPage() {
               href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLesson.id}`}
               className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
             >
-              ← Anterior
+              ← Aula anterior
             </Link>
           ) : (
-            <span className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm text-[var(--text-muted)]">← Anterior</span>
+            <span className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm text-[var(--text-muted)]">← Aula anterior</span>
           )}
         </div>
         <div className="flex min-w-0 flex-1 justify-center">
@@ -935,10 +1040,10 @@ export default function AulaConteudoPage() {
               href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`}
               className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
             >
-              Próxima →
+              Próxima aula →
             </Link>
           ) : (
-            <span className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm text-[var(--text-muted)]">Próxima →</span>
+            <span className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm text-[var(--text-muted)]">Próxima aula →</span>
           )}
         </div>
       </nav>
@@ -1243,7 +1348,7 @@ export default function AulaConteudoPage() {
                       </li>
                     )}
                     {lesson.attachmentUrls?.map((url, i) => {
-                      const label = getAttachmentLabel(url, i);
+                      const label = getAttachmentLabel(url, i, lesson.attachmentNames?.[i]);
                       return (
                         <li key={i}>
                           <a
@@ -1584,12 +1689,62 @@ export default function AulaConteudoPage() {
 
           {lesson.contentRich && lesson.contentRich.trim() && (
             <section id="trechos-destacados">
-              <HighlightableContentViewer
-                content={lesson.contentRich}
-                passages={passages}
-                onSavePassage={handleSavePassage}
-                saving={savingPassage}
-              />
+              <div
+                ref={contentWrapperRef}
+                className={`rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 ${isContentFullscreen ? "min-h-screen overflow-y-auto overflow-x-hidden p-6" : ""}`}
+              >
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  {hasMultiplePages ? (
+                    <nav aria-label="Páginas do conteúdo" className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setContentPageIndex((p) => Math.max(0, p - 1))}
+                        disabled={contentPageIndex === 0}
+                        className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                      >
+                        Slide anterior
+                      </button>
+                      <span className="text-sm text-[var(--text-muted)]">
+                        Página {contentPageIndex + 1} de {contentPages.length}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setContentPageIndex((p) => Math.min(contentPages.length - 1, p + 1))}
+                        disabled={contentPageIndex === contentPages.length - 1}
+                        className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                      >
+                        Próximo slide
+                      </button>
+                    </nav>
+                  ) : (
+                    <span aria-hidden />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      document.fullscreenElement === contentWrapperRef.current
+                        ? document.exitFullscreen()
+                        : contentWrapperRef.current?.requestFullscreen()
+                    }
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                    title={isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+                    aria-label={isContentFullscreen ? "Sair da tela cheia" : "Expandir em tela cheia"}
+                  >
+                    {isContentFullscreen ? (
+                      <Minimize2 className="h-4 w-4" aria-hidden />
+                    ) : (
+                      <Maximize2 className="h-4 w-4" aria-hidden />
+                    )}
+                    <span>{isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}</span>
+                  </button>
+                </div>
+                <HighlightableContentViewer
+                  content={contentToShow}
+                  passages={passagesForCurrentPage}
+                  onSavePassage={handleSavePassageForPage}
+                  saving={savingPassage}
+                />
+              </div>
             </section>
           )}
 
@@ -1809,163 +1964,6 @@ export default function AulaConteudoPage() {
             </section>
           )}
 
-          <section id="duvidas" className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
-            <h2 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">
-              Dúvidas sobre esta aula
-            </h2>
-            <p className="mb-3 text-xs text-[var(--text-muted)]">
-              Envie sua dúvida ou comente sobre a aula. Você pode editar seus próprios comentários. Qualquer aluno pode responder a um comentário.
-            </p>
-            <div className="mb-4 flex flex-col gap-2">
-              <textarea
-                value={questionContent}
-                onChange={(e) => setQuestionContent(e.target.value)}
-                placeholder="Enviar dúvida sobre esta aula..."
-                rows={3}
-                className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
-              />
-              <button
-                type="button"
-                onClick={handleSendQuestion}
-                disabled={savingQuestion || !questionContent.trim()}
-                className="self-start rounded bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
-              >
-                {savingQuestion ? "Enviando..." : "Enviar dúvida"}
-              </button>
-            </div>
-            {questions.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">Nenhuma dúvida ou comentário ainda. Seja o primeiro a enviar.</p>
-            ) : (
-              <ul className="space-y-3">
-                {questions.map((q) => (
-                  <li
-                    key={q.id}
-                    className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs text-[var(--text-muted)]">
-                          <span className="font-medium text-[var(--text-secondary)]">{q.authorName}</span>
-                          <span>{formatNoteDate(q.createdAt)}</span>
-                          {q.updatedAt && q.updatedAt !== q.createdAt && (
-                            <span className="italic">(editado)</span>
-                          )}
-                        </div>
-                        {editingQuestionId === q.id ? (
-                          <div className="space-y-2">
-                            <textarea
-                              value={editQuestionContent}
-                              onChange={(e) => setEditQuestionContent(e.target.value)}
-                              rows={3}
-                              className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
-                              placeholder="Editar comentário..."
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={handleSaveEditQuestion}
-                                disabled={savingEditQuestionId === q.id || !editQuestionContent.trim()}
-                                className="rounded bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
-                              >
-                                {savingEditQuestionId === q.id ? "Salvando..." : "Salvar"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={cancelEditQuestion}
-                                disabled={savingEditQuestionId === q.id}
-                                className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
-                              >
-                                Cancelar
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="whitespace-pre-wrap text-[var(--text-primary)]">{q.content}</p>
-                        )}
-                      </div>
-                      {editingQuestionId !== q.id && q.enrollmentId === enrollmentId && (
-                        <div className="flex shrink-0 gap-1">
-                          <button
-                            type="button"
-                            onClick={() => startEditQuestion(q)}
-                            className="rounded px-2 py-1 text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                            title="Editar comentário"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteQuestion(q.id)}
-                            disabled={removingQuestionId === q.id}
-                            className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 focus-visible:outline focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-60"
-                            title="Excluir dúvida"
-                          >
-                            {removingQuestionId === q.id ? "Excluindo..." : "Excluir"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {/* Respostas ao comentário */}
-                    <div className="mt-3 border-t border-[var(--card-border)] pt-3 pl-3">
-                      {(q.replies ?? []).length > 0 && (
-                        <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">
-                          Respostas ({(q.replies ?? []).length})
-                        </p>
-                      )}
-                      {(q.replies ?? []).map((r) => (
-                        <div
-                          key={r.id}
-                          className="mb-2 flex flex-wrap items-baseline gap-2 text-xs"
-                        >
-                          <span className="font-medium text-[var(--text-secondary)]">{r.authorName}</span>
-                          <span className="text-[var(--text-muted)]">{formatNoteDate(r.createdAt)}</span>
-                          <p className="w-full whitespace-pre-wrap text-[var(--text-primary)]">{r.content}</p>
-                        </div>
-                      ))}
-                      {replyingToQuestionId === q.id ? (
-                        <div className="space-y-2">
-                          <textarea
-                            value={replyContent}
-                            onChange={(e) => setReplyContent(e.target.value)}
-                            rows={2}
-                            className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
-                            placeholder="Escreva sua resposta..."
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleSendReply(q.id)}
-                              disabled={savingReplyQuestionId === q.id || !replyContent.trim()}
-                              className="rounded bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
-                            >
-                              {savingReplyQuestionId === q.id ? "Enviando..." : "Enviar resposta"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={cancelReply}
-                              disabled={savingReplyQuestionId === q.id}
-                              className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => startReply(q.id)}
-                          className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
-                          title="Responder ao comentário"
-                        >
-                          Responder ao comentário
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </div>
       </div>
     </div>

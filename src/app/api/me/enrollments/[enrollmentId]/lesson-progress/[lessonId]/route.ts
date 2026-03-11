@@ -9,6 +9,7 @@ type Progress = {
   completedAt: string | null;
   lastAccessedAt: string | null;
   totalMinutesStudied: number;
+  lastContentPageIndex: number | null;
 };
 
 /** Retorna o progresso da aula para a matrícula. Apenas STUDENT; aula deve estar liberada para a turma. */
@@ -61,6 +62,7 @@ export async function GET(
         completedAt: progress.completedAt?.toISOString() ?? null,
         lastAccessedAt: progress.lastAccessedAt?.toISOString() ?? null,
         totalMinutesStudied: progress.totalMinutesStudied ?? 0,
+        lastContentPageIndex: progress.lastContentPageIndex ?? null,
       }
     : {
         completed: false,
@@ -69,6 +71,7 @@ export async function GET(
         completedAt: null,
         lastAccessedAt: null,
         totalMinutesStudied: 0,
+        lastContentPageIndex: null,
       };
 
   return jsonOk(data);
@@ -118,6 +121,7 @@ export async function PATCH(
     percentWatched?: number;
     percentRead?: number;
     studyMinutesDelta?: number;
+    lastContentPageIndex?: number | null;
   } = {};
   try {
     body = (await request.json()) as typeof body;
@@ -143,6 +147,12 @@ export async function PATCH(
     0,
     Math.min(1440, Math.round(Number(body.studyMinutesDelta ?? 0)))
   );
+  const lastContentPageIndex =
+    body.lastContentPageIndex !== undefined
+      ? body.lastContentPageIndex === null
+        ? null
+        : Math.max(0, Math.round(Number(body.lastContentPageIndex)))
+      : undefined;
 
   const progress = await prisma.enrollmentLessonProgress.upsert({
     where: {
@@ -157,6 +167,7 @@ export async function PATCH(
       completedAt: completed ? now : null,
       lastAccessedAt: now,
       totalMinutesStudied: studyDelta,
+      lastContentPageIndex: completed ? null : (lastContentPageIndex ?? null),
       updatedAt: now,
     },
     update: {
@@ -165,11 +176,13 @@ export async function PATCH(
       ...(completed && {
         completed: true,
         completedAt: now,
+        lastContentPageIndex: null,
       }),
       lastAccessedAt: now,
       ...(studyDelta > 0 && {
         totalMinutesStudied: { increment: studyDelta },
       }),
+      ...(lastContentPageIndex !== undefined && { lastContentPageIndex: lastContentPageIndex }),
       updatedAt: now,
     },
   });
@@ -181,6 +194,7 @@ export async function PATCH(
     completedAt: progress.completedAt?.toISOString() ?? null,
     lastAccessedAt: progress.lastAccessedAt?.toISOString() ?? null,
     totalMinutesStudied: progress.totalMinutesStudied,
+    lastContentPageIndex: progress.lastContentPageIndex ?? null,
   });
 }
 

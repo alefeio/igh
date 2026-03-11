@@ -117,7 +117,9 @@ model CourseLesson {
   /** URL do PDF da aula (material complementar). */
   pdfUrl          String?
   /** URLs dos arquivos de apoio da aula (material complementar). */
-  attachmentUrls  String[]                  @default([])
+  attachmentUrls   String[]                  @default([])
+  /** Nomes exibidos para cada URL (mesmo índice que attachmentUrls). */
+  attachmentNames  String[]                  @default([])
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
   /** Última edição: usuário que alterou o conteúdo (para auditoria pelo master). */
@@ -364,10 +366,12 @@ model EnrollmentLessonProgress {
   percentRead         Int        @default(0)
   completedAt         DateTime?
   lastAccessedAt      DateTime?
-  totalMinutesStudied Int        @default(0)
-  updatedAt           DateTime   @updatedAt
-  enrollment          Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  lesson              CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  totalMinutesStudied   Int        @default(0)
+  /** Último slide (índice 0-based) visualizado; null = não definido ou concluiu o último. */
+  lastContentPageIndex  Int?
+  updatedAt             DateTime   @updatedAt
+  enrollment            Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson                CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@unique([enrollmentId, lessonId])
 }

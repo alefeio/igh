@@ -182,6 +182,7 @@ export async function GET(
       imageUrls: lesson.imageUrls ?? [],
       pdfUrl: lesson.pdfUrl,
       attachmentUrls: lesson.attachmentUrls ?? [],
+      attachmentNames: lesson.attachmentNames ?? [],
       isLiberada: liberadaLessonIds.has(lesson.id),
       completed: completedByLessonId.get(lesson.id) ?? false,
     })),

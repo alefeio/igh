@@ -43,6 +43,15 @@ function formatPhone(v: string): string {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7, 11)}`;
 }
 
+/** Formata uma data (YYYY-MM-DD ou ISO completo) para pt-BR sem mudança de fuso. */
+function formatDateOnlyBR(isoDate: string): string {
+  const datePart = isoDate.trim().split("T")[0] ?? isoDate.trim();
+  const parts = datePart.split("-").map(Number);
+  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return isoDate;
+  const [y, m, d] = parts;
+  return new Date(y, m - 1, d).toLocaleDateString("pt-BR");
+}
+
 function formatDateForInput(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
   const y = date.getFullYear();
@@ -678,7 +687,7 @@ export function InscrevaForm() {
                       >
                         <span className="font-semibold">{cg.courseName}</span>
                         <span className="mt-1 block text-xs text-[var(--text-muted)]">
-                          Início {new Date(cg.startDate).toLocaleDateString("pt-BR")} · {cg.startTime}–{cg.endTime}
+                          Início {formatDateOnlyBR(cg.startDate)} · {cg.startTime}–{cg.endTime}
                           {daysStr ? ` · ${daysStr}` : ""}
                           {cg.location?.trim() ? ` · ${cg.location.trim()}` : ""}
                         </span>

@@ -30,6 +30,10 @@ export async function PATCH(request: Request, context: Ctx) {
 
   const videoUrl = parsed.data.videoUrl == null || parsed.data.videoUrl === "" ? null : parsed.data.videoUrl.trim() || null;
 
+  const urls = parsed.data.attachmentUrls ?? [];
+  const names = (parsed.data.attachmentNames ?? []).slice(0, urls.length).map((s) => String(s).trim());
+  while (names.length < urls.length) names.push("");
+
   const before = {
     title: lesson.title,
     order: lesson.order,
@@ -46,7 +50,8 @@ export async function PATCH(request: Request, context: Ctx) {
     contentRich: parsed.data.contentRich?.trim() || null,
     summary: parsed.data.summary?.trim() || null,
     pdfUrl: parsed.data.pdfUrl?.trim() || null,
-    attachmentUrls: parsed.data.attachmentUrls ?? [],
+    attachmentUrls: urls,
+    attachmentNames: names,
     lastEditedByUserId: user.id,
     lastEditedAt: now,
   };

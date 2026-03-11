@@ -30,6 +30,7 @@ export const courseLessonSchema = z.object({
   summary: z.string().optional().nullable().or(z.literal("")),
   pdfUrl: z.union([z.string().url(), z.literal("")]).optional().nullable(),
   attachmentUrls: z.array(z.string().url()).optional(),
+  attachmentNames: z.array(z.string()).optional(),
 });
 
 export const courseLessonExerciseOptionSchema = z.object({

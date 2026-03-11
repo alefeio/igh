@@ -12,6 +12,7 @@ export type LessonForList = {
   summary: string | null;
   pdfUrl: string | null;
   attachmentUrls: string[];
+  attachmentNames: string[];
   lastEditedAt: Date | null;
   lastEditedByUserName: string | null;
 };
@@ -47,6 +48,7 @@ export async function getModulesWithLessonsByCourseId(
           summary: true,
           pdfUrl: true,
           attachmentUrls: true,
+          attachmentNames: true,
           lastEditedAt: true,
           lastEditedByUser: { select: { name: true } },
         },
@@ -69,6 +71,7 @@ export async function getModulesWithLessonsByCourseId(
       summary: l.summary,
       pdfUrl: l.pdfUrl,
       attachmentUrls: l.attachmentUrls ?? [],
+      attachmentNames: l.attachmentNames ?? [],
       lastEditedAt: l.lastEditedAt,
       lastEditedByUserName: l.lastEditedByUser?.name ?? null,
     })),

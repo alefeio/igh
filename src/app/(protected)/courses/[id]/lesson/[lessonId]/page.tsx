@@ -1,9 +1,10 @@
 "use client";
 
+import { ArrowUp } from "lucide-react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { CloudinaryFormationUpload } from "@/components/admin/CloudinaryFormationUpload";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -11,7 +12,7 @@ import { Modal } from "@/components/ui/Modal";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import type { ApiResponse } from "@/lib/api-types";
 
-type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[]; lastEditedAt?: string | null; lastEditedByUserName?: string | null };
+type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[]; attachmentNames?: string[]; lastEditedAt?: string | null; lastEditedByUserName?: string | null };
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
 
 type LessonExerciseOption = { id: string; text: string; isCorrect: boolean; order: number };
@@ -26,7 +27,9 @@ const emptyLessonForm = {
   contentRich: "",
   summary: "",
   attachmentUrls: [] as string[],
+  attachmentNames: [] as string[],
   attachmentUrlInput: "",
+  attachmentNameInput: "",
 };
 
 export default function LessonEditPage() {
@@ -49,7 +52,14 @@ export default function LessonEditPage() {
   const [exerciseModal, setExerciseModal] = useState<{ type: "add" | "edit"; exercise?: LessonExercise } | null>(null);
   const [exerciseForm, setExerciseForm] = useState({ question: "", options: [] as { text: string; isCorrect: boolean }[] });
   const [savingExercise, setSavingExercise] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const contentSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 400);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const currentModule = useMemo(() => modules.find((m) => m.id === moduleId), [modules, moduleId]);
 
@@ -99,6 +109,10 @@ export default function LessonEditPage() {
             }
             setModuleId(found.mod.id);
             const les = found.les;
+            const urls = les.attachmentUrls ?? [];
+            const names = les.attachmentNames ?? [];
+            const attachmentNamesPadded = [...names];
+            while (attachmentNamesPadded.length < urls.length) attachmentNamesPadded.push("");
             setLessonForm({
               title: les.title,
               order: les.order,
@@ -107,8 +121,10 @@ export default function LessonEditPage() {
               imageUrls: les.imageUrls ?? [],
               contentRich: les.contentRich ?? "",
               summary: les.summary ?? "",
-              attachmentUrls: les.attachmentUrls ?? [],
+              attachmentUrls: urls,
+              attachmentNames: attachmentNamesPadded,
               attachmentUrlInput: "",
+              attachmentNameInput: "",
             });
           }
         }
@@ -231,6 +247,7 @@ export default function LessonEditPage() {
           summary: lessonForm.summary?.trim() || null,
           pdfUrl: null,
           attachmentUrls: lessonForm.attachmentUrls ?? [],
+          attachmentNames: (lessonForm.attachmentNames ?? []).slice(0, (lessonForm.attachmentUrls ?? []).length).map((s) => String(s).trim()),
         }),
       });
       const text = await res.text();
@@ -322,55 +339,88 @@ export default function LessonEditPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Imagens da aula</label>
-              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens para usar no conteúdo (copie o endereço e cole no rich text).</p>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Arquivos e imagens da aula</label>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens, PDF, Word, Excel etc. (copie o endereço e cole no rich text ou use como link).</p>
               <div className="mt-1">
-                <CloudinaryImageUpload
-                  kind="formations"
-                  currentUrl={undefined}
+                <CloudinaryFormationUpload
                   onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
-                  label="Adicionar imagem"
+                  label="Adicionar arquivo"
                   multiple
                 />
               </div>
               {lessonForm.imageUrls && lessonForm.imageUrls.length > 0 && (
                 <ul className="mt-3 space-y-2">
-                  {lessonForm.imageUrls.map((url, idx) => (
-                    <li key={`${url}-${idx}`} className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
-                      <img src={url} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
-                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(url); toast.push("success", "Endereço copiado."); }}>Copiar endereço</Button>
-                      <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => setLessonForm((f) => ({ ...f, imageUrls: (f.imageUrls ?? []).filter((_, i) => i !== idx) }))}>Remover</Button>
-                    </li>
-                  ))}
+                  {lessonForm.imageUrls.map((url, idx) => {
+                    const isImageUrl = url.includes("/image/upload/");
+                    return (
+                      <li key={`${url}-${idx}`} className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
+                        {isImageUrl ? (
+                          <img src={url} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
+                        ) : (
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-[var(--card-border)] text-[var(--text-muted)]" title="Abrir arquivo">📎</a>
+                        )}
+                        <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(url); toast.push("success", "Endereço copiado."); }}>Copiar endereço</Button>
+                        <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => setLessonForm((f) => ({ ...f, imageUrls: (f.imageUrls ?? []).filter((_, i) => i !== idx) }))}>Remover</Button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
             <div>
               <label className="text-sm font-medium">Arquivos de apoio (URLs, opcional)</label>
-              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Links para download de arquivos de apoio da aula.</p>
-              <div className="mt-1 flex flex-wrap gap-2">
-                <Input
-                  className="max-w-xs"
-                  type="url"
-                  placeholder="Cole a URL e clique em Adicionar"
-                  value={lessonForm.attachmentUrlInput ?? ""}
-                  onChange={(e) => setLessonForm((f) => ({ ...f, attachmentUrlInput: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
-                    const url = (lessonForm.attachmentUrlInput ?? "").trim();
-                    if (url) setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentUrlInput: "" }));
-                  }}
-                />
-                <Button type="button" variant="secondary" size="sm" onClick={() => { const url = (lessonForm.attachmentUrlInput ?? "").trim(); if (url) setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentUrlInput: "" })); }}>Adicionar</Button>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Informe a URL e um nome para exibição. O nome é o texto do link para o aluno.</p>
+              <div className="mt-1 flex flex-wrap items-end gap-2">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-[var(--text-muted)]">URL</span>
+                  <Input
+                    className="max-w-xs"
+                    type="url"
+                    placeholder="https://..."
+                    value={lessonForm.attachmentUrlInput ?? ""}
+                    onChange={(e) => setLessonForm((f) => ({ ...f, attachmentUrlInput: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      e.preventDefault();
+                      const url = (lessonForm.attachmentUrlInput ?? "").trim();
+                      const name = (lessonForm.attachmentNameInput ?? "").trim();
+                      if (url) setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentNames: [...(f.attachmentNames ?? []), name], attachmentUrlInput: "", attachmentNameInput: "" }));
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-[var(--text-muted)]">Nome</span>
+                  <Input
+                    className="max-w-xs"
+                    placeholder="Ex.: Material complementar PDF"
+                    value={lessonForm.attachmentNameInput ?? ""}
+                    onChange={(e) => setLessonForm((f) => ({ ...f, attachmentNameInput: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      e.preventDefault();
+                      const url = (lessonForm.attachmentUrlInput ?? "").trim();
+                      const name = (lessonForm.attachmentNameInput ?? "").trim();
+                      if (url) setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentNames: [...(f.attachmentNames ?? []), name], attachmentUrlInput: "", attachmentNameInput: "" }));
+                    }}
+                  />
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={() => { const url = (lessonForm.attachmentUrlInput ?? "").trim(); const name = (lessonForm.attachmentNameInput ?? "").trim(); if (url) setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentNames: [...(f.attachmentNames ?? []), name], attachmentUrlInput: "", attachmentNameInput: "" })); }}>Adicionar</Button>
               </div>
               {lessonForm.attachmentUrls && lessonForm.attachmentUrls.length > 0 && (
                 <ul className="mt-3 space-y-2">
                   {lessonForm.attachmentUrls.map((url, idx) => (
-                    <li key={`${url}-${idx}`} className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
-                      <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
-                      <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => setLessonForm((f) => ({ ...f, attachmentUrls: (f.attachmentUrls ?? []).filter((_, i) => i !== idx) }))}>Remover</Button>
+                    <li key={`${url}-${idx}`} className="flex flex-wrap items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
+                      <div className="min-w-0 flex-1">
+                        <Input
+                          className="mb-1 max-w-sm text-xs"
+                          placeholder="Nome do arquivo"
+                          value={(lessonForm.attachmentNames ?? [])[idx] ?? ""}
+                          onChange={(e) => setLessonForm((f) => ({ ...f, attachmentNames: (f.attachmentNames ?? []).map((n, i) => (i === idx ? e.target.value : n)) }))}
+                        />
+                        <span className="block truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
+                      </div>
+                      <Button type="button" variant="secondary" size="sm" className="text-red-600 shrink-0" onClick={() => setLessonForm((f) => ({ ...f, attachmentUrls: (f.attachmentUrls ?? []).filter((_, i) => i !== idx), attachmentNames: (f.attachmentNames ?? []).filter((_, i) => i !== idx) }))}>Remover</Button>
                     </li>
                   ))}
                 </ul>
@@ -505,6 +555,17 @@ export default function LessonEditPage() {
             </div>
           </form>
         </Modal>
+      )}
+      {showBackToTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed right-4 bottom-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] shadow-md hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+          title="Voltar ao topo"
+          aria-label="Voltar ao topo"
+        >
+          <ArrowUp className="h-5 w-5" aria-hidden />
+        </button>
       )}
     </div>
   );
