@@ -10,7 +10,17 @@ export function ResponsiveShell({
   logoUrl = null,
   children,
 }: {
-  user: { name: string; email: string; role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT"; isAdmin?: boolean; hasStudentProfile?: boolean; hasTeacherProfile?: boolean };
+  user: {
+    name: string;
+    email: string;
+    role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+    isAdmin?: boolean;
+    hasStudentProfile?: boolean;
+    hasTeacherProfile?: boolean;
+    /** Perfis disponíveis (calculado no servidor); quando presente, o select usa isso. */
+    availableRoles?: { canMaster: boolean; canStudent: boolean; canTeacher: boolean; canAdmin: boolean };
+  };
   logoUrl?: string | null;
   children: React.ReactNode;
 }) {

@@ -3,6 +3,8 @@
 import {
   ArrowUp,
   BookMarked,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   FileText,
   Highlighter,
@@ -177,6 +179,29 @@ export default function AulaConteudoPage() {
   const headerActionsRef = useRef<HTMLDivElement>(null);
   const [showFloatingActions, setShowFloatingActions] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  type SectionKey = "trechos" | "material" | "anotacoes" | "exercicios" | "duvidas";
+  const [openSection, setOpenSection] = useState<SectionKey | null>(null);
+  const [loadedSections, setLoadedSections] = useState<Record<SectionKey, boolean>>({
+    trechos: false,
+    material: false,
+    anotacoes: false,
+    exercicios: false,
+    duvidas: false,
+  });
+  /** Menu do painel: true = recolhido (só ícones). Padrão recolhido. */
+  const [panelMenuCollapsed, setPanelMenuCollapsed] = useState(true);
+  const sectionPanelRef = useRef<HTMLDivElement>(null);
+
+  const openSectionPanel = useCallback((key: SectionKey) => {
+    setOpenSection((prev) => (prev === key ? null : key));
+  }, []);
+
+  useEffect(() => {
+    if (openSection) {
+      const t = setTimeout(() => sectionPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      return () => clearTimeout(t);
+    }
+  }, [openSection]);
 
   const loadProgress = useCallback(async () => {
     if (!enrollmentId || !lessonId) return;
@@ -293,15 +318,26 @@ export default function AulaConteudoPage() {
   }, [enrollmentId, lessonId]);
 
   useEffect(() => {
+    if (!openSection || loadedSections[openSection]) return;
+    if (openSection === "trechos") {
+      loadPassages().then(() => setLoadedSections((p) => ({ ...p, trechos: true })));
+    } else if (openSection === "anotacoes") {
+      loadNotes().then(() => setLoadedSections((p) => ({ ...p, anotacoes: true })));
+    } else if (openSection === "exercicios") {
+      loadExercises().then(() => setLoadedSections((p) => ({ ...p, exercicios: true })));
+    } else if (openSection === "duvidas") {
+      loadQuestions().then(() => setLoadedSections((p) => ({ ...p, duvidas: true })));
+    } else if (openSection === "material") {
+      setLoadedSections((p) => ({ ...p, material: true }));
+    }
+  }, [openSection, loadedSections, loadPassages, loadNotes, loadExercises, loadQuestions]);
+
+  useEffect(() => {
     if (data && findLesson(data.modules, lessonId)?.lesson.isLiberada) {
       void loadProgress();
-      void loadNotes();
-      void loadPassages();
       void loadFavorite();
-      void loadExercises();
-      void loadQuestions();
     }
-  }, [data, lessonId, loadProgress, loadNotes, loadPassages, loadFavorite, loadExercises, loadQuestions]);
+  }, [data, lessonId, loadProgress, loadFavorite]);
 
   /** Marca último acesso ao abrir a aula e envia tempo de estudo ao sair. */
   useEffect(() => {
@@ -829,21 +865,21 @@ export default function AulaConteudoPage() {
           >
             <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
           </button>
-          <a href="#lista-trechos-destacados" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Trechos destacados" aria-label="Ir para Trechos destacados">
+          <button type="button" onClick={() => openSectionPanel("trechos")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Trechos destacados" aria-label="Trechos destacados">
             <BookMarked className="h-5 w-5" aria-hidden />
-          </a>
-          <a href="#material-complementar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Material complementar" aria-label="Ir para Material complementar">
+          </button>
+          <button type="button" onClick={() => openSectionPanel("material")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Material complementar" aria-label="Material complementar">
             <FileText className="h-5 w-5" aria-hidden />
-          </a>
-          <a href="#anotacoes" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Bloco de anotações" aria-label="Ir para Bloco de anotações">
+          </button>
+          <button type="button" onClick={() => openSectionPanel("anotacoes")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Bloco de anotações" aria-label="Bloco de anotações">
             <StickyNote className="h-5 w-5" aria-hidden />
-          </a>
-          <a href="#duvidas" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Dúvidas sobre esta aula" aria-label="Ir para Dúvidas sobre esta aula">
+          </button>
+          <button type="button" onClick={() => openSectionPanel("duvidas")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Dúvidas sobre esta aula" aria-label="Dúvidas">
             <MessageCircleQuestion className="h-5 w-5" aria-hidden />
-          </a>
-          <a href="#exercicios" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Exercícios" aria-label="Ir para Exercícios">
+          </button>
+          <button type="button" onClick={() => openSectionPanel("exercicios")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Exercícios" aria-label="Exercícios">
             <ClipboardList className="h-5 w-5" aria-hidden />
-          </a>
+          </button>
         </div>
       )}
       {showBackToTop && (
@@ -915,7 +951,7 @@ export default function AulaConteudoPage() {
               {lesson.title}
             </h1>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={handleToggleFavorite}
@@ -927,46 +963,6 @@ export default function AulaConteudoPage() {
             >
               <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
             </button>
-            <a
-              href="#lista-trechos-destacados"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-              title="Trechos destacados"
-              aria-label="Ir para Trechos destacados"
-            >
-              <BookMarked className="h-5 w-5" aria-hidden />
-            </a>
-            <a
-              href="#material-complementar"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-              title="Material complementar"
-              aria-label="Ir para Material complementar"
-            >
-              <FileText className="h-5 w-5" aria-hidden />
-            </a>
-            <a
-              href="#anotacoes"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-              title="Bloco de anotações"
-              aria-label="Ir para Bloco de anotações"
-            >
-              <StickyNote className="h-5 w-5" aria-hidden />
-            </a>
-            <a
-              href="#duvidas"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-              title="Dúvidas sobre esta aula"
-              aria-label="Ir para Dúvidas sobre esta aula"
-            >
-              <MessageCircleQuestion className="h-5 w-5" aria-hidden />
-            </a>
-            <a
-              href="#exercicios"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-              title="Exercícios"
-              aria-label="Ir para Exercícios"
-            >
-              <ClipboardList className="h-5 w-5" aria-hidden />
-            </a>
           </div>
         </div>
         <div className="card-body space-y-8">
@@ -1026,6 +1022,534 @@ export default function AulaConteudoPage() {
             </dl>
           </section>
 
+          {/* Menu do painel: recolhido por padrão (só ícones); botão expandir mostra os nomes. */}
+          <section aria-labelledby="secoes-aula-heading">
+            <h2 id="secoes-aula-heading" className="mb-2 text-base font-semibold text-[var(--text-primary)]">
+              Seções da aula
+            </h2>
+            <nav aria-label="Seções da aula" className="flex flex-wrap items-center gap-2">
+            {!panelMenuCollapsed ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("trechos")}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "trechos"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  aria-pressed={openSection === "trechos"}
+                >
+                  <BookMarked className="h-4 w-4 shrink-0" aria-hidden />
+                  Trechos destacados
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("material")}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "material"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  aria-pressed={openSection === "material"}
+                >
+                  <FileText className="h-4 w-4 shrink-0" aria-hidden />
+                  Material complementar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("anotacoes")}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "anotacoes"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  aria-pressed={openSection === "anotacoes"}
+                >
+                  <StickyNote className="h-4 w-4 shrink-0" aria-hidden />
+                  Bloco de anotações
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("exercicios")}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "exercicios"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  aria-pressed={openSection === "exercicios"}
+                >
+                  <ClipboardList className="h-4 w-4 shrink-0" aria-hidden />
+                  Exercícios
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("duvidas")}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "duvidas"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  aria-pressed={openSection === "duvidas"}
+                >
+                  <MessageCircleQuestion className="h-4 w-4 shrink-0" aria-hidden />
+                  Dúvidas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPanelMenuCollapsed(true)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                  title="Recolher menu"
+                  aria-label="Recolher menu"
+                >
+                  <ChevronUp className="h-4 w-4 shrink-0" aria-hidden />
+                  Recolher
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("trechos")}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "trechos"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  title="Trechos destacados"
+                  aria-label="Trechos destacados"
+                  aria-pressed={openSection === "trechos"}
+                >
+                  <BookMarked className="h-5 w-5" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("material")}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "material"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  title="Material complementar"
+                  aria-label="Material complementar"
+                  aria-pressed={openSection === "material"}
+                >
+                  <FileText className="h-5 w-5" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("anotacoes")}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "anotacoes"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  title="Bloco de anotações"
+                  aria-label="Bloco de anotações"
+                  aria-pressed={openSection === "anotacoes"}
+                >
+                  <StickyNote className="h-5 w-5" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("exercicios")}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "exercicios"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  title="Exercícios"
+                  aria-label="Exercícios"
+                  aria-pressed={openSection === "exercicios"}
+                >
+                  <ClipboardList className="h-5 w-5" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSectionPanel("duvidas")}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                    openSection === "duvidas"
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                  title="Dúvidas"
+                  aria-label="Dúvidas"
+                  aria-pressed={openSection === "duvidas"}
+                >
+                  <MessageCircleQuestion className="h-5 w-5" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPanelMenuCollapsed(false)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                  title="Expandir menu"
+                  aria-label="Expandir menu"
+                >
+                  <ChevronDown className="h-5 w-5" aria-hidden />
+                </button>
+              </>
+            )}
+            </nav>
+          </section>
+
+          {openSection && (
+            <div ref={sectionPanelRef} className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 scroll-mt-24">
+              {openSection === "trechos" && (
+                <div>
+                  <h2 className="mb-2 text-base font-semibold text-[var(--text-primary)]">Trechos destacados</h2>
+                  {loadedSections.trechos ? (
+                    passages.length > 0 ? (
+                      <ul className="space-y-2">
+                        {passages.map((p) => (
+                          <li
+                            key={p.id}
+                            className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm"
+                          >
+                            <span className="min-w-0 flex-1 text-[var(--text-primary)]">&ldquo;{p.text}&rdquo;</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePassage(p.id)}
+                              disabled={removingPassageId === p.id}
+                              className="shrink-0 text-xs text-[var(--igh-primary)] underline hover:no-underline disabled:opacity-60"
+                            >
+                              {removingPassageId === p.id ? "Removendo..." : "Remover"}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-[var(--text-muted)]">
+                        Nenhum trecho destacado ainda. Selecione um texto no conteúdo acima e use o botão &ldquo;Destacar trecho selecionado&rdquo; para adicionar.
+                      </p>
+                    )
+                  ) : (
+                    <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
+                  )}
+                </div>
+              )}
+
+              {openSection === "material" && (
+                <div>
+                  <h2 id="material-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">Material complementar</h2>
+                  <p className="mb-4 text-xs text-[var(--text-muted)]">Baixe o PDF da aula e os arquivos de apoio para estudar offline.</p>
+                  <ul className="flex flex-col gap-2">
+                    {hasPdfToDownload && (
+                      <li>
+                        <PdfDownloadButton
+                          enrollmentId={enrollmentId}
+                          lessonId={lessonId}
+                          lessonTitle={lesson.title}
+                        />
+                      </li>
+                    )}
+                    {lesson.attachmentUrls?.map((url, i) => {
+                      const label = getAttachmentLabel(url, i);
+                      return (
+                        <li key={i}>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={label}
+                            className="inline-flex max-w-fit items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2.5 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                          >
+                            <span aria-hidden>📎</span>
+                            {label}
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {openSection === "anotacoes" && (
+                <div>
+                  <h2 id="anotacoes-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">Bloco de anotações</h2>
+                  <p className="mb-4 text-xs text-[var(--text-muted)]">Suas anotações ficam salvas por aula. Opcionalmente, informe o minuto do vídeo (ex.: 12:34 ou 5).</p>
+                  <div className="mb-4 flex flex-col gap-3">
+                    <label htmlFor="note-content" className="sr-only">Texto da anotação</label>
+                    <textarea
+                      id="note-content"
+                      value={noteContent}
+                      onChange={(e) => setNoteContent(e.target.value)}
+                      placeholder="Digite sua anotação..."
+                      rows={3}
+                      className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label htmlFor="note-minute" className="text-xs text-[var(--text-muted)]">Minuto do vídeo (opcional):</label>
+                      <input
+                        id="note-minute"
+                        type="text"
+                        value={noteVideoMinute}
+                        onChange={(e) => setNoteVideoMinute(e.target.value)}
+                        placeholder="ex: 12:34 ou 5"
+                        className="w-24 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveNote}
+                        disabled={savingNote || !noteContent.trim()}
+                        aria-busy={savingNote}
+                        className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+                      >
+                        {savingNote ? "Salvando..." : "Salvar anotação"}
+                      </button>
+                    </div>
+                  </div>
+                  {loadedSections.anotacoes ? (
+                    notes.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+                        Nenhuma anotação ainda. Use o campo acima para registrar suas ideias durante a aula.
+                      </p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {notes.map((note) => (
+                          <li key={note.id} className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm">
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs text-[var(--text-muted)]">
+                                <span>{formatNoteDate(note.createdAt)}</span>
+                                {note.videoTimestampLabel != null && (
+                                  <span className="font-medium text-[var(--igh-secondary)]">· Vídeo {note.videoTimestampLabel}</span>
+                                )}
+                              </div>
+                              <p className="whitespace-pre-wrap text-[var(--text-primary)]">{note.content}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteNote(note.id)}
+                              className="shrink-0 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 focus-visible:outline focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                              title="Excluir anotação"
+                            >
+                              Excluir
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                  ) : (
+                    <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
+                  )}
+                </div>
+              )}
+
+              {openSection === "exercicios" && (
+                <div>
+                  <h2 className="mb-1 text-base font-semibold text-[var(--text-primary)]">Exercícios</h2>
+                  {loadedSections.exercicios ? (
+                    exercises.length > 0 ? (
+                      <>
+                        <p className="mb-4 text-xs text-[var(--text-muted)]">Responda às questões e clique em Verificar para conferir. Você pode refazer quantas vezes quiser; o histórico das tentativas é mantido.</p>
+                        {Object.keys(exerciseResult).length > 0 && (
+                          <div className="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3" role="status" aria-live="polite">
+                            <p className="text-sm font-medium text-[var(--text-primary)]">
+                              Seu desempenho nesta aula (última tentativa):{" "}
+                              <span className="text-[var(--igh-primary)]">
+                                {Object.values(exerciseResult).filter((r) => r.correct).length} de {Object.keys(exerciseResult).length} acertos
+                              </span>
+                              {Object.keys(exerciseResult).length > 0 && (
+                                <span className="ml-1 text-[var(--text-muted)]">
+                                  ({Math.round((Object.values(exerciseResult).filter((r) => r.correct).length / Object.keys(exerciseResult).length) * 100)}%)
+                                </span>
+                              )}
+                            </p>
+                            <p className="mt-1 text-xs text-[var(--text-muted)]">Abaixo você vê cada questão com a indicação de acerto ou erro. Use &ldquo;Refazer&rdquo; para tentar de novo; o histórico é mantido.</p>
+                          </div>
+                        )}
+                        {Object.keys(exerciseResult).length === exercises.length && exercises.length > 0 && (
+                          <div className="mb-4 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExerciseResult({});
+                                setExerciseSelected({});
+                              }}
+                              className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                            >
+                              Refazer todos os exercícios
+                            </button>
+                          </div>
+                        )}
+                        {exercises.map((ex, idx) => {
+                          const result = exerciseResult[ex.id];
+                          const correctOptionText = result?.correctOptionId ? ex.options.find((o) => o.id === result.correctOptionId)?.text : null;
+                          return (
+                            <div key={ex.id} className="mb-6 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+                              <p className="mb-3 font-medium text-[var(--text-primary)]">{idx + 1}. {ex.question}</p>
+                              <ul className="space-y-2">
+                                {ex.options.map((opt) => (
+                                  <li key={opt.id}>
+                                    <label className="flex cursor-pointer items-center gap-2 rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm has-[:checked]:border-[var(--igh-primary)] has-[:checked]:bg-[var(--igh-primary)]/10">
+                                      <input
+                                        type="radio"
+                                        name={`ex-${ex.id}`}
+                                        checked={exerciseSelected[ex.id] === opt.id}
+                                        onChange={() => setExerciseSelected((s) => ({ ...s, [ex.id]: opt.id }))}
+                                        disabled={!!result}
+                                        className="h-4 w-4"
+                                      />
+                                      <span>{opt.text}</span>
+                                    </label>
+                                  </li>
+                                ))}
+                              </ul>
+                              {result ? (
+                                <div className="mt-3 flex flex-wrap items-center gap-3">
+                                  <p className={`text-sm font-medium ${result.correct ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                                    {result.correct ? "✓ Correto!" : correctOptionText ? `✗ Incorreto. Resposta correta: ${correctOptionText}` : "✗ Incorreto."}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExerciseResult((prev) => {
+                                        const next = { ...prev };
+                                        delete next[ex.id];
+                                        return next;
+                                      });
+                                      setExerciseSelected((prev) => {
+                                        const next = { ...prev };
+                                        delete next[ex.id];
+                                        return next;
+                                      });
+                                    }}
+                                    className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                                  >
+                                    Refazer
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="mt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSubmitExercise(ex.id)}
+                                    disabled={submittingExerciseId === ex.id || !exerciseSelected[ex.id]}
+                                    className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                                  >
+                                    {submittingExerciseId === ex.id ? "Verificando..." : "Verificar"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      <p className="text-sm text-[var(--text-muted)]">Não há exercícios para esta aula.</p>
+                    )
+                  ) : (
+                    <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
+                  )}
+                </div>
+              )}
+
+              {openSection === "duvidas" && (
+                <div>
+                  <h2 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">Dúvidas sobre esta aula</h2>
+                  <p className="mb-3 text-xs text-[var(--text-muted)]">Envie sua dúvida ou comente sobre a aula. Você pode editar seus próprios comentários. Qualquer aluno pode responder a um comentário.</p>
+                  <div className="mb-4 flex flex-col gap-2">
+                    <textarea
+                      value={questionContent}
+                      onChange={(e) => setQuestionContent(e.target.value)}
+                      placeholder="Enviar dúvida sobre esta aula..."
+                      rows={3}
+                      className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendQuestion}
+                      disabled={savingQuestion || !questionContent.trim()}
+                      className="self-start rounded bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                    >
+                      {savingQuestion ? "Enviando..." : "Enviar dúvida"}
+                    </button>
+                  </div>
+                  {loadedSections.duvidas ? (
+                    questions.length === 0 ? (
+                      <p className="text-sm text-[var(--text-muted)]">Nenhuma dúvida ou comentário ainda. Seja o primeiro a enviar.</p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {questions.map((q) => (
+                          <li key={q.id} className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs text-[var(--text-muted)]">
+                                  <span className="font-medium text-[var(--text-secondary)]">{q.authorName}</span>
+                                  <span>{formatNoteDate(q.createdAt)}</span>
+                                  {q.updatedAt && q.updatedAt !== q.createdAt && <span className="italic">(editado)</span>}
+                                </div>
+                                {editingQuestionId === q.id ? (
+                                  <div className="space-y-2">
+                                    <textarea
+                                      value={editQuestionContent}
+                                      onChange={(e) => setEditQuestionContent(e.target.value)}
+                                      rows={3}
+                                      className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                                      placeholder="Editar comentário..."
+                                    />
+                                    <div className="flex gap-2">
+                                      <button type="button" onClick={handleSaveEditQuestion} disabled={savingEditQuestionId === q.id || !editQuestionContent.trim()} className="rounded bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60">
+                                        {savingEditQuestionId === q.id ? "Salvando..." : "Salvar"}
+                                      </button>
+                                      <button type="button" onClick={cancelEditQuestion} disabled={savingEditQuestionId === q.id} className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60">
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="whitespace-pre-wrap text-[var(--text-primary)]">{q.content}</p>
+                                )}
+                              </div>
+                              {editingQuestionId !== q.id && q.enrollmentId === enrollmentId && (
+                                <div className="flex shrink-0 gap-1">
+                                  <button type="button" onClick={() => startEditQuestion(q)} className="rounded px-2 py-1 text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Editar comentário">Editar</button>
+                                  <button type="button" onClick={() => handleDeleteQuestion(q.id)} disabled={removingQuestionId === q.id} className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 focus-visible:outline focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-60" title="Excluir dúvida">
+                                    {removingQuestionId === q.id ? "Excluindo..." : "Excluir"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-3 border-t border-[var(--card-border)] pt-3 pl-3">
+                              {(q.replies ?? []).length > 0 && (
+                                <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">Respostas ({(q.replies ?? []).length})</p>
+                              )}
+                              {(q.replies ?? []).map((r) => (
+                                <div key={r.id} className="mb-2 flex flex-wrap items-baseline gap-2 text-xs">
+                                  <span className="font-medium text-[var(--text-secondary)]">{r.authorName}</span>
+                                  <span className="text-[var(--text-muted)]">{formatNoteDate(r.createdAt)}</span>
+                                  <p className="w-full whitespace-pre-wrap text-[var(--text-primary)]">{r.content}</p>
+                                </div>
+                              ))}
+                              {replyingToQuestionId === q.id ? (
+                                <div className="space-y-2">
+                                  <textarea value={replyContent} onChange={(e) => setReplyContent(e.target.value)} rows={2} className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]" placeholder="Escreva sua resposta..." />
+                                  <div className="flex gap-2">
+                                    <button type="button" onClick={() => handleSendReply(q.id)} disabled={savingReplyQuestionId === q.id || !replyContent.trim()} className="rounded bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60">
+                                      {savingReplyQuestionId === q.id ? "Enviando..." : "Enviar resposta"}
+                                    </button>
+                                    <button type="button" onClick={cancelReply} disabled={savingReplyQuestionId === q.id} className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60">
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button type="button" onClick={() => startReply(q.id)} className="rounded text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Responder ao comentário">
+                                  Responder ao comentário
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                  ) : (
+                    <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {lesson.summary && lesson.summary.trim() && (
             <section
               className="rounded-lg border border-[var(--card-border)] border-l-4 border-l-[var(--igh-primary)] bg-[var(--igh-surface)] p-4 pl-4"
@@ -1066,84 +1590,15 @@ export default function AulaConteudoPage() {
                 onSavePassage={handleSavePassage}
                 saving={savingPassage}
               />
-              <div id="lista-trechos-destacados" className="mt-4 scroll-mt-24 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
-                <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
-                  Trechos destacados
-                </h3>
-                {passages.length > 0 ? (
-                  <ul className="space-y-2">
-                    {passages.map((p) => (
-                      <li
-                        key={p.id}
-                        className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm"
-                      >
-                        <span className="min-w-0 flex-1 text-[var(--text-primary)]">
-                          &ldquo;{p.text}&rdquo;
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePassage(p.id)}
-                          disabled={removingPassageId === p.id}
-                          className="shrink-0 text-xs text-[var(--igh-primary)] underline hover:no-underline disabled:opacity-60"
-                        >
-                          {removingPassageId === p.id ? "Removendo..." : "Remover"}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-[var(--text-muted)]">
-                    Nenhum trecho destacado ainda. Selecione um texto no conteúdo acima e use o botão &ldquo;Destacar trecho selecionado&rdquo; para adicionar.
-                  </p>
-                )}
-              </div>
             </section>
           )}
 
-          {(hasPdfToDownload || (lesson.attachmentUrls?.length ?? 0) > 0) && (
-            <section id="material-complementar" className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="material-heading">
-              <h2 id="material-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
-                Material complementar
-              </h2>
-              <p className="mb-4 text-xs text-[var(--text-muted)]">
-                Baixe o PDF da aula e os arquivos de apoio para estudar offline.
-              </p>
-              <ul className="flex flex-col gap-2">
-                {hasPdfToDownload && (
-                  <li>
-                    <PdfDownloadButton
-                      enrollmentId={enrollmentId}
-                      lessonId={lessonId}
-                      lessonTitle={lesson.title}
-                    />
-                  </li>
-                )}
-                {lesson.attachmentUrls?.map((url, i) => {
-                  const label = getAttachmentLabel(url, i);
-                  return (
-                    <li key={i}>
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        download={label}
-                        className="inline-flex max-w-fit items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2.5 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                      >
-                        <span aria-hidden>📎</span>
-                        {label}
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
 
-          {!lesson.videoUrl && !(lesson.contentRich && lesson.contentRich.trim()) && lesson.imageUrls.length === 0 && !(lesson.summary && lesson.summary.trim()) && (!lesson.attachmentUrls || lesson.attachmentUrls.length === 0) && exercises.length === 0 && (
+          {!lesson.videoUrl && !(lesson.contentRich && lesson.contentRich.trim()) && lesson.imageUrls.length === 0 && !(lesson.summary && lesson.summary.trim()) && (!lesson.attachmentUrls || lesson.attachmentUrls.length === 0) && (
             <p className="text-sm text-[var(--text-muted)]">Nenhum conteúdo adicional para esta aula.</p>
           )}
 
-          <section id="anotacoes" className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="anotacoes-heading">
+          <section id="anotacoes-legacy" className="hidden" aria-hidden>
             <h2 id="anotacoes-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
               Bloco de anotações
             </h2>

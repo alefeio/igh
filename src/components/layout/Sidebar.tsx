@@ -14,6 +14,7 @@ type Item = {
   masterOrTeacher?: boolean;
   adminOrMaster?: boolean;
   studentOnly?: boolean;
+  teacherOnly?: boolean;
   alwaysShow?: boolean;
   category?: string;
 };
@@ -22,6 +23,7 @@ const ITEMS: Item[] = [
   { href: "/dashboard", label: "Dashboard", alwaysShow: true, category: "Início" },
   { href: "/minhas-turmas", label: "Minhas turmas", studentOnly: true, category: "Aluno" },
   { href: "/meus-dados", label: "Meus dados", studentOnly: true, category: "Aluno" },
+  { href: "/professor/turmas", label: "Turmas que leciono", teacherOnly: true, category: "Professor" },
   { href: "/users", label: "Usuários (Admin)", masterOnly: true, category: "Administração" },
   { href: "/approvacoes", label: "Aprovações (Site)", masterOnly: true, category: "Administração" },
   { href: "/teachers", label: "Professores", adminOrMaster: true, category: "Administração" },
@@ -46,6 +48,7 @@ const ITEMS: Item[] = [
   { href: "/admin/site/transparencia", label: "Transparência", adminOrMaster: true, category: "Site" },
   { href: "/time-slots", label: "Horários", masterOnly: true, category: "Configurações" },
   { href: "/holidays", label: "Feriados", masterOnly: true, category: "Configurações" },
+  { href: "/backup", label: "Backup do banco", masterOnly: true, category: "Configurações" },
 ];
 
 type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER"; label: string };
@@ -64,6 +67,7 @@ export function Sidebar({
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
+    availableRoles?: { canMaster: boolean; canStudent: boolean; canTeacher: boolean; canAdmin: boolean };
   };
   logoUrl?: string | null;
   mobileOpen?: boolean;
@@ -74,20 +78,33 @@ export function Sidebar({
   const [loading, setLoading] = useState(false);
   const [switchingRole, setSwitchingRole] = useState(false);
 
-  const canStudent = user.hasStudentProfile === true;
-  const canTeacher = user.hasTeacherProfile === true;
-  const canAdmin = user.isAdmin === true && user.baseRole !== "MASTER";
-  const canMaster = user.baseRole === "MASTER";
+  /** Perfis disponíveis: vêm do servidor (availableRoles) para não perder isAdmin no cliente. */
+  const r = user.availableRoles;
+  const canMaster = r?.canMaster ?? (user.baseRole === "MASTER");
+  const canStudent = r?.canStudent ?? (user.hasStudentProfile === true);
+  const canTeacher = r?.canTeacher ?? (user.hasTeacherProfile === true);
+  const canAdmin = r?.canAdmin ?? (user.isAdmin === true);
+
+  const roleLabels: Record<string, string> = {
+    MASTER: "Administrador Master",
+    ADMIN: "Admin",
+    TEACHER: "Professor",
+    STUDENT: "Aluno",
+  };
+
   let roleOptions: RoleOption[] = [
-    ...(canMaster ? [{ value: "MASTER" as const, label: "Administrador Master" }] : []),
-    ...(canStudent ? [{ value: "STUDENT" as const, label: "Aluno" }] : []),
-    ...(canTeacher ? [{ value: "TEACHER" as const, label: "Professor" }] : []),
-    ...(canAdmin ? [{ value: "ADMIN" as const, label: "Admin" }] : []),
+    ...(canMaster ? [{ value: "MASTER" as const, label: roleLabels.MASTER }] : []),
+    ...(canStudent ? [{ value: "STUDENT" as const, label: roleLabels.STUDENT }] : []),
+    ...(canTeacher ? [{ value: "TEACHER" as const, label: roleLabels.TEACHER }] : []),
+    ...(canAdmin ? [{ value: "ADMIN" as const, label: roleLabels.ADMIN }] : []),
   ];
   if (!roleOptions.some((o) => o.value === user.role)) {
-    roleOptions = [...roleOptions, { value: user.role as RoleOption["value"], label: { MASTER: "Administrador Master", ADMIN: "Admin", TEACHER: "Professor", STUDENT: "Aluno" }[user.role] ?? user.role }];
+    roleOptions = [...roleOptions, { value: user.role as RoleOption["value"], label: roleLabels[user.role] ?? user.role }];
   }
-  const showRoleSwitcher = roleOptions.length > 1;
+
+  /** Quando o usuário tem mais de um perfil, o select deve aparecer sempre para trocar entre eles. */
+  const hasMoreThanOneProfile = roleOptions.length >= 2;
+  const showRoleSwitcher = hasMoreThanOneProfile;
 
   async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER") {
     if (newRole === user.role) return;
@@ -107,6 +124,7 @@ export function Sidebar({
   const filteredItems = ITEMS.filter((i) => {
     if (i.alwaysShow) return true;
     if (i.studentOnly) return user.role === "STUDENT";
+    if (i.teacherOnly) return user.role === "TEACHER";
     if (i.masterOnly) return user.role === "MASTER";
     if (i.masterOrTeacher) return user.role === "MASTER" || user.role === "TEACHER";
     if (i.adminOrMaster) return user.role === "ADMIN" || user.role === "MASTER";
@@ -125,7 +143,7 @@ export function Sidebar({
     acc[cat].push(item);
     return acc;
   }, {});
-  const categoryOrder = ["Início", "Aluno", "Administração", "Site", "Configurações", "Menu"];
+  const categoryOrder = ["Início", "Aluno", "Professor", "Administração", "Site", "Configurações", "Menu"];
 
   const navContent = (
     <ul className="flex list-none flex-col gap-4 pl-0">

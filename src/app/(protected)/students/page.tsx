@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import { AlertCircle } from "lucide-react";
 
 function formatCpf(v: string): string {
   const d = v.replace(/\D/g, "");
@@ -29,20 +30,102 @@ function formatPhone(v: string): string {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7, 11)}`;
 }
 
+/** Retorna URL do WhatsApp (wa.me) para o número; assume Brasil (55) se tiver 10–11 dígitos. */
+function whatsappUrl(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  if (d.length < 10) return "#";
+  const full = d.length === 11 ? `55${d}` : d.length === 10 ? `55${d}` : `55${d.slice(-11)}`;
+  return `https://wa.me/${full}`;
+}
+
+const GENDER_LABELS: Record<string, string> = {
+  MALE: "Masculino",
+  FEMALE: "Feminino",
+  OTHER: "Outro",
+  PREFER_NOT_SAY: "Prefiro não dizer",
+};
+const EDUCATION_LEVEL_LABELS: Record<string, string> = {
+  NONE: "Nenhuma",
+  ELEMENTARY_INCOMPLETE: "Fundamental incompleto",
+  ELEMENTARY_COMPLETE: "Fundamental completo",
+  HIGH_INCOMPLETE: "Médio incompleto",
+  HIGH_COMPLETE: "Médio completo",
+  COLLEGE_INCOMPLETE: "Superior incompleto",
+  COLLEGE_COMPLETE: "Superior completo",
+  OTHER: "Outro",
+};
+const STUDY_SHIFT_LABELS: Record<string, string> = {
+  MORNING: "Manhã",
+  AFTERNOON: "Tarde",
+  EVENING: "Noite",
+  FULL: "Integral",
+};
+
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <span className="font-medium text-[var(--text-muted)]">{label}</span>
+      <br />
+      {value ?? "—"}
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-b border-[var(--card-border)] pb-3 last:border-b-0 last:pb-0">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{title}</h3>
+      <div className="grid gap-2 text-sm sm:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
+type StudentAttachmentView = {
+  id: string;
+  type: "ID_DOCUMENT" | "ADDRESS_PROOF";
+  fileName: string | null;
+  url: string;
+  createdAt: string | null;
+};
+
 type Student = StudentFormStudent & {
   deletedAt: string | null;
   createdAt: string;
+  hasIdDocument?: boolean;
+  hasAddressProof?: boolean;
+  attachments?: StudentAttachmentView[];
 };
+
+/** Amarelo = só documentos faltando; vermelho = dados incompletos e documentos faltando. */
+function documentationAlert(s: Student): "yellow" | "red" | null {
+  const hasId = s.hasIdDocument === true;
+  const hasAddr = s.hasAddressProof === true;
+  if (hasId && hasAddr) return null;
+  const nameOk = (s.name ?? "").trim().length > 0;
+  const cpfOk = (s.cpf ?? "").replace(/\D/g, "").length === 11;
+  const phoneOk = (s.phone ?? "").replace(/\D/g, "").length >= 10;
+  const birthOk = !!s.birthDate;
+  const streetOk = (s.street ?? "").trim().length > 0;
+  const numberOk = (s.number ?? "").trim().length > 0;
+  const cityOk = (s.city ?? "").trim().length > 0;
+  const stateOk = (s.state ?? "").trim().length > 0;
+  const dataComplete = nameOk && cpfOk && phoneOk && birthOk && streetOk && numberOk && cityOk && stateOk;
+  if (!hasId || !hasAddr) return dataComplete ? "yellow" : "red";
+  return "yellow";
+}
 
 export default function StudentsPage() {
   const toast = useToast();
   const user = useUser();
   const isMaster = user.role === "MASTER";
+  const isTeacher = user.role === "TEACHER";
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Student[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
+  const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
   const [q, setQ] = useState("");
   const [includeDeleted, setIncludeDeleted] = useState(false);
 
@@ -76,6 +159,19 @@ export default function StudentsPage() {
   function openEdit(s: Student) {
     setEditing(s);
     setOpen(true);
+  }
+
+  async function openView(s: Student) {
+    setViewingStudent(s);
+    setViewLoading(true);
+    try {
+      const res = await fetch(`/api/students/${s.id}`);
+      const json = (await res.json()) as ApiResponse<{ student: Student }>;
+      if (res.ok && json.ok) setViewingStudent(json.data.student as Student);
+      else toast.push("error", !json.ok ? json.error.message : "Falha ao carregar dados do aluno.");
+    } finally {
+      setViewLoading(false);
+    }
   }
 
   async function softDelete(s: Student) {
@@ -123,10 +219,12 @@ export default function StudentsPage() {
         <div>
           <div className="text-lg font-semibold">Alunos</div>
           <div className="text-sm text-[var(--text-secondary)]">
-            Cadastro base do aluno. Busca por nome ou CPF.
+            {isTeacher
+              ? "Alunos matriculados nas turmas que você leciona. Busca por nome ou CPF."
+              : "Cadastro base do aluno. Busca por nome ou CPF."}
           </div>
         </div>
-        <Button onClick={openCreate}>Novo aluno</Button>
+        {!isTeacher && <Button onClick={openCreate}>Novo aluno</Button>}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -158,11 +256,14 @@ export default function StudentsPage() {
               <Th>CPF</Th>
               <Th>Celular</Th>
               <Th>E-mail</Th>
+              <Th className="w-10 text-center" title="Documentação">Doc.</Th>
               <Th />
             </tr>
           </thead>
           <tbody>
-            {items.map((s) => (
+            {items.map((s) => {
+              const docAlert = documentationAlert(s);
+              return (
               <tr key={s.id}>
                 <Td>
                   <span className={s.deletedAt ? "text-[var(--text-muted)] line-through" : ""}>{s.name}</span>
@@ -173,44 +274,64 @@ export default function StudentsPage() {
                 <Td>{formatCpf(s.cpf)}</Td>
                 <Td>{formatPhone(s.phone)}</Td>
                 <Td>{s.email ?? "—"}</Td>
+                <Td className="text-center">
+                  {docAlert && (
+                    <span
+                      title={docAlert === "red" ? "Dados incompletos e documentação faltando" : "Documentação incompleta (identidade e/ou comprovante de residência)"}
+                      className="inline-flex"
+                    >
+                      <AlertCircle
+                        className={`h-5 w-5 ${docAlert === "red" ? "text-red-600" : "text-amber-500"}`}
+                        aria-hidden
+                      />
+                    </span>
+                  )}
+                </Td>
                 <Td>
                   <div className="flex justify-end gap-2">
-                    {!s.deletedAt && (
-                      <Button variant="secondary" onClick={() => openEdit(s)}>
-                        Editar
-                      </Button>
-                    )}
-                    {isMaster && (
-                      s.deletedAt ? (
-                        <>
-                          <Button variant="secondary" onClick={() => reactivate(s)}>
-                            Reativar
+                    <Button variant="secondary" onClick={() => openView(s)}>
+                      Visualizar
+                    </Button>
+                    {!isTeacher && (
+                      <>
+                        {!s.deletedAt && (
+                          <Button variant="secondary" onClick={() => openEdit(s)}>
+                            Editar
                           </Button>
-                          <Button
-                            variant="secondary"
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() => permanentDelete(s)}
-                          >
-                            Excluir definitivamente
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          className="text-red-600 hover:text-red-700"
-                          onClick={() => softDelete(s)}
-                        >
-                          Excluir
-                        </Button>
-                      )
+                        )}
+                        {isMaster && (
+                          s.deletedAt ? (
+                            <>
+                              <Button variant="secondary" onClick={() => reactivate(s)}>
+                                Reativar
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => permanentDelete(s)}
+                              >
+                                Excluir definitivamente
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => softDelete(s)}
+                            >
+                              Excluir
+                            </Button>
+                          )
+                        )}
+                      </>
                     )}
                   </div>
                 </Td>
               </tr>
-            ))}
+            );})}
             {items.length === 0 && (
               <tr>
-                <Td colSpan={5} className="text-[var(--text-secondary)]">
+                <Td colSpan={6} className="text-[var(--text-secondary)]">
                   Nenhum aluno encontrado.
                 </Td>
               </tr>
@@ -240,6 +361,119 @@ export default function StudentsPage() {
           }}
           isMaster={isMaster}
         />
+      </Modal>
+
+      <Modal
+        open={viewingStudent !== null}
+        title="Dados do aluno"
+        onClose={() => setViewingStudent(null)}
+      >
+        {viewLoading ? (
+          <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
+        ) : viewingStudent ? (
+          <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1 text-sm">
+            <Section title="Dados pessoais">
+              <Field label="Nome" value={viewingStudent.name} />
+              <Field label="CPF" value={formatCpf(viewingStudent.cpf)} />
+              <Field label="RG" value={viewingStudent.rg || "—"} />
+              <Field label="Data de nascimento" value={viewingStudent.birthDate ? new Date(viewingStudent.birthDate).toLocaleDateString("pt-BR") : "—"} />
+              <Field label="Gênero" value={GENDER_LABELS[viewingStudent.gender] ?? viewingStudent.gender} />
+              <div>
+                <span className="font-medium text-[var(--text-muted)]">Celular</span>
+                <br />
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  {formatPhone(viewingStudent.phone)}
+                  {viewingStudent.phone?.replace(/\D/g, "").length >= 10 && (
+                    <a
+                      href={whatsappUrl(viewingStudent.phone)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded bg-[var(--igh-primary)] px-2 py-1 text-xs font-medium text-white hover:opacity-90"
+                      title="Abrir no WhatsApp"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                      WhatsApp
+                    </a>
+                  )}
+                </span>
+              </div>
+              <Field label="E-mail" value={viewingStudent.email} />
+            </Section>
+
+            <Section title="Endereço">
+              <Field label="CEP" value={viewingStudent.cep ? viewingStudent.cep.replace(/(\d{5})(\d{3})/, "$1-$2") : "—"} />
+              <Field label="Rua" value={viewingStudent.street || "—"} />
+              <Field label="Número" value={viewingStudent.number || "—"} />
+              <Field label="Complemento" value={viewingStudent.complement} />
+              <Field label="Bairro" value={viewingStudent.neighborhood || "—"} />
+              <Field label="Cidade" value={viewingStudent.city || "—"} />
+              <Field label="Estado" value={viewingStudent.state || "—"} />
+            </Section>
+
+            <Section title="Escolaridade">
+              <Field label="Escolaridade" value={EDUCATION_LEVEL_LABELS[viewingStudent.educationLevel] ?? viewingStudent.educationLevel} />
+              <Field label="Está estudando?" value={viewingStudent.isStudying ? "Sim" : "Não"} />
+              {viewingStudent.isStudying && viewingStudent.studyShift && (
+                <Field label="Turno" value={STUDY_SHIFT_LABELS[viewingStudent.studyShift] ?? viewingStudent.studyShift} />
+              )}
+            </Section>
+
+            {(viewingStudent.hasDisability || viewingStudent.disabilityDescription) && (
+              <Section title="Deficiência">
+                <Field label="Possui deficiência?" value={viewingStudent.hasDisability ? "Sim" : "Não"} />
+                {viewingStudent.hasDisability && (
+                  <Field label="Descrição" value={viewingStudent.disabilityDescription} />
+                )}
+              </Section>
+            )}
+
+            {(viewingStudent.guardianName || viewingStudent.guardianPhone) && (
+              <Section title="Responsável (menor de 18 anos)">
+                <Field label="Nome do responsável" value={viewingStudent.guardianName} />
+                <Field label="CPF do responsável" value={viewingStudent.guardianCpf ? formatCpf(viewingStudent.guardianCpf) : "—"} />
+                <Field label="RG do responsável" value={viewingStudent.guardianRg} />
+                <Field label="Telefone do responsável" value={viewingStudent.guardianPhone ? formatPhone(viewingStudent.guardianPhone) : "—"} />
+                <Field label="Parentesco" value={viewingStudent.guardianRelationship} />
+              </Section>
+            )}
+
+            <Section title="Documentação">
+              {(() => {
+                const attachments = viewingStudent.attachments ?? [];
+                const idDoc = attachments.find((a) => a.type === "ID_DOCUMENT");
+                const addressProof = attachments.find((a) => a.type === "ADDRESS_PROOF");
+                return (
+                  <>
+                    <div>
+                      <span className="font-medium text-[var(--text-muted)]">Documento de identidade</span>
+                      <br />
+                      {idDoc ? (
+                        <a href={idDoc.url} target="_blank" rel="noopener noreferrer" className="text-[var(--igh-primary)] hover:underline">
+                          {idDoc.fileName || "Documento enviado"} ↗
+                        </a>
+                      ) : (
+                        <span className="text-[var(--text-muted)]">Não enviado</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-medium text-[var(--text-muted)]">Comprovante de residência</span>
+                      <br />
+                      {addressProof ? (
+                        <a href={addressProof.url} target="_blank" rel="noopener noreferrer" className="text-[var(--igh-primary)] hover:underline">
+                          {addressProof.fileName || "Comprovante enviado"} ↗
+                        </a>
+                      ) : (
+                        <span className="text-[var(--text-muted)]">Não enviado</span>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </Section>
+          </div>
+        ) : null}
       </Modal>
     </div>
   );

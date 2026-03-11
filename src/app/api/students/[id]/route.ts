@@ -10,14 +10,60 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
   const { id } = await context.params;
 
-  const student = await prisma.student.findUnique({ where: { id } });
+  const student = await prisma.student.findUnique({
+    where: { id },
+    include: {
+      attachments: {
+        where: { deletedAt: null },
+        select: { id: true, type: true, fileName: true, url: true, createdAt: true },
+      },
+    },
+  });
   if (!student) {
     return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
   }
-  return jsonOk({ student });
+
+  // Professor só pode ver aluno se estiver em alguma turma que ele leciona
+  if (user.role === "TEACHER") {
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!teacher) {
+      return jsonErr("FORBIDDEN", "Acesso negado.", 403);
+    }
+    const enrollment = await prisma.enrollment.findFirst({
+      where: {
+        studentId: id,
+        classGroup: { teacherId: teacher.id },
+      },
+      select: { id: true },
+    });
+    if (!enrollment) {
+      return jsonErr("FORBIDDEN", "Acesso negado.", 403);
+    }
+  }
+
+  const { attachments, ...rest } = student;
+  const studentJson = {
+    ...rest,
+    birthDate: rest.birthDate?.toISOString?.()?.slice(0, 10) ?? null,
+    createdAt: rest.createdAt?.toISOString?.() ?? null,
+    updatedAt: rest.updatedAt?.toISOString?.() ?? null,
+    deletedAt: rest.deletedAt?.toISOString?.() ?? null,
+    attachments: attachments.map((a) => ({
+      id: a.id,
+      type: a.type,
+      fileName: a.fileName,
+      url: a.url,
+      createdAt: a.createdAt?.toISOString?.() ?? null,
+    })),
+  };
+
+  return jsonOk({ student: studentJson });
 }
 
 export async function PATCH(

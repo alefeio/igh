@@ -10,8 +10,11 @@ export const metadata = {
 
 function InscrevaFormFallback() {
   return (
-    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 text-center text-[var(--text-muted)] shadow-sm">
-      Carregando...
+    <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-8 shadow-sm">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--igh-primary)] border-t-transparent" aria-hidden />
+        <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
+      </div>
     </div>
   );
 }
@@ -29,8 +32,8 @@ export default async function InscrevaPage() {
         subtitle={headerSubtitle}
         backgroundImageUrl={headerImageUrl}
       />
-      <Section>
-        <div className="mx-auto max-w-xl">
+      <Section background="muted" className="min-h-[50vh]">
+        <div className="mx-auto max-w-2xl">
           <Suspense fallback={<InscrevaFormFallback />}>
             <InscrevaForm />
           </Suspense>

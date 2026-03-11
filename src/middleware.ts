@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Rotas apenas MASTER
-  if (["/users", "/teachers", "/class-groups", "/approvacoes"].some((p) => pathname.startsWith(p))) {
+  if (["/users", "/teachers", "/class-groups", "/approvacoes", "/backup"].some((p) => pathname.startsWith(p))) {
     if (role !== "MASTER") {
       const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
@@ -44,9 +44,17 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Rotas MASTER ou ADMIN (matrículas e alunos)
-  if (pathname.startsWith("/enrollments") || pathname.startsWith("/students")) {
+  // Matrículas: apenas MASTER ou ADMIN
+  if (pathname.startsWith("/enrollments")) {
     if (role !== "MASTER" && role !== "ADMIN") {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Alunos: MASTER, ADMIN ou TEACHER (professor vê apenas seus alunos)
+  if (pathname.startsWith("/students")) {
+    if (role !== "MASTER" && role !== "ADMIN" && role !== "TEACHER") {
       const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
     }
@@ -83,5 +91,6 @@ export const config = {
     "/minhas-turmas/:path*",
     "/admin/site/:path*",
     "/approvacoes/:path*",
+    "/backup/:path*",
   ],
 };

@@ -186,19 +186,36 @@ model ClassGroup {
 }
 
 model ClassSession {
-  id           String             @id @default(uuid())
-  classGroupId String
-  lessonId     String?
-  sessionDate  DateTime           @db.Date
-  startTime    String
-  endTime      String
-  status       ClassSessionStatus @default(SCHEDULED)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  classGroup   ClassGroup         @relation(fields: [classGroupId], references: [id])
-  lesson       CourseLesson?      @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  id                 String              @id @default(uuid())
+  classGroupId       String
+  lessonId           String?
+  sessionDate        DateTime            @db.Date
+  startTime          String
+  endTime            String
+  status             ClassSessionStatus  @default(SCHEDULED)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  classGroup         ClassGroup          @relation(fields: [classGroupId], references: [id])
+  lesson             CourseLesson?        @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  sessionAttendances SessionAttendance[]
 
   @@unique([classGroupId, sessionDate])
+}
+
+/** Frequência do aluno em uma sessão de aula (professor marca presença). */
+model SessionAttendance {
+  id             String       @id @default(uuid())
+  classSessionId String
+  enrollmentId   String
+  present        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  classSession   ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+  enrollment     Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([classSessionId, enrollmentId])
+  @@index([classSessionId])
+  @@index([enrollmentId])
 }
 
 model TimeSlot {
@@ -297,6 +314,7 @@ model Enrollment {
   lessonQuestions       EnrollmentLessonQuestion[]
   questionReplies      EnrollmentLessonQuestionReply[]
   exerciseAnswers       EnrollmentLessonExerciseAnswer[]
+  sessionAttendances   SessionAttendance[]
 }
 
 model EnrollmentLessonFavorite {
@@ -689,6 +707,7 @@ enum ClassGroupStatus {
   EM_ANDAMENTO
   ENCERRADA
   CANCELADA
+  INTERNO
 }
 
 enum Gender {

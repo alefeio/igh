@@ -21,11 +21,24 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     mustChangePassword: (user as { mustChangePassword?: boolean }).mustChangePassword ?? false,
   };
 
+  /** Perfis que o usuário pode assumir (calculado no servidor para o select do menu). */
+  const availableRoles = {
+    canMaster: user.baseRole === "MASTER",
+    canStudent: user.hasStudentProfile === true,
+    canTeacher: user.hasTeacherProfile === true,
+    canAdmin: user.isAdmin === true,
+  };
+
+  const shellUser = {
+    ...user,
+    availableRoles,
+  };
+
   return (
     <ToastProvider>
       <UserProvider user={sessionUser}>
         <RequireChangePassword>
-          <ResponsiveShell user={user} logoUrl={settings?.logoUrl ?? null}>{children}</ResponsiveShell>
+          <ResponsiveShell user={shellUser} logoUrl={settings?.logoUrl ?? null}>{children}</ResponsiveShell>
         </RequireChangePassword>
       </UserProvider>
     </ToastProvider>

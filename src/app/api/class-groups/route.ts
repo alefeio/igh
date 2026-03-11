@@ -48,11 +48,12 @@ export async function GET() {
         sessions: {
           orderBy: { sessionDate: "asc" },
         },
+        enrollments: { where: { status: "ACTIVE" }, select: { id: true } },
       },
     });
 
     const classGroupsWithTotals = classGroups.map((cg) => {
-      const sessions = cg.sessions;
+      const { enrollments, sessions, ...rest } = cg;
       let totalHours = 0;
       try {
         for (const s of sessions) {
@@ -62,9 +63,10 @@ export async function GET() {
         // ignore
       }
       return {
-        ...cg,
+        ...rest,
         totalSessions: sessions.length,
         totalHours: Math.round(totalHours * 100) / 100,
+        enrollmentsCount: enrollments.length,
       };
     });
 

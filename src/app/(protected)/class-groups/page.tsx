@@ -28,7 +28,7 @@ type ClassGroup = {
   startTime: string;
   endTime: string;
   capacity: number;
-  status: "PLANEJADA" | "ABERTA" | "EM_ANDAMENTO" | "ENCERRADA" | "CANCELADA";
+  status: "PLANEJADA" | "ABERTA" | "EM_ANDAMENTO" | "ENCERRADA" | "CANCELADA" | "INTERNO";
   location: string | null;
   createdAt: string;
   course: Course;
@@ -60,6 +60,7 @@ const STATUS_TONE: Record<ClassGroup["status"], Parameters<typeof Badge>[0]["ton
   EM_ANDAMENTO: "amber",
   ENCERRADA: "green",
   CANCELADA: "red",
+  INTERNO: "violet",
 };
 
 export default function ClassGroupsPage() {
@@ -376,6 +377,7 @@ export default function ClassGroupsPage() {
     { value: "EM_ANDAMENTO", label: "Em andamento" },
     { value: "ENCERRADA", label: "Encerrada" },
     { value: "CANCELADA", label: "Cancelada" },
+    { value: "INTERNO", label: "Interno" },
   ];
 
   return (
@@ -668,6 +670,7 @@ export default function ClassGroupsPage() {
                   <option value="EM_ANDAMENTO">EM_ANDAMENTO</option>
                   <option value="ENCERRADA">ENCERRADA</option>
                   <option value="CANCELADA">CANCELADA</option>
+                  <option value="INTERNO">INTERNO</option>
                 </select>
               </div>
             </div>

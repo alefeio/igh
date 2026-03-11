@@ -8,7 +8,7 @@ import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
 
 export async function GET(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";
@@ -16,6 +16,7 @@ export async function GET(request: Request) {
 
   const where: {
     deletedAt?: Date | null;
+    id?: { in: string[] };
     OR?: Array<
       | { name: { contains: string; mode: "insensitive" } }
       | { cpf: string }
@@ -25,6 +26,27 @@ export async function GET(request: Request) {
 
   if (!includeDeleted) {
     where.deletedAt = null;
+  }
+
+  // Professor: apenas alunos matriculados em turmas que ele leciona
+  if (user.role === "TEACHER") {
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!teacher) {
+      return jsonOk({ students: [] });
+    }
+    const enrollments = await prisma.enrollment.findMany({
+      where: { classGroup: { teacherId: teacher.id } },
+      select: { studentId: true },
+      distinct: ["studentId"],
+    });
+    const studentIds = enrollments.map((e) => e.studentId);
+    if (studentIds.length === 0) {
+      return jsonOk({ students: [] });
+    }
+    where.id = { in: studentIds };
   }
 
   if (q.length > 0) {
@@ -43,9 +65,17 @@ export async function GET(request: Request) {
   const students = await prisma.student.findMany({
     where,
     orderBy: { name: "asc" },
+    include: { attachments: { select: { type: true } } },
   });
 
-  return jsonOk({ students });
+  const studentsWithDocs = students.map((s) => {
+    const { attachments, ...rest } = s;
+    const hasIdDocument = attachments.some((a) => a.type === "ID_DOCUMENT");
+    const hasAddressProof = attachments.some((a) => a.type === "ADDRESS_PROOF");
+    return { ...rest, hasIdDocument, hasAddressProof };
+  });
+
+  return jsonOk({ students: studentsWithDocs });
 }
 
 export async function POST(request: Request) {

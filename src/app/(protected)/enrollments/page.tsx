@@ -41,6 +41,8 @@ type ClassGroup = {
   endTime: string;
   capacity?: number;
   course: Course;
+  status?: string;
+  enrollmentsCount?: number;
 };
 type Enrollment = {
   id: string;
@@ -1085,18 +1087,19 @@ export default function EnrollmentsPage() {
               required
             >
               <option value="">Selecione</option>
-              {classGroups.map((cg) => {
-                const active = activeCountByClassGroup.get(cg.id) ?? 0;
-                const cap = cg.capacity ?? 0;
-                const full = cap > 0 && active >= cap;
-                return (
-                  <option key={cg.id} value={cg.id} disabled={full}>
+              {classGroups
+                .filter((cg) => {
+                  if (cg.status !== "ABERTA") return false;
+                  const cap = cg.capacity ?? 0;
+                  const count = cg.enrollmentsCount ?? 0;
+                  return cap === 0 || count < cap;
+                })
+                .map((cg) => (
+                  <option key={cg.id} value={cg.id}>
                     {cg.course.name} — Início {formatDateOnly(cg.startDate)} — {cg.startTime}-{cg.endTime}
                     {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
-                    {full ? ` (lotada ${active}/${cap})` : ""}
                   </option>
-                );
-              })}
+                ))}
             </select>
           </div>
           <div>
@@ -1135,12 +1138,20 @@ export default function EnrollmentsPage() {
                 onChange={(e) => setEditClassGroupId(e.target.value)}
                 className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
               >
-                {classGroups.map((cg) => (
-                  <option key={cg.id} value={cg.id}>
-                    {cg.course.name} — Início {formatDateOnly(cg.startDate)} — {cg.startTime}-{cg.endTime}
-                    {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
-                  </option>
-                ))}
+                {classGroups
+                  .filter((cg) => {
+                    const isCurrent = cg.id === editingEnrollment.classGroup.id;
+                    const capacity = cg.capacity ?? 0;
+                    const count = cg.enrollmentsCount ?? 0;
+                    const notOverCapacity = capacity === 0 || count < capacity;
+                    return (cg.status === "ABERTA" && notOverCapacity) || isCurrent;
+                  })
+                  .map((cg) => (
+                    <option key={cg.id} value={cg.id}>
+                      {cg.course.name} — Início {formatDateOnly(cg.startDate)} — {cg.startTime}-{cg.endTime}
+                      {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
+                    </option>
+                  ))}
               </select>
             </div>
             <div>

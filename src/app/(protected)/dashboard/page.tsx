@@ -27,6 +27,7 @@ const STATUS_LABELS: Record<string, string> = {
   EM_ANDAMENTO: "Em andamento",
   ENCERRADA: "Encerrada",
   CANCELADA: "Cancelada",
+  INTERNO: "Interno",
 };
 
 const POINTS_PER_LESSON = 10;
@@ -128,7 +129,7 @@ function QuickLinks({ links }: { links: { href: string; label: string }[] }) {
 
 function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
   const { stats, recentEnrollmentsCount, openClassGroups, roleLabel } = data;
-  const statusOrder = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "ENCERRADA", "CANCELADA"] as const;
+  const statusOrder = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "ENCERRADA", "CANCELADA", "INTERNO"] as const;
 
   return (
     <div className="container-page flex flex-col gap-6">

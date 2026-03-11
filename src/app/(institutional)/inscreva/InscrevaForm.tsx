@@ -135,7 +135,10 @@ export function InscrevaForm() {
         setStudent(meJson.data.student ?? null);
         setEnrolledCourseIds(meJson.data.enrolledCourseIds ?? []);
       }
-      if (cgJson?.ok && cgJson.data.classGroups) setClassGroups(cgJson.data.classGroups);
+      if (cgJson?.ok && cgJson.data.classGroups) {
+        // Exibir apenas turmas ABERTA na página de inscrição (não EM_ANDAMENTO, INTERNO, etc.)
+        setClassGroups(cgJson.data.classGroups.filter((cg) => cg.status === "ABERTA"));
+      }
     } finally {
       setLoading(false);
     }
@@ -204,19 +207,27 @@ export function InscrevaForm() {
   }
 
   const selectedClassGroups = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
-  const selectedCourseIds = new Set([
+  /** Conjunto de courseIds já em uso: matrículas atuais + cursos das turmas selecionadas. */
+  const selectedCourseIds = new Set<string>([
     ...enrolledCourseIds,
     ...selectedClassGroups.map((c) => c.courseId),
   ]);
+  const totalCoursesNow = selectedCourseIds.size;
 
+  /**
+   * Bloqueia turmas de cursos em que o usuário já está matriculado (uma turma por curso).
+   * Quando Cursos: 2/2, bloqueia todas as opções exceto as já selecionadas.
+   * Caso contrário: desabilita se já tem 2 turmas, sobreposição de horário ou passaria de 2 cursos.
+   */
   function isClassGroupOptionDisabled(cg: ClassGroupOption): boolean {
     if (selectedClassGroupIds.includes(cg.id)) return false;
+    if (enrolledCourseIds.includes(cg.courseId)) return true;
+    if (totalCoursesNow >= 2) return true;
     if (selectedClassGroupIds.length >= 2) return true;
     const selected = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
     if (selected.some((other) => doOverlap(other, cg))) return true;
-    const wouldAddCourse = !selectedCourseIds.has(cg.courseId);
-    const newCourseCount = selectedCourseIds.size + (wouldAddCourse ? 1 : 0);
-    return newCourseCount > 2;
+    const courseIdsIfWeAdd = new Set([...selectedCourseIds, cg.courseId]);
+    return courseIdsIfWeAdd.size > 2;
   }
 
   async function handleEnrollment(e: React.FormEvent) {
@@ -267,15 +278,23 @@ export function InscrevaForm() {
     }
   }
 
-  const cardClass = "rounded-xl border border-[var(--card-border)] p-6 shadow-sm theme-bg-card";
-  const labelClass = "text-sm font-medium theme-text-label";
-  const hintClass = "text-xs theme-text-muted";
-  const inputClass = "min-h-[44px] w-full rounded-md border border-[var(--input-border)] px-3 text-sm theme-input sm:h-10 sm:min-h-0";
+  const cardClass =
+    "rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 shadow-sm sm:p-8";
+  const labelClass = "block text-sm font-semibold text-[var(--text-primary)]";
+  const hintClass = "mt-1 text-xs text-[var(--text-muted)]";
+  const inputClass =
+    "mt-1.5 min-h-[44px] w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--igh-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)]/20 sm:min-h-[42px]";
 
   if (loading) {
     return (
-      <div className={`${cardClass} text-center theme-text-muted`}>
-        Carregando...
+      <div className={cardClass}>
+        <div className="flex flex-col items-center justify-center gap-4 py-8">
+          <div
+            className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--igh-primary)] border-t-transparent"
+            aria-hidden
+          />
+          <p className="text-sm text-[var(--text-muted)]">Carregando suas informações...</p>
+        </div>
       </div>
     );
   }
@@ -283,22 +302,39 @@ export function InscrevaForm() {
   if (showSecretariatMessage) {
     return (
       <div className="space-y-6">
-        <div className={`${cardClass} border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30`}>
-          <h3 className="text-lg font-semibold theme-text-label">Pré-matrícula enviada</h3>
-          <p className="mt-3 text-sm theme-text-label">
-            Como você não informou e-mail, será necessário comparecer à secretaria para completar seu cadastro e entregar os documentos (documento de identidade e comprovante de residência), para que sua matrícula seja confirmada.
-          </p>
-          <p className="mt-2 text-sm theme-text-muted">
-            Anote o número do CPF utilizado na inscrição para facilitar o atendimento.
-          </p>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3">
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => setShowSecretariatMessage(false)}
+        <div
+          className={`${cardClass} border-emerald-200 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/40`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex gap-4">
+            <span
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
+              aria-hidden
             >
-              Fazer nova inscrição em outra turma
-            </Button>
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xl font-bold text-[var(--text-primary)]">Pré-matrícula enviada</h2>
+              <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
+                Como você não informou e-mail, será necessário comparecer à secretaria para completar seu cadastro e entregar os documentos (documento de identidade e comprovante de residência), para que sua matrícula seja confirmada.
+              </p>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">
+                Anote o CPF utilizado na inscrição para facilitar o atendimento.
+              </p>
+              <div className="mt-6">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="lg"
+                  onClick={() => setShowSecretariatMessage(false)}
+                >
+                  Fazer nova inscrição em outra turma
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -307,20 +343,27 @@ export function InscrevaForm() {
 
   if (!student) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div className={cardClass}>
-          <h3 className="text-lg font-semibold theme-text-label">Identifique-se</h3>
-          <p className="mt-2 text-sm theme-text-muted">
-            Para fazer sua pré-matrícula, faça login se você já tem cadastro ou cadastre-se com seus dados.
+          <h2 className="text-xl font-bold text-[var(--text-primary)] sm:text-2xl">Identifique-se</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+            Para fazer sua pré-matrícula, faça login se já tem cadastro ou cadastre-se com seus dados.
           </p>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:gap-4">
-            <Button as="link" href="/login?from=/inscreva" variant="primary" className="flex-1">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            <Button
+              as="link"
+              href="/login?from=/inscreva"
+              variant="primary"
+              size="lg"
+              className="min-h-[52px] w-full"
+            >
               Fazer login
             </Button>
             <Button
               type="button"
               variant="secondary"
-              className="flex-1"
+              size="lg"
+              className="min-h-[52px] w-full"
               onClick={() => setShowCadastro(true)}
             >
               Cadastrar-se
@@ -329,102 +372,134 @@ export function InscrevaForm() {
         </div>
 
         {showCadastro && (
-          <div className={cardClass}>
-            <h3 className="text-lg font-semibold theme-text-label">Cadastro rápido</h3>
-            <p className="mt-1 text-sm theme-text-muted">
-              Preencha os campos obrigatórios. O e-mail é opcional; sem ele, será necessário ir à secretaria para entregar documentos e só com e-mail cadastrado o aluno poderá acessar a área restrita.
+          <div className={cardClass} role="region" aria-labelledby="cadastro-title">
+            <h2 id="cadastro-title" className="text-xl font-bold text-[var(--text-primary)]">
+              Cadastro rápido
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+              Preencha os campos obrigatórios. E-mail é opcional; sem ele você precisará ir à secretaria para entregar documentos. Com e-mail, você acessa a área do aluno.
             </p>
-            <form onSubmit={handleCadastro} className="mt-4 flex flex-col gap-4">
-              <div>
-                <label className={labelClass}>Nome *</label>
-                <input
-                  className={`mt-1 ${inputClass}`}
-                  value={cadastroName}
-                  onChange={(e) => setCadastroName(toTitleCase(e.target.value))}
-                  required
-                />
-              </div>
-              <div>
-                <label className={labelClass}>E-mail (opcional)</label>
-                <input
-                  className={`mt-1 ${inputClass}`}
-                  type="email"
-                  value={cadastroEmail}
-                  onChange={(e) => setCadastroEmail(e.target.value.toLowerCase())}
-                  placeholder="seu@email.com"
-                />
-                {cadastroEmail.trim().length > 0 && (
-                  <div className="mt-3">
-                    <label className={labelClass}>Confirme seu e-mail</label>
+            <form onSubmit={handleCadastro} className="mt-8 space-y-6">
+              <fieldset className="space-y-4">
+                <legend className="sr-only">Dados pessoais</legend>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label htmlFor="cadastro-name" className={labelClass}>Nome *</label>
                     <input
-                      className={`mt-1 ${inputClass}`}
-                      type="email"
-                      value={cadastroEmailConfirm}
-                      onChange={(e) => setCadastroEmailConfirm(e.target.value.toLowerCase())}
-                      placeholder="repita o e-mail"
+                      id="cadastro-name"
+                      className={inputClass}
+                      value={cadastroName}
+                      onChange={(e) => setCadastroName(toTitleCase(e.target.value))}
+                      required
+                      autoComplete="name"
                     />
                   </div>
-                )}
-                <p className={`mt-2 ${hintClass}`}>Sem e-mail: será preciso ir à secretaria para entregar documento de identidade e comprovante de residência. A área do aluno só pode ser acessada com e-mail cadastrado.</p>
-              </div>
-              <div>
-                <label className={labelClass}>{isMinor ? "CPF do aluno (opcional)" : "CPF *"}</label>
-                <input
-                  className={`mt-1 ${inputClass}`}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  value={cadastroCpf}
-                  onChange={(e) => setCadastroCpf(formatCpf(e.target.value))}
-                  placeholder="000.000.000-00"
-                  maxLength={14}
-                  required={!isMinor}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Data de nascimento *</label>
-                <input
-                  className={`mt-1 ${inputClass}`}
-                  type="date"
-                  value={cadastroBirthDate}
-                  onChange={(e) => setCadastroBirthDate(e.target.value)}
-                  required
-                />
-                {cadastroBirthDate && cadastroAge != null && (
-                  <p className={`mt-1 ${hintClass}`}>Idade: {cadastroAge} anos{cadastroAge < 18 ? " (menor de 18 — informe o CPF do responsável abaixo)" : ""}</p>
-                )}
-              </div>
-              {isMinor && (
+                  <div>
+                    <label htmlFor="cadastro-birth" className={labelClass}>Data de nascimento *</label>
+                    <input
+                      id="cadastro-birth"
+                      className={inputClass}
+                      type="date"
+                      value={cadastroBirthDate}
+                      onChange={(e) => setCadastroBirthDate(e.target.value)}
+                      required
+                    />
+                    {cadastroBirthDate && cadastroAge != null && (
+                      <p className={hintClass}>
+                        {cadastroAge} anos{cadastroAge < 18 ? " — informe o CPF do responsável abaixo" : ""}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label htmlFor="cadastro-cpf" className={labelClass}>
+                      {isMinor ? "CPF do aluno (opcional)" : "CPF *"}
+                    </label>
+                    <input
+                      id="cadastro-cpf"
+                      className={inputClass}
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      value={cadastroCpf}
+                      onChange={(e) => setCadastroCpf(formatCpf(e.target.value))}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                      required={!isMinor}
+                    />
+                  </div>
+                </div>
+              </fieldset>
+
+              <fieldset className="space-y-4">
+                <legend className="text-sm font-semibold text-[var(--text-primary)]">Contato</legend>
                 <div>
-                  <label className={labelClass}>CPF do responsável *</label>
+                  <label htmlFor="cadastro-email" className={labelClass}>E-mail (opcional)</label>
                   <input
-                    className={`mt-1 ${inputClass}`}
-                    type="text"
+                    id="cadastro-email"
+                    className={inputClass}
+                    type="email"
+                    value={cadastroEmail}
+                    onChange={(e) => setCadastroEmail(e.target.value.toLowerCase())}
+                    placeholder="seu@email.com"
+                    autoComplete="email"
+                  />
+                  {cadastroEmail.trim().length > 0 && (
+                    <div className="mt-4">
+                      <label htmlFor="cadastro-email-confirm" className={labelClass}>Confirme seu e-mail</label>
+                      <input
+                        id="cadastro-email-confirm"
+                        className={inputClass}
+                        type="email"
+                        value={cadastroEmailConfirm}
+                        onChange={(e) => setCadastroEmailConfirm(e.target.value.toLowerCase())}
+                        placeholder="repita o e-mail"
+                        autoComplete="email"
+                      />
+                    </div>
+                  )}
+                  <p className={hintClass}>
+                    Sem e-mail: será preciso ir à secretaria para entregar documento de identidade e comprovante de residência.
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="cadastro-phone" className={labelClass}>Telefone *</label>
+                  <input
+                    id="cadastro-phone"
+                    className={inputClass}
+                    type="tel"
                     inputMode="numeric"
-                    autoComplete="off"
-                    value={cadastroGuardianCpf}
-                    onChange={(e) => setCadastroGuardianCpf(formatCpf(e.target.value))}
-                    placeholder="000.000.000-00"
-                    maxLength={14}
+                    autoComplete="tel"
+                    value={cadastroPhone}
+                    onChange={(e) => setCadastroPhone(formatPhone(e.target.value))}
+                    placeholder="(00) 00000-0000"
+                    maxLength={15}
                     required
                   />
                 </div>
+              </fieldset>
+
+              {isMinor && (
+                <fieldset className="space-y-4">
+                  <legend className="text-sm font-semibold text-[var(--text-primary)]">Responsável (menor de 18 anos)</legend>
+                  <div>
+                    <label htmlFor="cadastro-guardian-cpf" className={labelClass}>CPF do responsável *</label>
+                    <input
+                      id="cadastro-guardian-cpf"
+                      className={inputClass}
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      value={cadastroGuardianCpf}
+                      onChange={(e) => setCadastroGuardianCpf(formatCpf(e.target.value))}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                      required
+                    />
+                  </div>
+                </fieldset>
               )}
-              <div>
-                <label className={labelClass}>Telefone *</label>
-                <input
-                  className={`mt-1 ${inputClass}`}
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  value={cadastroPhone}
-                  onChange={(e) => setCadastroPhone(formatPhone(e.target.value))}
-                  placeholder="(00) 00000-0000"
-                  maxLength={15}
-                  required
-                />
-              </div>
-              <div className="flex gap-2">
+
+              <div className="flex flex-col gap-3 border-t border-[var(--card-border)] pt-6 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="secondary"
@@ -444,162 +519,199 @@ export function InscrevaForm() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {enrollmentSuccessName && (
-        <div className={`${cardClass} border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30`}>
-          <h3 className="text-lg font-semibold theme-text-label">Inscrição confirmada com sucesso</h3>
-          <p className="mt-2 text-sm theme-text-muted">
-            Sua pré-matrícula foi registrada. Aguarde a confirmação pela equipe quando for o caso.
-          </p>
+        <div
+          className={`${cardClass} flex gap-4 border-emerald-200 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/40`}
+          role="status"
+          aria-live="polite"
+        >
+          <span
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
+            aria-hidden
+          >
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </span>
+          <div>
+            <h2 className="text-xl font-bold text-[var(--text-primary)]">Inscrição confirmada</h2>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              Sua pré-matrícula foi registrada. Aguarde a confirmação pela equipe quando for o caso.
+            </p>
+          </div>
         </div>
       )}
 
       <div className={cardClass}>
-        <h3 className="text-lg font-semibold theme-text-label">Seus dados</h3>
-        <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+        <h2 className="text-lg font-bold text-[var(--text-primary)]">Seus dados</h2>
+        <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className={hintClass}>Nome</dt>
-            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>{student.name}</dd>
+            <dt className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Nome</dt>
+            <dd className="mt-0.5 font-medium text-[var(--text-primary)]">{student.name}</dd>
           </div>
           <div>
-            <dt className={hintClass}>CPF</dt>
-            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>{student.cpf ? student.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "—"}</dd>
-          </div>
-          <div>
-            <dt className={hintClass}>Nascimento</dt>
-            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>
-              {student.birthDate ? formatDateForInput(student.birthDate) : "—"}
+            <dt className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">CPF</dt>
+            <dd className="mt-0.5 font-medium text-[var(--text-primary)]">
+              {student.cpf ? student.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : "—"}
             </dd>
           </div>
           <div>
-            <dt className={hintClass}>Telefone</dt>
-            <dd className="font-medium" style={{ color: "var(--text-primary)" }}>{student.phone}</dd>
+            <dt className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Nascimento</dt>
+            <dd className="mt-0.5 font-medium text-[var(--text-primary)]">
+              {student.birthDate ? new Date(student.birthDate).toLocaleDateString("pt-BR") : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Telefone</dt>
+            <dd className="mt-0.5 font-medium text-[var(--text-primary)]">{student.phone}</dd>
           </div>
         </dl>
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3">
-          <Button as="link" href="/minhas-turmas" variant="primary" className="flex-1 sm:flex-initial">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <Button as="link" href="/minhas-turmas" variant="primary" size="lg">
             Acessar área do aluno
           </Button>
+          <span className="text-xs text-[var(--text-muted)]">
+            Não é você?{" "}
+            <button
+              type="button"
+              onClick={async () => {
+                await fetch("/api/auth/logout", { method: "POST" });
+                setEnrollmentSuccessName(null);
+                setStudent(null);
+                setStudentToken(null);
+                setSelectedClassGroupIds([]);
+                void load();
+              }}
+              className="font-semibold text-[var(--igh-primary)] hover:underline focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2 rounded"
+            >
+              Sair e fazer login com outra conta
+            </button>
+          </span>
         </div>
-        <p className="mt-3 text-xs theme-text-muted">
-          Não é você?{" "}
-          <button
-            type="button"
-            onClick={async () => {
-              await fetch("/api/auth/logout", { method: "POST" });
-              setEnrollmentSuccessName(null);
-              setStudent(null);
-              setStudentToken(null);
-              setSelectedClassGroupIds([]);
-              void load();
-            }}
-            className="font-medium hover:underline"
-            style={{ color: "var(--igh-primary)" }}
-          >
-            Faça login
-          </button>{" "}
-          com outra conta.
-        </p>
       </div>
 
       <div className={cardClass}>
+        <h2 className="text-lg font-bold text-[var(--text-primary)]">Escolher turmas</h2>
         {enrolledCourseIds.length >= 2 ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-            <p className="font-medium theme-text-label">Limite de cursos atingido</p>
-            <p className="mt-1 text-sm theme-text-muted">
-              Você já está inscrito em 2 cursos com turmas em andamento, abertas ou planejadas. O aluno pode ter no máximo 2 cursos nessa situação. Para se inscrever em outra turma, entre em contato com a secretaria ou aguarde o encerramento de alguma turma.
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-5 dark:border-amber-800 dark:bg-amber-950/40">
+            <p className="font-semibold text-[var(--text-primary)]">Limite de cursos atingido</p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+              Você já está inscrito em 2 cursos. Para se inscrever em outra turma, entre em contato com a secretaria ou aguarde o encerramento de alguma turma.
             </p>
           </div>
         ) : (
-        <form onSubmit={handleEnrollment} className="flex flex-col gap-4">
-          <div>
-            <p className={labelClass}>
-              Escolha até 2 turmas (máximo 2 cursos; turmas no mesmo dia e horário não podem ser selecionadas juntas) *
-            </p>
-            <p className={`mt-1 ${hintClass}`}>
-              {enrolledCourseIds.length === 1
-                ? "Você já está em 1 curso. Pode escolher mais uma turma do mesmo curso ou de outro curso (máximo 2 cursos no total)."
-                : "Selecione uma ou duas turmas na lista. Você pode se inscrever em no máximo 2 cursos."}
-            </p>
-            {classGroups.length === 0 ? (
-              <p className={`mt-3 ${hintClass}`}>Nenhuma turma disponível no momento.</p>
-            ) : (
-              <div
-                className="mt-3 max-h-[280px] overflow-y-auto rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] p-2"
-                role="listbox"
-                aria-label="Escolha até 2 turmas"
-                aria-multiselectable="true"
-              >
-                {classGroups.map((cg) => {
-                  const disabled = isClassGroupOptionDisabled(cg);
-                  const selected = selectedClassGroupIds.includes(cg.id);
-                  const daysStr = Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? cg.daysOfWeek.join(", ") : null;
-                  return (
-                    <button
-                      key={cg.id}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      disabled={disabled}
-                      onClick={() => {
-                        if (disabled) return;
-                        const newIds = selected
-                          ? selectedClassGroupIds.filter((id) => id !== cg.id)
-                          : [...selectedClassGroupIds, cg.id];
-                        if (newIds.length > 2) {
-                          toast.push("error", "Você pode selecionar no máximo 2 turmas.");
-                          return;
-                        }
-                        const newSelected = newIds.map((id) => classGroups.find((c) => c.id === id)).filter(Boolean) as ClassGroupOption[];
-                        const coursesUsed = new Set([...enrolledCourseIds, ...newSelected.map((c) => c.courseId)]);
-                        if (coursesUsed.size > 2) {
-                          toast.push("error", "O aluno pode se cadastrar em no máximo 2 cursos. Escolha turmas de até 2 cursos.");
-                          return;
-                        }
-                        for (let i = 0; i < newSelected.length; i++) {
-                          for (let j = i + 1; j < newSelected.length; j++) {
-                            if (doOverlap(newSelected[i], newSelected[j])) {
-                              toast.push("error", "Turmas no mesmo dia e horário não podem ser selecionadas juntas.");
-                              return;
+          <form onSubmit={handleEnrollment} className="mt-6 space-y-6">
+            <div>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  Selecione até 2 turmas (máximo 2 cursos no total; turmas no mesmo dia e horário não podem ser escolhidas juntas)
+                </p>
+                <span
+                  className="rounded-full bg-[var(--igh-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--text-primary)]"
+                  aria-label={`Cursos no total: ${totalCoursesNow} de 2`}
+                >
+                  Cursos: {totalCoursesNow}/2
+                </span>
+              </div>
+              <p className={hintClass}>
+                {enrolledCourseIds.length >= 2
+                  ? "Você já está no limite de 2 cursos. Não é possível adicionar turmas de outro curso."
+                  : enrolledCourseIds.length === 1
+                    ? "Você já está em 1 curso. Pode adicionar turmas apenas do mesmo curso ou de mais 1 curso (máx. 2 no total)."
+                    : "Toque nas turmas desejadas. Máximo 2 cursos no total."}
+              </p>
+              {classGroups.length === 0 ? (
+                <div className="mt-4 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-8 text-center">
+                  <p className="text-sm text-[var(--text-muted)]">Nenhuma turma disponível no momento.</p>
+                </div>
+              ) : (
+                <div
+                  className="mt-4 max-h-[320px] space-y-2 overflow-y-auto rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] p-3"
+                  role="listbox"
+                  aria-label="Escolha até 2 turmas"
+                  aria-multiselectable="true"
+                >
+                  {classGroups.map((cg) => {
+                    const disabled = isClassGroupOptionDisabled(cg);
+                    const selected = selectedClassGroupIds.includes(cg.id);
+                    const daysStr = Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? cg.daysOfWeek.join(", ") : null;
+                    return (
+                      <button
+                        key={cg.id}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        disabled={disabled}
+                        onClick={() => {
+                          if (disabled) return;
+                          const newIds = selected
+                            ? selectedClassGroupIds.filter((id) => id !== cg.id)
+                            : [...selectedClassGroupIds, cg.id];
+                          if (newIds.length > 2) {
+                            toast.push("error", "Você pode selecionar no máximo 2 turmas.");
+                            return;
+                          }
+                          const newSelected = newIds.map((id) => classGroups.find((c) => c.id === id)).filter(Boolean) as ClassGroupOption[];
+                          const coursesUsed = new Set([...enrolledCourseIds, ...newSelected.map((c) => c.courseId)]);
+                          if (coursesUsed.size > 2) {
+                            toast.push("error", "O limite é de 2 cursos no total (você já está em " + enrolledCourseIds.length + "). Escolha turmas de no máximo mais " + (2 - enrolledCourseIds.length) + " curso(s).");
+                            return;
+                          }
+                          for (let i = 0; i < newSelected.length; i++) {
+                            for (let j = i + 1; j < newSelected.length; j++) {
+                              if (doOverlap(newSelected[i], newSelected[j])) {
+                                toast.push("error", "Turmas no mesmo dia e horário não podem ser selecionadas juntas.");
+                                return;
+                              }
                             }
                           }
-                        }
-                        setSelectedClassGroupIds(newIds);
-                      }}
-                      className={`mb-1.5 flex w-full cursor-pointer flex-col rounded-md border px-3 py-2.5 text-left text-sm last:mb-0 focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
-                        selected
-                          ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10"
-                          : "border-transparent hover:bg-[var(--input-bg)]"
-                      } ${disabled && !selected ? "theme-text-muted" : ""}`}
-                      style={!(disabled && !selected) ? { color: "var(--text-primary)" } : undefined}
-                    >
-                      <span className="font-medium break-words">{cg.courseName}</span>
-                      <span className="mt-0.5 block break-words text-xs theme-text-muted">
-                        Início {formatDateForInput(cg.startDate)} — {cg.startTime}–{cg.endTime}
-                        {daysStr ? ` — ${daysStr}` : ""}
-                        {cg.location?.trim() ? ` — Local: ${cg.location.trim()}` : ""}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <p className={`mt-2 ${hintClass}`}>Toque nas turmas desejadas (até 2).</p>
-            {courseIdFromUrl && (
-              <p className="mt-2">
-                <a
-                  href="/inscreva"
-                  className={`text-xs ${hintClass} hover:underline`}
-                >
-                  Ver outros cursos
-                </a>
-              </p>
-            )}
-          </div>
-          <Button type="submit" disabled={submitting || selectedClassGroupIds.length === 0 || classGroups.length === 0}>
-            {submitting ? "Enviando..." : "Enviar pré-matrícula"}
-          </Button>
-        </form>
+                          setSelectedClassGroupIds(newIds);
+                        }}
+                        className={`flex w-full cursor-pointer flex-col rounded-xl border-2 px-4 py-3.5 text-left transition-all focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                          selected
+                            ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10 text-[var(--text-primary)]"
+                            : disabled
+                              ? "border-[var(--card-border)] text-[var(--text-muted)]"
+                              : "border-transparent bg-[var(--card-bg)] text-[var(--text-primary)] hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5"
+                        }`}
+                      >
+                        <span className="font-semibold">{cg.courseName}</span>
+                        <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                          Início {new Date(cg.startDate).toLocaleDateString("pt-BR")} · {cg.startTime}–{cg.endTime}
+                          {daysStr ? ` · ${daysStr}` : ""}
+                          {cg.location?.trim() ? ` · ${cg.location.trim()}` : ""}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {courseIdFromUrl && classGroups.length > 0 && (
+                <p className="mt-3">
+                  <a
+                    href="/inscreva"
+                    className="text-sm font-medium text-[var(--igh-primary)] hover:underline"
+                  >
+                    Ver todos os cursos
+                  </a>
+                </p>
+              )}
+            </div>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={
+                submitting ||
+                selectedClassGroupIds.length === 0 ||
+                classGroups.length === 0 ||
+                totalCoursesNow > 2
+              }
+              className="w-full sm:w-auto"
+            >
+              {submitting ? "Enviando..." : "Enviar pré-matrícula"}
+            </Button>
+          </form>
         )}
       </div>
     </div>
