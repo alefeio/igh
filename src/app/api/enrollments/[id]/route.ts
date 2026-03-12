@@ -96,11 +96,14 @@ export async function PATCH(
     if (!["ABERTA", "EM_ANDAMENTO", "PLANEJADA"].includes(newClassGroup.status)) {
       return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
     }
-    const activeInNew = await prisma.enrollment.count({
-      where: { classGroupId: newClassGroupId, status: "ACTIVE" },
-    });
-    if (activeInNew >= newClassGroup.capacity) {
-      return jsonErr("VALIDATION_ERROR", "Esta turma não possui vagas disponíveis.", 400);
+    const isMaster = user.role === "MASTER";
+    if (!isMaster) {
+      const activeInNew = await prisma.enrollment.count({
+        where: { classGroupId: newClassGroupId, status: "ACTIVE" },
+      });
+      if (activeInNew >= newClassGroup.capacity) {
+        return jsonErr("VALIDATION_ERROR", "Esta turma não possui vagas disponíveis.", 400);
+      }
     }
     const alreadyInNew = await prisma.enrollment.findFirst({
       where: { studentId: existing.studentId, classGroupId: newClassGroupId, status: "ACTIVE", id: { not: id } },

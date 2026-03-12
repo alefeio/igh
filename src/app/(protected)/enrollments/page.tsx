@@ -460,11 +460,13 @@ export default function EnrollmentsPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!studentId || !classGroupId || submitting) return;
-    const active = activeCountByClassGroup.get(classGroupId) ?? 0;
-    const cg = classGroups.find((c) => c.id === classGroupId);
-    if (cg && (cg.capacity ?? 0) > 0 && active >= (cg.capacity ?? 0)) {
-      toast.push("error", "Esta turma está lotada. Escolha outra turma.");
-      return;
+    if (!isMaster) {
+      const active = activeCountByClassGroup.get(classGroupId) ?? 0;
+      const cg = classGroups.find((c) => c.id === classGroupId);
+      if (cg && (cg.capacity ?? 0) > 0 && active >= (cg.capacity ?? 0)) {
+        toast.push("error", "Esta turma está lotada. Escolha outra turma.");
+        return;
+      }
     }
     setSubmitting(true);
     try {
@@ -1270,6 +1272,7 @@ export default function EnrollmentsPage() {
                 .filter((cg) => {
                   const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
                   if (!isPlanejadaOuAberta) return false;
+                  if (isMaster) return true;
                   const cap = cg.capacity ?? 0;
                   const count = cg.enrollmentsCount ?? 0;
                   return cap === 0 || count < cap;
@@ -1322,10 +1325,11 @@ export default function EnrollmentsPage() {
                 {classGroups
                   .filter((cg) => {
                     const isCurrent = cg.id === editingEnrollment.classGroup.id;
+                    const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
+                    if (isMaster) return isPlanejadaOuAberta || isCurrent;
                     const capacity = cg.capacity ?? 0;
                     const count = cg.enrollmentsCount ?? 0;
                     const notOverCapacity = capacity === 0 || count < capacity;
-                    const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
                     return (isPlanejadaOuAberta && notOverCapacity) || isCurrent;
                   })
                   .map((cg) => (
