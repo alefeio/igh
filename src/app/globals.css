@@ -283,3 +283,46 @@ html {
 body {
   overflow-x: hidden;
 }
+
+/* TipTap: handles de redimensionamento de imagem no editor rich text */
+[data-resize-handle] {
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+  background-color: var(--igh-primary);
+  border: 2px solid var(--card-bg);
+  border-radius: 2px;
+  z-index: 10;
+  box-sizing: border-box;
+}
+[data-resize-handle="bottom-right"] {
+  cursor: nwse-resize;
+}
+[data-resize-handle="bottom-left"] {
+  cursor: nesw-resize;
+}
+[data-resize-handle="top-right"] {
+  cursor: nesw-resize;
+}
+[data-resize-handle="top-left"] {
+  cursor: nwse-resize;
+}
+[data-resize-handle="top"],
+[data-resize-handle="bottom"] {
+  width: 100%;
+  height: 10px;
+  min-height: 10px;
+  cursor: ns-resize;
+}
+[data-resize-handle="left"],
+[data-resize-handle="right"] {
+  width: 10px;
+  min-width: 10px;
+  height: 100%;
+  cursor: ew-resize;
+}
+[data-resize-state="resizing"] [data-resize-handle],
+[data-resize-handle]:hover {
+  background-color: var(--igh-primary-hover);
+}

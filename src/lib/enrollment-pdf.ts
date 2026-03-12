@@ -248,5 +248,5 @@ export async function buildEnrollmentPdfBlob(params: {
   }
 
   const bytes = await doc.save();
-  return new Blob([bytes], { type: "application/pdf" });
+  return new Blob([bytes as BlobPart], { type: "application/pdf" });
 }

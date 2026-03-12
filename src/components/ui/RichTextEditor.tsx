@@ -41,7 +41,7 @@ const ImageWithResize = Image.extend({
     typeof document !== "undefined"
       ? {
           enabled: true,
-          directions: ["bottom", "right"],
+          directions: ["bottom-right", "bottom-left", "top-right", "top-left"],
           minWidth: 80,
           minHeight: 60,
           alwaysPreserveAspectRatio: true,
