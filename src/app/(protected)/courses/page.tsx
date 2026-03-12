@@ -27,6 +27,7 @@ export default function CoursesPage() {
   const toast = useToast();
   const user = useUser();
   const isTeacher = user.role === "TEACHER";
+  const isMaster = user.role === "MASTER";
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Course[]>([]);
@@ -80,6 +81,27 @@ export default function CoursesPage() {
     }
     toast.push("success", "Curso reativado.");
     await load();
+  }
+
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+
+  async function duplicateCourse(c: Course) {
+    if (!confirm(`Duplicar o curso "${c.name}"? Será criada uma cópia com todos os módulos e aulas.`)) return;
+    setDuplicatingId(c.id);
+    try {
+      const res = await fetch(`/api/courses/${c.id}/duplicate`, { method: "POST" });
+      const json = (await res.json()) as ApiResponse<{ course: Course }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error?.message ?? "Erro" : "Falha ao duplicar.");
+        return;
+      }
+      toast.push("success", "Curso duplicado com sucesso.");
+      const newCourse = json.data!.course;
+      await load();
+      router.push(`/courses/${newCourse.id}/edit`);
+    } finally {
+      setDuplicatingId(null);
+    }
   }
 
   async function deleteCourse(c: Course) {
@@ -211,6 +233,16 @@ export default function CoursesPage() {
                           <Button variant="secondary" size="sm" onClick={() => router.push(`/courses/${c.id}/edit`)}>
                             Editar
                           </Button>
+                          {isMaster && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => duplicateCourse(c)}
+                              disabled={duplicatingId === c.id}
+                            >
+                              {duplicatingId === c.id ? "Duplicando…" : "Duplicar"}
+                            </Button>
+                          )}
                           {!isTeacher && (
                             <>
                               {c.status === "ACTIVE" ? (

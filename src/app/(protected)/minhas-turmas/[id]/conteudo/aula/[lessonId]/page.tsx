@@ -11,10 +11,13 @@ import {
   Maximize2,
   MessageCircleQuestion,
   Minimize2,
+  Minus,
+  Plus,
   StickyNote,
+  Type,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -159,6 +162,8 @@ function PdfDownloadButton({
 
 export default function AulaConteudoPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const enrollmentId = params?.id as string;
   const lessonId = params?.lessonId as string;
   const toast = useToast();
@@ -204,7 +209,8 @@ export default function AulaConteudoPage() {
   const headerActionsRef = useRef<HTMLDivElement>(null);
   const [showFloatingActions, setShowFloatingActions] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
-  type SectionKey = "trechos" | "material" | "anotacoes" | "exercicios" | "duvidas";
+  const SECTION_KEYS = ["trechos", "material", "anotacoes", "exercicios", "duvidas"] as const;
+  type SectionKey = (typeof SECTION_KEYS)[number];
   const [openSection, setOpenSection] = useState<SectionKey | null>(null);
   const [loadedSections, setLoadedSections] = useState<Record<SectionKey, boolean>>({
     trechos: false,
@@ -216,20 +222,55 @@ export default function AulaConteudoPage() {
   /** Menu do painel: true = recolhido (só ícones). Padrão recolhido. */
   const [panelMenuCollapsed, setPanelMenuCollapsed] = useState(true);
   const sectionPanelRef = useRef<HTMLDivElement>(null);
-  const [contentPageIndex, setContentPageIndex] = useState(0);
+  /** Índice inicial quando a URL ainda não tem ?pagina= (antes de restaurar do progresso). */
+  const [initialSlideIndex, setInitialSlideIndex] = useState(0);
+  const contentPageIndexRef = useRef(0);
   const contentWrapperRef = useRef<HTMLDivElement>(null);
   const [isContentFullscreen, setIsContentFullscreen] = useState(false);
-  const hasRestoredSlideRef = useRef(false);
-  const contentPageIndexForUnmountRef = useRef(0);
-  const contentPagesLengthForUnmountRef = useRef(0);
+  const [contentFontSizePercent, setContentFontSizePercent] = useState(100);
+  const hasSetUrlFromProgressRef = useRef(false);
 
-  const openSectionPanel = useCallback((key: SectionKey) => {
-    setOpenSection((prev) => (prev === key ? null : key));
-  }, []);
+  /** Abre/fecha a seção e atualiza a URL (?secao= e #secoes) para abrir na âncora Seções da aula. */
+  const openSectionPanel = useCallback(
+    (key: SectionKey) => {
+      const willClose = openSection === key;
+      const next: SectionKey | null = willClose ? null : key;
+      setOpenSection(next);
+      if (!willClose) setPanelMenuCollapsed(false);
+      const path = `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}`;
+      const params = new URLSearchParams(searchParams.toString());
+      if (next) params.set("secao", next);
+      else params.delete("secao");
+      const qs = params.toString();
+      const hash = next ? "#secoes" : "";
+      router.replace(qs ? `${path}?${qs}${hash}` : `${path}${hash}`);
+      if (next) {
+        setTimeout(() => {
+          document.getElementById("secoes")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
+    },
+    [enrollmentId, lessonId, openSection, router, searchParams]
+  );
 
+  /** Ao carregar ou quando a URL mudar, abre a seção indicada por ?secao= */
+  useEffect(() => {
+    const secao = searchParams.get("secao");
+    const valid = SECTION_KEYS.includes(secao as SectionKey) ? (secao as SectionKey) : null;
+    if (valid) {
+      setOpenSection(valid);
+      setPanelMenuCollapsed(false);
+    } else if (secao !== null) {
+      setOpenSection(null);
+    }
+  }, [searchParams]);
+
+  /** Ao abrir uma seção, rola até a âncora "Seções da aula" (com delay para não ser sobrescrito pelo scroll do Next.js). */
   useEffect(() => {
     if (openSection) {
-      const t = setTimeout(() => sectionPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      const t = setTimeout(() => {
+        document.getElementById("secoes")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
       return () => clearTimeout(t);
     }
   }, [openSection]);
@@ -270,8 +311,8 @@ export default function AulaConteudoPage() {
   }, [enrollmentId, lessonId]);
 
   useEffect(() => {
-    setContentPageIndex(0);
-    hasRestoredSlideRef.current = false;
+    setInitialSlideIndex(0);
+    hasSetUrlFromProgressRef.current = false;
   }, [lessonId]);
 
   useEffect(() => {
@@ -377,6 +418,10 @@ export default function AulaConteudoPage() {
   }, [openSection, loadedSections, loadPassages, loadNotes, loadExercises, loadQuestions]);
 
   useEffect(() => {
+    if (enrollmentId && lessonId) void loadProgress();
+  }, [enrollmentId, lessonId, loadProgress]);
+
+  useEffect(() => {
     if (data && findLesson(data.modules, lessonId)?.lesson.isLiberada) {
       void loadProgress();
       void loadFavorite();
@@ -418,6 +463,7 @@ export default function AulaConteudoPage() {
         percentWatched: progress?.percentWatched ?? 0,
         percentRead: progress?.percentRead ?? 0,
         studyMinutesDelta: minutes,
+        lastContentPageIndex: contentPageIndexRef.current,
       });
       navigator.sendBeacon(
         `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`,
@@ -442,6 +488,7 @@ export default function AulaConteudoPage() {
             percentWatched: progress?.percentWatched ?? 0,
             percentRead: progress?.percentRead ?? 0,
             studyMinutesDelta: minutes,
+            lastContentPageIndex: contentPageIndexRef.current,
           }),
           keepalive: true,
         }).then(async (res) => {
@@ -468,31 +515,101 @@ export default function AulaConteudoPage() {
     });
   }, [lessonForContent?.contentRich]);
   const hasMultiplePages = contentPages.length > 1;
+  const totalPages = contentPages.length;
+
+  /** Índice do slide a partir da URL (?pagina= é 1-based). Quando não há pagina na URL, usa initialSlideIndex. */
+  const paginaParam = searchParams.get("pagina");
+  const parsedPagina = paginaParam != null ? parseInt(paginaParam, 10) : NaN;
+  const contentPageIndexFromUrl =
+    hasMultiplePages && totalPages > 0 && !Number.isNaN(parsedPagina)
+      ? Math.max(0, Math.min(totalPages - 1, parsedPagina - 1))
+      : null;
+  const contentPageIndex = hasMultiplePages
+    ? (contentPageIndexFromUrl ?? initialSlideIndex)
+    : 0;
+
   const currentContentSection = contentPages[contentPageIndex];
 
-  /** Restaura o último slide visualizado ao carregar a aula (uma vez por aula). */
+  /** Quando não há ?pagina= na URL, define a partir do progresso e atualiza a URL (uma vez por aula). */
   useEffect(() => {
-    if (hasRestoredSlideRef.current || !progress?.lastContentPageIndex || contentPages.length === 0) return;
-    const saved = Math.max(0, Math.min(progress.lastContentPageIndex, contentPages.length - 1));
-    hasRestoredSlideRef.current = true;
-    setContentPageIndex(saved);
-  }, [progress?.lastContentPageIndex, contentPages.length]);
+    if (
+      !hasMultiplePages ||
+      hasSetUrlFromProgressRef.current ||
+      progress?.lastContentPageIndex == null ||
+      totalPages === 0 ||
+      searchParams.get("pagina") != null
+    )
+      return;
+    const saved = Math.max(0, Math.min(progress.lastContentPageIndex, totalPages - 1));
+    hasSetUrlFromProgressRef.current = true;
+    setInitialSlideIndex(saved);
+    const path = `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}`;
+    router.replace(`${path}?pagina=${saved + 1}`);
+  }, [progress?.lastContentPageIndex, totalPages, hasMultiplePages, enrollmentId, lessonId, router, searchParams]);
 
-  /** Persiste o slide atual ao mudar (debounce). Ao concluir a aula, o backend zera lastContentPageIndex. */
-  useEffect(() => {
-    if (!enrollmentId || !lessonId || !hasMultiplePages || progress?.completed) return;
-    const t = setTimeout(() => {
-      fetch(`/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`, {
+  contentPageIndexRef.current = contentPageIndex;
+
+  /** Persiste o índice do slide no backend (reutilizado nos botões e ao sair/ocultar). */
+  const persistSlideIndex = useCallback(
+    (index: number, from: string) => {
+      if (!enrollmentId || !lessonId || progress?.completed) return;
+      console.log("[Slide] Salvando no banco:", { momento: from, indice: index, paginaExibida: index + 1 });
+      const url = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+      fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastContentPageIndex: contentPageIndex }),
-      }).then(async (res) => {
-        const json = (await res.json()) as ApiResponse<LessonProgress>;
-        if (res.ok && json?.ok && json.data) setProgress(json.data);
-      }).catch(() => {});
-    }, 500);
-    return () => clearTimeout(t);
-  }, [contentPageIndex, hasMultiplePages, enrollmentId, lessonId, progress?.completed]);
+        body: JSON.stringify({ lastContentPageIndex: index }),
+      })
+        .then(async (res) => {
+          const json = (await res.json()) as ApiResponse<LessonProgress>;
+          if (res.ok && json?.ok && json.data) {
+            console.log("[Slide] Banco atualizado com sucesso (indice", index, ")");
+            setProgress(json.data);
+          } else {
+            console.warn("[Slide] Resposta do banco não OK:", res.status, json);
+          }
+        })
+        .catch((err) => {
+          console.error("[Slide] Erro ao salvar no banco:", err);
+        });
+    },
+    [enrollmentId, lessonId, progress?.completed]
+  );
+
+  /** A cada slide exibido (URL com ?pagina=), persiste no banco. Ao ocultar aba ou sair, persiste também. */
+  useEffect(() => {
+    if (!enrollmentId || !lessonId || !hasMultiplePages || progress?.completed) return;
+    const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+    const sendBeaconPersist = (index: number) => {
+      console.log("[Slide] Salvando no banco (sendBeacon):", { indice: index, paginaExibida: index + 1 });
+      const blob = new Blob([JSON.stringify({ lastContentPageIndex: index })], {
+        type: "application/json",
+      });
+      navigator.sendBeacon(apiUrl, blob);
+    };
+    if (searchParams.get("pagina") != null) {
+      console.log("[Slide] Efeito: URL tem pagina=, persistindo índice", contentPageIndex);
+      persistSlideIndex(contentPageIndex, "efeito (URL com pagina)");
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        console.log("[Slide] Aba oculta, persistindo índice", contentPageIndexRef.current);
+        persistSlideIndex(contentPageIndexRef.current, "visibilitychange (aba oculta)");
+      }
+    };
+    const onPageHide = () => {
+      console.log("[Slide] pagehide, sendBeacon índice", contentPageIndexRef.current);
+      sendBeaconPersist(contentPageIndexRef.current);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onPageHide);
+      console.log("[Slide] Cleanup: sendBeacon índice", contentPageIndexRef.current);
+      sendBeaconPersist(contentPageIndexRef.current);
+    };
+  }, [contentPageIndex, hasMultiplePages, enrollmentId, lessonId, progress?.completed, searchParams, persistSlideIndex]);
 
   const contentToShow = hasMultiplePages && currentContentSection ? currentContentSection.html : (lessonForContent?.contentRich ?? "");
   const passagesForCurrentPage = useMemo(() => {
@@ -1128,7 +1245,7 @@ export default function AulaConteudoPage() {
           </section>
 
           {/* Menu do painel: recolhido por padrão (só ícones); botão expandir mostra os nomes. */}
-          <section aria-labelledby="secoes-aula-heading">
+          <section id="secoes" aria-labelledby="secoes-aula-heading" className="scroll-mt-24">
             <h2 id="secoes-aula-heading" className="mb-2 text-base font-semibold text-[var(--text-primary)]">
               Seções da aula
             </h2>
@@ -1202,7 +1319,18 @@ export default function AulaConteudoPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPanelMenuCollapsed(true)}
+                  onClick={() => {
+                    setPanelMenuCollapsed(true);
+                    setOpenSection(null);
+                    const path = `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}`;
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.delete("secao");
+                    const qs = params.toString();
+                    router.replace(qs ? `${path}?${qs}#secoes` : `${path}#secoes`);
+                    setTimeout(() => {
+                      document.getElementById("secoes")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }, 150);
+                  }}
                   className="inline-flex items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
                   title="Recolher menu"
                   aria-label="Recolher menu"
@@ -1482,14 +1610,26 @@ export default function AulaConteudoPage() {
                           return (
                             <div key={ex.id} className="mb-6 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
                               <p className="mb-3 font-medium text-[var(--text-primary)]">{idx + 1}. {ex.question}</p>
-                              <ul className="space-y-2">
-                                {ex.options.map((opt) => (
-                                  <li key={opt.id}>
-                                    <label className="flex cursor-pointer items-center gap-2 rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm has-[:checked]:border-[var(--igh-primary)] has-[:checked]:bg-[var(--igh-primary)]/10">
+                              <ul className="list-none space-y-2">
+                                {ex.options.map((opt) => {
+                                  const isSelected = exerciseSelected[ex.id] === opt.id;
+                                  const showGreen = result?.correct && isSelected;
+                                  const showRed = result && !result.correct && isSelected;
+                                  return (
+                                  <li key={opt.id} className="list-none">
+                                    <label
+                                      className={`flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm ${
+                                        showGreen
+                                          ? "border-green-500 bg-green-50 dark:border-green-500 dark:bg-green-950/30"
+                                          : showRed
+                                            ? "border-red-400 bg-red-50 dark:border-red-500 dark:bg-red-950/30"
+                                            : "border-[var(--card-border)] bg-[var(--igh-surface)] has-[:checked]:border-[var(--igh-primary)] has-[:checked]:bg-[var(--igh-primary)]/10"
+                                      }`}
+                                    >
                                       <input
                                         type="radio"
                                         name={`ex-${ex.id}`}
-                                        checked={exerciseSelected[ex.id] === opt.id}
+                                        checked={isSelected}
                                         onChange={() => setExerciseSelected((s) => ({ ...s, [ex.id]: opt.id }))}
                                         disabled={!!result}
                                         className="h-4 w-4"
@@ -1497,31 +1637,34 @@ export default function AulaConteudoPage() {
                                       <span>{opt.text}</span>
                                     </label>
                                   </li>
-                                ))}
+                                  );
+                                })}
                               </ul>
                               {result ? (
                                 <div className="mt-3 flex flex-wrap items-center gap-3">
                                   <p className={`text-sm font-medium ${result.correct ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                                    {result.correct ? "✓ Correto!" : correctOptionText ? `✗ Incorreto. Resposta correta: ${correctOptionText}` : "✗ Incorreto."}
+                                    {result.correct ? "✓ Correto!" : "✗ Incorreto."}
                                   </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setExerciseResult((prev) => {
-                                        const next = { ...prev };
-                                        delete next[ex.id];
-                                        return next;
-                                      });
-                                      setExerciseSelected((prev) => {
-                                        const next = { ...prev };
-                                        delete next[ex.id];
-                                        return next;
-                                      });
-                                    }}
-                                    className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                                  >
-                                    Refazer
-                                  </button>
+                                  {!result.correct && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setExerciseResult((prev) => {
+                                          const next = { ...prev };
+                                          delete next[ex.id];
+                                          return next;
+                                        });
+                                        setExerciseSelected((prev) => {
+                                          const next = { ...prev };
+                                          delete next[ex.id];
+                                          return next;
+                                        });
+                                      }}
+                                      className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                                    >
+                                      Refazer
+                                    </button>
+                                  )}
                                 </div>
                               ) : (
                                 <div className="mt-2">
@@ -1688,7 +1831,7 @@ export default function AulaConteudoPage() {
           )}
 
           {lesson.contentRich && lesson.contentRich.trim() && (
-            <section id="trechos-destacados">
+            <section id="conteudo" aria-label="Conteúdo da aula">
               <div
                 ref={contentWrapperRef}
                 className={`rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 ${isContentFullscreen ? "min-h-screen overflow-y-auto overflow-x-hidden p-6" : ""}`}
@@ -1698,7 +1841,16 @@ export default function AulaConteudoPage() {
                     <nav aria-label="Páginas do conteúdo" className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setContentPageIndex((p) => Math.max(0, p - 1))}
+                        onClick={() => {
+                          const prev = Math.max(0, contentPageIndex - 1);
+                          const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+                          const body = JSON.stringify({ lastContentPageIndex: prev });
+                          console.log("[Slide] Clique em Slide anterior → sendBeacon + fetch índice", prev, "(página", prev + 1, ")");
+                          navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
+                          persistSlideIndex(prev, "clique Slide anterior");
+                          router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${prev + 1}#conteudo`);
+                          setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                        }}
                         disabled={contentPageIndex === 0}
                         className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
                       >
@@ -1709,7 +1861,16 @@ export default function AulaConteudoPage() {
                       </span>
                       <button
                         type="button"
-                        onClick={() => setContentPageIndex((p) => Math.min(contentPages.length - 1, p + 1))}
+                        onClick={() => {
+                          const next = Math.min(contentPages.length - 1, contentPageIndex + 1);
+                          const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+                          const body = JSON.stringify({ lastContentPageIndex: next });
+                          console.log("[Slide] Clique em Próximo slide → sendBeacon + fetch índice", next, "(página", next + 1, ")");
+                          navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
+                          persistSlideIndex(next, "clique Próximo slide");
+                          router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${next + 1}#conteudo`);
+                          setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                        }}
                         disabled={contentPageIndex === contentPages.length - 1}
                         className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
                       >
@@ -1719,6 +1880,41 @@ export default function AulaConteudoPage() {
                   ) : (
                     <span aria-hidden />
                   )}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setContentFontSizePercent((p) => Math.max(50, p - 10))}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-50"
+                      title="Diminuir fonte"
+                      aria-label="Diminuir fonte do texto"
+                      disabled={contentFontSizePercent <= 50}
+                    >
+                      <Type className="mr-0.5 h-4 w-4" aria-hidden />
+                      <Minus className="h-3 w-3" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setContentFontSizePercent((p) => Math.min(200, p + 10))}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-50"
+                      title="Aumentar fonte"
+                      aria-label="Aumentar fonte do texto"
+                      disabled={contentFontSizePercent >= 200}
+                    >
+                      <Type className="mr-0.5 h-4 w-4" aria-hidden />
+                      <Plus className="h-3 w-3" aria-hidden />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent("highlightable-content-destacar"))}
+                    disabled={savingPassage}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+                    title={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
+                    aria-label={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
+                  >
+                    <Highlighter className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>{savingPassage ? "Salvando..." : "Destacar trecho selecionado"}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() =>
@@ -1738,12 +1934,23 @@ export default function AulaConteudoPage() {
                     <span>{isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}</span>
                   </button>
                 </div>
-                <HighlightableContentViewer
-                  content={contentToShow}
-                  passages={passagesForCurrentPage}
-                  onSavePassage={handleSavePassageForPage}
-                  saving={savingPassage}
-                />
+                <div className="overflow-auto" style={{ minHeight: "12rem" }}>
+                  <div
+                    className="origin-top-left"
+                    style={{
+                      width: `${10000 / contentFontSizePercent}%`,
+                      transform: `scale(${contentFontSizePercent / 100})`,
+                    }}
+                  >
+                    <HighlightableContentViewer
+                      content={contentToShow}
+                      passages={passagesForCurrentPage}
+                      onSavePassage={handleSavePassageForPage}
+                      saving={savingPassage}
+                      hideDestacarButton
+                    />
+                  </div>
+                </div>
               </div>
             </section>
           )}
@@ -1828,141 +2035,6 @@ export default function AulaConteudoPage() {
               </ul>
             )}
           </section>
-
-          {exercises.length > 0 && (
-            <section id="exercicios" className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" aria-labelledby="exercicios-heading">
-              <h2 id="exercicios-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
-                Exercícios
-              </h2>
-              <p className="mb-4 text-xs text-[var(--text-muted)]">
-                Responda às questões e clique em Verificar para conferir. Você pode refazer quantas vezes quiser; o histórico das tentativas é mantido.
-              </p>
-              {Object.keys(exerciseResult).length > 0 && (
-                <div className="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3" role="status" aria-live="polite">
-                  <p className="text-sm font-medium text-[var(--text-primary)]">
-                    Seu desempenho nesta aula (última tentativa):{" "}
-                    <span className="text-[var(--igh-primary)]">
-                      {Object.values(exerciseResult).filter((r) => r.correct).length} de {Object.keys(exerciseResult).length} acertos
-                    </span>
-                    {Object.keys(exerciseResult).length > 0 && (
-                      <span className="ml-1 text-[var(--text-muted)]">
-                        ({Math.round((Object.values(exerciseResult).filter((r) => r.correct).length / Object.keys(exerciseResult).length) * 100)}%)
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">
-                    Abaixo você vê cada questão com a indicação de acerto ou erro. Use &ldquo;Refazer&rdquo; para tentar de novo; o histórico é mantido.
-                  </p>
-                </div>
-              )}
-              {Object.keys(exerciseResult).length === exercises.length && exercises.length > 0 && (
-                <div className="mb-4 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExerciseResult({});
-                      setExerciseSelected({});
-                    }}
-                    className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                  >
-                    Refazer todos os exercícios
-                  </button>
-                </div>
-              )}
-              <ul className="space-y-6">
-                {exercises.map((ex, idx) => {
-                  const result = exerciseResult[ex.id];
-                  const selectedId = exerciseSelected[ex.id];
-                  const correctOptionText = result?.correctOptionId
-                    ? ex.options.find((o) => o.id === result.correctOptionId)?.text
-                    : null;
-                  return (
-                    <li
-                      key={ex.id}
-                      className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] p-4"
-                    >
-                      <p className="mb-3 font-medium text-[var(--text-primary)]">
-                        {idx + 1}. {ex.question}
-                      </p>
-                      <div className="space-y-2">
-                        {ex.options.map((opt) => (
-                          <label
-                            key={opt.id}
-                            className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
-                              result
-                                ? opt.id === result.correctOptionId
-                                  ? "border-green-500 bg-green-50 dark:bg-green-950/30"
-                                  : selectedId === opt.id && !result.correct
-                                    ? "border-red-400 bg-red-50 dark:bg-red-950/30"
-                                    : "border-[var(--card-border)]"
-                                : "border-[var(--card-border)] hover:bg-[var(--igh-surface)] focus-within:ring-2 focus-within:ring-[var(--igh-primary)] focus-within:ring-offset-1"
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name={`exercise-${ex.id}`}
-                              checked={selectedId === opt.id}
-                              onChange={() =>
-                                setExerciseSelected((prev) => ({ ...prev, [ex.id]: opt.id }))
-                              }
-                              disabled={!!result}
-                              className="mt-0.5 shrink-0"
-                            />
-                            <span className="text-[var(--text-secondary)]">{opt.text}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {result ? (
-                        <div className="mt-3 flex flex-wrap items-center gap-3">
-                          <p
-                            className={`text-sm font-medium ${
-                              result.correct ? "text-green-600" : "text-amber-600"
-                            }`}
-                          >
-                            {result.correct
-                              ? "✓ Correto!"
-                              : correctOptionText
-                                ? `Resposta correta: ${correctOptionText}`
-                                : "Resposta incorreta."}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setExerciseResult((prev) => {
-                                const next = { ...prev };
-                                delete next[ex.id];
-                                return next;
-                              });
-                              setExerciseSelected((prev) => {
-                                const next = { ...prev };
-                                delete next[ex.id];
-                                return next;
-                              });
-                            }}
-                            className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                          >
-                            Refazer
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="mt-3">
-                          <button
-                            type="button"
-                            onClick={() => handleSubmitExercise(ex.id)}
-                            disabled={submittingExerciseId === ex.id || !selectedId}
-                            aria-busy={submittingExerciseId === ex.id}
-                            className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
-                          >
-                            {submittingExerciseId === ex.id ? "Verificando..." : "Verificar"}
-                          </button>
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          )}
 
         </div>
       </div>

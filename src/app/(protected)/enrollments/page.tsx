@@ -5,6 +5,7 @@ import { BarChart, Bar, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis
 import * as XLSX from "xlsx";
 
 import { StudentForm } from "@/components/students/StudentForm";
+import { buildEnrollmentPdfBlob } from "@/lib/enrollment-pdf";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -33,6 +34,7 @@ const ALLOWED_CERT_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image
 
 type Student = { id: string; name: string; email: string | null };
 type Course = { id: string; name: string };
+type Teacher = { id: string; name: string };
 type ClassGroup = {
   id: string;
   startDate: string;
@@ -40,7 +42,9 @@ type ClassGroup = {
   startTime: string;
   endTime: string;
   capacity?: number;
+  location?: string | null;
   course: Course;
+  teacher?: Teacher;
   status?: string;
   enrollmentsCount?: number;
 };
@@ -91,11 +95,13 @@ export default function EnrollmentsPage() {
   const [editRemovingCert, setEditRemovingCert] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
+  const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
   const [studentId, setStudentId] = useState("");
   const [classGroupId, setClassGroupId] = useState("");
   const [createCertFile, setCreateCertFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const [openNewStudent, setOpenNewStudent] = useState(false);
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
@@ -111,10 +117,18 @@ export default function EnrollmentsPage() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/enrollments", { cache: "no-store" });
-      const json = await parseJson<{ enrollments: Enrollment[] }>(res);
-      if (res.ok && json?.ok) setItems(json.data.enrollments);
+      const [enrollmentsRes, teachersRes] = await Promise.all([
+        fetch("/api/enrollments", { cache: "no-store" }),
+        fetch("/api/teachers?status=active", { cache: "no-store" }),
+      ]);
+      const enrollmentsJson = await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes);
+      const teachersJson = await parseJson<{ teachers: { id: string; name: string }[] }>(teachersRes);
+      if (enrollmentsRes.ok && enrollmentsJson?.ok) setItems(enrollmentsJson.data.enrollments);
       else toast.push("error", "Falha ao carregar matrículas.");
+      const teachersList = teachersJson?.ok && Array.isArray(teachersJson.data?.teachers)
+        ? teachersJson.data.teachers.map((t) => ({ id: t.id, name: t.name }))
+        : [];
+      setAllTeachers(teachersList);
     } finally {
       setLoading(false);
     }
@@ -168,8 +182,44 @@ export default function EnrollmentsPage() {
       (sum, { classGroup }) => sum + (classGroup.capacity ?? 0),
       0
     );
-    return { courses, total: items.length, totalCapacity };
+
+    const byTeacher = new Map<string, { teacher: Teacher; turmas: { classGroup: ClassGroup; count: number }[] }>();
+    for (const e of items) {
+      if (e.status !== "ACTIVE") continue;
+      const teacher = e.classGroup.teacher;
+      if (!teacher) continue;
+      const tid = teacher.id;
+      if (!byTeacher.has(tid)) byTeacher.set(tid, { teacher, turmas: [] });
+      const rec = byTeacher.get(tid)!;
+      const cg = e.classGroup;
+      const existing = rec.turmas.find((t) => t.classGroup.id === cg.id);
+      if (existing) existing.count++;
+      else rec.turmas.push({ classGroup: cg, count: 1 });
+    }
+    for (const rec of byTeacher.values()) {
+      rec.turmas.sort((a, b) => {
+        const d = String(a.classGroup.startDate).localeCompare(String(b.classGroup.startDate));
+        if (d !== 0) return d;
+        return (a.classGroup.startTime || "").localeCompare(b.classGroup.startTime || "");
+      });
+    }
+    const teachers = Array.from(byTeacher.values())
+      .map((r) => ({ ...r, totalAlunos: r.turmas.reduce((s, t) => s + t.count, 0) }))
+      .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
+
+    return { courses, teachers, total: items.length, totalCapacity };
   })();
+
+  /** Lista de professores para exibir: da API ou, se vazia, únicos que aparecem nas matrículas. */
+  const teachersToDisplay = useMemo(() => {
+    if (allTeachers.length > 0) return allTeachers;
+    const seen = new Map<string, Teacher>();
+    for (const e of items) {
+      const t = e.classGroup.teacher;
+      if (t && !seen.has(t.id)) seen.set(t.id, t);
+    }
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [allTeachers, items]);
 
   const activeCountByClassGroup = (() => {
     const m = new Map<string, number>();
@@ -262,7 +312,7 @@ export default function EnrollmentsPage() {
     const sorted = [...items].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
     const rows = sorted.map((e) => ({
       Aluno: e.student.name,
-      "Curso/Turma": `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${e.classGroup.daysOfWeek.join(", ")})` : ""}`,
+      "Curso/Turma": `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${e.classGroup.daysOfWeek.join(", ")})` : ""}${e.classGroup.location ? ` — ${e.classGroup.location}` : ""}`,
       "Data matrícula": new Date(e.enrolledAt).toLocaleDateString("pt-BR"),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -270,6 +320,38 @@ export default function EnrollmentsPage() {
     XLSX.utils.book_append_sheet(wb, ws, "Matrículas");
     XLSX.writeFile(wb, `matriculas_${new Date().toISOString().slice(0, 10)}.xlsx`);
     toast.push("success", "Planilha exportada.");
+  }
+
+  async function exportToPdf() {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const teachersForPdf = teachersToDisplay
+        .map((t) => {
+          const found = dashboard.teachers.find((r) => r.teacher.id === t.id);
+          return found ?? { teacher: t, turmas: [], totalAlunos: 0 };
+        })
+        .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
+      const blob = await buildEnrollmentPdfBlob({
+        kpis,
+        pieData,
+        columnData,
+        courses: dashboard.courses,
+        teachersData: teachersForPdf,
+        formatDateOnly,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `matriculas_${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.push("success", "PDF exportado.");
+    } catch {
+      toast.push("error", "Falha ao gerar PDF.");
+    } finally {
+      setExportingPdf(false);
+    }
   }
 
   function openCreate() {
@@ -490,6 +572,9 @@ export default function EnrollmentsPage() {
         <div className="flex flex-wrap gap-2 shrink-0">
           <Button variant="secondary" onClick={exportToExcel} disabled={items.length === 0}>
             Exportar Excel
+          </Button>
+          <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf}>
+            {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
           </Button>
           <Button onClick={openCreate} className="w-full sm:w-auto">Nova matrícula</Button>
         </div>
@@ -712,7 +797,7 @@ export default function EnrollmentsPage() {
                           {turmas.map(({ classGroup: cg, count }) => {
                             const start = formatDateOnly(cg.startDate).slice(0, 5);
                             const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
-                            const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}`;
+                            const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}${cg.location ? ` — ${cg.location}` : ""}`;
                             const cap = cg.capacity != null ? cg.capacity : 0;
                             const fechada = cap > 0 && count >= cap;
                             return (
@@ -752,6 +837,97 @@ export default function EnrollmentsPage() {
                 </div>
               </>
             )}
+            </div>
+          </section>
+
+          <section className="card" aria-labelledby="enrollments-by-teacher-heading">
+            <header className="card-header">
+              <h2 id="enrollments-by-teacher-heading" className="text-base font-semibold text-[var(--text-primary)]">
+                Por professor
+              </h2>
+              <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+                Turmas e quantidade de alunos (matrículas ativas) por professor. Total de alunos por professor ao final de cada bloco.
+              </p>
+            </header>
+            <div className="card-body">
+              {teachersToDisplay.length === 0 ? (
+                <p className="text-sm text-[var(--text-secondary)]">Nenhum professor cadastrado.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {teachersToDisplay
+                    .map((t) => {
+                      const found = dashboard.teachers.find((r) => r.teacher.id === t.id);
+                      return found ?? { teacher: t, turmas: [], totalAlunos: 0 };
+                    })
+                    .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"))
+                    .map(({ teacher, turmas, totalAlunos }) => {
+                    const byCourse = new Map<string, { courseName: string; turmas: { classGroup: ClassGroup; count: number }[] }>();
+                    for (const t of turmas) {
+                      const cid = t.classGroup.course.id;
+                      const name = t.classGroup.course.name;
+                      if (!byCourse.has(cid)) byCourse.set(cid, { courseName: name, turmas: [] });
+                      byCourse.get(cid)!.turmas.push(t);
+                    }
+                    const courseEntries = Array.from(byCourse.entries()).sort((a, b) =>
+                      a[1].courseName.localeCompare(b[1].courseName)
+                    );
+                    return (
+                      <div
+                        key={teacher.id}
+                        className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4"
+                      >
+                        <div className="flex items-baseline justify-between gap-2">
+                          <h3 className="font-medium text-[var(--text-primary)]">{teacher.name}</h3>
+                          <span className="text-sm font-semibold text-[var(--igh-primary)]">
+                            Total: {totalAlunos} {totalAlunos === 1 ? "aluno" : "alunos"}
+                          </span>
+                        </div>
+                        <div className="mt-3 space-y-4 text-sm text-[var(--text-secondary)]">
+                          {courseEntries.length === 0 ? (
+                            <p className="text-[var(--text-muted)]">Nenhuma turma no momento.</p>
+                          ) : (
+                          courseEntries.map(([courseId, { courseName, turmas: courseTurmas }]) => (
+                            <div key={courseId}>
+                              <div className="font-medium text-[var(--text-primary)]">{courseName}</div>
+                              <div className="mt-1.5 pl-2 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                                Turmas
+                              </div>
+                              <ul className="mt-1 list-none space-y-2">
+                                {courseTurmas.map(({ classGroup: cg, count }) => {
+                                  const start = formatDateOnly(cg.startDate).slice(0, 5);
+                                  const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
+                                  const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}${cg.location ? ` — ${cg.location}` : ""}`;
+                                  return (
+                                    <li key={cg.id} className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] p-2">
+                                      <div className="text-[var(--text-primary)]">{label}</div>
+                                      <div className="mt-1 flex items-center justify-between gap-2">
+                                        <span className="text-[var(--text-secondary)]">
+                                          {count} {count === 1 ? "aluno" : "alunos"}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setTurmaFilterId(cg.id);
+                                            document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                          }}
+                                          className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+                                        >
+                                          Ver listagem
+                                        </button>
+                                      </div>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </section>
 
@@ -894,6 +1070,9 @@ export default function EnrollmentsPage() {
                         ? ` • ${e.classGroup.daysOfWeek.join(", ")}`
                         : ""}
                     </div>
+                    {e.classGroup.location && (
+                      <div className="text-xs text-[var(--text-muted)]">Local: {e.classGroup.location}</div>
+                    )}
                   </div>
                 </Td>
                 <Td>{new Date(e.enrolledAt).toLocaleDateString("pt-BR")}</Td>
@@ -1089,7 +1268,8 @@ export default function EnrollmentsPage() {
               <option value="">Selecione</option>
               {classGroups
                 .filter((cg) => {
-                  if (cg.status !== "ABERTA") return false;
+                  const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
+                  if (!isPlanejadaOuAberta) return false;
                   const cap = cg.capacity ?? 0;
                   const count = cg.enrollmentsCount ?? 0;
                   return cap === 0 || count < cap;
@@ -1098,6 +1278,7 @@ export default function EnrollmentsPage() {
                   <option key={cg.id} value={cg.id}>
                     {cg.course.name} — Início {formatDateOnly(cg.startDate)} — {cg.startTime}-{cg.endTime}
                     {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
+                    {cg.location ? ` — ${cg.location}` : ""}
                   </option>
                 ))}
             </select>
@@ -1144,12 +1325,14 @@ export default function EnrollmentsPage() {
                     const capacity = cg.capacity ?? 0;
                     const count = cg.enrollmentsCount ?? 0;
                     const notOverCapacity = capacity === 0 || count < capacity;
-                    return (cg.status === "ABERTA" && notOverCapacity) || isCurrent;
+                    const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
+                    return (isPlanejadaOuAberta && notOverCapacity) || isCurrent;
                   })
                   .map((cg) => (
                     <option key={cg.id} value={cg.id}>
                       {cg.course.name} — Início {formatDateOnly(cg.startDate)} — {cg.startTime}-{cg.endTime}
                       {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
+                      {cg.location ? ` — ${cg.location}` : ""}
                     </option>
                   ))}
               </select>

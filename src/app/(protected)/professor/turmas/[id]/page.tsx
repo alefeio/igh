@@ -47,14 +47,62 @@ type AttendanceRow = {
 type ExerciseByEnrollment = {
   enrollmentId: string;
   studentName: string;
-  answers: { lessonTitle: string; question: string; correct: boolean }[];
+  answers: {
+    id: string;
+    exerciseId: string;
+    lessonId: string;
+    lessonTitle: string;
+    question: string;
+    correct: boolean;
+    createdAt: string;
+    attemptIndex?: number;
+    totalAttemptsForExercise?: number;
+  }[];
   totalCorrect: number;
   totalAttempts: number;
+};
+
+type LessonProgressItem = {
+  lessonId: string;
+  lessonTitle: string;
+  moduleTitle: string;
+  completed: boolean;
+  completedAt: string | null;
+  lastAccessedAt: string | null;
+  totalMinutesStudied: number;
+  percentWatched: number;
+  percentRead: number;
+};
+
+type LessonProgressByEnrollment = {
+  enrollmentId: string;
+  studentName: string;
+  studentId: string;
+  progress: LessonProgressItem[];
 };
 
 function formatDate(s: string) {
   const d = new Date(s);
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatDateTime(s: string) {
+  const d = new Date(s);
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatMinutes(totalMinutes: number): string {
+  if (totalMinutes <= 0) return "0 min";
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return m > 0 ? `${h}h ${m} min` : `${h}h`;
 }
 
 export default function ProfessorTurmaDetailPage() {
@@ -65,8 +113,9 @@ export default function ProfessorTurmaDetailPage() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [exerciseByEnrollment, setExerciseByEnrollment] = useState<ExerciseByEnrollment[]>([]);
+  const [lessonProgressByEnrollment, setLessonProgressByEnrollment] = useState<LessonProgressByEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"alunos" | "exercicios" | "frequencia">("alunos");
+  const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia">("alunos");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [savingAttendance, setSavingAttendance] = useState(false);
@@ -94,6 +143,12 @@ export default function ProfessorTurmaDetailPage() {
     const res = await fetch(`/api/teacher/class-groups/${id}/exercise-answers`);
     const json = (await res.json()) as ApiResponse<{ byEnrollment: ExerciseByEnrollment[] }>;
     if (res.ok && json?.ok) setExerciseByEnrollment(json.data.byEnrollment ?? []);
+  }, [id]);
+
+  const loadLessonProgress = useCallback(async () => {
+    const res = await fetch(`/api/teacher/class-groups/${id}/lesson-progress`);
+    const json = (await res.json()) as ApiResponse<{ byEnrollment: LessonProgressByEnrollment[] }>;
+    if (res.ok && json?.ok) setLessonProgressByEnrollment(json.data.byEnrollment ?? []);
   }, [id]);
 
   const loadAttendance = useCallback(
@@ -126,6 +181,10 @@ export default function ProfessorTurmaDetailPage() {
     if (selectedSessionId) loadAttendance(selectedSessionId);
     else setAttendance([]);
   }, [selectedSessionId, loadAttendance]);
+
+  useEffect(() => {
+    if (tab === "aulas") loadLessonProgress();
+  }, [tab, loadLessonProgress]);
 
   const handleTogglePresent = (enrollmentId: string) => {
     setAttendance((prev) =>
@@ -217,6 +276,17 @@ export default function ProfessorTurmaDetailPage() {
         </button>
         <button
           type="button"
+          onClick={() => setTab("aulas")}
+          className={`rounded-lg px-3 py-2 text-sm font-medium ${
+            tab === "aulas"
+              ? "bg-[var(--igh-primary)] text-white"
+              : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+          }`}
+        >
+          Aulas assistidas
+        </button>
+        <button
+          type="button"
           onClick={() => setTab("frequencia")}
           className={`rounded-lg px-3 py-2 text-sm font-medium ${
             tab === "frequencia"
@@ -273,6 +343,9 @@ export default function ProfessorTurmaDetailPage() {
           <h2 className="border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">
             Exercícios realizados pelos alunos
           </h2>
+          <p className="px-4 py-2 text-xs text-[var(--text-muted)]">
+            Todas as tentativas são registradas (erros e acertos). Ordem cronológica: primeira tentativa primeiro.
+          </p>
           {exerciseByEnrollment.length === 0 ? (
             <p className="p-4 text-sm text-[var(--text-muted)]">
               Nenhum exercício respondido ainda.
@@ -285,26 +358,106 @@ export default function ProfessorTurmaDetailPage() {
                   <p className="mt-1 text-xs text-[var(--text-muted)]">
                     {row.totalCorrect} acertos em {row.totalAttempts} tentativas
                   </p>
-                  {row.answers.length > 0 && (
-                    <ul className="mt-2 space-y-1 pl-4 text-sm text-[var(--text-secondary)]">
-                      {row.answers.slice(0, 10).map((a, i) => (
-                        <li key={i}>
-                          {a.lessonTitle}: {a.question.slice(0, 50)}
-                          {a.question.length > 50 ? "…" : ""} —{" "}
-                          <span className={a.correct ? "text-green-600" : "text-amber-600"}>
-                            {a.correct ? "Acerto" : "Erro"}
-                          </span>
-                        </li>
-                      ))}
-                      {row.answers.length > 10 && (
-                        <li className="text-[var(--text-muted)]">
-                          + {row.answers.length - 10} respostas
-                        </li>
-                      )}
-                    </ul>
-                  )}
+                  {row.answers.length > 0 && (() => {
+                    const byLesson = new Map<string, typeof row.answers>();
+                    for (const a of row.answers) {
+                      if (!byLesson.has(a.lessonId)) byLesson.set(a.lessonId, []);
+                      byLesson.get(a.lessonId)!.push(a);
+                    }
+                    return (
+                      <ul className="mt-2 space-y-4 pl-4 text-sm">
+                        {Array.from(byLesson.entries()).map(([lid, lessonAnswers]) => {
+                          const lessonTitle = lessonAnswers[0].lessonTitle;
+                          const byExercise = new Map<string, typeof row.answers>();
+                          for (const a of lessonAnswers) {
+                            if (!byExercise.has(a.exerciseId)) byExercise.set(a.exerciseId, []);
+                            byExercise.get(a.exerciseId)!.push(a);
+                          }
+                          return (
+                            <li key={lid} className="flex flex-col gap-2">
+                              <p className="font-semibold text-[var(--text-primary)]">{lessonTitle}</p>
+                              <ul className="space-y-2 pl-3 border-l-2 border-[var(--card-border)]">
+                                {Array.from(byExercise.entries()).map(([exerciseId, attempts]) => {
+                                  const first = attempts[0];
+                                  return (
+                                    <li key={exerciseId} className="flex flex-col gap-0.5">
+                                      <p className="font-medium text-[var(--text-secondary)]">{first.question}</p>
+                                      <ul className="space-y-1 pl-2 text-[var(--text-secondary)]">
+                                        {attempts.map((a) => (
+                                          <li key={a.id}>
+                                            <span className={a.correct ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                                              {a.correct ? "Acerto" : "Erro"}
+                                            </span>
+                                            <span className="ml-1.5 text-[var(--text-muted)]">
+                                              {formatDateTime(a.createdAt)}
+                                            </span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    );
+                  })()}
                 </div>
               ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "aulas" && (
+        <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] overflow-hidden">
+          <h2 className="border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">
+            Aulas assistidas e concluídas
+          </h2>
+          <p className="px-4 py-2 text-xs text-[var(--text-muted)]">
+            Progresso de cada aluno nas aulas do curso (último acesso e conclusão).
+          </p>
+          {lessonProgressByEnrollment.length === 0 ? (
+            <p className="p-4 text-sm text-[var(--text-muted)]">
+              Nenhum aluno com progresso registrado ainda.
+            </p>
+          ) : (
+            <div className="divide-y divide-[var(--card-border)]">
+              {lessonProgressByEnrollment.map((row) => {
+                const completedCount = row.progress.filter((p) => p.completed).length;
+                return (
+                  <div key={row.enrollmentId} className="p-4">
+                    <p className="font-medium text-[var(--text-primary)]">{row.studentName}</p>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      {completedCount} de {row.progress.length} aulas concluídas
+                    </p>
+                    {row.progress.length > 0 && (
+                      <ul className="mt-2 space-y-3 pl-4 text-sm text-[var(--text-secondary)]">
+                        {row.progress.map((p) => (
+                          <li key={p.lessonId} className="flex flex-col gap-0.5">
+                            <span>
+                              <span className="font-medium text-[var(--text-primary)]">{p.lessonTitle}</span>
+                              {" · "}
+                              <span className={p.completed ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
+                                {p.completed ? "Concluída" : "Em andamento"}
+                              </span>
+                            </span>
+                            <div className="flex flex-col gap-0.5 pl-2 text-[var(--text-muted)]">
+                              <span>Último acesso: {p.lastAccessedAt ? formatDateTime(p.lastAccessedAt) : "—"}</span>
+                              {p.completed && p.completedAt && (
+                                <span>Concluída em: {formatDateTime(p.completedAt)}</span>
+                              )}
+                              <span>Tempo total: {formatMinutes(p.totalMinutesStudied)}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>

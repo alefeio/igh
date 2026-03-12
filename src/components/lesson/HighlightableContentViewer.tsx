@@ -19,6 +19,8 @@ type Props = {
   onRemovePassage?: (id: string) => void;
   saving?: boolean;
   className?: string;
+  /** Quando true, não exibe o botão "Destacar trecho selecionado" (ex.: se estiver na barra da página). */
+  hideDestacarButton?: boolean;
 };
 
 /** Retorna o elemento .ProseMirror (conteúdo editável) ou null se ainda não existir. */
@@ -119,6 +121,7 @@ export function HighlightableContentViewer({
   onSavePassage,
   saving = false,
   className = "",
+  hideDestacarButton = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRootRef = useRef<HTMLElement | null>(null);
@@ -173,20 +176,22 @@ export function HighlightableContentViewer({
 
   return (
     <div ref={containerRef} className={className}>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={handleDestacar}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-60"
-        >
-          <Highlighter className="h-4 w-4 shrink-0" aria-hidden />
-          {saving ? "Salvando..." : "Destacar trecho selecionado"}
-        </button>
-        <span className="text-xs text-[var(--text-muted)]">
-          Selecione um trecho do texto e clique no botão para salvar como marca-texto.
-        </span>
-      </div>
+      {!hideDestacarButton && (
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDestacar}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-60"
+          >
+            <Highlighter className="h-4 w-4 shrink-0" aria-hidden />
+            {saving ? "Salvando..." : "Destacar trecho selecionado"}
+          </button>
+          <span className="text-xs text-[var(--text-muted)]">
+            Selecione um trecho do texto e clique no botão para salvar como marca-texto.
+          </span>
+        </div>
+      )}
       <RichTextViewer content={content} />
     </div>
   );

@@ -17,6 +17,7 @@ type Lesson = {
   imageUrls: string[];
   isLiberada: boolean;
   completed: boolean;
+  lastContentPageIndex: number | null;
 };
 
 type Module = {
@@ -99,6 +100,9 @@ export default function ConteudoPage() {
     0
   );
 
+  /** Mapa lessonId → aula para obter lastContentPageIndex nos links da seção de exercícios. */
+  const lessonById = new Map(data.modules.flatMap((m) => m.lessons.map((l) => [l.id, l])));
+
   const moduleInProgress = (() => {
     for (const mod of data.modules) {
       const hasIncomplete = mod.lessons.some((l) => l.isLiberada && !l.completed);
@@ -166,7 +170,11 @@ export default function ConteudoPage() {
           {recommendedLesson && (
             <div className="mt-4">
               <Link
-                href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${recommendedLesson.id}`}
+                href={
+                  recommendedLesson.lastContentPageIndex != null
+                    ? `/minhas-turmas/${enrollmentId}/conteudo/aula/${recommendedLesson.id}?pagina=${recommendedLesson.lastContentPageIndex + 1}`
+                    : `/minhas-turmas/${enrollmentId}/conteudo/aula/${recommendedLesson.id}`
+                }
                 className="inline-flex items-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               >
                 {completedCount > 0
@@ -245,7 +253,14 @@ export default function ConteudoPage() {
                           return (
                             <Link
                               key={t.lessonId}
-                              href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${t.lessonId}`}
+                              href={
+                                (() => {
+                                  const lesson = lessonById.get(t.lessonId);
+                                  return lesson?.lastContentPageIndex != null
+                                    ? `/minhas-turmas/${enrollmentId}/conteudo/aula/${t.lessonId}?pagina=${lesson.lastContentPageIndex + 1}`
+                                    : `/minhas-turmas/${enrollmentId}/conteudo/aula/${t.lessonId}`;
+                                })()
+                              }
                               className={`flex flex-col rounded-lg border p-3 text-left transition hover:border-[var(--igh-primary)]/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
                                 precisaRevisar
                                   ? "border-amber-400 bg-amber-50/50 dark:border-amber-600 dark:bg-amber-950/20"
@@ -327,7 +342,11 @@ export default function ConteudoPage() {
                       </span>
                       {lesson.isLiberada ? (
                         <Link
-                          href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${lesson.id}`}
+                          href={
+                            lesson.lastContentPageIndex != null
+                              ? `/minhas-turmas/${enrollmentId}/conteudo/aula/${lesson.id}?pagina=${lesson.lastContentPageIndex + 1}`
+                              : `/minhas-turmas/${enrollmentId}/conteudo/aula/${lesson.id}`
+                          }
                           className="shrink-0 rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
                         >
                           Abrir conteúdo

@@ -100,7 +100,7 @@ export async function GET(
   const [progressList, answers] = await Promise.all([
     prisma.enrollmentLessonProgress.findMany({
       where: { enrollmentId, lessonId: { in: lessonIds } },
-      select: { lessonId: true, completed: true },
+      select: { lessonId: true, completed: true, lastContentPageIndex: true },
     }),
     prisma.enrollmentLessonExerciseAnswer.findMany({
       where: { enrollmentId },
@@ -124,6 +124,11 @@ export async function GET(
     }),
   ]);
   const completedByLessonId = new Map(progressList.map((p) => [p.lessonId, p.completed]));
+  const lastContentPageIndexByLessonId = new Map(
+    progressList
+      .filter((p) => p.lastContentPageIndex != null)
+      .map((p) => [p.lessonId, p.lastContentPageIndex as number])
+  );
 
   const byLesson = new Map<
     string,
@@ -185,6 +190,7 @@ export async function GET(
       attachmentNames: lesson.attachmentNames ?? [],
       isLiberada: liberadaLessonIds.has(lesson.id),
       completed: completedByLessonId.get(lesson.id) ?? false,
+      lastContentPageIndex: lastContentPageIndexByLessonId.get(lesson.id) ?? null,
     })),
   }));
 

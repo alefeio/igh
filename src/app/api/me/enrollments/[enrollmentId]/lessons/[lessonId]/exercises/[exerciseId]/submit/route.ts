@@ -75,6 +75,7 @@ export async function POST(
 
   const correct = option.isCorrect;
 
+  /** Sempre cria novo registro: mantém histórico de todas as tentativas (erradas e certas) mesmo ao refazer. */
   await prisma.enrollmentLessonExerciseAnswer.create({
     data: {
       enrollmentId,

@@ -15,6 +15,7 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   if (!token) {
     const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("from", pathname + (request.nextUrl.search || ""));
     return NextResponse.redirect(loginUrl);
   }
 
@@ -25,6 +26,7 @@ export async function middleware(request: NextRequest) {
     role = typeof payload.role === "string" ? payload.role : undefined;
   } catch {
     const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("from", pathname + (request.nextUrl.search || ""));
     return NextResponse.redirect(loginUrl);
   }
 
@@ -92,5 +94,11 @@ export const config = {
     "/admin/site/:path*",
     "/approvacoes/:path*",
     "/backup/:path*",
+    "/meus-dados/:path*",
+    "/trocar-senha/:path*",
+    "/escolher-perfil/:path*",
+    "/holidays/:path*",
+    "/time-slots/:path*",
+    "/professor/:path*",
   ],
 };

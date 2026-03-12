@@ -34,7 +34,7 @@ export async function GET(
 
   const answers = await prisma.enrollmentLessonExerciseAnswer.findMany({
     where: { enrollmentId: { in: enrollmentIds } },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
     select: {
       id: true,
       enrollmentId: true,
@@ -66,7 +66,7 @@ export async function GET(
       enrollmentId: eid,
       studentName: first?.enrollment.student.name ?? "",
       studentId: first?.enrollment.student.id ?? "",
-      answers: list.map((a) => ({
+      answers: list.map((a, index) => ({
         id: a.id,
         exerciseId: a.exerciseId,
         question: a.exercise.question,
@@ -74,6 +74,8 @@ export async function GET(
         lessonTitle: a.exercise.lesson.title,
         correct: a.correct,
         createdAt: a.createdAt,
+        attemptIndex: index + 1,
+        totalAttemptsForExercise: list.filter((b) => b.exerciseId === a.exerciseId).length,
       })),
       totalCorrect: list.filter((a) => a.correct).length,
       totalAttempts: list.length,
