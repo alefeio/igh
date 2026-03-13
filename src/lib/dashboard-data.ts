@@ -76,6 +76,14 @@ export type DashboardDataStudent = {
   totalLessonsTotal: number;
   /** Matrícula recomendada para "continuar de onde parou" (primeira em andamento) */
   recommendedEnrollmentId: string | null;
+  /** Última aula visualizada (qualquer curso), para "Continuar de onde parou" */
+  lastViewedLesson: {
+    enrollmentId: string;
+    lessonId: string;
+    lessonTitle: string;
+    courseName: string;
+    lastContentPageIndex: number | null;
+  } | null;
   /** Total de acertos em exercícios (todas as matrículas) */
   totalExerciseCorrect: number;
   /** Total de tentativas em exercícios (todas as matrículas) */
@@ -101,6 +109,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         totalLessonsCompleted: 0,
         totalLessonsTotal: 0,
         recommendedEnrollmentId: null,
+        lastViewedLesson: null,
         totalExerciseCorrect: 0,
         totalExerciseAttempts: 0,
       };
@@ -178,6 +187,36 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     const recommended = enrollments.find(
       (e) => e.lessonsTotal > 0 && e.lessonsCompleted > 0 && e.lessonsCompleted < e.lessonsTotal
     );
+
+    const lastViewedProgress = await prisma.enrollmentLessonProgress.findFirst({
+      where: {
+        enrollmentId: { in: enrollmentIds },
+        lastAccessedAt: { not: null },
+      },
+      orderBy: { lastAccessedAt: "desc" },
+      select: {
+        enrollmentId: true,
+        lessonId: true,
+        lastContentPageIndex: true,
+        lesson: { select: { title: true } },
+      },
+    });
+    const enrollmentById = new Map(enrollmentsRaw.map((e) => [e.id, e]));
+    const lastViewedLesson =
+      lastViewedProgress != null
+        ? (() => {
+            const enrollment = enrollmentById.get(lastViewedProgress.enrollmentId);
+            const courseName = enrollment?.classGroup.course.name ?? "";
+            return {
+              enrollmentId: lastViewedProgress.enrollmentId,
+              lessonId: lastViewedProgress.lessonId,
+              lessonTitle: lastViewedProgress.lesson.title,
+              courseName,
+              lastContentPageIndex: lastViewedProgress.lastContentPageIndex,
+            };
+          })()
+        : null;
+
     return {
       role: "STUDENT",
       roleLabel,
@@ -186,6 +225,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       totalLessonsCompleted,
       totalLessonsTotal,
       recommendedEnrollmentId: recommended?.id ?? null,
+      lastViewedLesson,
       totalExerciseCorrect,
       totalExerciseAttempts,
     };

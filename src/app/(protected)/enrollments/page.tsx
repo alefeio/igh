@@ -646,6 +646,46 @@ export default function EnrollmentsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
+          <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3" aria-labelledby="enrollments-date-filter-heading">
+            <h2 id="enrollments-date-filter-heading" className="text-sm font-medium text-[var(--text-primary)] mb-3">
+              Filtrar por data de matrícula
+            </h2>
+            <p className="text-xs text-[var(--text-muted)] mb-3">
+              O intervalo aplica-se a toda a página: resumo, gráficos, vagas por curso e listagem.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label htmlFor="enrollments-date-from" className="block text-xs font-medium text-[var(--text-muted)] mb-0.5">
+                  De
+                </label>
+                <Input
+                  id="enrollments-date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="min-w-[140px]"
+                />
+              </div>
+              <div>
+                <label htmlFor="enrollments-date-to" className="block text-xs font-medium text-[var(--text-muted)] mb-0.5">
+                  Até
+                </label>
+                <Input
+                  id="enrollments-date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="min-w-[140px]"
+                />
+              </div>
+              {(dateFrom || dateTo) && (
+                <Button type="button" variant="secondary" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+                  Limpar datas
+                </Button>
+              )}
+            </div>
+          </section>
+
           {kpis.pre > 0 && isMaster && (
             <div
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30"
@@ -1101,32 +1141,6 @@ export default function EnrollmentsPage() {
                     Limpar filtros
                   </Button>
                 )}
-                <div className="flex flex-wrap items-end gap-2">
-                  <div>
-                    <label htmlFor="enrollments-date-from" className="block text-xs font-medium text-[var(--text-muted)] mb-0.5">
-                      Data (de)
-                    </label>
-                    <Input
-                      id="enrollments-date-from"
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                      className="min-w-[140px]"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="enrollments-date-to" className="block text-xs font-medium text-[var(--text-muted)] mb-0.5">
-                      até
-                    </label>
-                    <Input
-                      id="enrollments-date-to"
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                      className="min-w-[140px]"
-                    />
-                  </div>
-                </div>
                 <div className="min-w-[200px]">
                   <label htmlFor="enrollments-list-filter" className="sr-only">
                     Buscar por nome, e-mail ou curso

@@ -383,6 +383,7 @@ function DashboardStudent({
     totalLessonsCompleted,
     totalLessonsTotal,
     recommendedEnrollmentId,
+    lastViewedLesson,
     totalExerciseCorrect,
     totalExerciseAttempts,
   } = data;
@@ -399,6 +400,27 @@ function DashboardStudent({
   const recommendedEnrollment = recommendedEnrollmentId
     ? enrollments.find((e) => e.id === recommendedEnrollmentId)
     : null;
+  const continueLink = lastViewedLesson
+    ? `/minhas-turmas/${lastViewedLesson.enrollmentId}/conteudo/aula/${lastViewedLesson.lessonId}${
+        lastViewedLesson.lastContentPageIndex != null ? `?pagina=${lastViewedLesson.lastContentPageIndex + 1}` : ""
+      }#conteudo`
+    : recommendedEnrollment
+      ? `/minhas-turmas/${recommendedEnrollment.id}/conteudo`
+      : null;
+  const continueLabel = lastViewedLesson
+    ? lastViewedLesson.lessonTitle
+    : recommendedEnrollment
+      ? recommendedEnrollment.courseName
+      : null;
+  const continueSublabel = lastViewedLesson
+    ? lastViewedLesson.courseName
+    : recommendedEnrollment
+      ? `${recommendedEnrollment.lessonsCompleted} de ${recommendedEnrollment.lessonsTotal} aulas${
+          recommendedEnrollment.lessonsTotal > 0
+            ? ` · ${Math.round((recommendedEnrollment.lessonsCompleted / recommendedEnrollment.lessonsTotal) * 100)}%`
+            : ""
+        }`
+      : null;
   const globalPercent =
     totalLessonsTotal > 0 ? Math.round((totalLessonsCompleted / totalLessonsTotal) * 100) : 0;
 
@@ -487,13 +509,13 @@ function DashboardStudent({
             )}
           </section>
 
-          {recommendedEnrollment && (
+          {continueLink && continueLabel && (
             <section aria-labelledby="continuar-heading">
               <h2 id="continuar-heading" className="sr-only">
                 Continuar de onde parou
               </h2>
               <Link
-                href={`/minhas-turmas/${recommendedEnrollment.id}/conteudo`}
+                href={continueLink}
                 className="flex flex-wrap items-center gap-4 rounded-xl border-2 border-[var(--igh-primary)]/30 bg-[var(--igh-primary)]/5 p-4 transition hover:border-[var(--igh-primary)]/50 hover:bg-[var(--igh-primary)]/10 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--igh-primary)] text-white">
@@ -504,13 +526,13 @@ function DashboardStudent({
                     Continuar de onde parou
                   </p>
                   <p className="mt-0.5 font-semibold text-[var(--text-primary)]">
-                    {recommendedEnrollment.courseName}
+                    {continueLabel}
                   </p>
-                  <p className="text-sm text-[var(--text-muted)]">
-                    {recommendedEnrollment.lessonsCompleted} de {recommendedEnrollment.lessonsTotal} aulas
-                    {recommendedEnrollment.lessonsTotal > 0 &&
-                      ` · ${Math.round((recommendedEnrollment.lessonsCompleted / recommendedEnrollment.lessonsTotal) * 100)}%`}
-                  </p>
+                  {continueSublabel && (
+                    <p className="text-sm text-[var(--text-muted)]">
+                      {continueSublabel}
+                    </p>
+                  )}
                 </div>
                 <ChevronRight className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
               </Link>

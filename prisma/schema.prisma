@@ -703,6 +703,7 @@ enum UserRole {
 enum CourseStatus {
   ACTIVE
   INACTIVE
+  NOT_LISTED
 }
 
 enum ClassGroupStatus {

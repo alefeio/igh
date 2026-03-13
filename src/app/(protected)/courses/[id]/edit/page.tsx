@@ -20,7 +20,7 @@ type Course = {
   content: string | null;
   imageUrl: string | null;
   workloadHours: number | null;
-  status: "ACTIVE" | "INACTIVE";
+  status: "ACTIVE" | "INACTIVE" | "NOT_LISTED";
   createdAt: string;
 };
 
@@ -275,6 +275,7 @@ export default function CourseEditPage() {
                 >
                   <option value="ACTIVE">Ativo</option>
                   <option value="INACTIVE">Inativo</option>
+                  <option value="NOT_LISTED">Não listado</option>
                 </select>
               </div>
             </div>

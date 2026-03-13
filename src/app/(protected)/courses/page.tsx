@@ -18,7 +18,7 @@ type Course = {
   content: string | null;
   imageUrl: string | null;
   workloadHours: number | null;
-  status: "ACTIVE" | "INACTIVE";
+  status: "ACTIVE" | "INACTIVE" | "NOT_LISTED";
   createdAt: string;
 };
 
@@ -51,37 +51,6 @@ export default function CoursesPage() {
   useEffect(() => {
     void load();
   }, [toast]);
-
-  async function inactivateCourse(c: Course) {
-    if (!confirm(`Inativar o curso "${c.name}"?`)) return;
-    const res = await fetch(`/api/courses/${c.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "INACTIVE" }),
-    });
-    const json = (await res.json()) as ApiResponse<{ course: Course }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error?.message ?? "Erro" : "Falha ao inativar.");
-      return;
-    }
-    toast.push("success", "Curso inativado.");
-    await load();
-  }
-
-  async function reactivateCourse(c: Course) {
-    const res = await fetch(`/api/courses/${c.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "ACTIVE" }),
-    });
-    const json = (await res.json()) as ApiResponse<{ course: Course }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error?.message ?? "Erro" : "Falha ao reativar.");
-      return;
-    }
-    toast.push("success", "Curso reativado.");
-    await load();
-  }
 
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
@@ -123,6 +92,23 @@ export default function CoursesPage() {
 
   const visibleItems = showInactive ? items : items.filter((c) => c.status === "ACTIVE");
 
+  async function setCourseStatus(c: Course, newStatus: Course["status"]) {
+    if (newStatus === "INACTIVE" && !confirm(`Inativar o curso "${c.name}"?`)) return;
+    const res = await fetch(`/api/courses/${c.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    const json = (await res.json()) as ApiResponse<{ course: Course }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error?.message ?? "Erro" : "Falha ao alterar status.");
+      return;
+    }
+    const msg = newStatus === "ACTIVE" ? "Curso ativo (listado no site)." : newStatus === "INACTIVE" ? "Curso inativado." : "Curso não será listado no site.";
+    toast.push("success", msg);
+    await load();
+  }
+
   return (
     <div className="container-page flex flex-col gap-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -131,7 +117,7 @@ export default function CoursesPage() {
             Cursos
           </h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Cadastre cursos, módulos e aulas. Por padrão são exibidos apenas os ativos.
+            Cadastre cursos, módulos e aulas. Por padrão são exibidos apenas os ativos. «Não listado» não aparece no site.
           </p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
@@ -141,7 +127,7 @@ export default function CoursesPage() {
             onClick={() => setShowInactive((prev) => !prev)}
             className="w-full sm:w-auto"
           >
-            {showInactive ? "Ocultar inativos" : "Exibir inativos"}
+            {showInactive ? "Ocultar inativos e não listados" : "Exibir inativos e não listados"}
           </Button>
           <Button onClick={() => router.push("/courses/new")} className="w-full sm:w-auto">
             Novo curso
@@ -223,6 +209,8 @@ export default function CoursesPage() {
                       <Td>
                         {c.status === "ACTIVE" ? (
                           <Badge tone="green">Ativo</Badge>
+                        ) : c.status === "NOT_LISTED" ? (
+                          <Badge tone="amber">Não listado</Badge>
                         ) : (
                           <Badge tone="zinc">Inativo</Badge>
                         )}
@@ -245,19 +233,25 @@ export default function CoursesPage() {
                           )}
                           {!isTeacher && (
                             <>
-                              {c.status === "ACTIVE" ? (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => inactivateCourse(c)}
-                                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                                >
-                                  Inativar
-                                </Button>
-                              ) : (
+                              {c.status === "ACTIVE" && (
                                 <>
-                                  <Button variant="secondary" size="sm" onClick={() => reactivateCourse(c)}>
-                                    Reativar
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setCourseStatus(c, "INACTIVE")}
+                                    className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                  >
+                                    Inativar
+                                  </Button>
+                                  <Button variant="secondary" size="sm" onClick={() => setCourseStatus(c, "NOT_LISTED")}>
+                                    Não listar no site
+                                  </Button>
+                                </>
+                              )}
+                              {(c.status === "INACTIVE" || c.status === "NOT_LISTED") && (
+                                <>
+                                  <Button variant="secondary" size="sm" onClick={() => setCourseStatus(c, "ACTIVE")}>
+                                    {c.status === "NOT_LISTED" ? "Listar no site" : "Reativar"}
                                   </Button>
                                   <Button
                                     variant="secondary"

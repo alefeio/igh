@@ -16,7 +16,7 @@ type Course = {
   content: string | null;
   imageUrl: string | null;
   workloadHours: number | null;
-  status: "ACTIVE" | "INACTIVE";
+  status: "ACTIVE" | "INACTIVE" | "NOT_LISTED";
   createdAt: string;
 };
 

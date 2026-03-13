@@ -9,7 +9,7 @@ export const createCourseSchema = z.object({
   content: z.string().optional().or(z.literal("")),
   imageUrl: z.string().url().optional().or(z.literal("")),
   workloadHours: z.number().int().positive().optional(),
-  status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
+  status: z.enum(["ACTIVE", "INACTIVE", "NOT_LISTED"]).optional(),
 });
 
 export const updateCourseSchema = createCourseSchema.partial();

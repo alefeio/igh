@@ -4,6 +4,9 @@ import {
   ArrowUp,
   BookMarked,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
   ChevronUp,
   ClipboardList,
   FileText,
@@ -229,6 +232,7 @@ export default function AulaConteudoPage() {
   const [isContentFullscreen, setIsContentFullscreen] = useState(false);
   const [contentFontSizePercent, setContentFontSizePercent] = useState(100);
   const hasSetUrlFromProgressRef = useRef(false);
+  const hasAutoCompletedOnLastSlideRef = useRef(false);
 
   /** Abre/fecha a seção e atualiza a URL (?secao= e #secoes) para abrir na âncora Seções da aula. */
   const openSectionPanel = useCallback(
@@ -610,6 +614,46 @@ export default function AulaConteudoPage() {
       sendBeaconPersist(contentPageIndexRef.current);
     };
   }, [contentPageIndex, hasMultiplePages, enrollmentId, lessonId, progress?.completed, searchParams, persistSlideIndex]);
+
+  /** Ao chegar no último slide, marca a aula como concluída e atualiza o estado (Em andamento → Concluída). */
+  useEffect(() => {
+    if (
+      !enrollmentId ||
+      !lessonId ||
+      !hasMultiplePages ||
+      totalPages === 0 ||
+      contentPageIndex !== totalPages - 1 ||
+      progress?.completed ||
+      hasAutoCompletedOnLastSlideRef.current
+    )
+      return;
+    hasAutoCompletedOnLastSlideRef.current = true;
+    const url = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+    fetch(url, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: true, lastContentPageIndex: contentPageIndex }),
+    })
+      .then(async (res) => {
+        const json = (await res.json()) as ApiResponse<LessonProgress>;
+        if (res.ok && json?.ok && json.data) {
+          setProgress(json.data);
+          toast.push("success", "Aula marcada como concluída.");
+        } else {
+          hasAutoCompletedOnLastSlideRef.current = false;
+          if (res.status === 401) {
+            toast.push("error", "Sessão expirada. Faça login novamente.");
+          } else {
+            toast.push("error", "Não foi possível atualizar o status da aula.");
+          }
+        }
+      })
+      .catch(() => {
+        hasAutoCompletedOnLastSlideRef.current = false;
+        toast.push("error", "Não foi possível atualizar o status da aula.");
+      });
+  }, [contentPageIndex, totalPages, hasMultiplePages, enrollmentId, lessonId, progress?.completed, toast]);
 
   const contentToShow = hasMultiplePages && currentContentSection ? currentContentSection.html : (lessonForContent?.contentRich ?? "");
   const passagesForCurrentPage = useMemo(() => {
@@ -1135,32 +1179,44 @@ export default function AulaConteudoPage() {
           {prevLesson ? (
             <Link
               href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLesson.id}`}
-              className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              aria-label="Aula anterior"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
             >
-              ← Aula anterior
+              <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">Aula anterior</span>
             </Link>
           ) : (
-            <span className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm text-[var(--text-muted)]">← Aula anterior</span>
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2">
+              <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">Aula anterior</span>
+            </span>
           )}
         </div>
         <div className="flex min-w-0 flex-1 justify-center">
           <Link
             href="/minhas-turmas/favoritos"
-            className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+            aria-label="Favoritos"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
           >
-            Favoritos
+            <BookMarked className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="hidden sm:inline">Favoritos</span>
           </Link>
         </div>
         <div className="flex shrink-0">
           {nextLesson ? (
             <Link
               href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`}
-              className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              aria-label="Próxima aula"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
             >
-              Próxima aula →
+              <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">Próxima aula</span>
             </Link>
           ) : (
-            <span className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm text-[var(--text-muted)]">Próxima aula →</span>
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2">
+              <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">Próxima aula</span>
+            </span>
           )}
         </div>
       </nav>
@@ -1852,30 +1908,54 @@ export default function AulaConteudoPage() {
                           setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
                         }}
                         disabled={contentPageIndex === 0}
-                        className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                        aria-label="Slide anterior"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-3 sm:py-1.5"
                       >
-                        Slide anterior
+                        <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
+                        <span className="hidden sm:inline">Slide anterior</span>
                       </button>
                       <span className="text-sm text-[var(--text-muted)]">
-                        Página {contentPageIndex + 1} de {contentPages.length}
+                        <span className="hidden sm:inline">Página </span>
+                        {contentPageIndex + 1}/{contentPages.length}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = Math.min(contentPages.length - 1, contentPageIndex + 1);
-                          const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
-                          const body = JSON.stringify({ lastContentPageIndex: next });
-                          console.log("[Slide] Clique em Próximo slide → sendBeacon + fetch índice", next, "(página", next + 1, ")");
-                          navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
-                          persistSlideIndex(next, "clique Próximo slide");
-                          router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${next + 1}#conteudo`);
-                          setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-                        }}
-                        disabled={contentPageIndex === contentPages.length - 1}
-                        className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                      >
-                        Próximo slide
-                      </button>
+                      {contentPageIndex === contentPages.length - 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const first = 0;
+                            const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+                            const body = JSON.stringify({ lastContentPageIndex: first });
+                            navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
+                            persistSlideIndex(first, "clique Primeiro slide");
+                            router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=1#conteudo`);
+                            setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                          }}
+                          aria-label="Primeiro slide"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-3 sm:py-1.5"
+                        >
+                          <ChevronsLeft className="h-4 w-4 shrink-0" aria-hidden />
+                          <span className="hidden sm:inline">Primeiro slide</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = contentPageIndex + 1;
+                            const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+                            const body = JSON.stringify({ lastContentPageIndex: next });
+                            console.log("[Slide] Clique em Próximo slide → sendBeacon + fetch índice", next, "(página", next + 1, ")");
+                            navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
+                            persistSlideIndex(next, "clique Próximo slide");
+                            router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${next + 1}#conteudo`);
+                            setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                          }}
+                          aria-label="Próximo slide"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-3 sm:py-1.5"
+                        >
+                          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+                          <span className="hidden sm:inline">Próximo slide</span>
+                        </button>
+                      )}
                     </nav>
                   ) : (
                     <span aria-hidden />
@@ -1908,12 +1988,12 @@ export default function AulaConteudoPage() {
                     type="button"
                     onClick={() => window.dispatchEvent(new CustomEvent("highlightable-content-destacar"))}
                     disabled={savingPassage}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60 sm:px-3 sm:py-1.5"
                     title={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
                     aria-label={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
                   >
                     <Highlighter className="h-4 w-4 shrink-0" aria-hidden />
-                    <span>{savingPassage ? "Salvando..." : "Destacar trecho selecionado"}</span>
+                    <span className="hidden sm:inline">{savingPassage ? "Salvando..." : "Destacar trecho selecionado"}</span>
                   </button>
                   <button
                     type="button"
@@ -1922,7 +2002,7 @@ export default function AulaConteudoPage() {
                         ? document.exitFullscreen()
                         : contentWrapperRef.current?.requestFullscreen()
                     }
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-3 sm:py-1.5"
                     title={isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}
                     aria-label={isContentFullscreen ? "Sair da tela cheia" : "Expandir em tela cheia"}
                   >
@@ -1931,7 +2011,7 @@ export default function AulaConteudoPage() {
                     ) : (
                       <Maximize2 className="h-4 w-4" aria-hidden />
                     )}
-                    <span>{isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}</span>
+                    <span className="hidden sm:inline">{isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}</span>
                   </button>
                 </div>
                 <div className="overflow-auto" style={{ minHeight: "12rem" }}>
