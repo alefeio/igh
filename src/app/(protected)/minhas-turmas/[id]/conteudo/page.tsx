@@ -235,6 +235,14 @@ export default function ConteudoPage() {
                       </span>
                     </p>
                   </div>
+                  <div className="ml-auto">
+                    <Link
+                      href={`/minhas-turmas/${enrollmentId}/exercicios`}
+                      className="text-xs font-medium text-[var(--igh-primary)] underline hover:no-underline"
+                    >
+                      Ver respostas por aula
+                    </Link>
+                  </div>
                 </div>
 
                 {/* Cards menores: desempenho por aula */}

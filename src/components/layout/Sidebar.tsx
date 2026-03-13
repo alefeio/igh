@@ -40,6 +40,7 @@ const ITEMS: Item[] = [
   { href: "/admin/site/contato-pagina", label: "Contato (página)", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/menu", label: "Menu", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/banners", label: "Banners", adminOrMaster: true, category: "Site" },
+  { href: "/admin/tablet/banners", label: "Banners (tablet)", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/projetos", label: "Projetos", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/depoimentos", label: "Depoimentos", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/parceiros", label: "Parceiros", adminOrMaster: true, category: "Site" },

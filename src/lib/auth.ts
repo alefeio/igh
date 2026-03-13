@@ -10,14 +10,7 @@ import type { User, UserRole } from "@/generated/prisma/client";
 const AUTH_COOKIE_NAME = "auth_token";
 const AUTH_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
 
-export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActive" | "mustChangePassword"> & {
-  isAdmin?: boolean;
-  baseRole?: UserRole;
-  /** True se o usuário possui perfil de aluno (Student) ativo. */
-  hasStudentProfile?: boolean;
-  /** True se o usuário possui perfil de professor (Teacher) ativo. */
-  hasTeacherProfile?: boolean;
-};
+export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActive" | "mustChangePassword"> & { isAdmin?: boolean; baseRole?: UserRole };
 
 interface JwtPayload {
   sub: string;
@@ -92,10 +85,6 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
     if (payload.role === "ADMIN" && user.role !== "ADMIN" && user.role !== "MASTER") {
       if (!user.isAdmin) return null;
     }
-    const [hasStudentProfile, hasTeacherProfile] = await Promise.all([
-      prisma.student.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } }).then((r) => !!r),
-      prisma.teacher.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } }).then((r) => !!r),
-    ]);
     return {
       id: user.id,
       name: user.name,
@@ -105,8 +94,6 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
       isActive: user.isActive,
       mustChangePassword: user.mustChangePassword ?? false,
       isAdmin: user.isAdmin ?? false,
-      hasStudentProfile,
-      hasTeacherProfile,
     };
   } catch {
     return null;

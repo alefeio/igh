@@ -81,6 +81,15 @@ export const siteBannerSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+// TabletBanner
+export const tabletBannerSchema = z.object({
+  title: z.string().optional(),
+  subtitle: z.string().optional(),
+  imageUrl: z.string().url().optional().or(z.literal("")),
+  order: z.number().int().min(0).optional(),
+  isActive: z.boolean().optional(),
+});
+
 // SiteFormation
 export const siteFormationSchema = z.object({
   title: z.string().min(1, "Título é obrigatório"),

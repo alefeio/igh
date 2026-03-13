@@ -425,6 +425,11 @@ export default function AulaConteudoPage() {
     if (enrollmentId && lessonId) void loadProgress();
   }, [enrollmentId, lessonId, loadProgress]);
 
+  // Carrega exercícios em segundo plano para saber se é permitido avançar para a próxima aula.
+  useEffect(() => {
+    if (enrollmentId && lessonId) void loadExercises();
+  }, [enrollmentId, lessonId, loadExercises]);
+
   useEffect(() => {
     if (data && findLesson(data.modules, lessonId)?.lesson.isLiberada) {
       void loadProgress();
@@ -733,6 +738,14 @@ export default function AulaConteudoPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [showLessonCard, lessonId]);
 
+  // Ao concluir a aula, abre automaticamente a aba Exercícios.
+  useEffect(() => {
+    if (!progress?.completed) return;
+    if (openSection !== "exercicios") {
+      openSectionPanel("exercicios");
+    }
+  }, [progress?.completed, openSection, openSectionPanel]);
+
   if (loading || !data) {
     return (
       <div className="container-page flex flex-col gap-6">
@@ -823,6 +836,11 @@ export default function AulaConteudoPage() {
   const currentIndex = orderedLessons.findIndex((l) => l.id === lessonId);
   const prevLesson = currentIndex > 0 ? orderedLessons[currentIndex - 1] : null;
   const nextLesson = currentIndex >= 0 && currentIndex < orderedLessons.length - 1 ? orderedLessons[currentIndex + 1] : null;
+
+  const hasExercises = exercises.length > 0;
+  const allExercisesAnswered =
+    hasExercises && exercises.every((ex) => exerciseResult[ex.id] != null);
+  const mustAnswerExercisesBeforeNext = hasExercises && !allExercisesAnswered;
 
   /** Converte "12:34" ou "5" em segundos. Retorna null se vazio ou inválido. */
   function parseVideoMinuteToSeconds(value: string): number | null {
@@ -1204,14 +1222,31 @@ export default function AulaConteudoPage() {
         </div>
         <div className="flex shrink-0">
           {nextLesson ? (
-            <Link
-              href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`}
-              aria-label="Próxima aula"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
-            >
-              <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="hidden sm:inline">Próxima aula</span>
-            </Link>
+            mustAnswerExercisesBeforeNext ? (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.push(
+                    "error",
+                    "Responda todos os exercícios desta aula antes de avançar para a próxima."
+                  );
+                  openSectionPanel("exercicios");
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm text-[var(--text-muted)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+              >
+                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="hidden sm:inline">Próxima aula</span>
+              </button>
+            ) : (
+              <Link
+                href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`}
+                aria-label="Próxima aula"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+              >
+                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="hidden sm:inline">Próxima aula</span>
+              </Link>
+            )
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2">
               <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
