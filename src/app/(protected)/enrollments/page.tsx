@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BarChart, Bar, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { BarChart, Bar, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import * as XLSX from "xlsx";
 
 import { StudentForm } from "@/components/students/StudentForm";
@@ -113,6 +113,18 @@ export default function EnrollmentsPage() {
   const [statusFilterState, setStatusFilterState] = useState("");
   const [preEnrollmentFilterState, setPreEnrollmentFilterState] = useState<"" | "pre" | "confirmed">("");
   const [turmaFilterId, setTurmaFilterId] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showTeacherDetails, setShowTeacherDetails] = useState(false);
+  const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
+  const toggleCourseDetails = useCallback((courseId: string) => {
+    setExpandedCourseIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(courseId)) next.delete(courseId);
+      else next.add(courseId);
+      return next;
+    });
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -151,11 +163,23 @@ export default function EnrollmentsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterId]);
+  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterId, dateFrom, dateTo]);
 
-  const dashboard = (() => {
+  /** Matrículas no intervalo de datas (quando informado); senão todas. Usado em dashboard, listagem e exportações. */
+  const itemsForView = useMemo(() => {
+    if (!dateFrom && !dateTo) return items;
+    return items.filter((e) => {
+      const d = new Date(e.enrolledAt).toISOString().slice(0, 10);
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    });
+  }, [items, dateFrom, dateTo]);
+
+  const dashboard = useMemo(() => {
+    const list = itemsForView;
     const byClassGroup = new Map<string, { classGroup: ClassGroup; count: number }>();
-    for (const e of items) {
+    for (const e of list) {
       const cg = e.classGroup;
       const cur = byClassGroup.get(cg.id);
       if (!cur) byClassGroup.set(cg.id, { classGroup: cg, count: 1 });
@@ -184,7 +208,7 @@ export default function EnrollmentsPage() {
     );
 
     const byTeacher = new Map<string, { teacher: Teacher; turmas: { classGroup: ClassGroup; count: number }[] }>();
-    for (const e of items) {
+    for (const e of list) {
       if (e.status !== "ACTIVE") continue;
       const teacher = e.classGroup.teacher;
       if (!teacher) continue;
@@ -207,36 +231,36 @@ export default function EnrollmentsPage() {
       .map((r) => ({ ...r, totalAlunos: r.turmas.reduce((s, t) => s + t.count, 0) }))
       .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
 
-    return { courses, teachers, total: items.length, totalCapacity };
-  })();
+    return { courses, teachers, total: list.length, totalCapacity };
+  }, [itemsForView]);
 
-  /** Lista de professores para exibir: da API ou, se vazia, únicos que aparecem nas matrículas. */
+  /** Lista de professores para exibir: da API ou, se vazia, únicos que aparecem nas matrículas (no intervalo). */
   const teachersToDisplay = useMemo(() => {
     if (allTeachers.length > 0) return allTeachers;
     const seen = new Map<string, Teacher>();
-    for (const e of items) {
+    for (const e of itemsForView) {
       const t = e.classGroup.teacher;
       if (t && !seen.has(t.id)) seen.set(t.id, t);
     }
     return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  }, [allTeachers, items]);
+  }, [allTeachers, itemsForView]);
 
-  const activeCountByClassGroup = (() => {
+  const activeCountByClassGroup = useMemo(() => {
     const m = new Map<string, number>();
-    for (const e of items) {
+    for (const e of itemsForView) {
       if (e.status !== "ACTIVE") continue;
       const id = e.classGroup.id;
       m.set(id, (m.get(id) ?? 0) + 1);
     }
     return m;
-  })();
+  }, [itemsForView]);
 
   const kpis = useMemo(() => {
-    const active = items.filter((e) => e.status === "ACTIVE").length;
-    const pre = items.filter((e) => e.isPreEnrollment).length;
-    const confirmed = items.filter((e) => e.enrollmentConfirmedAt != null).length;
-    return { total: items.length, active, pre, confirmed };
-  }, [items]);
+    const active = itemsForView.filter((e) => e.status === "ACTIVE").length;
+    const pre = itemsForView.filter((e) => e.isPreEnrollment).length;
+    const confirmed = itemsForView.filter((e) => e.enrollmentConfirmedAt != null).length;
+    return { total: itemsForView.length, active, pre, confirmed };
+  }, [itemsForView]);
 
   /** Normaliza string removendo acentos: permite digitar "Jose" e encontrar "José". */
   const normalizeForSearch = (s: string) =>
@@ -246,7 +270,7 @@ export default function EnrollmentsPage() {
       .toLowerCase();
 
   const filteredItems = useMemo(() => {
-    let list = items;
+    let list = itemsForView;
     const q = listFilter.trim();
     if (q.length > 0) {
       const qNorm = normalizeForSearch(q);
@@ -262,7 +286,7 @@ export default function EnrollmentsPage() {
     if (preEnrollmentFilterState === "confirmed") list = list.filter((e) => e.enrollmentConfirmedAt != null);
     if (turmaFilterId) list = list.filter((e) => e.classGroup.id === turmaFilterId);
     return list;
-  }, [items, listFilter, statusFilterState, preEnrollmentFilterState, turmaFilterId]);
+  }, [itemsForView, listFilter, statusFilterState, preEnrollmentFilterState, turmaFilterId]);
 
   const turmaOptions = useMemo(() => {
     const opts: { id: string; label: string }[] = [];
@@ -291,25 +315,56 @@ export default function EnrollmentsPage() {
     value: turmas.reduce((s, t) => s + t.count, 0),
   }));
 
-  const byDay = new Map<string, number>();
-  for (const e of items) {
-    const d = new Date(e.enrolledAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-    byDay.set(d, (byDay.get(d) ?? 0) + 1);
-  }
-  const columnData = [...byDay.entries()]
-    .sort((a, b) => {
-      const [da, db] = [a[0], b[0]].map((s) => {
-        const [dd, mm, yyyy] = s.split("/");
-        return new Date(Number(yyyy), Number(mm) - 1, Number(dd)).getTime();
-      });
-      return da - db;
-    })
-    .map(([data, quantidade]) => ({ data, quantidade }));
+  const columnData = useMemo(() => {
+    const byDay = new Map<string, number>();
+    for (const e of itemsForView) {
+      const d = new Date(e.enrolledAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+      byDay.set(d, (byDay.get(d) ?? 0) + 1);
+    }
+    return [...byDay.entries()]
+      .sort((a, b) => {
+        const [da, db] = [a[0], b[0]].map((s) => {
+          const [dd, mm, yyyy] = s.split("/");
+          return new Date(Number(yyyy), Number(mm) - 1, Number(dd)).getTime();
+        });
+        return da - db;
+      })
+      .map(([data, quantidade]) => ({ data, quantidade }));
+  }, [itemsForView]);
+
+  const teacherChartData = useMemo(
+    () =>
+      teachersToDisplay
+        .map((t) => {
+          const found = dashboard.teachers.find((r) => r.teacher.id === t.id);
+          return { professor: t.name, alunos: found?.totalAlunos ?? 0 };
+        })
+        .sort((a, b) => b.alunos - a.alunos),
+    [teachersToDisplay, dashboard.teachers]
+  );
+
+  /** Por curso: totais (capacidade e alunos) e turmas para gráfico + detalhes. */
+  const courseChartsData = useMemo(
+    () =>
+      dashboard.courses.map(([courseId, { courseName, turmas }]) => {
+        const totalCapacidade = turmas.reduce((s, t) => s + (t.classGroup.capacity ?? 0), 0);
+        const totalAlunos = turmas.reduce((s, t) => s + t.count, 0);
+        return {
+          courseId,
+          courseName,
+          totalCapacidade,
+          totalAlunos,
+          chartData: [{ curso: courseName, capacidade: totalCapacidade, alunos: totalAlunos }],
+          turmas,
+        };
+      }),
+    [dashboard.courses]
+  );
 
   const PIE_COLORS = ["#0066b3", "#1a365d", "#e87500", "#0d9488", "#7c3aed", "#dc2626", "#65a30d", "#ca8a04"];
 
   function exportToExcel() {
-    const sorted = [...items].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
+    const sorted = [...filteredItems].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
     const rows = sorted.map((e) => ({
       Aluno: e.student.name,
       "Curso/Turma": `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${e.classGroup.daysOfWeek.join(", ")})` : ""}${e.classGroup.location ? ` — ${e.classGroup.location}` : ""}`,
@@ -572,10 +627,10 @@ export default function EnrollmentsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
-          <Button variant="secondary" onClick={exportToExcel} disabled={items.length === 0}>
+          <Button variant="secondary" onClick={exportToExcel} disabled={itemsForView.length === 0}>
             Exportar Excel
           </Button>
-          <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf}>
+          <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf || itemsForView.length === 0}>
             {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
           </Button>
           <Button onClick={openCreate} className="w-full sm:w-auto">Nova matrícula</Button>
@@ -733,6 +788,10 @@ export default function EnrollmentsPage() {
                             dataKey="data"
                             tick={{ fill: "var(--text-muted)", fontSize: 11 }}
                             stroke="var(--card-border)"
+                            interval={0}
+                            angle={-45}
+                            textAnchor="end"
+                            height={60}
                           />
                           <YAxis
                             tick={{ fill: "var(--text-muted)", fontSize: 11 }}
@@ -773,7 +832,7 @@ export default function EnrollmentsPage() {
                 Vagas por curso e turma
               </h2>
               <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-                Matrículas ativas e capacidade. Use «Ver listagem» para filtrar a tabela.
+                Total de capacidade (azul) e de alunos (vermelho) por curso. Use o botão em cada gráfico para ver detalhes por turma.
               </p>
             </header>
             <div className="card-body">
@@ -781,54 +840,90 @@ export default function EnrollmentsPage() {
               <p className="mt-3 text-sm text-[var(--text-secondary)]">Nenhuma matrícula para exibir.</p>
             ) : (
               <>
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {dashboard.courses.map(([courseId, { courseName, turmas }]) => {
-                    const totalCurso = turmas.reduce((s, t) => s + t.count, 0);
-                    return (
-                      <div
-                        key={courseId}
-                        className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4"
-                      >
-                        <div className="flex items-baseline justify-between gap-2">
-                          <div className="font-medium text-[var(--text-primary)]">{courseName}</div>
-                          <span className="text-sm font-semibold text-[var(--text-primary)]">
-                            Total: {totalCurso}
-                          </span>
-                        </div>
-                        <ul className="mt-2 list-none space-y-1.5 text-sm text-[var(--text-secondary)]">
-                          {turmas.map(({ classGroup: cg, count }) => {
-                            const start = formatDateOnly(cg.startDate).slice(0, 5);
-                            const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
-                            const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}${cg.location ? ` — ${cg.location}` : ""}`;
-                            const cap = cg.capacity != null ? cg.capacity : 0;
-                            const fechada = cap > 0 && count >= cap;
-                            return (
-                              <li key={cg.id} className="flex flex-wrap items-center justify-between gap-2">
-                                <span>
-                                  {label}:{" "}
-                                  <strong
-                                    className={fechada ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
-                                  >
-                                    {count} / {cap || "—"}
-                                  </strong>
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTurmaFilterId(cg.id);
-                                    document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                                  }}
-                                  className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
-                                >
-                                  Ver listagem
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {courseChartsData.map(({ courseId, courseName, chartData, turmas }) => (
+                    <div
+                      key={courseId}
+                      className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4"
+                    >
+                      <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-2">{courseName}</h3>
+                      <div className="h-[180px] w-full min-w-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                            <XAxis
+                              dataKey="curso"
+                              tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                              interval={0}
+                              tickFormatter={() => ""}
+                            />
+                            <YAxis tick={{ fill: "var(--text-muted)", fontSize: 11 }} allowDecimals={false} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "var(--card-bg)",
+                                border: "1px solid var(--card-border)",
+                                borderRadius: "6px",
+                              }}
+                              labelStyle={{ color: "var(--text-primary)" }}
+                              formatter={(value: number, name: string) => [value, name === "capacidade" ? "Capacidade" : "Alunos"]}
+                              labelFormatter={() => courseName}
+                            />
+                            <Legend
+                              wrapperStyle={{ fontSize: "11px" }}
+                              formatter={(value) => (value === "capacidade" ? "Capacidade" : "Alunos")}
+                            />
+                            <Bar dataKey="capacidade" fill="#2563eb" radius={[4, 4, 0, 0]} name="capacidade" />
+                            <Bar dataKey="alunos" fill="#dc2626" radius={[4, 4, 0, 0]} name="alunos" />
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
-                    );
-                  })}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => toggleCourseDetails(courseId)}
+                        className="mt-2 w-full"
+                      >
+                        {expandedCourseIds.has(courseId) ? "Ocultar detalhes" : "Exibir detalhes"}
+                      </Button>
+                      {expandedCourseIds.has(courseId) && (
+                        <ul className="mt-3 list-none space-y-1.5 border-t border-[var(--card-border)] pt-3 text-sm text-[var(--text-secondary)]">
+                          {turmas.length === 0 ? (
+                            <li className="text-[var(--text-muted)]">Nenhuma turma no momento.</li>
+                          ) : (
+                            turmas.map(({ classGroup: cg, count }) => {
+                              const start = formatDateOnly(cg.startDate).slice(0, 5);
+                              const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
+                              const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}${cg.location ? ` — ${cg.location}` : ""}`;
+                              const cap = cg.capacity != null ? cg.capacity : 0;
+                              const fechada = cap > 0 && count >= cap;
+                              return (
+                                <li key={cg.id} className="flex flex-wrap items-center justify-between gap-2">
+                                  <span>
+                                    {label}:{" "}
+                                    <strong
+                                      className={fechada ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
+                                    >
+                                      {count} / {cap || "—"}
+                                    </strong>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setTurmaFilterId(cg.id);
+                                      document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                    }}
+                                    className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+                                  >
+                                    Ver listagem
+                                  </button>
+                                </li>
+                              );
+                            })
+                          )}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
                 </div>
                 <div className="mt-4 border-t border-[var(--card-border)] pt-3">
                   <span className="text-sm font-medium text-[var(--text-primary)]">Total de matrículas: </span>
@@ -848,13 +943,54 @@ export default function EnrollmentsPage() {
                 Por professor
               </h2>
               <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-                Turmas e quantidade de alunos (matrículas ativas) por professor. Total de alunos por professor ao final de cada bloco.
+                Quantidade de alunos (matrículas ativas) por professor. Use o botão abaixo para ver turmas e listagens.
               </p>
             </header>
             <div className="card-body">
               {teachersToDisplay.length === 0 ? (
                 <p className="text-sm text-[var(--text-secondary)]">Nenhum professor cadastrado.</p>
               ) : (
+                <>
+                  {teacherChartData.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-2">Alunos por professor</h3>
+                      <div className="h-[280px] w-full min-w-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={teacherChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                            <XAxis
+                              dataKey="professor"
+                              tick={{ fill: "var(--text-muted)", fontSize: 11 }}
+                              interval={0}
+                              angle={-45}
+                              textAnchor="end"
+                              height={60}
+                            />
+                            <YAxis tick={{ fill: "var(--text-muted)", fontSize: 11 }} allowDecimals={false} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "var(--card-bg)",
+                                border: "1px solid var(--card-border)",
+                                borderRadius: "6px",
+                              }}
+                              labelStyle={{ color: "var(--text-primary)" }}
+                              formatter={(value: number) => [value, "Alunos"]}
+                              labelFormatter={(label) => `Professor: ${label}`}
+                            />
+                            <Bar dataKey="alunos" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setShowTeacherDetails((v) => !v)}
+                    className="mb-4"
+                  >
+                    {showTeacherDetails ? "Ocultar detalhes" : "Exibir detalhes"}
+                  </Button>
+                  {showTeacherDetails && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {teachersToDisplay
                     .map((t) => {
@@ -929,6 +1065,8 @@ export default function EnrollmentsPage() {
                     );
                   })}
                 </div>
+                  )}
+                </>
               )}
             </div>
           </section>
@@ -946,7 +1084,7 @@ export default function EnrollmentsPage() {
                 </p>
               </div>
               <div className="flex flex-wrap items-end gap-3">
-                {(listFilter || statusFilterState || preEnrollmentFilterState || turmaFilterId) && (
+                {(listFilter || statusFilterState || preEnrollmentFilterState || turmaFilterId || dateFrom || dateTo) && (
                   <Button
                     type="button"
                     variant="secondary"
@@ -956,11 +1094,39 @@ export default function EnrollmentsPage() {
                       setStatusFilterState("");
                       setPreEnrollmentFilterState("");
                       setTurmaFilterId("");
+                      setDateFrom("");
+                      setDateTo("");
                     }}
                   >
                     Limpar filtros
                   </Button>
                 )}
+                <div className="flex flex-wrap items-end gap-2">
+                  <div>
+                    <label htmlFor="enrollments-date-from" className="block text-xs font-medium text-[var(--text-muted)] mb-0.5">
+                      Data (de)
+                    </label>
+                    <Input
+                      id="enrollments-date-from"
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="min-w-[140px]"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="enrollments-date-to" className="block text-xs font-medium text-[var(--text-muted)] mb-0.5">
+                      até
+                    </label>
+                    <Input
+                      id="enrollments-date-to"
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="min-w-[140px]"
+                    />
+                  </div>
+                </div>
                 <div className="min-w-[200px]">
                   <label htmlFor="enrollments-list-filter" className="sr-only">
                     Buscar por nome, e-mail ou curso
