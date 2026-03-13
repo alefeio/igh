@@ -165,10 +165,9 @@ export default function TabletBannersPage() {
                 <Th className="w-40" />
               </tr>
             </thead>
-            <SortableTableRows items={items}>
+            <SortableTableRows items={items} onReorder={handleReorder} noDndWrapper>
               {(b) => (
-                <tr key={b.id}>
-                  <Td className="w-8 cursor-grab text-[var(--text-muted)]">⋮⋮</Td>
+                <>
                   <Td>{b.order + 1}</Td>
                   <Td>
                     <div className="flex flex-col">
@@ -213,7 +212,7 @@ export default function TabletBannersPage() {
                       </Button>
                     </div>
                   </Td>
-                </tr>
+                </>
               )}
             </SortableTableRows>
           </Table>
