@@ -20,6 +20,7 @@ export default function TabletBannersFullscreenPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showClose, setShowClose] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
+  const isMouseDragRef = useRef(false);
   const [slideOffset, setSlideOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(0);
@@ -27,11 +28,10 @@ export default function TabletBannersFullscreenPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch("/api/admin/tablet/banners");
+        const res = await fetch("/api/tablet/banners");
         const json = (await res.json()) as ApiResponse<{ items: TabletBanner[] }>;
         if (res.ok && json?.ok) {
-          const active = (json.data.items ?? []).filter((b) => b.isActive);
-          setBanners(active);
+          setBanners(json.data.items ?? []);
         } else {
           setBanners([]);
         }
@@ -45,18 +45,15 @@ export default function TabletBannersFullscreenPage() {
   const goToNext = useCallback(() => {
     if (!banners.length) return;
     setSlideOffset(64);
-    // novo banner entra da direita para o centro (efeito indo para a esquerda)
     setCurrentIndex((prev) => (prev + 1) % banners.length);
   }, [banners.length]);
 
   const goToPrev = useCallback(() => {
     if (!banners.length) return;
     setSlideOffset(-64);
-    // novo banner entra da esquerda para o centro (efeito indo para a direita)
     setCurrentIndex((prev) => (prev === 0 ? banners.length - 1 : prev - 1));
   }, [banners.length]);
 
-  // Anima o banner atual da posição deslocada até o centro
   useEffect(() => {
     if (slideOffset === 0) return;
     const id = window.requestAnimationFrame(() => {
@@ -65,7 +62,6 @@ export default function TabletBannersFullscreenPage() {
     return () => window.cancelAnimationFrame(id);
   }, [currentIndex, slideOffset]);
 
-  // Rotação simples entre banners ativos
   useEffect(() => {
     if (!banners.length) return;
     const id = window.setInterval(() => {
@@ -74,7 +70,6 @@ export default function TabletBannersFullscreenPage() {
     return () => window.clearInterval(id);
   }, [banners.length, goToNext]);
 
-  // Detecta mouse no topo para mostrar o botão de fechar
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
       if (e.clientY <= 24) {
@@ -85,12 +80,49 @@ export default function TabletBannersFullscreenPage() {
     return () => window.removeEventListener("mousemove", handleMove);
   }, []);
 
+  useEffect(() => {
+    function handleGlobalMouseUp(e: MouseEvent) {
+      if (!isMouseDragRef.current) return;
+      isMouseDragRef.current = false;
+      const startX = touchStartXRef.current;
+      touchStartXRef.current = null;
+      setIsDragging(false);
+      if (startX == null) return;
+      const deltaX = e.clientX - startX;
+      const threshold = 80;
+      const w = typeof window !== "undefined" ? window.innerWidth : 400;
+      if (!banners.length || Math.abs(deltaX) < threshold) {
+        setSlideOffset(0);
+        return;
+      }
+      if (deltaX < 0) {
+        setSlideOffset(-w);
+        window.setTimeout(() => {
+          setCurrentIndex((prev) => (prev + 1) % banners.length);
+          setSlideOffset(0);
+        }, 400);
+      } else {
+        setSlideOffset(w);
+        window.setTimeout(() => {
+          setCurrentIndex((prev) =>
+            prev === 0 ? banners.length - 1 : prev - 1,
+          );
+          setSlideOffset(0);
+        }, 400);
+      }
+    }
+    document.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => document.removeEventListener("mouseup", handleGlobalMouseUp);
+  }, [banners.length]);
+
   const current = banners[currentIndex] ?? null;
+  const width = viewportWidth || 400;
+  const showNeighbor = Math.abs(slideOffset) > 0;
   const neighborIndex =
-    isDragging && Math.abs(slideOffset) > 0
+    showNeighbor && banners.length > 0
       ? slideOffset < 0
         ? (currentIndex + 1) % banners.length
-        : (currentIndex - 1 + banners.length) % Math.max(banners.length, 1)
+        : (currentIndex - 1 + banners.length) % banners.length
       : null;
   const neighbor =
     neighborIndex != null && banners.length > 0 ? banners[neighborIndex] : null;
@@ -106,8 +138,7 @@ export default function TabletBannersFullscreenPage() {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[80] bg-black text-white">
-      {/* Botão de fechar (só aparece ao encostar o mouse no topo) */}
+    <div className="fixed inset-0 z-[80] bg-gradient-to-br from-zinc-950 via-zinc-900 to-black text-white">
       {showClose && (
         <button
           type="button"
@@ -144,36 +175,42 @@ export default function TabletBannersFullscreenPage() {
             const deltaX = endX - startX;
             const threshold = 80;
             if (!banners.length || Math.abs(deltaX) < threshold) {
-              // volta para a posição original
               setSlideOffset(0);
               return;
             }
-            const width = viewportWidth || 400;
             if (deltaX < 0) {
-              // arrastou para a esquerda: atual sai para a esquerda, próximo entra
               setSlideOffset(-width);
               window.setTimeout(() => {
                 setCurrentIndex((prev) => (prev + 1) % banners.length);
                 setSlideOffset(0);
-              }, 450);
+              }, 400);
             } else {
-              // arrastou para a direita: atual sai para a direita, anterior entra
               setSlideOffset(width);
               window.setTimeout(() => {
                 setCurrentIndex((prev) =>
                   prev === 0 ? banners.length - 1 : prev - 1,
                 );
                 setSlideOffset(0);
-              }, 450);
+              }, 400);
             }
           }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            touchStartXRef.current = e.clientX;
+            isMouseDragRef.current = true;
+            setIsDragging(true);
+            setSlideOffset(0);
+          }}
+          onMouseMove={(e) => {
+            if (touchStartXRef.current == null) return;
+            setSlideOffset(e.clientX - touchStartXRef.current);
+          }}
         >
-          {/* Slide atual */}
           <div
             className="absolute inset-0 flex items-center justify-center"
             style={{
               transform: `translateX(${slideOffset}px)`,
-              transition: isDragging ? "none" : "transform 450ms ease-out",
+              transition: isDragging ? "none" : "transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
             }}
           >
             {current.imageUrl ? (
@@ -215,17 +252,14 @@ export default function TabletBannersFullscreenPage() {
             )}
           </div>
 
-          {/* Próximo/Anterior aparecendo ao lado durante o arraste */}
           {neighbor && (
             <div
               className="absolute inset-0 flex items-center justify-center"
               style={{
                 transform: `translateX(${
-                  slideOffset < 0
-                    ? slideOffset + (viewportWidth || 400)
-                    : slideOffset - (viewportWidth || 400)
+                  slideOffset < 0 ? slideOffset + width : slideOffset - width
                 }px)`,
-                transition: isDragging ? "none" : "transform 450ms ease-out",
+                transition: isDragging ? "none" : "transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
               }}
             >
               {neighbor.imageUrl ? (
@@ -276,4 +310,3 @@ export default function TabletBannersFullscreenPage() {
     </div>
   );
 }
-
