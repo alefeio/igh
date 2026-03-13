@@ -864,7 +864,7 @@ export default function EnrollmentsPage() {
                                 borderRadius: "6px",
                               }}
                               labelStyle={{ color: "var(--text-primary)" }}
-                              formatter={(value: number, name: string) => [value, name === "capacidade" ? "Capacidade" : "Alunos"]}
+                              formatter={(value: number | undefined, name?: string) => [value ?? 0, name === "capacidade" ? "Capacidade" : "Alunos"]}
                               labelFormatter={() => courseName}
                             />
                             <Legend
@@ -973,7 +973,7 @@ export default function EnrollmentsPage() {
                                 borderRadius: "6px",
                               }}
                               labelStyle={{ color: "var(--text-primary)" }}
-                              formatter={(value: number) => [value, "Alunos"]}
+                              formatter={(value: number | undefined) => [value ?? 0, "Alunos"]}
                               labelFormatter={(label) => `Professor: ${label}`}
                             />
                             <Bar dataKey="alunos" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} />
