@@ -18,7 +18,7 @@ function getTodayUtc(): Date {
 
 export async function GET() {
   try {
-    await requireRole(["ADMIN", "MASTER"]);
+    const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
 
     const today = getTodayUtc();
 
@@ -40,7 +40,21 @@ export async function GET() {
       }),
     ]);
 
+    const isTeacher = user.role === "TEACHER";
+    let teacherId: string | null = null;
+    if (isTeacher) {
+      const teacher = await prisma.teacher.findFirst({
+        where: { userId: user.id, deletedAt: null },
+        select: { id: true },
+      });
+      teacherId = teacher?.id ?? null;
+      if (!teacherId) {
+        return jsonOk({ classGroups: [] });
+      }
+    }
+
     const classGroups = await prisma.classGroup.findMany({
+      where: isTeacher && teacherId ? { teacherId } : undefined,
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       include: {
         course: true,

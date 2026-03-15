@@ -18,6 +18,8 @@ model User {
   updatedAt                   DateTime            @updatedAt
   mustChangePassword          Boolean             @default(false)
   isAdmin                     Boolean             @default(false)
+  /** Chaves dos tutoriais já concluídos pelo usuário (ex.: student-dashboard-tutorial-done). */
+  completedTutorialKeys      String[]            @default([])
   auditLogs                   AuditLog[]          @relation("UserAuditLogs")
   pendingSiteChangesRequested PendingSiteChange[]
   pendingSiteChangesReviewed  PendingSiteChange[] @relation("PendingSiteChangeReviewedBy")

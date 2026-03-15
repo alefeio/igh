@@ -12,6 +12,7 @@ import {
   UserCircle,
 } from "lucide-react";
 
+import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { requireSessionUser } from "@/lib/auth";
 import {
   getDashboardData,
@@ -29,6 +30,128 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELADA: "Cancelada",
   INTERNO: "Interno",
 };
+
+/** Passos do tutorial exibido ao aluno na primeira vez no /dashboard */
+const STUDENT_TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    target: "[data-tour=\"dashboard-welcome\"]",
+    title: "Bem-vindo à Área do aluno",
+    content: "Este é seu painel. Aqui você vê seu progresso, cursos matriculados e atalhos. Vamos mostrar os principais recursos.",
+  },
+  {
+    target: "[data-tour=\"dashboard-progresso-geral\"]",
+    title: "Seu progresso geral",
+    content: "Aqui aparece quantas aulas você já concluiu no total e a barra de progresso. Conclua as aulas para avançar nos cursos.",
+  },
+  {
+    target: "[data-tour=\"dashboard-desempenho-exercicios\"]",
+    title: "Desempenho nos exercícios",
+    content: "Após responder às questões ao final das aulas, você vê aqui seus acertos e a porcentagem. Use o link para ver por curso e revisar tópicos que precisam de atenção.",
+  },
+  {
+    target: "[data-tour=\"dashboard-sua-evolucao\"]",
+    title: "Sua evolução",
+    content: "Você ganha pontos ao concluir aulas e acertar exercícios. Suba de nível (Iniciante, Explorador, Dedicado...) e desbloqueie conquistas ao longo da jornada.",
+  },
+  {
+    target: "[data-tour=\"sidebar-minhas-turmas\"]",
+    title: "Minhas turmas",
+    content: "Pelo menu lateral você acessa seus cursos e o conteúdo das aulas. É por aqui que você estuda e acompanha o progresso.",
+  },
+  {
+    target: "[data-tour=\"dashboard-acesso-minhas-turmas\"]",
+    title: "Acesso rápido: Minhas turmas",
+    content: "No painel você também pode ir direto para suas turmas e continuar de onde parou.",
+  },
+  {
+    target: "[data-tour=\"dashboard-acesso-favoritos\"]",
+    title: "Favoritos",
+    content: "As aulas que você marcar como favoritas ficam salvas aqui para acesso rápido.",
+  },
+  {
+    target: "[data-tour=\"dashboard-acesso-meus-dados\"]",
+    title: "Meus dados",
+    content: "Atualize seu cadastro e anexos quando precisar. Mantenha seus dados em dia.",
+  },
+  {
+    target: "[data-tour=\"sidebar-meus-dados\"]",
+    title: "Meus dados no menu",
+    content: "O menu lateral também tem o atalho para Meus dados. Use-o a qualquer momento.",
+  },
+  {
+    target: null,
+    title: "Tudo pronto!",
+    content: "Agora você já conhece a Área do aluno. Use o menu ao lado para navegar. Bom estudo!",
+  },
+];
+
+/** Passos do tutorial exibido ao Admin/Master na primeira vez no /dashboard */
+const ADMIN_TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    target: "[data-tour=\"admin-dashboard-welcome\"]",
+    title: "Dashboard Admin",
+    content: "Visão geral do sistema. Aqui você acompanha alunos, professores, cursos, turmas e matrículas.",
+  },
+  {
+    target: "[data-tour=\"admin-dashboard-resumo\"]",
+    title: "Resumo geral",
+    content: "Cards com totais de Alunos, Professores, Cursos, Turmas e Matrículas. Clique em cada um para ir à página correspondente.",
+  },
+  {
+    target: "[data-tour=\"admin-dashboard-turmas-status\"]",
+    title: "Turmas por status",
+    content: "Quantidade de turmas em cada status: Aberta, Em andamento, Planejada, Encerrada, Cancelada e Interno.",
+  },
+  {
+    target: "[data-tour=\"admin-dashboard-matriculas-30\"]",
+    title: "Matrículas (últimos 30 dias)",
+    content: "Total de matrículas nos últimos 30 dias. Use o link para ver todas as matrículas.",
+  },
+  {
+    target: "[data-tour=\"admin-dashboard-turmas-abertas\"]",
+    title: "Turmas abertas ou em andamento",
+    content: "Tabela com as turmas que estão abertas ou em andamento. Acesse turmas e matrículas por curso a partir daqui.",
+  },
+  {
+    target: "[data-tour=\"admin-dashboard-atalhos\"]",
+    title: "Atalhos",
+    content: "Links rápidos para Matrículas, Alunos, Professores, Cursos e Turmas. O menu lateral também oferece acesso a todas as áreas.",
+  },
+  {
+    target: null,
+    title: "Tudo pronto!",
+    content: "Use o menu ao lado para acessar usuários, turmas, matrículas, configurações do site e demais funções. Bom trabalho!",
+  },
+];
+
+/** Passos do tutorial exibido ao Professor na primeira vez no /dashboard */
+const TEACHER_TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    target: "[data-tour=\"teacher-dashboard-welcome\"]",
+    title: "Dashboard Professor",
+    content: "Visão geral das suas turmas e alunos. Aqui você acompanha turmas ativas, matrículas e atalhos para o dia a dia.",
+  },
+  {
+    target: "[data-tour=\"teacher-dashboard-resumo\"]",
+    title: "Seu resumo",
+    content: "Turmas ativas (abertas ou em andamento), total de alunos matriculados nas suas turmas e vagas ainda disponíveis.",
+  },
+  {
+    target: "[data-tour=\"teacher-dashboard-turmas\"]",
+    title: "Suas turmas",
+    content: "Tabela com as turmas que você leciona. Clique no curso para ver as matrículas ou use \"Ver turma\" para acessar sessões, presenças e conteúdo da turma.",
+  },
+  {
+    target: "[data-tour=\"teacher-dashboard-atalhos\"]",
+    title: "Atalhos",
+    content: "Links rápidos: Turmas que leciono (sessões e presenças), Matrículas e Alunos. O menu lateral também dá acesso a todas as áreas.",
+  },
+  {
+    target: null,
+    title: "Tudo pronto!",
+    content: "Use o menu ao lado para acessar suas turmas, alunos e o que precisar. Bom trabalho!",
+  },
+];
 
 const POINTS_PER_LESSON = 10;
 const LEVELS = [
@@ -133,7 +256,7 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
 
   return (
     <div className="container-page flex flex-col gap-6">
-      <header>
+      <header data-tour="admin-dashboard-welcome">
         <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
           Dashboard
         </h1>
@@ -142,7 +265,7 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
         </p>
       </header>
 
-      <section>
+      <section data-tour="admin-dashboard-resumo">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Resumo geral</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <StatCard label="Alunos" value={stats.students} href="/students" />
@@ -163,7 +286,7 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4" data-tour="admin-dashboard-turmas-status">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             Turmas por status
           </h2>
@@ -176,7 +299,7 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
             ))}
           </ul>
         </div>
-        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4" data-tour="admin-dashboard-matriculas-30">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             Matrículas (últimos 30 dias)
           </h2>
@@ -188,7 +311,7 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
       </section>
 
       {openClassGroups.length > 0 && (
-        <section>
+        <section data-tour="admin-dashboard-turmas-abertas">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             Turmas abertas ou em andamento
           </h2>
@@ -216,7 +339,7 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
         </section>
       )}
 
-      <section>
+      <section data-tour="admin-dashboard-atalhos">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Atalhos</h2>
         <QuickLinks
           links={[
@@ -234,31 +357,44 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
 
 function DashboardTeacher({ data }: { data: Extract<DashboardData, { role: "TEACHER" }> }) {
   const { myClassGroupsCount, myEnrollmentsCount, classGroups, roleLabel } = data;
+  const totalVagasDisponiveis = classGroups.reduce(
+    (acc, cg) => acc + Math.max(0, (cg.capacity ?? 0) - (cg.enrollmentsCount ?? 0)),
+    0
+  );
 
   return (
     <div className="container-page flex flex-col gap-6">
-      <header>
+      <header data-tour="teacher-dashboard-welcome">
         <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
           Dashboard
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Seu perfil: <span className="font-medium">{roleLabel}</span>
+          Seu perfil: <span className="font-medium">{roleLabel}</span>. Aqui você acompanha suas turmas, alunos matriculados e atalhos.
         </p>
       </header>
 
-      <section>
+      <section data-tour="teacher-dashboard-resumo">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Seu resumo</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <StatCard label="Turmas ativas" value={myClassGroupsCount} />
-          <StatCard label="Alunos matriculados" value={myEnrollmentsCount} />
+          <StatCard label="Turmas ativas" value={myClassGroupsCount} href="/professor/turmas" />
+          <StatCard label="Alunos matriculados" value={myEnrollmentsCount} href="/enrollments" />
+          <StatCard label="Vagas disponíveis" value={totalVagasDisponiveis} />
         </div>
       </section>
 
       {classGroups.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Suas turmas (abertas ou em andamento)
-          </h2>
+        <section data-tour="teacher-dashboard-turmas">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Suas turmas (abertas ou em andamento)
+            </h2>
+            <Link
+              href="/professor/turmas"
+              className="text-sm font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+            >
+              Ver todas as turmas →
+            </Link>
+          </div>
           <div className="overflow-x-auto rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]">
             <table className="min-w-full text-sm">
               <thead>
@@ -267,6 +403,7 @@ function DashboardTeacher({ data }: { data: Extract<DashboardData, { role: "TEAC
                   <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Status</th>
                   <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Início</th>
                   <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Vagas</th>
+                  <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -289,6 +426,23 @@ function DashboardTeacher({ data }: { data: Extract<DashboardData, { role: "TEAC
                     <td className="border-b border-[var(--card-border)] px-3 py-2 text-[var(--text-secondary)]">
                       {cg.enrollmentsCount} / {cg.capacity}
                     </td>
+                    <td className="border-b border-[var(--card-border)] px-3 py-2">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/professor/turmas/${cg.id}`}
+                          className="text-[var(--igh-primary)] hover:underline text-xs font-medium"
+                        >
+                          Ver turma
+                        </Link>
+                        <span className="text-[var(--text-muted)]">·</span>
+                        <Link
+                          href={`/enrollments?turma=${cg.id}`}
+                          className="text-[var(--igh-primary)] hover:underline text-xs font-medium"
+                        >
+                          Matrículas
+                        </Link>
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -297,9 +451,15 @@ function DashboardTeacher({ data }: { data: Extract<DashboardData, { role: "TEAC
         </section>
       )}
 
-      <section>
+      <section data-tour="teacher-dashboard-atalhos">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Atalhos</h2>
-        <QuickLinks links={[{ href: "/students", label: "Alunos" }]} />
+        <QuickLinks
+          links={[
+            { href: "/professor/turmas", label: "Turmas que leciono" },
+            { href: "/enrollments", label: "Matrículas" },
+            { href: "/students", label: "Alunos" },
+          ]}
+        />
       </section>
     </div>
   );
@@ -426,7 +586,7 @@ function DashboardStudent({
 
   return (
     <div className="container-page flex flex-col gap-8">
-      <header>
+      <header data-tour="dashboard-welcome">
         <div className="flex items-center gap-2 text-[var(--igh-primary)]">
           <Sparkles className="h-6 w-6" aria-hidden />
           <span className="text-sm font-medium">Seu painel</span>
@@ -445,6 +605,7 @@ function DashboardStudent({
             <section
               className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5"
               aria-labelledby="resumo-progresso-heading"
+              data-tour="dashboard-progresso-geral"
             >
               <h2 id="resumo-progresso-heading" className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                 Seu progresso geral
@@ -476,6 +637,7 @@ function DashboardStudent({
           <section
             className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5"
             aria-labelledby="exercicios-heading"
+            data-tour="dashboard-desempenho-exercicios"
           >
             <h2 id="exercicios-heading" className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Desempenho nos exercícios
@@ -542,6 +704,7 @@ function DashboardStudent({
           <section
             className="rounded-xl border border-[var(--card-border)] border-l-4 border-l-amber-500 bg-[var(--card-bg)] p-5 sm:p-6"
             aria-labelledby="gamificacao-heading"
+            data-tour="dashboard-sua-evolucao"
           >
             <h2 id="gamificacao-heading" className="flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]">
               <Trophy className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
@@ -665,6 +828,7 @@ function DashboardStudent({
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             href="/minhas-turmas"
+            data-tour="dashboard-acesso-minhas-turmas"
             className="flex items-center gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--igh-primary)]/15">
@@ -678,6 +842,7 @@ function DashboardStudent({
           </Link>
           <Link
             href="/minhas-turmas/favoritos"
+            data-tour="dashboard-acesso-favoritos"
             className="flex items-center gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/15">
@@ -691,6 +856,7 @@ function DashboardStudent({
           </Link>
           <Link
             href="/meus-dados"
+            data-tour="dashboard-acesso-meus-dados"
             className="flex items-center gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">
@@ -752,6 +918,30 @@ export default async function DashboardPage() {
           data={data as Extract<DashboardData, { role: "STUDENT" }>}
         />
       )}
+      <DashboardTutorial
+        showForStudent={
+          data.role === "STUDENT" ||
+          data.role === "ADMIN" ||
+          data.role === "MASTER" ||
+          data.role === "TEACHER"
+        }
+        steps={
+          data.role === "STUDENT"
+            ? STUDENT_TUTORIAL_STEPS
+            : data.role === "ADMIN" || data.role === "MASTER"
+              ? ADMIN_TUTORIAL_STEPS
+              : data.role === "TEACHER"
+                ? TEACHER_TUTORIAL_STEPS
+                : []
+        }
+        storageKey={
+          data.role === "ADMIN" || data.role === "MASTER"
+            ? "admin-dashboard-tutorial-done"
+            : data.role === "TEACHER"
+              ? "teacher-dashboard-tutorial-done"
+              : undefined
+        }
+      />
     </>
   );
 }

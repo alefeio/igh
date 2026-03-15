@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CloudinaryFormationUpload } from "@/components/admin/CloudinaryFormationUpload";
+import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -62,6 +63,20 @@ export default function LessonEditPage() {
   }, []);
 
   const currentModule = useMemo(() => modules.find((m) => m.id === moduleId), [modules, moduleId]);
+
+  const tutorialSteps: TutorialStep[] = useMemo(() => {
+    if (!moduleId) return [];
+    const steps: TutorialStep[] = [
+      { target: "[data-tour=\"lesson-edit-back\"]", title: "Voltar", content: "Use este botão para voltar à edição do curso (módulos e aulas)." },
+      { target: "[data-tour=\"lesson-edit-dados\"]", title: "Dados da aula", content: "Preencha o título, ordem, duração e o link do vídeo. Você pode anexar imagens/arquivos e adicionar links de apoio com nome para exibição. O resumo aparece no topo da aula para o aluno." },
+      { target: "[data-tour=\"lesson-edit-conteudo\"]", title: "Conteúdo (rich text)", content: "Escreva aqui o conteúdo principal da aula com formatação, listas e links. Esse texto é exibido ao aluno durante a aula. Para incluir uma imagem no conteúdo (rich text), basta copiar a imagem de Arquivos da aula e colar no conteúdo." },
+    ];
+    if (!isNew) {
+      steps.push({ target: "[data-tour=\"lesson-edit-exercicios\"]", title: "Exercícios", content: "Adicione perguntas de múltipla escolha. Elas são exibidas ao final da aula para o aluno responder." });
+    }
+    steps.push({ target: "[data-tour=\"lesson-edit-actions\"]", title: "Salvar", content: "Use \"Salvar\" para gravar as alterações da aula ou \"Cancelar\" para voltar sem salvar." });
+    return steps;
+  }, [moduleId, isNew]);
 
   useEffect(() => {
     if (!courseId) return;
@@ -292,8 +307,9 @@ export default function LessonEditPage() {
 
   return (
     <div className="container-page flex flex-col gap-6">
+      <DashboardTutorial showForStudent={true} steps={tutorialSteps} storageKey="teacher-lesson-edit-tutorial-done" />
       <header className="flex flex-col gap-2">
-        <Button variant="ghost" size="sm" className="-ml-1 w-fit text-[var(--text-muted)]" onClick={() => router.push(`/courses/${courseId}/edit`)}>
+        <Button variant="ghost" size="sm" className="-ml-1 w-fit text-[var(--text-muted)]" onClick={() => router.push(`/courses/${courseId}/edit`)} data-tour="lesson-edit-back">
           ← Voltar ao curso
         </Button>
         <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
@@ -308,7 +324,7 @@ export default function LessonEditPage() {
 
       <form className="flex flex-col gap-6" onSubmit={saveLesson}>
         {/* Parte superior: campos que podem ficar ocultos no scroll */}
-        <div className="card">
+        <div className="card" data-tour="lesson-edit-dados">
           <div className="card-header">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Dados da aula</h2>
           </div>
@@ -339,8 +355,8 @@ export default function LessonEditPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Arquivos e imagens da aula</label>
-              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens, PDF, Word, Excel etc. (copie o endereço e cole no rich text ou use como link).</p>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Arquivos da aula</label>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens e arquivos. Para inserir uma imagem no Conteúdo (rich text), copie o arquivo aqui (botão &quot;Copiar arquivo&quot;) e cole (Ctrl+V) no editor abaixo.</p>
               <div className="mt-1">
                 <CloudinaryFormationUpload
                   onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
@@ -359,8 +375,8 @@ export default function LessonEditPage() {
                         ) : (
                           <a href={url} target="_blank" rel="noopener noreferrer" className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-[var(--card-border)] text-[var(--text-muted)]" title="Abrir arquivo">📎</a>
                         )}
-                        <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(url); toast.push("success", "Endereço copiado."); }}>Copiar endereço</Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(url); toast.push("success", "Copiado. Cole no Conteúdo (rich text) com Ctrl+V."); }}>Copiar arquivo</Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(url); toast.push("success", "Endereço copiado."); }}>Copiar endereço do arquivo</Button>
                         <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => setLessonForm((f) => ({ ...f, imageUrls: (f.imageUrls ?? []).filter((_, i) => i !== idx) }))}>Remover</Button>
                       </li>
                     );
@@ -441,9 +457,10 @@ export default function LessonEditPage() {
         </div>
 
         {/* Painel de Conteúdo (rich text) flutuante: sticky ao fazer scroll */}
-        <div ref={contentSectionRef} className="card sticky top-4 z-10 self-start shadow-md transition-shadow">
+        <div ref={contentSectionRef} className="card sticky top-4 z-10 self-start shadow-md transition-shadow" data-tour="lesson-edit-conteudo">
           <div className="card-header">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Conteúdo (rich text)</h2>
+            <p className="mt-0.5 text-xs text-[var(--text-muted)]">Para inserir uma imagem no conteúdo: copie em &quot;Arquivos da aula&quot; (botão Copiar arquivo) e cole (Ctrl+V) aqui.</p>
           </div>
           <div className="card-body">
             <RichTextEditor
@@ -458,7 +475,7 @@ export default function LessonEditPage() {
 
         {/* Exercícios (só em edição) */}
         {!isNew && moduleId && lessonIdParam && (
-          <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
+          <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-4" data-tour="lesson-edit-exercicios">
             <div className="mb-2 flex items-center justify-between">
               <label className="text-sm font-medium text-[var(--text-primary)]">Exercícios de múltipla escolha</label>
               <Button type="button" variant="secondary" size="sm" onClick={openExerciseAdd}>Adicionar exercício</Button>
@@ -489,7 +506,7 @@ export default function LessonEditPage() {
           </div>
         )}
 
-        <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
+        <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3" data-tour="lesson-edit-actions">
           <Button type="button" variant="secondary" onClick={() => router.push(`/courses/${courseId}/edit`)} disabled={savingLesson}>Cancelar</Button>
           <Button type="submit" disabled={savingLesson}>{savingLesson ? "Salvando…" : "Salvar"}</Button>
         </div>

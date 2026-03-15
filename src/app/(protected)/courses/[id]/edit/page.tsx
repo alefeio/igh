@@ -4,6 +4,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useUser } from "@/components/layout/UserProvider";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
@@ -52,6 +53,16 @@ export default function CourseEditPage() {
   const formRef = useRef<HTMLFormElement>(null);
 
   const canSubmit = useMemo(() => name.trim().length >= 2, [name]);
+
+  const tutorialSteps: TutorialStep[] = useMemo(() => {
+    if (!course) return [];
+    return [
+      { target: "[data-tour=\"course-edit-back\"]", title: "Voltar", content: "Use este botão para voltar à lista de cursos." },
+      { target: "[data-tour=\"course-edit-dados\"]", title: "Dados do curso", content: "Aqui estão o nome, descrição, imagem, carga horária e status do curso. Como professor você só visualiza; coordenadores podem editar e salvar." },
+      { target: "[data-tour=\"course-edit-conteudo\"]", title: "Conteúdo do curso", content: "Texto de apresentação do curso em formato rico. Como professor: somente leitura." },
+      { target: "[data-tour=\"course-edit-modulos\"]", title: "Módulos e aulas", content: "Aqui ficam os módulos e as aulas do curso. Clique em \"Editar\" em uma aula para adicionar ou alterar vídeo, texto, anexos e resumo." },
+    ];
+  }, [course]);
 
   useEffect(() => {
     if (!courseId) return;
@@ -219,9 +230,10 @@ export default function CourseEditPage() {
 
   return (
     <div className="container-page flex flex-col gap-6">
+      <DashboardTutorial showForStudent={isTeacher} steps={tutorialSteps} storageKey="teacher-course-edit-tutorial-done" />
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <Button variant="ghost" size="sm" className="-ml-1 text-[var(--text-muted)]" onClick={() => router.push("/courses")}>
+          <Button variant="ghost" size="sm" className="-ml-1 text-[var(--text-muted)]" onClick={() => router.push("/courses")} data-tour="course-edit-back">
             ← Voltar aos cursos
           </Button>
           <h1 className="mt-1 text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
@@ -232,7 +244,7 @@ export default function CourseEditPage() {
       </header>
 
       <form ref={formRef} className="flex flex-col gap-6" onSubmit={save}>
-        <div className="card">
+        <div className="card" data-tour="course-edit-dados">
           <div className="card-header">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Dados do curso</h2>
             {isTeacher && <p className="mt-0.5 text-xs text-[var(--text-muted)]">Somente visualização</p>}
@@ -290,7 +302,7 @@ export default function CourseEditPage() {
         </div>
 
         {/* Painel Conteúdo (rich text): flutuante para admin; somente leitura para professor */}
-        <div className="card sticky top-4 z-10 self-start shadow-md transition-shadow">
+        <div className="card sticky top-4 z-10 self-start shadow-md transition-shadow" data-tour="course-edit-conteudo">
           <div className="card-header">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Conteúdo (rich text, opcional)</h2>
             {isTeacher && <p className="mt-0.5 text-xs text-[var(--text-muted)]">Somente visualização</p>}
@@ -310,7 +322,7 @@ export default function CourseEditPage() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="card" data-tour="course-edit-modulos">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--card-border)] px-4 py-3">
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Módulos e aulas</h2>
             {!isTeacher && (

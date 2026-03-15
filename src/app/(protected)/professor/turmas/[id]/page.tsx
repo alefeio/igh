@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
@@ -214,6 +215,52 @@ export default function ProfessorTurmaDetailPage() {
     }
   };
 
+  const tutorialSteps: TutorialStep[] = useMemo(() => {
+    if (!classGroup) return [];
+    return [
+      {
+        target: "[data-tour=\"pt-voltar\"]",
+        title: "Voltar às turmas",
+        content: "Use este link para retornar à lista de turmas que você leciona.",
+      },
+      {
+        target: "[data-tour=\"pt-header\"]",
+        title: "Detalhes da turma",
+        content: "Aqui aparecem o nome do curso, a quantidade de alunos e a data/horário de início.",
+      },
+      {
+        target: "[data-tour=\"pt-tabs\"]",
+        title: "Abas da turma",
+        content: "Use as abas para alternar entre: lista de alunos, exercícios realizados, progresso nas aulas e frequência (presenças).",
+      },
+      {
+        target: "[data-tour=\"pt-tab-alunos\"]",
+        title: "Lista de alunos",
+        content: "Veja os alunos matriculados nesta turma. Alertas em amarelo ou vermelho indicam documentação incompleta.",
+      },
+      {
+        target: "[data-tour=\"pt-tab-exercicios\"]",
+        title: "Exercícios realizados",
+        content: "Acompanhe as respostas dos alunos aos exercícios das aulas: acertos, erros e tentativas por questão.",
+      },
+      {
+        target: "[data-tour=\"pt-tab-aulas\"]",
+        title: "Aulas assistidas",
+        content: "Veja o progresso de cada aluno nas aulas: conclusão, último acesso e tempo de estudo.",
+      },
+      {
+        target: "[data-tour=\"pt-tab-frequencia\"]",
+        title: "Frequência",
+        content: "Selecione uma sessão com aula liberada e marque presença (presente/ausente) de cada aluno. Depois clique em Salvar frequência.",
+      },
+      {
+        target: null,
+        title: "Tudo pronto!",
+        content: "Use esta página para acompanhar sua turma: alunos, exercícios, progresso e frequência. Bom trabalho!",
+      },
+    ];
+  }, [classGroup]);
+
   if (loading && !classGroup) {
     return (
       <div className="container-page flex justify-center py-12">
@@ -236,9 +283,14 @@ export default function ProfessorTurmaDetailPage() {
 
   return (
     <div className="container-page flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <DashboardTutorial
+        showForStudent={true}
+        steps={tutorialSteps}
+        storageKey="teacher-turmas-detail-tutorial-done"
+      />
+      <header className="flex flex-wrap items-start justify-between gap-4" data-tour="pt-header">
         <div>
-          <Link href="/professor/turmas" className="text-sm text-[var(--igh-primary)] hover:underline">
+          <Link href="/professor/turmas" className="text-sm text-[var(--igh-primary)] hover:underline" data-tour="pt-voltar">
             ← Turmas que leciono
           </Link>
           <h1 className="mt-2 text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
@@ -251,7 +303,7 @@ export default function ProfessorTurmaDetailPage() {
         </div>
       </header>
 
-      <nav className="flex flex-wrap gap-2 border-b border-[var(--card-border)] pb-2">
+      <nav className="flex flex-wrap gap-2 border-b border-[var(--card-border)] pb-2" data-tour="pt-tabs">
         <button
           type="button"
           onClick={() => setTab("alunos")}
@@ -260,6 +312,7 @@ export default function ProfessorTurmaDetailPage() {
               ? "bg-[var(--igh-primary)] text-white"
               : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
           }`}
+          data-tour="pt-tab-alunos"
         >
           Lista de alunos
         </button>
@@ -271,6 +324,7 @@ export default function ProfessorTurmaDetailPage() {
               ? "bg-[var(--igh-primary)] text-white"
               : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
           }`}
+          data-tour="pt-tab-exercicios"
         >
           Exercícios realizados
         </button>
@@ -282,6 +336,7 @@ export default function ProfessorTurmaDetailPage() {
               ? "bg-[var(--igh-primary)] text-white"
               : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
           }`}
+          data-tour="pt-tab-aulas"
         >
           Aulas assistidas
         </button>
@@ -293,6 +348,7 @@ export default function ProfessorTurmaDetailPage() {
               ? "bg-[var(--igh-primary)] text-white"
               : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
           }`}
+          data-tour="pt-tab-frequencia"
         >
           Frequência
         </button>

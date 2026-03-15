@@ -46,9 +46,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Matrículas: apenas MASTER ou ADMIN
+  // Matrículas: MASTER, ADMIN ou TEACHER (professor vê apenas as turmas que leciona)
   if (pathname.startsWith("/enrollments")) {
-    if (role !== "MASTER" && role !== "ADMIN") {
+    if (role !== "MASTER" && role !== "ADMIN" && role !== "TEACHER") {
       const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
     }

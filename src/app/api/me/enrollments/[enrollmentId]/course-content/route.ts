@@ -97,7 +97,8 @@ export async function GET(
   const modules = await getModulesWithLessonsByCourseId(courseId);
 
   const lessonIds = modules.flatMap((m) => m.lessons.map((l) => l.id));
-  const [progressList, answers] = await Promise.all([
+  const orderedLessons = modules.flatMap((m) => m.lessons);
+  const [progressList, answers, exerciseCountByLesson] = await Promise.all([
     prisma.enrollmentLessonProgress.findMany({
       where: { enrollmentId, lessonId: { in: lessonIds } },
       select: { lessonId: true, completed: true, lastContentPageIndex: true },
@@ -106,6 +107,7 @@ export async function GET(
       where: { enrollmentId },
       select: {
         correct: true,
+        exerciseId: true,
         exercise: {
           select: {
             lessonId: true,
@@ -122,7 +124,39 @@ export async function GET(
       },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.courseLessonExercise.groupBy({
+      by: ["lessonId"],
+      where: { lessonId: { in: lessonIds } },
+      _count: { id: true },
+    }),
   ]);
+  const exerciseCountMap = new Map(
+    exerciseCountByLesson.map((g) => [g.lessonId, g._count.id])
+  );
+  const answeredExerciseIdsByLesson = new Map<string, Set<string>>();
+  for (const a of answers) {
+    const lid = a.exercise?.lesson?.id;
+    if (!lid) continue;
+    if (!answeredExerciseIdsByLesson.has(lid)) {
+      answeredExerciseIdsByLesson.set(lid, new Set());
+    }
+    answeredExerciseIdsByLesson.get(lid)!.add(a.exerciseId);
+  }
+  const previousLessonExercisesCompleteByLessonId = new Map<string, boolean>();
+  for (let i = 0; i < orderedLessons.length; i++) {
+    const lesson = orderedLessons[i]!;
+    if (i === 0) {
+      previousLessonExercisesCompleteByLessonId.set(lesson.id, true);
+    } else {
+      const prev = orderedLessons[i - 1]!;
+      const prevCount = exerciseCountMap.get(prev.id) ?? 0;
+      const prevAnswered = answeredExerciseIdsByLesson.get(prev.id)?.size ?? 0;
+      previousLessonExercisesCompleteByLessonId.set(
+        lesson.id,
+        prevCount === 0 || prevAnswered >= prevCount
+      );
+    }
+  }
   const completedByLessonId = new Map(progressList.map((p) => [p.lessonId, p.completed]));
   const lastContentPageIndexByLessonId = new Map(
     progressList
@@ -191,6 +225,8 @@ export async function GET(
       isLiberada: liberadaLessonIds.has(lesson.id),
       completed: completedByLessonId.get(lesson.id) ?? false,
       lastContentPageIndex: lastContentPageIndexByLessonId.get(lesson.id) ?? null,
+      previousLessonExercisesComplete:
+        previousLessonExercisesCompleteByLessonId.get(lesson.id) ?? true,
     })),
   }));
 

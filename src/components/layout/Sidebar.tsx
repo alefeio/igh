@@ -84,7 +84,7 @@ export function Sidebar({
   const canMaster = r?.canMaster ?? (user.baseRole === "MASTER");
   const canStudent = r?.canStudent ?? (user.hasStudentProfile === true);
   const canTeacher = r?.canTeacher ?? (user.hasTeacherProfile === true);
-  const canAdmin = r?.canAdmin ?? (user.isAdmin === true);
+  const canAdmin = r?.canAdmin ?? (user.isAdmin === true || user.baseRole === "ADMIN");
 
   const roleLabels: Record<string, string> = {
     MASTER: "Administrador Master",
@@ -156,6 +156,12 @@ export function Sidebar({
           <ul className="flex list-none flex-col gap-0.5 pl-0">
             {byCategory[cat].map((item) => {
               const active = pathname === item.href;
+              const tourId =
+                item.href === "/minhas-turmas"
+                  ? "sidebar-minhas-turmas"
+                  : item.href === "/meus-dados"
+                    ? "sidebar-meus-dados"
+                    : undefined;
               return (
                 <li key={item.href}>
                   <Link
@@ -164,6 +170,7 @@ export function Sidebar({
                       active ? "bg-[var(--igh-primary)] text-white" : "text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
                     }`}
                     onClick={onMobileClose}
+                    {...(tourId ? { "data-tour": tourId } : {})}
                   >
                     {item.label}
                   </Link>

@@ -93,10 +93,13 @@ export async function PATCH(
     if (!newClassGroup) {
       return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
     }
-    if (!["ABERTA", "EM_ANDAMENTO", "PLANEJADA"].includes(newClassGroup.status)) {
+    const isMaster = user.role === "MASTER";
+    const statusesPermitidos = isMaster
+      ? ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "INTERNO"]
+      : ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"];
+    if (!statusesPermitidos.includes(newClassGroup.status)) {
       return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
     }
-    const isMaster = user.role === "MASTER";
     if (!isMaster) {
       const activeInNew = await prisma.enrollment.count({
         where: { classGroupId: newClassGroupId, status: "ACTIVE" },

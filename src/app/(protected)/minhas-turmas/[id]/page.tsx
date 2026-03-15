@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Td, Th } from "@/components/ui/Table";
@@ -89,6 +90,47 @@ export default function MinhasTurmasDetailPage() {
     void load();
   }, [id, toast]);
 
+  const tutorialSteps: TutorialStep[] = useMemo(() => {
+    if (!data) return [];
+    const e = data.enrollment;
+    const hasConteudo = e.sessions.some((s) => s.status === "LIBERADA");
+    const steps: TutorialStep[] = [
+      {
+        target: "[data-tour=\"mt-header\"]",
+        title: "Detalhe da matrícula",
+        content: "Aqui você vê o nome do curso e o status da sua matrícula nesta turma.",
+      },
+      {
+        target: "[data-tour=\"mt-info\"]",
+        title: "Informações da turma",
+        content: "Carga horária, professor, dias da semana, datas e local aparecem neste bloco.",
+      },
+      {
+        target: "[data-tour=\"mt-aulas\"]",
+        title: "Data e horário das aulas",
+        content: "Confira as datas e o status de cada aula do curso.",
+      },
+      {
+        target: "[data-tour=\"mt-voltar\"]",
+        title: "Voltar às turmas",
+        content: "Use este link para retornar à lista de todas as suas turmas.",
+      },
+    ];
+    if (hasConteudo) {
+      steps.splice(2, 0, {
+        target: "[data-tour=\"mt-acessar-conteudo\"]",
+        title: "Acessar conteúdo",
+        content: "Clique aqui para abrir o conteúdo do curso, assistir às aulas e fazer os exercícios.",
+      });
+    }
+    steps.push({
+      target: null,
+      title: "Tudo pronto!",
+      content: "Agora você já conhece esta tela. Acesse o conteúdo quando quiser começar ou continuar as aulas.",
+    });
+    return steps;
+  }, [data]);
+
   /** Formata ISO date ou date-time em pt-BR. Usa só a parte da data para evitar dia errado em fusos à esquerda de UTC. */
   function formatDate(iso: string) {
     if (!iso) return "";
@@ -125,6 +167,7 @@ export default function MinhasTurmasDetailPage() {
     <div className="container-page flex flex-col gap-6">
       <nav aria-label="Navegação">
         <Link
+          data-tour="mt-voltar"
           className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
           href="/minhas-turmas"
         >
@@ -133,7 +176,7 @@ export default function MinhasTurmasDetailPage() {
       </nav>
 
       <div className="card">
-        <header className="card-header">
+        <header className="card-header" data-tour="mt-header">
           <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
             {e.course.name}
           </h1>
@@ -152,6 +195,7 @@ export default function MinhasTurmasDetailPage() {
           ) : null}
 
           <section
+            data-tour="mt-info"
             className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
             aria-labelledby="info-heading"
           >
@@ -207,6 +251,7 @@ export default function MinhasTurmasDetailPage() {
           {hasConteudo ? (
             <div>
               <Link
+                data-tour="mt-acessar-conteudo"
                 href={`/minhas-turmas/${e.id}/conteudo`}
                 className="inline-flex items-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
               >
@@ -215,7 +260,7 @@ export default function MinhasTurmasDetailPage() {
             </div>
           ) : null}
 
-          <section aria-labelledby="aulas-heading">
+          <section aria-labelledby="aulas-heading" data-tour="mt-aulas">
             <h2 id="aulas-heading" className="mb-3 text-base font-semibold text-[var(--text-primary)]">
               Data e horário das aulas
             </h2>
@@ -257,6 +302,12 @@ export default function MinhasTurmasDetailPage() {
           </section>
         </div>
       </div>
+
+      <DashboardTutorial
+        showForStudent={true}
+        steps={tutorialSteps}
+        storageKey="minhas-turmas-detail-tutorial-done"
+      />
     </div>
   );
 }

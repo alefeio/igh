@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   }
 
   if (role === "ADMIN") {
-    if (!full.isAdmin) {
+    if (!full.isAdmin && full.role !== "ADMIN") {
       return jsonErr("FORBIDDEN", "Você não tem acesso como Admin.", 403);
     }
     await createSessionCookie(full, "ADMIN");

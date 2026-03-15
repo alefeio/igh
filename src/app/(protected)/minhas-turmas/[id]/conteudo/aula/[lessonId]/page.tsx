@@ -23,6 +23,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { HighlightableContentViewer, type LessonPassage } from "@/components/lesson/HighlightableContentViewer";
 import { LessonVideoPlayer } from "@/components/lesson/LessonVideoPlayer";
@@ -189,6 +190,7 @@ export default function AulaConteudoPage() {
   const [exerciseSelected, setExerciseSelected] = useState<Record<string, string>>({});
   const [exerciseResult, setExerciseResult] = useState<Record<string, { correct: boolean; correctOptionId: string | null }>>({});
   const [submittingExerciseId, setSubmittingExerciseId] = useState<string | null>(null);
+  const [submittingAllExercises, setSubmittingAllExercises] = useState(false);
   type LessonQuestionReply = { id: string; content: string; createdAt: string; enrollmentId: string; authorName: string };
   type LessonQuestion = {
     id: string;
@@ -210,6 +212,8 @@ export default function AulaConteudoPage() {
   const [replyContent, setReplyContent] = useState("");
   const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
   const headerActionsRef = useRef<HTMLDivElement>(null);
+  /** Ref da seção "Seções da aula" (botões): quando ela some no scroll, mostramos a barra flutuante. */
+  const sectionsBarRef = useRef<HTMLElement>(null);
   const [showFloatingActions, setShowFloatingActions] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const SECTION_KEYS = ["trechos", "material", "anotacoes", "exercicios", "duvidas"] as const;
@@ -233,6 +237,8 @@ export default function AulaConteudoPage() {
   const [contentFontSizePercent, setContentFontSizePercent] = useState(100);
   const hasSetUrlFromProgressRef = useRef(false);
   const hasAutoCompletedOnLastSlideRef = useRef(false);
+  /** Se a aula atual pode ser acessada (exercícios da aula anterior concluídos). null = ainda verificando. */
+  const [prevLessonExercisesComplete, setPrevLessonExercisesComplete] = useState<boolean | null>(null);
 
   /** Abre/fecha a seção e atualiza a URL (?secao= e #secoes) para abrir na âncora Seções da aula. */
   const openSectionPanel = useCallback(
@@ -324,6 +330,11 @@ export default function AulaConteudoPage() {
       setIsContentFullscreen(!!document.fullscreenElement && document.fullscreenElement === contentWrapperRef.current);
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    console.log("Página da aula montada. Abra o DevTools (F12) > aba Console e role a página para ver 'SCROLL ATIVADO'.");
+    return () => console.log("Página da aula desmontada.");
   }, []);
 
   useEffect(() => {
@@ -429,6 +440,43 @@ export default function AulaConteudoPage() {
   useEffect(() => {
     if (enrollmentId && lessonId) void loadExercises();
   }, [enrollmentId, lessonId, loadExercises]);
+
+  // Verifica se os exercícios da aula anterior foram concluídos (bloqueia acesso à aula atual se não).
+  useEffect(() => {
+    if (!enrollmentId || !data?.modules || !lessonId) return;
+    const ordered = getOrderedLessons(data.modules);
+    const idx = ordered.findIndex((l) => l.id === lessonId);
+    if (idx <= 0) {
+      setPrevLessonExercisesComplete(true);
+      return;
+    }
+    setPrevLessonExercisesComplete(null);
+    const prevId = ordered[idx - 1]!.id;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/me/enrollments/${enrollmentId}/lessons/${prevId}/exercises`
+        );
+        const json = (await res.json()) as ApiResponse<{
+          exercises: { id: string }[];
+          answers: { exerciseId: string }[];
+        }>;
+        if (cancelled) return;
+        const exercises = json?.data?.exercises ?? [];
+        const answers = json?.data?.answers ?? [];
+        const allAnswered =
+          exercises.length === 0 ||
+          exercises.every((ex) => answers.some((a) => a.exerciseId === ex.id));
+        setPrevLessonExercisesComplete(res.ok && json?.ok ? allAnswered : true);
+      } catch {
+        if (!cancelled) setPrevLessonExercisesComplete(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [enrollmentId, data?.modules, lessonId]);
 
   useEffect(() => {
     if (data && findLesson(data.modules, lessonId)?.lesson.isLiberada) {
@@ -671,6 +719,7 @@ export default function AulaConteudoPage() {
 
   const handleSavePassage = useCallback(
     async (payload: { text: string; startOffset: number }) => {
+      console.log("[Destacar] Salvando trecho na API.", { payload, enrollmentId, lessonId });
       setSavingPassage(true);
       try {
         const res = await fetch(
@@ -682,6 +731,7 @@ export default function AulaConteudoPage() {
           }
         );
         const json = (await res.json()) as ApiResponse<{ id: string; text: string; startOffset: number; createdAt: string }>;
+        console.log("[Destacar] Resposta da API.", { ok: res.ok, status: res.status, json });
         if (res.ok && json?.ok) {
           setPassages((prev) => [...prev, json.data]);
           toast.push("success", "Trecho destacado salvo.");
@@ -689,6 +739,9 @@ export default function AulaConteudoPage() {
           const errMsg = (json && "error" in json ? (json as { error?: { message?: string } }).error?.message : undefined) ?? "Não foi possível salvar o trecho.";
           toast.push("error", errMsg);
         }
+      } catch (err) {
+        console.error("[Destacar] Erro ao salvar trecho.", err);
+        throw err;
       } finally {
         setSavingPassage(false);
       }
@@ -698,6 +751,7 @@ export default function AulaConteudoPage() {
 
   const handleSavePassageForPage = useCallback(
     (payload: { text: string; startOffset: number }) => {
+      console.log("[Destacar] handleSavePassageForPage chamado.", { payload, hasMultiplePages, currentContentSection: currentContentSection ?? null });
       if (hasMultiplePages && currentContentSection) {
         handleSavePassage({ text: payload.text, startOffset: payload.startOffset + currentContentSection.startOffset });
       } else {
@@ -707,25 +761,24 @@ export default function AulaConteudoPage() {
     [hasMultiplePages, currentContentSection, handleSavePassage]
   );
 
-  useLayoutEffect(() => {
+  // Barra flutuante "Seções da aula": quando a seção #secoes sai do topo da tela, mostra a barra fixa embaixo.
+  useEffect(() => {
     if (!showLessonCard) return;
-    const el = headerActionsRef.current;
-    if (!el) return;
     const updateVisibility = () => {
-      const rect = el.getBoundingClientRect();
-      setShowFloatingActions(rect.bottom < 0);
+      const el = document.getElementById("secoes");
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        // Mostrar barra quando a seção já passou do topo (pequena margem para evitar flicker)
+        setShowFloatingActions(rect.bottom < 8);
+      }
     };
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry) setShowFloatingActions(!entry.isIntersecting);
-      },
-      { threshold: 0, root: null, rootMargin: "0px" }
-    );
-    obs.observe(el);
-    updateVisibility();
+    // Rodar após o paint para garantir que #secoes já está no DOM
+    const raf = requestAnimationFrame(updateVisibility);
     window.addEventListener("scroll", updateVisibility, { passive: true });
+    const t = setTimeout(updateVisibility, 300);
     return () => {
-      obs.disconnect();
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
       window.removeEventListener("scroll", updateVisibility);
     };
   }, [showLessonCard, lessonId]);
@@ -738,13 +791,149 @@ export default function AulaConteudoPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [showLessonCard, lessonId]);
 
-  // Ao concluir a aula, abre automaticamente a aba Exercícios.
+  // Debug: logar sempre que o scroll for ativado (window ou document)
   useEffect(() => {
-    if (!progress?.completed) return;
-    if (openSection !== "exercicios") {
-      openSectionPanel("exercicios");
+    if (!showLessonCard) return;
+    let lastLog = 0;
+    const throttleMs = 400;
+    const onScrollDebug = () => {
+      const now = Date.now();
+      if (now - lastLog >= throttleMs) {
+        lastLog = now;
+        console.log("SCROLL ATIVADO", {
+          windowScrollY: window.scrollY,
+          documentScrollTop: document.documentElement.scrollTop,
+          documentBodyScrollTop: document.body.scrollTop,
+        });
+      }
+    };
+    console.log("SCROLL DEBUG: listener instalado em window e document (página da aula visível). Role a página para ver 'SCROLL ATIVADO'.");
+    window.addEventListener("scroll", onScrollDebug, { passive: true });
+    document.addEventListener("scroll", onScrollDebug, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScrollDebug);
+      document.removeEventListener("scroll", onScrollDebug);
+    };
+  }, [showLessonCard]);
+
+  const tutorialSteps: TutorialStep[] = useMemo(() => {
+    if (!data || !lessonId) return [];
+    const found = findLesson(data.modules, lessonId);
+    if (!found || !found.lesson.isLiberada) return [];
+    const lesson = found.lesson;
+    const contentPages = lesson.contentRich && lesson.contentRich.trim() ? splitContentByH1(lesson.contentRich) : [];
+    const hasMultiplePages = contentPages.length > 1;
+    const steps: TutorialStep[] = [
+      {
+        target: "[data-tour=\"aula-voltar\"]",
+        title: "Voltar ao conteúdo",
+        content: "Use este link para retornar à lista de módulos e aulas do curso.",
+      },
+      {
+        target: "[data-tour=\"aula-nav-aulas\"]",
+        title: "Navegação entre aulas",
+        content: "Aqui você pode ir para a aula anterior, para os favoritos ou para a próxima aula.",
+      },
+      {
+        target: "[data-tour=\"aula-header\"]",
+        title: "Título da aula",
+        content: "Este é o nome da aula. Você pode marcar como favorita pelo botão ao lado.",
+      },
+      {
+        target: "[data-tour=\"aula-progresso\"]",
+        title: "Progresso da aula",
+        content: "Você pode marcar a aula como concluída manualmente ou ela será concluída automaticamente ao terminar o conteúdo (vídeo e/ou todas as páginas). Os exercícios ficam disponíveis só depois de concluir a aula.",
+      },
+      {
+        target: "[data-tour=\"aula-historico\"]",
+        title: "Histórico de estudo",
+        content: "Aqui aparecem a última vez que você acessou, quanto tempo estudou e quando concluiu a aula.",
+      },
+      {
+        target: "[data-tour=\"aula-btn-trechos\"]",
+        title: "Trechos destacados",
+        content: "Abra esta seção para ver os trechos que você destacou no texto. Para destacar: selecione um trecho no conteúdo e use o botão \"Destacar trecho selecionado\".",
+      },
+      {
+        target: "[data-tour=\"aula-btn-material\"]",
+        title: "Material complementar",
+        content: "Aqui você baixa o PDF da aula e os arquivos de apoio para estudar offline.",
+      },
+      {
+        target: "[data-tour=\"aula-btn-anotacoes\"]",
+        title: "Bloco de anotações",
+        content: "Suas anotações ficam salvas por aula. Você pode informar o minuto do vídeo (opcional) para localizar depois.",
+      },
+      {
+        target: "[data-tour=\"aula-btn-exercicios\"]",
+        title: "Exercícios",
+        content: "Após concluir a aula, os exercícios ficam disponíveis aqui. Responda às questões e verifique suas respostas.",
+      },
+      {
+        target: "[data-tour=\"aula-btn-duvidas\"]",
+        title: "Dúvidas",
+        content: "Envie dúvidas ou comentários sobre a aula. Outros alunos podem responder. Você pode editar ou excluir seus próprios comentários.",
+      },
+    ];
+    if (lesson.summary && lesson.summary.trim()) {
+      steps.push({
+        target: "[data-tour=\"aula-resumo\"]",
+        title: "Resumo rápido",
+        content: "Visão geral do que você vai aprender nesta aula.",
+      });
     }
-  }, [progress?.completed, openSection, openSectionPanel]);
+    if (lesson.videoUrl) {
+      steps.push({
+        target: "[data-tour=\"aula-video\"]",
+        title: "Vídeo da aula",
+        content: "Assista ao vídeo aqui. O progresso de visualização é salvo automaticamente.",
+      });
+    }
+    if (lesson.contentRich && lesson.contentRich.trim()) {
+      steps.push({
+        target: "[data-tour=\"aula-conteudo\"]",
+        title: "Conteúdo escrito da aula",
+        content: "Leia o texto da aula. Abaixo há botões para alterar o tamanho da fonte, destacar trechos e expandir em tela cheia.",
+      });
+      if (hasMultiplePages) {
+        steps.push({
+          target: "[data-tour=\"aula-slides\"]",
+          title: "Slide anterior e Próximo slide",
+          content: "Quando o conteúdo tem várias seções, use estes botões para navegar entre as páginas. O progresso é salvo automaticamente e a aula pode ser marcada como concluída ao chegar ao último slide.",
+        });
+      }
+      steps.push(
+        {
+          target: "[data-tour=\"aula-fonte\"]",
+          title: "Tamanho da fonte",
+          content: "Use estes botões para diminuir ou aumentar o tamanho do texto do conteúdo.",
+        },
+        {
+          target: "[data-tour=\"aula-destacar-trecho\"]",
+          title: "Destacar trecho selecionado",
+          content: "Selecione um trecho do texto e clique neste botão para salvá-lo em \"Trechos destacados\" e revisar depois.",
+        },
+        {
+          target: "[data-tour=\"aula-tela-cheia\"]",
+          title: "Tela cheia",
+          content: "Expanda o conteúdo em tela cheia para leitura mais confortável. Use o mesmo botão ou ESC para sair.",
+        }
+      );
+    }
+    steps.push(
+      {
+        target: null,
+        title: "Barra de atalhos",
+        content: "Ao rolar a página, aparece uma barra na parte inferior com atalhos para destacar trechos, favoritar e abrir as seções. O botão de voltar ao topo fica no canto direito.",
+      },
+      {
+        target: null,
+        title: "Tudo pronto!",
+        content: "Assista ao vídeo, leia o conteúdo e faça anotações. Ao concluir a aula, responda aos exercícios. Envie dúvidas na seção Dúvidas. Bom estudo!",
+      }
+    );
+    return steps;
+  }, [data, lessonId]);
 
   if (loading || !data) {
     return (
@@ -778,6 +967,66 @@ export default function AulaConteudoPage() {
   }
 
   const { lesson, moduleTitle } = found;
+
+  const orderedLessonsForAccess = getOrderedLessons(data.modules);
+  const currentIndexForAccess = orderedLessonsForAccess.findIndex((l) => l.id === lessonId);
+  const prevLessonForAccess =
+    currentIndexForAccess > 0 ? orderedLessonsForAccess[currentIndexForAccess - 1] ?? null : null;
+
+  if (currentIndexForAccess > 0 && prevLessonExercisesComplete === null) {
+    return (
+      <div className="container-page flex flex-col gap-6">
+        <Link
+          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          href={`/minhas-turmas/${enrollmentId}/conteudo`}
+        >
+          ← Voltar ao conteúdo
+        </Link>
+        <div className="card">
+          <div className="card-body py-8 text-center text-[var(--text-secondary)]">
+            Verificando acesso...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentIndexForAccess > 0 && prevLessonExercisesComplete === false && prevLessonForAccess) {
+    return (
+      <div className="container-page flex flex-col gap-6">
+        <Link
+          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          href={`/minhas-turmas/${enrollmentId}/conteudo`}
+        >
+          ← Voltar ao conteúdo
+        </Link>
+        <div className="card">
+          <div className="card-header flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+              <ClipboardList className="h-5 w-5" aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-[var(--text-primary)]">
+                Conclua os exercícios da aula anterior
+              </h2>
+              <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
+                Para acessar esta aula, é necessário responder a todos os exercícios da aula anterior.
+              </p>
+            </div>
+          </div>
+          <div className="card-body">
+            <Link
+              href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLessonForAccess.id}?secao=exercicios#secoes`}
+              className="inline-flex items-center gap-2 rounded-md bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+            >
+              <ClipboardList className="h-4 w-4" aria-hidden />
+              Ir para exercícios da aula anterior
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   /** PDF da aula é gerado automaticamente quando há resumo ou conteúdo. */
   const hasPdfToDownload =
@@ -1119,8 +1368,55 @@ export default function AulaConteudoPage() {
     }
   };
 
+  /** Envia todas as respostas de uma vez (primeira tentativa). */
+  const handleSubmitAllExercises = async () => {
+    if (exercises.length === 0) return;
+    const missing = exercises.filter((ex) => !exerciseSelected[ex.id]);
+    if (missing.length > 0) {
+      toast.push("error", "Selecione uma opção em todas as questões antes de verificar.");
+      return;
+    }
+    setSubmittingAllExercises(true);
+    let correctCount = 0;
+    try {
+      for (const ex of exercises) {
+        const optionId = exerciseSelected[ex.id]!;
+        const res = await fetch(
+          `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/exercises/${ex.id}/submit`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ optionId }),
+          }
+        );
+        const json = (await res.json()) as ApiResponse<{ correct: boolean; correctOptionId: string | null }>;
+        if (res.ok && json?.ok) {
+          const correct = json.data!.correct;
+          if (correct) correctCount++;
+          setExerciseResult((prev) => ({
+            ...prev,
+            [ex.id]: { correct, correctOptionId: json.data!.correctOptionId },
+          }));
+        }
+      }
+      const total = exercises.length;
+      toast.push(
+        "success",
+        `Respostas enviadas: ${correctCount} de ${total} acerto${total !== 1 ? "s" : ""}.`
+      );
+    } catch {
+      toast.push("error", "Erro ao enviar respostas. Tente novamente.");
+    } finally {
+      setSubmittingAllExercises(false);
+    }
+  };
+
+  /** Primeira vez = nenhuma resposta enviada ainda; mostra só o botão "Verificar todas" no final. */
+  const isFirstTimeExercises = exercises.length > 0 && Object.keys(exerciseResult).length === 0;
+
   return (
     <div className="container-page flex flex-col gap-6">
+      <DashboardTutorial showForStudent={true} steps={tutorialSteps} storageKey="minhas-turmas-aula-tutorial-done" />
       {showFloatingActions && (
         <div
           className="fixed bottom-0 left-0 right-0 z-50 flex flex-wrap items-center justify-center gap-2 border-t border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
@@ -1161,7 +1457,7 @@ export default function AulaConteudoPage() {
           <button type="button" onClick={() => openSectionPanel("duvidas")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Dúvidas sobre esta aula" aria-label="Dúvidas">
             <MessageCircleQuestion className="h-5 w-5" aria-hidden />
           </button>
-          <button type="button" onClick={() => openSectionPanel("exercicios")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Exercícios" aria-label="Exercícios">
+          <button type="button" onClick={() => prog?.completed && openSectionPanel("exercicios")} disabled={!prog?.completed} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--card-bg)]" title={prog?.completed ? "Exercícios" : "Conclua a aula para acessar os exercícios"} aria-label="Exercícios">
             <ClipboardList className="h-5 w-5" aria-hidden />
           </button>
         </div>
@@ -1182,6 +1478,7 @@ export default function AulaConteudoPage() {
         <Link
           href={`/minhas-turmas/${enrollmentId}/conteudo`}
           className="text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          data-tour="aula-voltar"
         >
           ← Voltar ao conteúdo
         </Link>
@@ -1192,6 +1489,7 @@ export default function AulaConteudoPage() {
       <nav
         aria-label="Navegação entre aulas"
         className="flex flex-nowrap items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
+        data-tour="aula-nav-aulas"
       >
         <div className="flex shrink-0">
           {prevLesson ? (
@@ -1257,7 +1555,7 @@ export default function AulaConteudoPage() {
       </nav>
 
       <div className="card">
-        <div ref={headerActionsRef} className="card-header flex flex-wrap items-start justify-between gap-4">
+        <div ref={headerActionsRef} className="card-header flex flex-wrap items-start justify-between gap-4" data-tour="aula-header">
           <div className="min-w-0 flex-1">
             <p className="text-sm text-[var(--text-muted)]">{moduleTitle}</p>
             <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
@@ -1282,6 +1580,7 @@ export default function AulaConteudoPage() {
           <section
             className="flex flex-wrap items-center gap-4 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
             aria-labelledby="progress-heading"
+            data-tour="aula-progresso"
           >
             <h2 id="progress-heading" className="sr-only">Progresso da aula</h2>
             <span
@@ -1309,6 +1608,7 @@ export default function AulaConteudoPage() {
           <section
             className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
             aria-labelledby="historico-heading"
+            data-tour="aula-historico"
           >
             <h2 id="historico-heading" className="mb-3 text-base font-semibold text-[var(--text-primary)]">
               Histórico de estudo
@@ -1336,7 +1636,7 @@ export default function AulaConteudoPage() {
           </section>
 
           {/* Menu do painel: recolhido por padrão (só ícones); botão expandir mostra os nomes. */}
-          <section id="secoes" aria-labelledby="secoes-aula-heading" className="scroll-mt-24">
+          <section ref={sectionsBarRef} id="secoes" aria-labelledby="secoes-aula-heading" className="scroll-mt-24" data-tour="aula-secoes">
             <h2 id="secoes-aula-heading" className="mb-2 text-base font-semibold text-[var(--text-primary)]">
               Seções da aula
             </h2>
@@ -1352,6 +1652,7 @@ export default function AulaConteudoPage() {
                       : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
                   }`}
                   aria-pressed={openSection === "trechos"}
+                  data-tour="aula-btn-trechos"
                 >
                   <BookMarked className="h-4 w-4 shrink-0" aria-hidden />
                   Trechos destacados
@@ -1365,6 +1666,7 @@ export default function AulaConteudoPage() {
                       : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
                   }`}
                   aria-pressed={openSection === "material"}
+                  data-tour="aula-btn-material"
                 >
                   <FileText className="h-4 w-4 shrink-0" aria-hidden />
                   Material complementar
@@ -1378,19 +1680,23 @@ export default function AulaConteudoPage() {
                       : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
                   }`}
                   aria-pressed={openSection === "anotacoes"}
+                  data-tour="aula-btn-anotacoes"
                 >
                   <StickyNote className="h-4 w-4 shrink-0" aria-hidden />
                   Bloco de anotações
                 </button>
                 <button
                   type="button"
-                  onClick={() => openSectionPanel("exercicios")}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                  onClick={() => prog?.completed && openSectionPanel("exercicios")}
+                  disabled={!prog?.completed}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--card-bg)] ${
                     openSection === "exercicios"
                       ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
                       : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
                   }`}
                   aria-pressed={openSection === "exercicios"}
+                  title={prog?.completed ? undefined : "Conclua a aula para acessar os exercícios"}
+                  data-tour="aula-btn-exercicios"
                 >
                   <ClipboardList className="h-4 w-4 shrink-0" aria-hidden />
                   Exercícios
@@ -1404,6 +1710,7 @@ export default function AulaConteudoPage() {
                       : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
                   }`}
                   aria-pressed={openSection === "duvidas"}
+                  data-tour="aula-btn-duvidas"
                 >
                   <MessageCircleQuestion className="h-4 w-4 shrink-0" aria-hidden />
                   Dúvidas
@@ -1443,6 +1750,7 @@ export default function AulaConteudoPage() {
                   title="Trechos destacados"
                   aria-label="Trechos destacados"
                   aria-pressed={openSection === "trechos"}
+                  data-tour="aula-btn-trechos"
                 >
                   <BookMarked className="h-5 w-5" aria-hidden />
                 </button>
@@ -1457,6 +1765,7 @@ export default function AulaConteudoPage() {
                   title="Material complementar"
                   aria-label="Material complementar"
                   aria-pressed={openSection === "material"}
+                  data-tour="aula-btn-material"
                 >
                   <FileText className="h-5 w-5" aria-hidden />
                 </button>
@@ -1471,20 +1780,23 @@ export default function AulaConteudoPage() {
                   title="Bloco de anotações"
                   aria-label="Bloco de anotações"
                   aria-pressed={openSection === "anotacoes"}
+                  data-tour="aula-btn-anotacoes"
                 >
                   <StickyNote className="h-5 w-5" aria-hidden />
                 </button>
                 <button
                   type="button"
-                  onClick={() => openSectionPanel("exercicios")}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                  onClick={() => prog?.completed && openSectionPanel("exercicios")}
+                  disabled={!prog?.completed}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--card-bg)] ${
                     openSection === "exercicios"
                       ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
                       : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
                   }`}
-                  title="Exercícios"
+                  title={prog?.completed ? "Exercícios" : "Conclua a aula para acessar os exercícios"}
                   aria-label="Exercícios"
                   aria-pressed={openSection === "exercicios"}
+                  data-tour="aula-btn-exercicios"
                 >
                   <ClipboardList className="h-5 w-5" aria-hidden />
                 </button>
@@ -1499,6 +1811,7 @@ export default function AulaConteudoPage() {
                   title="Dúvidas"
                   aria-label="Dúvidas"
                   aria-pressed={openSection === "duvidas"}
+                  data-tour="aula-btn-duvidas"
                 >
                   <MessageCircleQuestion className="h-5 w-5" aria-hidden />
                 </button>
@@ -1658,13 +1971,17 @@ export default function AulaConteudoPage() {
                 </div>
               )}
 
-              {openSection === "exercicios" && (
+              {openSection === "exercicios" && prog?.completed && (
                 <div>
                   <h2 className="mb-1 text-base font-semibold text-[var(--text-primary)]">Exercícios</h2>
                   {loadedSections.exercicios ? (
                     exercises.length > 0 ? (
                       <>
-                        <p className="mb-4 text-xs text-[var(--text-muted)]">Responda às questões e clique em Verificar para conferir. Você pode refazer quantas vezes quiser; o histórico das tentativas é mantido.</p>
+                        <p className="mb-4 text-xs text-[var(--text-muted)]">
+                          {isFirstTimeExercises
+                            ? "Selecione uma opção em cada questão e clique no botão ao final para verificar todas as respostas de uma vez."
+                            : "Responda às questões e clique em Verificar para conferir. Você pode refazer quantas vezes quiser; o histórico das tentativas é mantido."}
+                        </p>
                         {Object.keys(exerciseResult).length > 0 && (
                           <div className="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3" role="status" aria-live="polite">
                             <p className="text-sm font-medium text-[var(--text-primary)]">
@@ -1757,6 +2074,8 @@ export default function AulaConteudoPage() {
                                     </button>
                                   )}
                                 </div>
+                              ) : isFirstTimeExercises ? (
+                                <p className="mt-2 text-xs text-[var(--text-muted)]">Use o botão ao final para verificar todas as respostas.</p>
                               ) : (
                                 <div className="mt-2">
                                   <button
@@ -1772,6 +2091,18 @@ export default function AulaConteudoPage() {
                             </div>
                           );
                         })}
+                        {isFirstTimeExercises && (
+                          <div className="mt-6 flex justify-center border-t border-[var(--card-border)] pt-6">
+                            <button
+                              type="button"
+                              onClick={handleSubmitAllExercises}
+                              disabled={submittingAllExercises || exercises.some((ex) => !exerciseSelected[ex.id])}
+                              className="rounded-lg bg-[var(--igh-primary)] px-6 py-3 text-base font-medium text-white hover:opacity-90 disabled:opacity-60"
+                            >
+                              {submittingAllExercises ? "Verificando todas..." : "Verificar todas as respostas"}
+                            </button>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <p className="text-sm text-[var(--text-muted)]">Não há exercícios para esta aula.</p>
@@ -1893,6 +2224,7 @@ export default function AulaConteudoPage() {
             <section
               className="rounded-lg border border-[var(--card-border)] border-l-4 border-l-[var(--igh-primary)] bg-[var(--igh-surface)] p-4 pl-4"
               aria-labelledby="resumo-heading"
+              data-tour="aula-resumo"
             >
               <h2 id="resumo-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
                 Resumo rápido da aula
@@ -1914,7 +2246,7 @@ export default function AulaConteudoPage() {
           )}
 
           {lesson.videoUrl && (
-            <section className="flex justify-center rounded-lg overflow-hidden bg-black" aria-label="Vídeo da aula">
+            <section className="flex justify-center rounded-lg overflow-hidden bg-black" aria-label="Vídeo da aula" data-tour="aula-video">
               <div className="aspect-video w-full max-w-3xl">
                 <LessonVideoPlayer videoUrl={lesson.videoUrl} />
               </div>
@@ -1922,14 +2254,14 @@ export default function AulaConteudoPage() {
           )}
 
           {lesson.contentRich && lesson.contentRich.trim() && (
-            <section id="conteudo" aria-label="Conteúdo da aula">
+            <section id="conteudo" aria-label="Conteúdo da aula" data-tour="aula-conteudo">
               <div
                 ref={contentWrapperRef}
                 className={`rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 ${isContentFullscreen ? "min-h-screen overflow-y-auto overflow-x-hidden p-6" : ""}`}
               >
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   {hasMultiplePages ? (
-                    <nav aria-label="Páginas do conteúdo" className="flex flex-wrap items-center gap-2">
+                    <nav aria-label="Páginas do conteúdo" className="flex flex-wrap items-center gap-2" data-tour="aula-slides">
                       <button
                         type="button"
                         onClick={() => {
@@ -1995,7 +2327,7 @@ export default function AulaConteudoPage() {
                   ) : (
                     <span aria-hidden />
                   )}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1" data-tour="aula-fonte">
                     <button
                       type="button"
                       onClick={() => setContentFontSizePercent((p) => Math.max(50, p - 10))}
@@ -2026,6 +2358,7 @@ export default function AulaConteudoPage() {
                     className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60 sm:px-3 sm:py-1.5"
                     title={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
                     aria-label={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
+                    data-tour="aula-destacar-trecho"
                   >
                     <Highlighter className="h-4 w-4 shrink-0" aria-hidden />
                     <span className="hidden sm:inline">{savingPassage ? "Salvando..." : "Destacar trecho selecionado"}</span>
@@ -2040,6 +2373,7 @@ export default function AulaConteudoPage() {
                     className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-3 sm:py-1.5"
                     title={isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}
                     aria-label={isContentFullscreen ? "Sair da tela cheia" : "Expandir em tela cheia"}
+                    data-tour="aula-tela-cheia"
                   >
                     {isContentFullscreen ? (
                       <Minimize2 className="h-4 w-4" aria-hidden />
@@ -2063,6 +2397,7 @@ export default function AulaConteudoPage() {
                       onSavePassage={handleSavePassageForPage}
                       saving={savingPassage}
                       hideDestacarButton
+                      onWarning={(msg) => toast.push("error", msg)}
                     />
                   </div>
                 </div>

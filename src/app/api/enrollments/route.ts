@@ -11,9 +11,25 @@ import { generateTempPassword } from "@/lib/password";
 import { hashPassword } from "@/lib/auth";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
+
+  const isTeacher = user.role === "TEACHER";
+  let teacherId: string | null = null;
+  if (isTeacher) {
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    teacherId = teacher?.id ?? null;
+    if (!teacherId) {
+      return jsonOk({ enrollments: [] });
+    }
+  }
 
   const enrollments = await prisma.enrollment.findMany({
+    where: isTeacher && teacherId
+      ? { classGroup: { teacherId } }
+      : undefined,
     orderBy: { enrolledAt: "desc" },
     include: {
       student: {
@@ -99,6 +115,12 @@ export async function POST(request: Request) {
   }
 
   const isMaster = user.role === "MASTER";
+  if (classGroup.status === "INTERNO" && !isMaster) {
+    return jsonErr("FORBIDDEN", "Apenas o usuário Master pode matricular alunos em turmas com status Interno.", 403);
+  }
+  if (!isMaster && !["ABERTA", "EM_ANDAMENTO", "PLANEJADA"].includes(classGroup.status)) {
+    return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
+  }
   if (!isMaster) {
     const activeCount = await prisma.enrollment.count({
       where: { classGroupId, status: "ACTIVE" },

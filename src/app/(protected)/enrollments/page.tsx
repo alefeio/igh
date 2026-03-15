@@ -633,7 +633,9 @@ export default function EnrollmentsPage() {
           <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf || itemsForView.length === 0}>
             {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
           </Button>
-          <Button onClick={openCreate} className="w-full sm:w-auto">Nova matrícula</Button>
+          {(user.role === "ADMIN" || user.role === "MASTER") && (
+            <Button onClick={openCreate} className="w-full sm:w-auto">Nova matrícula</Button>
+          )}
         </div>
       </header>
 
@@ -1451,7 +1453,9 @@ export default function EnrollmentsPage() {
               {classGroups
                 .filter((cg) => {
                   const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
-                  if (!isPlanejadaOuAberta) return false;
+                  const isInterno = cg.status === "INTERNO";
+                  const permitidaParaMatricula = isPlanejadaOuAberta || (isMaster && isInterno);
+                  if (!permitidaParaMatricula) return false;
                   if (isMaster) return true;
                   const cap = cg.capacity ?? 0;
                   const count = cg.enrollmentsCount ?? 0;
@@ -1506,7 +1510,8 @@ export default function EnrollmentsPage() {
                   .filter((cg) => {
                     const isCurrent = cg.id === editingEnrollment.classGroup.id;
                     const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
-                    if (isMaster) return isPlanejadaOuAberta || isCurrent;
+                    const isInterno = cg.status === "INTERNO";
+                    if (isMaster) return isPlanejadaOuAberta || isInterno || isCurrent;
                     const capacity = cg.capacity ?? 0;
                     const count = cg.enrollmentsCount ?? 0;
                     const notOverCapacity = capacity === 0 || count < capacity;

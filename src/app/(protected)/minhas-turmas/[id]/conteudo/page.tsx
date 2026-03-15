@@ -3,8 +3,9 @@
 import { BookOpen, AlertCircle, CheckCircle2, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import type { ApiResponse } from "@/lib/api-types";
 
@@ -18,6 +19,8 @@ type Lesson = {
   isLiberada: boolean;
   completed: boolean;
   lastContentPageIndex: number | null;
+  /** Se false, a aula está bloqueada até concluir os exercícios da aula anterior. */
+  previousLessonExercisesComplete?: boolean;
 };
 
 type Module = {
@@ -76,6 +79,45 @@ export default function ConteudoPage() {
     void load();
   }, [enrollmentId, toast]);
 
+  const tutorialSteps: TutorialStep[] = useMemo(() => {
+    if (!data) return [];
+    const steps: TutorialStep[] = [
+      {
+        target: "[data-tour=\"conteudo-voltar\"]",
+        title: "Voltar à turma",
+        content: "Use este link para retornar ao detalhe da matrícula e ver informações da turma.",
+      },
+      {
+        target: "[data-tour=\"conteudo-header\"]",
+        title: "Conteúdo do curso",
+        content: "Aqui você vê o nome do curso e a lista de módulos e aulas. Clique em uma aula para abrir o conteúdo.",
+      },
+      {
+        target: "[data-tour=\"conteudo-desempenho\"]",
+        title: "Desempenho nos exercícios",
+        content: "Seu desempenho nas questões ao final de cada aula aparece aqui. Você pode ver por aula e identificar o que precisa revisar.",
+      },
+      {
+        target: "[data-tour=\"conteudo-modulos\"]",
+        title: "Módulos e aulas",
+        content: "Cada módulo agrupa as aulas do curso. Use \"Abrir conteúdo\" para assistir e marcar como concluída.",
+      },
+      {
+        target: null,
+        title: "Tudo pronto!",
+        content: "Agora você já conhece esta tela. Escolha uma aula e clique em \"Abrir conteúdo\" para começar.",
+      },
+    ];
+    if (data.modules.reduce((acc, m) => acc + m.lessons.length, 0) > 0) {
+      steps.splice(1, 0, {
+        target: "[data-tour=\"conteudo-progresso\"]",
+        title: "Seu progresso",
+        content: "Acompanhe quantas aulas você já concluiu e continue de onde parou com o botão de recomendação.",
+      });
+    }
+    return steps;
+  }, [data]);
+
   if (loading || !data) {
     return (
       <div className="container-page flex flex-col gap-6">
@@ -102,6 +144,12 @@ export default function ConteudoPage() {
 
   /** Mapa lessonId → aula para obter lastContentPageIndex nos links da seção de exercícios. */
   const lessonById = new Map(data.modules.flatMap((m) => m.lessons.map((l) => [l.id, l])));
+  /** Aulas na ordem do curso (para saber a aula anterior em cada uma). */
+  const orderedLessonsList = data.modules.flatMap((m) => m.lessons);
+  const prevLessonIdByLessonId = new Map<string, string>();
+  orderedLessonsList.forEach((l, i) => {
+    if (i > 0) prevLessonIdByLessonId.set(l.id, orderedLessonsList[i - 1]!.id);
+  });
 
   const moduleInProgress = (() => {
     for (const mod of data.modules) {
@@ -125,6 +173,7 @@ export default function ConteudoPage() {
     <div className="container-page flex flex-col gap-6">
       <nav aria-label="Navegação">
         <Link
+          data-tour="conteudo-voltar"
           className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
           href={`/minhas-turmas/${enrollmentId}`}
         >
@@ -135,6 +184,7 @@ export default function ConteudoPage() {
       {/* Seu progresso — sempre com dados do course-content (nunca falha) */}
       {totalLessons > 0 && (
         <section
+          data-tour="conteudo-progresso"
           className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
           aria-labelledby="progress-heading"
         >
@@ -187,7 +237,7 @@ export default function ConteudoPage() {
       )}
 
       <div className="card">
-        <header className="card-header">
+        <header className="card-header" data-tour="conteudo-header">
           <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
             {data.courseName}
           </h1>
@@ -200,6 +250,7 @@ export default function ConteudoPage() {
         <div className="card-body space-y-8">
           {/* Desempenho nos exercícios — dados vêm do course-content (uma única requisição) */}
           <section
+            data-tour="conteudo-desempenho"
             className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
             aria-labelledby="desempenho-heading"
           >
@@ -316,9 +367,10 @@ export default function ConteudoPage() {
               </p>
             </div>
           ) : (
-            data.modules.map((mod) => (
+            data.modules.map((mod, modIndex) => (
               <section
                 key={mod.id}
+                data-tour={modIndex === 0 ? "conteudo-modulos" : undefined}
                 className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
                 aria-labelledby={`module-${mod.id}`}
               >
@@ -349,16 +401,35 @@ export default function ConteudoPage() {
                         )}
                       </span>
                       {lesson.isLiberada ? (
-                        <Link
-                          href={
-                            lesson.lastContentPageIndex != null
-                              ? `/minhas-turmas/${enrollmentId}/conteudo/aula/${lesson.id}?pagina=${lesson.lastContentPageIndex + 1}`
-                              : `/minhas-turmas/${enrollmentId}/conteudo/aula/${lesson.id}`
-                          }
-                          className="shrink-0 rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                        >
-                          Abrir conteúdo
-                        </Link>
+                        lesson.previousLessonExercisesComplete !== false ? (
+                          <Link
+                            href={
+                              lesson.lastContentPageIndex != null
+                                ? `/minhas-turmas/${enrollmentId}/conteudo/aula/${lesson.id}?pagina=${lesson.lastContentPageIndex + 1}`
+                                : `/minhas-turmas/${enrollmentId}/conteudo/aula/${lesson.id}`
+                            }
+                            className="shrink-0 rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                          >
+                            Abrir conteúdo
+                          </Link>
+                        ) : (
+                          <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                            <span
+                              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                              role="status"
+                            >
+                              Resolva os exercícios da aula anterior para acessar esta aula
+                            </span>
+                            {prevLessonIdByLessonId.get(lesson.id) && (
+                              <Link
+                                href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLessonIdByLessonId.get(lesson.id)}?secao=exercicios#secoes`}
+                                className="text-xs font-medium text-[var(--igh-primary)] underline hover:no-underline"
+                              >
+                                Ir para exercícios da aula anterior
+                              </Link>
+                            )}
+                          </span>
+                        )
                       ) : (
                         <span
                           className="shrink-0 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)]"
@@ -375,6 +446,12 @@ export default function ConteudoPage() {
           )}
         </div>
       </div>
+
+      <DashboardTutorial
+        showForStudent={true}
+        steps={tutorialSteps}
+        storageKey="minhas-turmas-conteudo-tutorial-done"
+      />
     </div>
   );
 }
