@@ -78,6 +78,14 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Campanhas SMS (apenas ADMIN e MASTER)
+  if (pathname.startsWith("/admin/sms")) {
+    if (role !== "MASTER" && role !== "ADMIN") {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
   return NextResponse.next();
 }
 
@@ -100,5 +108,7 @@ export const config = {
     "/holidays/:path*",
     "/time-slots/:path*",
     "/professor/:path*",
+    "/suporte/:path*",
+    "/admin/sms/:path*",
   ],
 };

@@ -31,6 +31,11 @@ model User {
   verificationTokens          VerificationToken[]
   pendingTestimonialsReviewed PendingTestimonial[] @relation("PendingTestimonialReviewedBy")
   lessonLastEdited            CourseLesson[]       @relation("LessonLastEditedBy")
+  supportTickets              SupportTicket[]
+  smsCampaignsCreated         SmsCampaign[]        @relation("SmsCampaignCreatedBy")
+  smsCampaignsConfirmed       SmsCampaign[]        @relation("SmsCampaignConfirmedBy")
+  smsCampaignsCanceled        SmsCampaign[]        @relation("SmsCampaignCanceledBy")
+  smsTemplatesCreated         SmsTemplate[]        @relation("SmsTemplateCreatedBy")
 }
 
 model SentEmail {
@@ -622,6 +627,41 @@ model ContactMessage {
   repliedAt  DateTime?
 }
 
+/** Chamado de suporte do aluno (área logada). */
+model SupportTicket {
+  id                String                 @id @default(uuid())
+  userId            String
+  protocolNumber    String                 @unique
+  subject           String
+  summary           String
+  status            SupportTicketStatus    @default(OPEN)
+  attachmentUrls    String[]               @default([])
+  attachmentNames   String[]               @default([])
+  /** Quando o aluno (dono) abriu o chamado pela última vez; usado para "não lido". */
+  studentLastReadAt DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages          SupportTicketMessage[]
+}
+
+/** Mensagem de um chamado (aluno ou suporte). */
+model SupportTicketMessage {
+  id           String        @id @default(uuid())
+  ticketId     String
+  authorUserId String
+  isFromSupport Boolean      @default(false)
+  content      String
+  createdAt    DateTime     @default(now())
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+enum SupportTicketStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+}
+
 model SiteNewsCategory {
   id       String         @id @default(uuid())
   name     String
@@ -756,4 +796,117 @@ enum EducationLevel {
 enum AttachmentType {
   ID_DOCUMENT
   ADDRESS_PROOF
+}
+
+// --- SMS Campaigns ---
+model SmsCampaign {
+  id                    String               @id @default(uuid())
+  name                  String
+  description           String?
+  audienceType          SmsAudienceType
+  audienceFilters       Json?
+  templateId            String?
+  messageContent        String?
+  messageCharCount      Int?
+  status                SmsCampaignStatus    @default(DRAFT)
+  totalFound            Int                  @default(0)
+  totalValid            Int                  @default(0)
+  totalMissingPhone     Int                  @default(0)
+  totalInvalidPhone     Int                  @default(0)
+  totalDuplicatesRemoved Int                  @default(0)
+  totalSent             Int                  @default(0)
+  totalDelivered        Int                  @default(0)
+  totalFailed           Int                  @default(0)
+  scheduledAt           DateTime?
+  startedAt             DateTime?
+  finishedAt            DateTime?
+  createdById           String
+  confirmedById         String?
+  canceledById          String?
+  canceledAt            DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  createdBy             User                 @relation("SmsCampaignCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  confirmedBy           User?                @relation("SmsCampaignConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  canceledBy            User?                @relation("SmsCampaignCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
+  template              SmsTemplate?         @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipients            SmsCampaignRecipient[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([scheduledAt])
+}
+
+model SmsCampaignRecipient {
+  id                 String            @id @default(uuid())
+  campaignId         String
+  recipientType      String
+  recipientId        String
+  recipientNameSnapshot String
+  phoneSnapshot     String
+  phoneNormalized   String
+  renderedMessage   String
+  providerName      String?
+  providerMessageId String?
+  providerResponse  Json?
+  status             SmsRecipientStatus @default(PENDING)
+  attempts           Int               @default(0)
+  errorMessage       String?
+  sentAt             DateTime?
+  deliveredAt       DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  campaign           SmsCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([campaignId, status])
+}
+
+model SmsTemplate {
+  id           String       @id @default(uuid())
+  name         String
+  description  String?
+  categoryHint String?
+  content      String
+  active       Boolean      @default(true)
+  createdById  String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  createdBy    User         @relation("SmsTemplateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  campaigns    SmsCampaign[]
+
+  @@index([active])
+}
+
+enum SmsCampaignStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  SENT
+  PARTIALLY_SENT
+  FAILED
+  CANCELED
+}
+
+enum SmsRecipientStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  INVALID_PHONE
+  CANCELED
+}
+
+enum SmsAudienceType {
+  ALL_STUDENTS
+  CLASS_GROUP
+  STUDENTS_INCOMPLETE
+  STUDENTS_COMPLETE
+  STUDENTS_ACTIVE
+  STUDENTS_INACTIVE
+  BY_COURSE
+  TEACHERS
+  ADMINS
+  ALL_ACTIVE_USERS
 }

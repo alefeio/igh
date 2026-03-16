@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Sidebar } from "./Sidebar";
+import { TopBar } from "./TopBar";
 
 export function ResponsiveShell({
   user,
@@ -44,19 +44,19 @@ export function ResponsiveShell({
         onMobileClose={() => setMobileOpen(false)}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center gap-2 border-b border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 md:hidden">
+        <header className="flex shrink-0 items-center gap-2 border-b border-[var(--card-border)] bg-[var(--card-bg)]">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+            className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] md:hidden"
             aria-label="Abrir menu"
           >
             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="min-w-0 flex-1" aria-hidden />
-          <ThemeToggle />
+          <div className="min-w-0 flex-1" aria-hidden />
+          <TopBar user={user} />
         </header>
         <main className="min-h-0 flex-1">
           <div className="container-page">{children}</div>

@@ -920,10 +920,10 @@ export default async function DashboardPage() {
       )}
       <DashboardTutorial
         showForStudent={
-          data.role === "STUDENT" ||
-          data.role === "ADMIN" ||
-          data.role === "MASTER" ||
-          data.role === "TEACHER"
+          data.role !== "MASTER" &&
+          (data.role === "STUDENT" ||
+            data.role === "ADMIN" ||
+            data.role === "TEACHER")
         }
         steps={
           data.role === "STUDENT"

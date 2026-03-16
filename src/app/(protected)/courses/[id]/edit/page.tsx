@@ -230,7 +230,7 @@ export default function CourseEditPage() {
 
   return (
     <div className="container-page flex flex-col gap-6">
-      <DashboardTutorial showForStudent={isTeacher} steps={tutorialSteps} storageKey="teacher-course-edit-tutorial-done" />
+      <DashboardTutorial showForStudent={isTeacher && user.role !== "MASTER"} steps={tutorialSteps} storageKey="teacher-course-edit-tutorial-done" />
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <Button variant="ghost" size="sm" className="-ml-1 text-[var(--text-muted)]" onClick={() => router.push("/courses")} data-tour="course-edit-back">

@@ -1,11 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
-
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { Button } from "@/components/ui/Button";
+import { usePathname } from "next/navigation";
 
 type Item = {
   href: string;
@@ -22,7 +18,6 @@ type Item = {
 const ITEMS: Item[] = [
   { href: "/dashboard", label: "Dashboard", alwaysShow: true, category: "Início" },
   { href: "/minhas-turmas", label: "Minhas turmas", studentOnly: true, category: "Aluno" },
-  { href: "/meus-dados", label: "Meus dados", studentOnly: true, category: "Aluno" },
   { href: "/professor/turmas", label: "Turmas que leciono", teacherOnly: true, category: "Professor" },
   { href: "/users", label: "Usuários (Admin)", masterOnly: true, category: "Administração" },
   { href: "/approvacoes", label: "Aprovações (Site)", masterOnly: true, category: "Administração" },
@@ -41,6 +36,7 @@ const ITEMS: Item[] = [
   { href: "/admin/site/menu", label: "Menu", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/banners", label: "Banners", adminOrMaster: true, category: "Site" },
   { href: "/admin/tablet/banners", label: "Banners (tablet)", adminOrMaster: true, category: "Site" },
+  { href: "/admin/sms", label: "Campanhas SMS", adminOrMaster: true, category: "Administração" },
   { href: "/admin/site/projetos", label: "Projetos", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/depoimentos", label: "Depoimentos", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/parceiros", label: "Parceiros", adminOrMaster: true, category: "Site" },
@@ -51,8 +47,6 @@ const ITEMS: Item[] = [
   { href: "/holidays", label: "Feriados", masterOnly: true, category: "Configurações" },
   { href: "/backup", label: "Backup do banco", masterOnly: true, category: "Configurações" },
 ];
-
-type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER"; label: string };
 
 export function Sidebar({
   user,
@@ -75,52 +69,6 @@ export function Sidebar({
   onMobileClose?: () => void;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [switchingRole, setSwitchingRole] = useState(false);
-
-  /** Perfis disponíveis: vêm do servidor (availableRoles) para não perder isAdmin no cliente. */
-  const r = user.availableRoles;
-  const canMaster = r?.canMaster ?? (user.baseRole === "MASTER");
-  const canStudent = r?.canStudent ?? (user.hasStudentProfile === true);
-  const canTeacher = r?.canTeacher ?? (user.hasTeacherProfile === true);
-  const canAdmin = r?.canAdmin ?? (user.isAdmin === true || user.baseRole === "ADMIN");
-
-  const roleLabels: Record<string, string> = {
-    MASTER: "Administrador Master",
-    ADMIN: "Admin",
-    TEACHER: "Professor",
-    STUDENT: "Aluno",
-  };
-
-  let roleOptions: RoleOption[] = [
-    ...(canMaster ? [{ value: "MASTER" as const, label: roleLabels.MASTER }] : []),
-    ...(canStudent ? [{ value: "STUDENT" as const, label: roleLabels.STUDENT }] : []),
-    ...(canTeacher ? [{ value: "TEACHER" as const, label: roleLabels.TEACHER }] : []),
-    ...(canAdmin ? [{ value: "ADMIN" as const, label: roleLabels.ADMIN }] : []),
-  ];
-  if (!roleOptions.some((o) => o.value === user.role)) {
-    roleOptions = [...roleOptions, { value: user.role as RoleOption["value"], label: roleLabels[user.role] ?? user.role }];
-  }
-
-  /** Quando o usuário tem mais de um perfil, o select deve aparecer sempre para trocar entre eles. */
-  const hasMoreThanOneProfile = roleOptions.length >= 2;
-  const showRoleSwitcher = hasMoreThanOneProfile;
-
-  async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER") {
-    if (newRole === user.role) return;
-    setSwitchingRole(true);
-    try {
-      const res = await fetch("/api/auth/choose-role", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: newRole }),
-      });
-      if (res.ok) router.refresh();
-    } finally {
-      setSwitchingRole(false);
-    }
-  }
 
   const filteredItems = ITEMS.filter((i) => {
     if (i.alwaysShow) return true;
@@ -132,12 +80,6 @@ export function Sidebar({
     return user.role !== "STUDENT";
   });
 
-  async function logout() {
-    setLoading(true);
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-  }
-
   const byCategory = filteredItems.reduce<Record<string, Item[]>>((acc, item) => {
     const cat = item.category ?? "Menu";
     if (!acc[cat]) acc[cat] = [];
@@ -145,6 +87,9 @@ export function Sidebar({
     return acc;
   }, {});
   const categoryOrder = ["Início", "Aluno", "Professor", "Administração", "Site", "Configurações", "Menu"];
+
+  const tourIdForHref = (href: string) =>
+    href === "/minhas-turmas" ? "sidebar-minhas-turmas" : undefined;
 
   const navContent = (
     <ul className="flex list-none flex-col gap-4 pl-0">
@@ -156,12 +101,7 @@ export function Sidebar({
           <ul className="flex list-none flex-col gap-0.5 pl-0">
             {byCategory[cat].map((item) => {
               const active = pathname === item.href;
-              const tourId =
-                item.href === "/minhas-turmas"
-                  ? "sidebar-minhas-turmas"
-                  : item.href === "/meus-dados"
-                    ? "sidebar-meus-dados"
-                    : undefined;
+              const tourId = tourIdForHref(item.href);
               return (
                 <li key={item.href}>
                   <Link
@@ -193,42 +133,8 @@ export function Sidebar({
             <img src="/images/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
           )}
         </div>
-        <div className="mt-3 text-xs text-[var(--text-secondary)]">{user.name}</div>
-        <div className="truncate text-xs text-[var(--text-muted)]" title={user.email}>{user.email}</div>
-        {showRoleSwitcher ? (
-          <div className="mt-2">
-            <label className="sr-only" htmlFor="sidebar-role">Perfil de acesso</label>
-            <select
-              id="sidebar-role"
-              value={user.role}
-              disabled={switchingRole}
-              onChange={(e) => onRoleChange(e.target.value as "STUDENT" | "TEACHER" | "ADMIN" | "MASTER")}
-              className="w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-xs text-[var(--input-text)] focus:border-[var(--igh-primary)] focus:outline-none"
-            >
-              {roleOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <div className="mt-1 text-[11px] font-medium text-[var(--text-secondary)]">
-            {{ MASTER: "Administrador Master", ADMIN: "Admin", TEACHER: "Professor", STUDENT: "Aluno" }[user.role] ?? user.role}
-          </div>
-        )}
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-3">{navContent}</nav>
-      <div className="shrink-0 space-y-2 border-t border-[var(--card-border)] p-3">
-        <ThemeToggle className="w-full" showLabel />
-        <Link
-          href="/"
-          className="inline-flex w-full cursor-pointer items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-colors hover:opacity-90 touch-manipulation"
-        >
-          Acessar site
-        </Link>
-        <Button variant="secondary" className="w-full" onClick={logout} disabled={loading}>
-          Sair
-        </Button>
-      </div>
     </>
   );
 

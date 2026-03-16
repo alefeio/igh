@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Lesson = {
@@ -60,6 +61,7 @@ export default function ConteudoPage() {
   const params = useParams();
   const enrollmentId = params?.id as string;
   const toast = useToast();
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<CourseContentData | null>(null);
 
@@ -448,7 +450,7 @@ export default function ConteudoPage() {
       </div>
 
       <DashboardTutorial
-        showForStudent={true}
+        showForStudent={user.role !== "MASTER"}
         steps={tutorialSteps}
         storageKey="minhas-turmas-conteudo-tutorial-done"
       />

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
@@ -71,6 +72,7 @@ export default function MinhasTurmasDetailPage() {
   const params = useParams();
   const id = params?.id as string;
   const toast = useToast();
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{ enrollment: EnrollmentDetail } | null>(null);
 
@@ -304,7 +306,7 @@ export default function MinhasTurmasDetailPage() {
       </div>
 
       <DashboardTutorial
-        showForStudent={true}
+        showForStudent={user.role !== "MASTER"}
         steps={tutorialSteps}
         storageKey="minhas-turmas-detail-tutorial-done"
       />

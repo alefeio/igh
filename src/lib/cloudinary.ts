@@ -58,3 +58,9 @@ export function getSiteUploadFolder(kind: "logo" | "favicon" | "banners" | "part
 export function getSiteUploadFolderWithId(kind: "banners" | "projects" | "news" | "transparency", id: string): string {
   return `${SITE_UPLOAD_PREFIX}/${kind}/${id}`.replace(/\/+/g, "/");
 }
+
+/** Pasta para anexos de chamados de suporte: igh/support/{userId} */
+export function getSupportUploadFolder(userId: string): string {
+  const base = process.env.CLOUDINARY_UPLOAD_FOLDER ?? "igh";
+  return `${base}/support/${userId}`.replace(/\/+/g, "/");
+}

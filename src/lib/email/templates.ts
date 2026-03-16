@@ -268,6 +268,68 @@ export function templatePasswordReset(params: { name: string; resetUrl: string }
   return { subject: "Redefinição de senha - Instituto Gustavo Hessel", html: wrapHtml(body) };
 }
 
+/** E-mail de confirmação de abertura de chamado de suporte. */
+export function templateSupportTicketCreated(params: {
+  name: string;
+  protocolNumber: string;
+  subject: string;
+  summary: string;
+  ticketUrl: string;
+  attachmentCount?: number;
+}): { subject: string; html: string } {
+  const { name, protocolNumber, subject, summary, ticketUrl, attachmentCount = 0 } = params;
+  const attachmentLine = attachmentCount > 0
+    ? `<p>Você anexou <strong>${attachmentCount}</strong> arquivo(s). Eles estão disponíveis na página do chamado.</p>`
+    : "";
+  const body = `
+<h2>Chamado de suporte registrado</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Seu chamado foi recebido com sucesso.</p>
+${attachmentLine}
+<table width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border-radius: 8px; margin: 16px 0;">
+  <tr><td style="padding: 16px;">
+    <p style="margin: 0 0 8px; font-size: 12px; color: #64748b;">Protocolo</p>
+    <p style="margin: 0; font-size: 18px; font-weight: 600; color: #1e40af;">${escapeHtml(protocolNumber)}</p>
+    <p style="margin: 12px 0 0; font-size: 12px; color: #64748b;">Assunto</p>
+    <p style="margin: 4px 0 0;">${escapeHtml(subject)}</p>
+    <p style="margin: 12px 0 0; font-size: 12px; color: #64748b;">Resumo</p>
+    <p style="margin: 4px 0 0;">${escapeHtml(summary)}</p>
+  </td></tr>
+</table>
+<p>Acompanhe as atualizações e responda pelo link abaixo:</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding: 12px 0;">
+  <a href="${escapeHtml(ticketUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Ver chamado</a>
+</td></tr></table>
+`;
+  return { subject: `Chamado ${escapeHtml(protocolNumber)} registrado - Suporte`, html: wrapHtml(body) };
+}
+
+/** E-mail quando há nova mensagem no chamado (aluno ou suporte). */
+export function templateSupportTicketUpdate(params: {
+  name: string;
+  protocolNumber: string;
+  subject: string;
+  messagePreview: string;
+  ticketUrl: string;
+  isFromSupport: boolean;
+}): { subject: string; html: string } {
+  const { name, protocolNumber, subject, messagePreview, ticketUrl, isFromSupport } = params;
+  const who = isFromSupport ? "O suporte respondeu" : "Sua mensagem foi registrada";
+  const body = `
+<h2>Atualização no chamado ${escapeHtml(protocolNumber)}</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p><strong>${who}</strong> no seu chamado:</p>
+<p style="margin: 4px 0 0; font-size: 14px; color: #4b5563;">${escapeHtml(subject)}</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border-radius: 8px; margin: 12px 0;">
+  <tr><td style="padding: 12px;">
+    <p style="margin: 0; font-size: 14px; color: #374151;">${escapeHtml(messagePreview)}</p>
+  </td></tr>
+</table>
+<p><a href="${escapeHtml(ticketUrl)}" style="color: #1e40af; font-weight: 600;">Ver chamado e responder</a></p>
+`;
+  return { subject: `Chamado ${escapeHtml(protocolNumber)} - Nova atualização`, html: wrapHtml(body) };
+}
+
 export { TERMS_VERSION };
 
 function escapeHtml(s: string): string {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 import { AlertCircle } from "lucide-react";
@@ -110,6 +111,7 @@ export default function ProfessorTurmaDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const toast = useToast();
+  const user = useUser();
   const [classGroup, setClassGroup] = useState<ClassGroup | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -284,7 +286,7 @@ export default function ProfessorTurmaDetailPage() {
   return (
     <div className="container-page flex flex-col gap-6">
       <DashboardTutorial
-        showForStudent={true}
+        showForStudent={user.role !== "MASTER"}
         steps={tutorialSteps}
         storageKey="teacher-turmas-detail-tutorial-done"
       />

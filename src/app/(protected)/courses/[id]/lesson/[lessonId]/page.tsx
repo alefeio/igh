@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CloudinaryFormationUpload } from "@/components/admin/CloudinaryFormationUpload";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -43,6 +44,7 @@ export default function LessonEditPage() {
   const moduleIdFromQuery = searchParams.get("moduleId");
 
   const toast = useToast();
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [moduleId, setModuleId] = useState<string | null>(isNew ? moduleIdFromQuery : null);
   const [modules, setModules] = useState<ModuleWithLessons[]>([]);
@@ -307,7 +309,7 @@ export default function LessonEditPage() {
 
   return (
     <div className="container-page flex flex-col gap-6">
-      <DashboardTutorial showForStudent={true} steps={tutorialSteps} storageKey="teacher-lesson-edit-tutorial-done" />
+      <DashboardTutorial showForStudent={user.role !== "MASTER"} steps={tutorialSteps} storageKey="teacher-lesson-edit-tutorial-done" />
       <header className="flex flex-col gap-2">
         <Button variant="ghost" size="sm" className="-ml-1 w-fit text-[var(--text-muted)]" onClick={() => router.push(`/courses/${courseId}/edit`)} data-tour="lesson-edit-back">
           ← Voltar ao curso
@@ -486,11 +488,11 @@ export default function LessonEditPage() {
             ) : lessonExercises.length === 0 ? (
               <p className="text-sm text-[var(--text-muted)]">Nenhum exercício. Clique em &quot;Adicionar exercício&quot; para criar.</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="list-none space-y-3 pl-0">
                 {lessonExercises.map((ex, idx) => (
                   <li key={ex.id} className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
                     <p className="mb-2 font-medium text-[var(--text-primary)]">{idx + 1}. {ex.question}</p>
-                    <ul className="mb-2 list-inside list-disc text-sm text-[var(--text-secondary)]">
+                    <ul className="mb-2 list-none pl-0 text-sm text-[var(--text-secondary)]">
                       {ex.options.map((o) => (
                         <li key={o.id}>{o.text}{o.isCorrect ? " ✓" : ""}</li>
                       ))}

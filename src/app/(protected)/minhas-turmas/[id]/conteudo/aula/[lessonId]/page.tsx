@@ -25,6 +25,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { HighlightableContentViewer, type LessonPassage } from "@/components/lesson/HighlightableContentViewer";
 import { LessonVideoPlayer } from "@/components/lesson/LessonVideoPlayer";
 import type { ApiResponse } from "@/lib/api-types";
@@ -171,6 +172,7 @@ export default function AulaConteudoPage() {
   const enrollmentId = params?.id as string;
   const lessonId = params?.lessonId as string;
   const toast = useToast();
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{ courseName: string; modules: Module[] } | null>(null);
   const [progress, setProgress] = useState<LessonProgress | null>(null);
@@ -1416,7 +1418,7 @@ export default function AulaConteudoPage() {
 
   return (
     <div className="container-page flex flex-col gap-6">
-      <DashboardTutorial showForStudent={true} steps={tutorialSteps} storageKey="minhas-turmas-aula-tutorial-done" />
+      <DashboardTutorial showForStudent={user.role !== "MASTER"} steps={tutorialSteps} storageKey="minhas-turmas-aula-tutorial-done" />
       {showFloatingActions && (
         <div
           className="fixed bottom-0 left-0 right-0 z-50 flex flex-wrap items-center justify-center gap-2 border-t border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
