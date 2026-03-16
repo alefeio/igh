@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     return jsonOk({ completedKeys: [] });
   }
 
-  const key = request.nextUrl.searchParams.get("key");
+  const key = new URL(request.url).searchParams.get("key");
   if (key) {
     const completed = dbUser.completedTutorialKeys.includes(key);
     return jsonOk({ completed, completedKeys: dbUser.completedTutorialKeys });

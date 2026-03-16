@@ -463,8 +463,8 @@ export default function AulaConteudoPage() {
           answers: { exerciseId: string }[];
         }>;
         if (cancelled) return;
-        const exercises = json?.data?.exercises ?? [];
-        const answers = json?.data?.answers ?? [];
+        const exercises = (json?.ok ? json.data?.exercises : undefined) ?? [];
+        const answers = (json?.ok ? json.data?.answers : undefined) ?? [];
         const allAnswered =
           exercises.length === 0 ||
           exercises.every((ex) => answers.some((a) => a.exerciseId === ex.id));
