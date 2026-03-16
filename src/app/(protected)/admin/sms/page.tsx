@@ -142,7 +142,7 @@ export default function SmsCampaignsPage() {
                       </Link>
                     </Td>
                     <Td>
-                      <Badge variant={c.status === "SENT" ? "success" : c.status === "FAILED" || c.status === "CANCELED" ? "error" : "default"}>
+                      <Badge tone={c.status === "SENT" ? "green" : c.status === "FAILED" || c.status === "CANCELED" ? "red" : "zinc"}>
                         {STATUS_LABEL[c.status] ?? c.status}
                       </Badge>
                     </Td>

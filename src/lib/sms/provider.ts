@@ -68,7 +68,9 @@ export class TwilioSmsProvider implements SmsProvider {
       };
     }
     try {
-      const twilioModule = await import("twilio").catch(() => null);
+      // Especificador dinâmico: evita que o Next resolva "twilio" no build (pacote opcional)
+      const twilioPkg = "twilio";
+      const twilioModule = await import(/* webpackIgnore: true */ twilioPkg).catch(() => null);
       if (!twilioModule?.default) {
         return {
           success: false,

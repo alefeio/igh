@@ -199,7 +199,7 @@ export default function SmsCampaignDetailPage() {
           <p className="mt-1 text-sm text-[var(--text-muted)]">{campaign.description}</p>
         )}
         <div className="mt-3 flex flex-wrap gap-2">
-          <Badge variant={campaign.status === "SENT" ? "success" : campaign.status === "FAILED" || campaign.status === "CANCELED" ? "error" : "default"}>
+          <Badge tone={campaign.status === "SENT" ? "green" : campaign.status === "FAILED" || campaign.status === "CANCELED" ? "red" : "zinc"}>
             {STATUS_LABEL[campaign.status] ?? campaign.status}
           </Badge>
           <span className="text-sm text-[var(--text-muted)]">Público: {campaign.audienceType}</span>
@@ -265,7 +265,7 @@ export default function SmsCampaignDetailPage() {
                   <td className="px-4 py-2">{r.recipientNameSnapshot}</td>
                   <td className="px-4 py-2">{r.phoneSnapshot}</td>
                   <td className="px-4 py-2">
-                    <Badge variant={r.status === "SENT" || r.status === "DELIVERED" ? "success" : r.status === "FAILED" || r.status === "INVALID_PHONE" ? "error" : "default"}>
+                    <Badge tone={r.status === "SENT" || r.status === "DELIVERED" ? "green" : r.status === "FAILED" || r.status === "INVALID_PHONE" ? "red" : "zinc"}>
                       {RECIPIENT_STATUS_LABEL[r.status] ?? r.status}
                     </Badge>
                   </td>

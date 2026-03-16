@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import type {
   SmsAudienceType,
   SmsCampaignStatus,
@@ -44,7 +45,7 @@ export async function createSmsCampaign(input: CreateSmsCampaignInput) {
       name: input.name,
       description: input.description ?? undefined,
       audienceType: input.audienceType,
-      audienceFilters: input.audienceFilters ?? undefined,
+      audienceFilters: (input.audienceFilters ?? undefined) as Prisma.InputJsonValue | undefined,
       templateId: input.templateId ?? undefined,
       messageContent: input.messageContent ?? undefined,
       messageCharCount: charCount,
@@ -75,7 +76,7 @@ export async function updateSmsCampaign(
       ...(input.description !== undefined && { description: input.description }),
       ...(input.audienceType != null && { audienceType: input.audienceType }),
       ...(input.audienceFilters !== undefined && {
-        audienceFilters: input.audienceFilters,
+        audienceFilters: input.audienceFilters as Prisma.InputJsonValue,
       }),
       ...(input.templateId !== undefined && { templateId: input.templateId }),
       ...(input.messageContent !== undefined && {
@@ -231,7 +232,7 @@ export async function listSmsCampaigns(opts: {
   const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 20));
   const skip = (page - 1) * pageSize;
 
-  const where: Parameters<typeof prisma.smsCampaign.findMany>[0]["where"] = {};
+  const where: Prisma.SmsCampaignWhereInput = {};
   if (opts.status) where.status = opts.status;
   if (opts.search?.trim()) {
     where.name = { contains: opts.search.trim(), mode: "insensitive" };

@@ -95,7 +95,7 @@ export async function POST(
     subject: ticket.subject,
     messagePreview,
     ticketUrl,
-    isFromSupport,
+    isFromSupport: Boolean(isFromSupport),
   });
 
   await sendEmailAndRecord({

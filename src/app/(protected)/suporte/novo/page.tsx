@@ -130,9 +130,12 @@ export default function SuporteNovoPage() {
             <Button type="submit" disabled={saving || subject.trim().length < 3 || summary.trim().length < 10}>
               {saving ? "Enviando…" : "Enviar chamado"}
             </Button>
-            <Button type="button" variant="secondary" asChild>
-              <Link href="/suporte">Cancelar</Link>
-            </Button>
+            <Link
+              href="/suporte"
+              className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] transition-all duration-200 hover:opacity-90 hover:brightness-95 disabled:opacity-50"
+            >
+              Cancelar
+            </Link>
           </div>
         </div>
       </form>

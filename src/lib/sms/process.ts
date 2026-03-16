@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSmsProvider } from "./provider";
 import { recalculateSmsCampaignTotals } from "./campaign";
@@ -53,7 +54,7 @@ export async function processSmsCampaignBatch(
         status: result.success ? "SENT" : "FAILED",
         providerName: provider.name,
         providerMessageId: result.providerMessageId ?? undefined,
-        providerResponse: result.providerResponse ?? undefined,
+        providerResponse: (result.providerResponse ?? undefined) as Prisma.InputJsonValue | undefined,
         errorMessage: result.errorMessage ?? undefined,
         attempts: rec.attempts + 1,
         sentAt: result.success ? new Date() : undefined,

@@ -143,9 +143,12 @@ export default function SuporteChamadoPage() {
       <div className="container-page">
         <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-12 text-center">
           <p className="text-[var(--text-muted)]">Chamado não encontrado.</p>
-          <Button asChild className="mt-3">
-            <Link href="/suporte">Ver meus chamados</Link>
-          </Button>
+          <Link
+            href="/suporte"
+            className="mt-3 inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-zinc-800 hover:brightness-95 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:brightness-95"
+          >
+            Ver meus chamados
+          </Link>
         </div>
       </div>
     );

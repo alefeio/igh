@@ -146,7 +146,7 @@ export default function SmsTemplatesPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-[var(--text-primary)]">{t.name}</span>
-                  {!t.active && <Badge variant="default">Inativo</Badge>}
+                  {!t.active && <Badge tone="zinc">Inativo</Badge>}
                 </div>
                 {t.description && (
                   <p className="mt-1 text-sm text-[var(--text-muted)]">{t.description}</p>

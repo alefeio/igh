@@ -60,9 +60,12 @@ export default function SuportePage() {
           </p>
         </div>
         {user.role === "STUDENT" && (
-          <Button asChild>
-            <Link href="/suporte/novo">Novo chamado</Link>
-          </Button>
+          <Link
+            href="/suporte/novo"
+            className="inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-zinc-800 hover:brightness-95 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:brightness-95"
+          >
+            Novo chamado
+          </Link>
         )}
       </header>
 
@@ -76,9 +79,12 @@ export default function SuportePage() {
             {isSupport ? "Nenhum chamado no momento." : "Você ainda não abriu nenhum chamado."}
           </p>
           {user.role === "STUDENT" && (
-            <Button asChild className="mt-3">
-              <Link href="/suporte/novo">Abrir primeiro chamado</Link>
-            </Button>
+            <Link
+              href="/suporte/novo"
+              className="mt-3 inline-flex min-h-[44px] cursor-pointer items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-zinc-800 hover:brightness-95 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:brightness-95"
+            >
+              Abrir primeiro chamado
+            </Link>
           )}
         </div>
       ) : (
