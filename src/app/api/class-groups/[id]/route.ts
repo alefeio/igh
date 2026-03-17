@@ -68,14 +68,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const endTimeForGeneration = parsed.data.endTime ?? existing.endTime;
   const workloadHours = courseForWorkload?.workloadHours ?? existing.course.workloadHours ?? 0;
 
+  const effectiveLocation =
+    parsed.data.location !== undefined
+      ? (parsed.data.location && parsed.data.location.trim()) || null
+      : (existing.location && existing.location.trim()) || null;
+  const locationFilter =
+    effectiveLocation === null
+      ? { OR: [{ location: null }, { location: "" }] as const }
+      : { location: effectiveLocation };
+
   const candidates = await prisma.classGroup.findMany({
     where: {
       courseId: courseIdForGen,
       startTime: startTimeForGeneration,
       endTime: endTimeForGeneration,
       daysOfWeek: { hasEvery: daysForGeneration },
-      status: { not: "CANCELADA" },
+      status: { in: ["PLANEJADA", "ABERTA"] },
       id: { not: id },
+      ...locationFilter,
     },
     select: { id: true, daysOfWeek: true },
   });
@@ -85,7 +95,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (duplicate) {
     return jsonErr(
       "DUPLICATE_CLASS_GROUP",
-      "Já existe outra turma ativa para este curso com o mesmo horário e dias da semana. Escolha outro horário, outros dias ou outro curso.",
+      "Já existe outra turma ativa para este curso com o mesmo horário, dias da semana e local. Escolha outro horário, outros dias, outro local ou outro curso.",
       409,
     );
   }

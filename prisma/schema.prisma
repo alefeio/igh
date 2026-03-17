@@ -36,6 +36,10 @@ model User {
   smsCampaignsConfirmed       SmsCampaign[]        @relation("SmsCampaignConfirmedBy")
   smsCampaignsCanceled        SmsCampaign[]        @relation("SmsCampaignCanceledBy")
   smsTemplatesCreated         SmsTemplate[]        @relation("SmsTemplateCreatedBy")
+  emailCampaignsCreated      EmailCampaign[]      @relation("EmailCampaignCreatedBy")
+  emailCampaignsConfirmed    EmailCampaign[]     @relation("EmailCampaignConfirmedBy")
+  emailCampaignsCanceled     EmailCampaign[]     @relation("EmailCampaignCanceledBy")
+  emailTemplatesCreated       EmailTemplate[]     @relation("EmailTemplateCreatedBy")
 }
 
 model SentEmail {
@@ -899,6 +903,134 @@ enum SmsRecipientStatus {
 }
 
 enum SmsAudienceType {
+  ALL_STUDENTS
+  CLASS_GROUP
+  STUDENTS_INCOMPLETE
+  STUDENTS_COMPLETE
+  STUDENTS_ACTIVE
+  STUDENTS_INACTIVE
+  BY_COURSE
+  TEACHERS
+  ADMINS
+  ALL_ACTIVE_USERS
+}
+
+// --- Email Campaigns ---
+model EmailCampaign {
+  id                     String                 @id @default(uuid())
+  name                   String
+  description            String?
+  audienceType           EmailAudienceType
+  audienceFilters        Json?
+  templateId             String?
+  subject                String?
+  htmlContent            String?                @db.Text
+  textContent            String?                @db.Text
+  status                 EmailCampaignStatus   @default(DRAFT)
+  totalFound             Int                    @default(0)
+  totalValid             Int                    @default(0)
+  totalMissingEmail      Int                    @default(0)
+  totalInvalidEmail      Int                    @default(0)
+  totalDuplicatesRemoved Int                    @default(0)
+  totalSent              Int                    @default(0)
+  totalDelivered         Int                    @default(0)
+  totalFailed            Int                    @default(0)
+  totalOpened            Int                    @default(0)
+  totalClicked           Int                    @default(0)
+  scheduledAt            DateTime?
+  startedAt              DateTime?
+  finishedAt             DateTime?
+  createdById            String
+  confirmedById          String?
+  canceledById           String?
+  canceledAt             DateTime?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  createdBy              User                   @relation("EmailCampaignCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  confirmedBy            User?                  @relation("EmailCampaignConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  canceledBy             User?                  @relation("EmailCampaignCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
+  template               EmailTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipients             EmailCampaignRecipient[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([scheduledAt])
+}
+
+model EmailCampaignRecipient {
+  id                   String                  @id @default(uuid())
+  campaignId           String
+  recipientType        String
+  recipientId          String
+  recipientNameSnapshot String
+  emailSnapshot        String
+  emailNormalized      String
+  renderedSubject      String
+  renderedHtmlContent  String?                  @db.Text
+  renderedTextContent  String?                  @db.Text
+  providerName         String?
+  providerMessageId   String?
+  providerResponse     Json?
+  status               EmailRecipientStatus    @default(PENDING)
+  attempts             Int                     @default(0)
+  errorMessage         String?
+  sentAt               DateTime?
+  deliveredAt          DateTime?
+  openedAt             DateTime?
+  clickedAt            DateTime?
+  bouncedAt            DateTime?
+  complainedAt         DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  campaign             EmailCampaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([campaignId, status])
+}
+
+model EmailTemplate {
+  id             String          @id @default(uuid())
+  name           String
+  description    String?
+  categoryHint   String?
+  subjectTemplate String
+  htmlContent    String?         @db.Text
+  textContent    String?         @db.Text
+  active         Boolean        @default(true)
+  createdById    String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  createdBy      User           @relation("EmailTemplateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  campaigns      EmailCampaign[]
+
+  @@index([active])
+}
+
+enum EmailCampaignStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  SENT
+  PARTIALLY_SENT
+  FAILED
+  CANCELED
+}
+
+enum EmailRecipientStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  INVALID_EMAIL
+  BOUNCED
+  COMPLAINED
+  OPENED
+  CLICKED
+  CANCELED
+}
+
+enum EmailAudienceType {
   ALL_STUDENTS
   CLASS_GROUP
   STUDENTS_INCOMPLETE

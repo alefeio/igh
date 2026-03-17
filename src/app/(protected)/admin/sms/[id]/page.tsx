@@ -68,6 +68,7 @@ export default function SmsCampaignDetailPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [preview, setPreview] = useState<{
     totalFound: number;
@@ -82,18 +83,26 @@ export default function SmsCampaignDetailPage() {
   const [confirmMessage, setConfirmMessage] = useState("");
   const [sendImmediately, setSendImmediately] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [processError, setProcessError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
+    setLoadError(null);
     setLoading(true);
     try {
       const res = await fetch(`/api/sms/campaigns/${id}`);
       const json = (await res.json()) as ApiResponse<{ campaign: Campaign }>;
       if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error?.message ?? "Campanha não encontrada." : "Erro ao carregar.");
+        const message = !json.ok ? json.error?.message ?? "Campanha não encontrada." : "Erro ao carregar.";
+        setLoadError(message);
+        toast.push("error", message);
         return;
       }
       setCampaign(json.data.campaign);
+    } catch {
+      const message = "Não foi possível carregar a campanha.";
+      setLoadError(message);
+      toast.push("error", message);
     } finally {
       setLoading(false);
     }
@@ -105,6 +114,7 @@ export default function SmsCampaignDetailPage() {
 
   async function handleProcessBatch() {
     if (!id || processing) return;
+    setProcessError(null);
     setProcessing(true);
     try {
       const res = await fetch(`/api/sms/campaigns/${id}/process`, {
@@ -114,7 +124,9 @@ export default function SmsCampaignDetailPage() {
       });
       const json = (await res.json()) as ApiResponse<{ processed: number; remaining: number; done: boolean }>;
       if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error?.message ?? "Falha ao processar." : "Falha ao processar.");
+        const msg = !json.ok ? json.error?.message ?? "Falha ao processar." : "Falha ao processar.";
+        setProcessError(msg);
+        toast.push("error", msg);
         return;
       }
       toast.push("success", `Processados ${json.data.processed}. Restantes: ${json.data.remaining}.`);
@@ -174,10 +186,26 @@ export default function SmsCampaignDetailPage() {
     await load();
   }
 
-  if (loading || !campaign) {
+  if (loading && !campaign) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-6">
         <p className="text-[var(--text-muted)]">Carregando...</p>
+      </div>
+    );
+  }
+
+  if (!campaign) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-6">
+        <div className="mb-4">
+          <Link href="/admin/sms" className="text-[var(--igh-primary)] hover:underline">← Campanhas</Link>
+        </div>
+        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-12 text-center">
+          <p className="text-[var(--text-muted)]">{loadError ?? "Não foi possível carregar a campanha."}</p>
+          <Button className="mt-3" onClick={() => void load()}>
+            Tentar novamente
+          </Button>
+        </div>
       </div>
     );
   }
@@ -226,7 +254,15 @@ export default function SmsCampaignDetailPage() {
             <strong>Prévia:</strong> {preview.totalFound} encontrados · {preview.totalWithPhone} com telefone · {preview.totalValid} válidos · {preview.totalEligible} elegíveis (após deduplicação). Sem telefone: {preview.totalMissingPhone}. Inválidos: {preview.totalInvalidPhone}. Duplicados removidos: {preview.totalDuplicatesRemoved}.
           </div>
         )}
-        {canProcess && hasPending && (
+        {processError && (
+          <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+            <p>{processError}</p>
+            <Button className="mt-2" onClick={handleProcessBatch} disabled={processing}>
+              {processing ? "Processando..." : "Tentar novamente"}
+            </Button>
+          </div>
+        )}
+        {canProcess && hasPending && !processError && (
           <div className="mt-4">
             <Button onClick={handleProcessBatch} disabled={processing}>
               {processing ? "Processando..." : "Processar lote"}
@@ -278,8 +314,8 @@ export default function SmsCampaignDetailPage() {
       </div>
 
       {confirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 shadow">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-lg">
             <h3 className="mb-3 text-lg font-semibold">Confirmar envio</h3>
             <p className="mb-2 text-sm text-[var(--text-muted)]">Mensagem final (pode editar):</p>
             <textarea

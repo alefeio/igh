@@ -111,13 +111,20 @@ export async function POST(request: Request) {
   if (!course) return jsonErr("INVALID_COURSE", "Curso inválido.", 400);
   if (!teacher || teacher.deletedAt) return jsonErr("INVALID_TEACHER", "Professor inválido.", 400);
 
+  const normalizedLocation = (location && location.trim()) || null;
+  const locationFilter =
+    normalizedLocation === null
+      ? { OR: [{ location: null }, { location: "" }] as const }
+      : { location: normalizedLocation };
+
   const candidates = await prisma.classGroup.findMany({
     where: {
       courseId,
       startTime,
       endTime,
       daysOfWeek: { hasEvery: daysOfWeek },
-      status: { not: "CANCELADA" },
+      status: { in: ["PLANEJADA", "ABERTA"] },
+      ...locationFilter,
     },
     select: { id: true, daysOfWeek: true },
   });
@@ -127,7 +134,7 @@ export async function POST(request: Request) {
   if (existingSame) {
     return jsonErr(
       "DUPLICATE_CLASS_GROUP",
-      "Já existe uma turma ativa para este curso com o mesmo horário e dias da semana. Escolha outro horário, outros dias ou outro curso.",
+      "Já existe uma turma ativa para este curso com o mesmo horário, dias da semana e local. Escolha outro horário, outros dias, outro local ou outro curso.",
       409,
     );
   }

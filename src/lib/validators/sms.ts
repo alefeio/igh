@@ -29,7 +29,7 @@ export const createSmsCampaignSchema = z.object({
   audienceFilters: smsAudienceFiltersSchema,
   templateId: z.string().uuid().optional().nullable(),
   messageContent: z.string().max(1600).optional().nullable(),
-  scheduledAt: z.string().datetime().optional().nullable(),
+  scheduledAt: z.string().optional().nullable(),
 });
 
 export const updateSmsCampaignSchema = z.object({
@@ -39,7 +39,7 @@ export const updateSmsCampaignSchema = z.object({
   audienceFilters: smsAudienceFiltersSchema,
   templateId: z.string().uuid().optional().nullable(),
   messageContent: z.string().max(1600).optional().nullable(),
-  scheduledAt: z.string().datetime().optional().nullable(),
+  scheduledAt: z.string().optional().nullable(),
 });
 
 export const confirmSmsCampaignSchema = z.object({
