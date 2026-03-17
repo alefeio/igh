@@ -318,8 +318,8 @@ export default function EnrollmentsPage() {
   const columnData = useMemo(() => {
     const byDay = new Map<string, number>();
     for (const e of itemsForView) {
-      const d = new Date(e.enrolledAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-      byDay.set(d, (byDay.get(d) ?? 0) + 1);
+      const d = formatDateOnly(e.enrolledAt);
+      if (d) byDay.set(d, (byDay.get(d) ?? 0) + 1);
     }
     return [...byDay.entries()]
       .sort((a, b) => {
@@ -516,9 +516,10 @@ export default function EnrollmentsPage() {
     e.preventDefault();
     if (!studentId || !classGroupId || submitting) return;
     if (!isMaster) {
-      const active = activeCountByClassGroup.get(classGroupId) ?? 0;
       const cg = classGroups.find((c) => c.id === classGroupId);
-      if (cg && (cg.capacity ?? 0) > 0 && active >= (cg.capacity ?? 0)) {
+      const count = cg?.enrollmentsCount ?? activeCountByClassGroup.get(classGroupId) ?? 0;
+      const cap = cg?.capacity ?? 0;
+      if (cap > 0 && count >= cap) {
         toast.push("error", "Esta turma está lotada. Escolha outra turma.");
         return;
       }
@@ -1259,7 +1260,7 @@ export default function EnrollmentsPage() {
                     )}
                   </div>
                 </Td>
-                <Td>{new Date(e.enrolledAt).toLocaleDateString("pt-BR")}</Td>
+                <Td>{formatDateOnly(e.enrolledAt)}</Td>
                 <Td>
                   <span className="flex flex-wrap items-center gap-1">
                     <Badge tone={ENROLLMENT_STATUS_TONE[e.status] ?? "zinc"}>
@@ -1456,19 +1457,32 @@ export default function EnrollmentsPage() {
                   const isInterno = cg.status === "INTERNO";
                   const permitidaParaMatricula = isPlanejadaOuAberta || (isMaster && isInterno);
                   if (!permitidaParaMatricula) return false;
-                  if (isMaster) return true;
+                  return true;
+                })
+                .map((cg) => {
                   const cap = cg.capacity ?? 0;
                   const count = cg.enrollmentsCount ?? 0;
-                  return cap === 0 || count < cap;
-                })
-                .map((cg) => (
-                  <option key={cg.id} value={cg.id}>
-                    {cg.course.name} — Início {formatDateOnly(cg.startDate)} — {cg.startTime}-{cg.endTime}
-                    {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
-                    {cg.location ? ` — ${cg.location}` : ""}
-                  </option>
-                ))}
+                  const isFull = cap > 0 && count >= cap;
+                  const disabled = !isMaster && isFull;
+                  const label = [
+                    cg.course.name,
+                    `Início ${formatDateOnly(cg.startDate)}`,
+                    `${cg.startTime}-${cg.endTime}`,
+                    Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? cg.daysOfWeek.join(", ") : null,
+                    cg.location || null,
+                  ]
+                    .filter(Boolean)
+                    .join(" — ");
+                  return (
+                    <option key={cg.id} value={cg.id} disabled={disabled}>
+                      {label} — ({count} / {cap || "—"} vagas){isFull ? " — Lotada" : ""}
+                    </option>
+                  );
+                })}
             </select>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Inscritos / capacidade. Turmas lotadas só podem receber mais alunos se você for Master.
+            </p>
           </div>
           <div>
             <label className="text-sm font-medium">Certificado (opcional)</label>
@@ -1511,20 +1525,33 @@ export default function EnrollmentsPage() {
                     const isCurrent = cg.id === editingEnrollment.classGroup.id;
                     const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
                     const isInterno = cg.status === "INTERNO";
-                    if (isMaster) return isPlanejadaOuAberta || isInterno || isCurrent;
-                    const capacity = cg.capacity ?? 0;
-                    const count = cg.enrollmentsCount ?? 0;
-                    const notOverCapacity = capacity === 0 || count < capacity;
-                    return (isPlanejadaOuAberta && notOverCapacity) || isCurrent;
+                    return isPlanejadaOuAberta || (isMaster && isInterno) || isCurrent;
                   })
-                  .map((cg) => (
-                    <option key={cg.id} value={cg.id}>
-                      {cg.course.name} — Início {formatDateOnly(cg.startDate)} — {cg.startTime}-{cg.endTime}
-                      {Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? ` — ${cg.daysOfWeek.join(", ")}` : ""}
-                      {cg.location ? ` — ${cg.location}` : ""}
-                    </option>
-                  ))}
+                  .map((cg) => {
+                    const isCurrent = cg.id === editingEnrollment.classGroup.id;
+                    const cap = cg.capacity ?? 0;
+                    const count = cg.enrollmentsCount ?? 0;
+                    const isFull = cap > 0 && count >= cap;
+                    const disabled = !isMaster && !isCurrent && isFull;
+                    const label = [
+                      cg.course.name,
+                      `Início ${formatDateOnly(cg.startDate)}`,
+                      `${cg.startTime}-${cg.endTime}`,
+                      Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? cg.daysOfWeek.join(", ") : null,
+                      cg.location || null,
+                    ]
+                      .filter(Boolean)
+                      .join(" — ");
+                    return (
+                      <option key={cg.id} value={cg.id} disabled={disabled}>
+                        {label} — ({count} / {cap || "—"} vagas){isFull ? " — Lotada" : ""}
+                      </option>
+                    );
+                  })}
               </select>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Inscritos / capacidade. Só Master pode transferir para turma lotada.
+              </p>
             </div>
             <div>
               <label className="text-sm font-medium">Status</label>

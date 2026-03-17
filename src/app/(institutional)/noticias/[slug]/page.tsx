@@ -23,7 +23,11 @@ export default async function NoticiaSlugPage({ params }: Props) {
   if (!post) notFound();
 
   const dateFormatted = post.publishedAt
-    ? post.publishedAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })
+    ? (() => {
+        const d = post.publishedAt!;
+        const cal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        return cal.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+      })()
     : "";
 
   const carouselImages = [

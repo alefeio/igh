@@ -45,6 +45,15 @@ function formatDays(days: string[]): string {
 
 function formatDate(d: string | null): string {
   if (!d) return "—";
+  const datePart = d.trim().split("T")[0];
+  if (datePart && /^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    const [y, m, day] = datePart.split("-").map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
   return new Date(d).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",

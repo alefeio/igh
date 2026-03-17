@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import { formatDateOnly } from "@/lib/format";
 import { AlertCircle } from "lucide-react";
 
 function formatCpf(v: string): string {
@@ -94,6 +95,7 @@ type Student = StudentFormStudent & {
   hasIdDocument?: boolean;
   hasAddressProof?: boolean;
   attachments?: StudentAttachmentView[];
+  userId?: string | null;
 };
 
 /** Amarelo = só documentos faltando; vermelho = dados incompletos e documentos faltando. */
@@ -422,7 +424,7 @@ export default function StudentsPage() {
               <Field label="Nome" value={viewingStudent.name} />
               <Field label="CPF" value={formatCpf(viewingStudent.cpf)} />
               <Field label="RG" value={viewingStudent.rg || "—"} />
-              <Field label="Data de nascimento" value={viewingStudent.birthDate ? new Date(viewingStudent.birthDate).toLocaleDateString("pt-BR") : "—"} />
+              <Field label="Data de nascimento" value={viewingStudent.birthDate ? formatDateOnly(viewingStudent.birthDate) : "—"} />
               <Field label="Gênero" value={GENDER_LABELS[viewingStudent.gender] ?? viewingStudent.gender} />
               <div>
                 <span className="font-medium text-[var(--text-muted)]">Celular</span>
@@ -519,7 +521,7 @@ export default function StudentsPage() {
               })()}
             </Section>
 
-            {canChangePassword && (viewingStudent as Student & { userId?: string | null }).userId && (
+            {canChangePassword && viewingStudent.userId && (
               <Section title="Acesso">
                 <div className="sm:col-span-2">
                   <Button

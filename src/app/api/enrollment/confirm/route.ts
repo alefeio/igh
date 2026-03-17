@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { formatDateOnly } from "@/lib/format";
 import { consumeVerificationToken, findTokenByRaw } from "@/lib/verification-token";
 import { createAuditLog } from "@/lib/audit";
 import { TERMS_VERSION } from "@/lib/email/templates";
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
     return jsonErr("INVALID_TOKEN", "Link inválido ou já utilizado.", 400);
   }
 
-  const startDate = enrollment.classGroup.startDate.toLocaleDateString("pt-BR");
+  const startDate = formatDateOnly(enrollment.classGroup.startDate);
   const days = Array.isArray(enrollment.classGroup.daysOfWeek)
     ? enrollment.classGroup.daysOfWeek.join(", ")
     : String(enrollment.classGroup.daysOfWeek);

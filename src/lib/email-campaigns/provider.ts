@@ -101,7 +101,7 @@ export class ResendEmailProvider implements EmailProvider {
       return {
         success: true,
         providerMessageId: data?.id ?? undefined,
-        providerResponse: data ? (data as Record<string, unknown>) : undefined,
+        providerResponse: data ? (data as unknown as Record<string, unknown>) : undefined,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

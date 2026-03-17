@@ -9,7 +9,11 @@ export const metadata = {
 
 function formatDate(d: Date | null): string {
   if (!d) return "";
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const cal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const month = cal.toLocaleDateString("pt-BR", { month: "long" });
+  const year = d.getUTCFullYear();
+  return `${day} de ${month} de ${year}`;
 }
 
 export default async function TransparenciaPage() {

@@ -36,6 +36,7 @@ type ClassGroup = {
   sessions?: ClassSession[];
   totalSessions?: number;
   totalHours?: number;
+  enrollmentsCount?: number;
 };
 
 type ClassSession = {
@@ -462,7 +463,7 @@ export default function ClassGroupsPage() {
                 <Td>
                   <Badge tone={STATUS_TONE[cg.status]}>{cg.status}</Badge>
                 </Td>
-                <Td>{cg.capacity}</Td>
+                <Td>{cg.enrollmentsCount ?? 0} / {cg.capacity}</Td>
                 <Td>
                   <div className="flex justify-end gap-2">
                     <Button variant="secondary" onClick={() => openEdit(cg)}>

@@ -183,7 +183,12 @@ const BADGES: { id: BadgeId; label: string; condition: (data: { total: number; c
 ];
 
 function formatDate(d: Date) {
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const day = pad(d.getUTCDate());
+  const cal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const month = cal.toLocaleDateString("pt-BR", { month: "short" });
+  const year = d.getUTCFullYear();
+  return `${day} ${month} ${year}`;
 }
 
 function StatCard({

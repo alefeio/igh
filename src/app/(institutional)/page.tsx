@@ -49,14 +49,21 @@ export default async function HomePage({ searchParams }: Props) {
       getNewsPostsForSite(),
     ]);
 
-  const recentPosts = newsPosts.slice(0, 4).map((p) => ({
-    slug: p.slug,
-    title: p.title,
-    excerpt: p.excerpt ?? "",
-    category: p.categoryName ?? "Notícia",
-    date: p.publishedAt ? p.publishedAt.toISOString().slice(0, 10) : "",
-    image: p.coverImageUrl ?? undefined,
-  }));
+  const recentPosts = newsPosts.slice(0, 4).map((p) => {
+    let date = "";
+    if (p.publishedAt) {
+      const d = p.publishedAt;
+      date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    }
+    return {
+      slug: p.slug,
+      title: p.title,
+      excerpt: p.excerpt ?? "",
+      category: p.categoryName ?? "Notícia",
+      date,
+      image: p.coverImageUrl ?? undefined,
+    };
+  });
 
   const courses = coursesFull;
 

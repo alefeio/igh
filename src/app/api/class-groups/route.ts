@@ -114,7 +114,7 @@ export async function POST(request: Request) {
   const normalizedLocation = (location && location.trim()) || null;
   const locationFilter =
     normalizedLocation === null
-      ? { OR: [{ location: null }, { location: "" }] as const }
+      ? { OR: [{ location: null }, { location: "" }] }
       : { location: normalizedLocation };
 
   const candidates = await prisma.classGroup.findMany({

@@ -568,7 +568,7 @@ export function InscrevaForm() {
           <div>
             <dt className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Nascimento</dt>
             <dd className="mt-0.5 font-medium text-[var(--text-primary)]">
-              {student.birthDate ? new Date(student.birthDate).toLocaleDateString("pt-BR") : "—"}
+              {student.birthDate ? formatDateOnlyBR(student.birthDate) : "—"}
             </dd>
           </div>
           <div>

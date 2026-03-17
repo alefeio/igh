@@ -74,7 +74,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       : (existing.location && existing.location.trim()) || null;
   const locationFilter =
     effectiveLocation === null
-      ? { OR: [{ location: null }, { location: "" }] as const }
+      ? { OR: [{ location: null }, { location: "" }] }
       : { location: effectiveLocation };
 
   const candidates = await prisma.classGroup.findMany({

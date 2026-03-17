@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createEnrollmentSchema } from "@/lib/validators/enrollments";
 import { createAuditLog } from "@/lib/audit";
+import { formatDateOnly } from "@/lib/format";
 import { createVerificationToken } from "@/lib/verification-token";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { getAppUrl } from "@/lib/email";
@@ -196,7 +197,7 @@ export async function POST(request: Request) {
 
     const confirmUrl = getAppUrl(`/confirmar-inscricao?token=${token}`);
 
-    const startDateFormatted = classGroup.startDate.toLocaleDateString("pt-BR");
+    const startDateFormatted = formatDateOnly(classGroup.startDate);
     const daysFormatted = Array.isArray(classGroup.daysOfWeek)
       ? classGroup.daysOfWeek.join(", ")
       : String(classGroup.daysOfWeek);

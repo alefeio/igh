@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateEnrollmentSchema } from "@/lib/validators/enrollments";
+import { formatDateOnly } from "@/lib/format";
 import { createAuditLog } from "@/lib/audit";
 import { createVerificationToken } from "@/lib/verification-token";
 import { getAppUrl } from "@/lib/email";
@@ -167,7 +168,7 @@ export async function PATCH(
     });
     const confirmUrl = getAppUrl(`/confirmar-inscricao?token=${token}`);
     const classGroup = updated.classGroup;
-    const startDateFormatted = classGroup.startDate.toLocaleDateString("pt-BR");
+    const startDateFormatted = formatDateOnly(classGroup.startDate);
     const daysFormatted = Array.isArray(classGroup.daysOfWeek)
       ? classGroup.daysOfWeek.join(", ")
       : String(classGroup.daysOfWeek);

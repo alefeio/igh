@@ -12,8 +12,12 @@ const STATUS_LABELS: Record<string, string> = {
   INTERNO: "Interno",
 };
 
+/** Formata data apenas (sem mudança de fuso): evita dia anterior quando o Date vem em UTC (ex.: do Prisma). */
 function formatDate(d: Date) {
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const year = d.getUTCFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 export default async function ProfessorTurmasPage() {

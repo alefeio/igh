@@ -83,7 +83,17 @@ type LessonProgressByEnrollment = {
   progress: LessonProgressItem[];
 };
 
+/** Formata data (YYYY-MM-DD ou ISO) para pt-BR sem mudança de fuso: evita dia anterior em datas só-dia. */
 function formatDate(s: string) {
+  const datePart = s.trim().split("T")[0];
+  if (datePart && /^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    const [y, m, d] = datePart.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
   const d = new Date(s);
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
