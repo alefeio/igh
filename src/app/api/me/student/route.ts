@@ -31,7 +31,10 @@ export async function GET() {
     where: {
       studentId: student.id,
       status: "ACTIVE",
-      classGroup: { status: { in: [...ACTIVE_CLASS_STATUSES] } },
+      classGroup: {
+        status: { in: [...ACTIVE_CLASS_STATUSES] },
+        course: { status: "ACTIVE" },
+      },
     },
     select: { classGroup: { select: { courseId: true } } },
   });

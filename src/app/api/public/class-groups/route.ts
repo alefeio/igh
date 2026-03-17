@@ -13,6 +13,7 @@ export async function GET(request: Request) {
       where: {
         status: PUBLIC_INSCREVA_STATUS,
         ...(courseId && { courseId }),
+        course: { status: "ACTIVE" },
       },
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       select: {
