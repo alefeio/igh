@@ -221,7 +221,16 @@ export default function ProfessorTurmaDetailPage() {
       );
       const json = (await res.json()) as ApiResponse<unknown>;
       if (res.ok && json?.ok) toast.push("success", "Frequência salva.");
-      else toast.push("error", (json && "error" in json ? (json.error as { message?: string }).message : "Erro ao salvar.") ?? "Erro ao salvar.");
+      else {
+        const msg =
+          json && "error" in json
+            ? ((json.error as { message?: string }).message ?? "Erro ao salvar.")
+            : "Erro ao salvar.";
+        toast.push("error", msg);
+        if (res.status === 403) {
+          toast.push("error", "Essa sessão ainda não está com aula liberada (status diferente de LIBERADA).");
+        }
+      }
     } finally {
       setSavingAttendance(false);
     }
@@ -291,7 +300,8 @@ export default function ProfessorTurmaDetailPage() {
     );
   }
 
-  const sessionsWithLesson = sessions.filter((s) => s.status === "LIBERADA");
+  // Sessão "com aula liberada" = tem lessonId (API expõe como canTakeAttendance)
+  const sessionsWithLesson = sessions.filter((s) => s.canTakeAttendance);
 
   return (
     <div className="container-page flex flex-col gap-6">
@@ -537,7 +547,7 @@ export default function ProfessorTurmaDetailPage() {
             Frequência (aulas liberadas)
           </h2>
           <p className="px-4 py-2 text-xs text-[var(--text-muted)]">
-            Selecione uma sessão com aula liberada para marcar presença.
+            Selecione uma sessão com aula liberada para marcar presença. Se a sessão de hoje não aparecer, a aula ainda não foi liberada para ela.
           </p>
           <div className="flex flex-wrap gap-2 p-4">
             {sessionsWithLesson.length === 0 ? (

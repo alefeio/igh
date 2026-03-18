@@ -44,8 +44,16 @@ export async function POST(request: Request) {
   if (!classGroup) {
     return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
   }
+  // Turmas EXTERNO e INTERNO não devem ser inscrevíveis pelo público.
   if (!["ABERTA", "EM_ANDAMENTO", "PLANEJADA"].includes(classGroup.status)) {
     return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
+  }
+  if (classGroup.status === "INTERNO" || classGroup.status === "EXTERNO") {
+    return jsonErr(
+      "FORBIDDEN",
+      "Esta turma não está disponível para inscrição pública. Entre em contato com a secretaria.",
+      403
+    );
   }
 
   const activeCount = await prisma.enrollment.count({

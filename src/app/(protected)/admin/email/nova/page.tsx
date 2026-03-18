@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -23,10 +23,13 @@ type Template = {
   htmlContent: string | null;
   textContent: string | null;
 };
+type StudentOption = { id: string; name: string };
 
 const AUDIENCE_OPTIONS: { value: string; label: string }[] = [
   { value: "ALL_STUDENTS", label: "Todos os alunos" },
+  { value: "ENROLLED_STUDENTS", label: "Alunos matriculados" },
   { value: "CLASS_GROUP", label: "Turma específica" },
+  { value: "SPECIFIC_STUDENTS", label: "Alunos específicos" },
   { value: "STUDENTS_INCOMPLETE", label: "Alunos com cadastro incompleto" },
   { value: "STUDENTS_COMPLETE", label: "Alunos com cadastro completo" },
   { value: "STUDENTS_ACTIVE", label: "Alunos ativos" },
@@ -56,6 +59,14 @@ export default function NovaCampanhaEmailPage() {
   const [textContent, setTextContent] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
 
+  const [selectedStudents, setSelectedStudents] = useState<StudentOption[]>([]);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
+  const [studentSearchResults, setStudentSearchResults] = useState<StudentOption[]>([]);
+  const [studentSearchLoading, setStudentSearchLoading] = useState(false);
+  const studentComboboxRef = useRef<HTMLDivElement>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     (async () => {
       try {
@@ -82,6 +93,58 @@ export default function NovaCampanhaEmailPage() {
     })();
   }, []);
 
+  const searchStudents = useCallback(async (q: string) => {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) {
+      setStudentSearchResults([]);
+      return;
+    }
+    setStudentSearchLoading(true);
+    try {
+      const res = await fetch(
+        `/api/students?${new URLSearchParams({ q: trimmed }).toString()}`
+      );
+      const json = (await res.json()) as ApiResponse<{
+        students: { id: string; name: string }[];
+      }>;
+      if (json.ok && Array.isArray(json.data?.students)) {
+        setStudentSearchResults(
+          json.data.students.map((s) => ({ id: s.id, name: s.name }))
+        );
+      } else {
+        setStudentSearchResults([]);
+      }
+    } catch {
+      setStudentSearchResults([]);
+    } finally {
+      setStudentSearchLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (audienceType !== "SPECIFIC_STUDENTS") return;
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      void searchStudents(studentSearch);
+    }, 280);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [studentSearch, audienceType, searchStudents]);
+
+  useEffect(() => {
+    function handleClickOutside(ev: MouseEvent) {
+      if (
+        studentComboboxRef.current &&
+        !studentComboboxRef.current.contains(ev.target as Node)
+      ) {
+        setStudentDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) {
@@ -96,6 +159,10 @@ export default function NovaCampanhaEmailPage() {
       toast.push("error", "Selecione um curso.");
       return;
     }
+    if (audienceType === "SPECIFIC_STUDENTS" && selectedStudents.length === 0) {
+      toast.push("error", "Selecione ao menos um aluno.");
+      return;
+    }
     const hasHtml = htmlContent.trim() !== "";
     const hasText = textContent.trim() !== "";
     if (!hasHtml && !hasText) {
@@ -108,12 +175,16 @@ export default function NovaCampanhaEmailPage() {
     }
     setLoading(true);
     try {
-      const audienceFilters =
-        audienceType === "CLASS_GROUP"
-          ? { classGroupId }
-          : audienceType === "BY_COURSE"
-            ? { courseId }
-            : undefined;
+      let audienceFilters: Record<string, unknown> | null = null;
+      if (audienceType === "CLASS_GROUP") {
+        audienceFilters = { classGroupId };
+      } else if (audienceType === "BY_COURSE") {
+        audienceFilters = { courseId };
+      } else if (audienceType === "SPECIFIC_STUDENTS") {
+        audienceFilters = {
+          studentIds: selectedStudents.map((s) => s.id),
+        };
+      }
       const res = await fetch("/api/email/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -121,7 +192,7 @@ export default function NovaCampanhaEmailPage() {
           name: name.trim(),
           description: description.trim() || null,
           audienceType,
-          audienceFilters: audienceFilters ?? null,
+          audienceFilters,
           templateId: templateId || null,
           subject: subject.trim() || null,
           htmlContent: hasHtml ? htmlContent.trim() : null,
@@ -146,6 +217,10 @@ export default function NovaCampanhaEmailPage() {
       setLoading(false);
     }
   }
+
+  const filteredDropdown = studentSearchResults.filter(
+    (s) => !selectedStudents.some((x) => x.id === s.id)
+  );
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
@@ -189,7 +264,11 @@ export default function NovaCampanhaEmailPage() {
           </label>
           <select
             value={audienceType}
-            onChange={(e) => setAudienceType(e.target.value)}
+            onChange={(e) => {
+              setAudienceType(e.target.value);
+              setStudentSearch("");
+              setStudentSearchResults([]);
+            }}
             className="w-full rounded border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm"
           >
             {AUDIENCE_OPTIONS.map((o) => (
@@ -217,6 +296,92 @@ export default function NovaCampanhaEmailPage() {
                 </option>
               ))}
             </select>
+          </div>
+        )}
+        {audienceType === "SPECIFIC_STUDENTS" && (
+          <div ref={studentComboboxRef} className="space-y-2">
+            <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">
+              Alunos
+            </label>
+            <p className="text-xs text-[var(--text-muted)]">
+              Digite pelo menos 2 caracteres do nome para buscar. Clique no aluno para
+              adicionar.
+            </p>
+            <div className="relative">
+              <input
+                type="text"
+                value={studentSearch}
+                onChange={(e) => {
+                  setStudentSearch(e.target.value);
+                  setStudentDropdownOpen(true);
+                }}
+                onFocus={() => setStudentDropdownOpen(true)}
+                placeholder="Buscar aluno por nome..."
+                className="w-full rounded border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm"
+                autoComplete="off"
+              />
+              {studentDropdownOpen && studentSearch.trim().length >= 2 && (
+                <ul
+                  className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded border border-[var(--card-border)] bg-[var(--card-bg)] py-1 shadow-lg"
+                  role="listbox"
+                >
+                  {studentSearchLoading ? (
+                    <li className="px-3 py-2 text-sm text-[var(--text-muted)]">
+                      Buscando...
+                    </li>
+                  ) : filteredDropdown.length === 0 ? (
+                    <li className="px-3 py-2 text-sm text-[var(--text-muted)]">
+                      Nenhum aluno encontrado ou já selecionado.
+                    </li>
+                  ) : (
+                    filteredDropdown.map((s) => (
+                      <li
+                        key={s.id}
+                        role="option"
+                        className="cursor-pointer px-3 py-2 text-sm hover:bg-[var(--igh-surface)]"
+                        onMouseDown={(ev) => {
+                          ev.preventDefault();
+                          setSelectedStudents((prev) =>
+                            prev.some((x) => x.id === s.id)
+                              ? prev
+                              : [...prev, s]
+                          );
+                          setStudentSearch("");
+                          setStudentSearchResults([]);
+                          setStudentDropdownOpen(false);
+                        }}
+                      >
+                        {s.name}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              )}
+            </div>
+            {selectedStudents.length > 0 && (
+              <ul className="flex flex-wrap gap-2">
+                {selectedStudents.map((s) => (
+                  <li
+                    key={s.id}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--igh-surface)] py-1 pl-3 pr-1 text-sm text-[var(--text-primary)]"
+                  >
+                    <span className="max-w-[200px] truncate">{s.name}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedStudents((prev) =>
+                          prev.filter((x) => x.id !== s.id)
+                        )
+                      }
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-950 dark:hover:text-red-300"
+                      aria-label={`Remover ${s.name}`}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
         {audienceType === "BY_COURSE" && (

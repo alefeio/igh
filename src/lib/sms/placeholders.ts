@@ -3,8 +3,26 @@ export interface PlaceholderData {
   primeiro_nome?: string;
   turma?: string;
   curso?: string;
+  /** Lista de cursos (ex.: "Curso A, Curso B"). */
+  cursos_matriculados?: string;
+  /** Lista de turmas/linhas (uma por linha). */
+  turmas_matriculadas?: string;
+  /** Lista detalhada para HTML (ex.: <ul>...</ul>). */
+  matriculas_html?: string;
+  /** Lista detalhada para texto (uma por linha). */
+  matriculas_texto?: string;
   unidade?: string;
   link?: string;
+  /** Data de início da turma (dd/mm/aaaa) */
+  data_inicio?: string;
+  /** Horário da turma (ex.: 08:00 – 10:00) */
+  horario?: string;
+  /** Local da turma */
+  local?: string;
+  /** Link para área do aluno (igual a {link} se não informado) */
+  link_area_aluno?: string;
+  telefone_igh?: string;
+  email_suporte?: string;
 }
 
 const PLACEHOLDERS = [
@@ -12,8 +30,18 @@ const PLACEHOLDERS = [
   "primeiro_nome",
   "turma",
   "curso",
+  "cursos_matriculados",
+  "turmas_matriculadas",
+  "matriculas_html",
+  "matriculas_texto",
   "unidade",
   "link",
+  "data_inicio",
+  "horario",
+  "local",
+  "link_area_aluno",
+  "telefone_igh",
+  "email_suporte",
 ] as const;
 
 /**

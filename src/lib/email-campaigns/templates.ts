@@ -116,12 +116,26 @@ export function renderEmailTemplate(
  * Dados de placeholder genéricos para preview de template (ex.: nome, curso, turma exemplo).
  */
 export function getSamplePlaceholderData(): PlaceholderData {
+  const link = "https://exemplo.com/login";
   return {
     nome: "Maria Silva",
     primeiro_nome: firstName("Maria Silva"),
-    turma: "Turma A",
+    turma: "TER, QUI · 08:00–10:00 · Sala 1",
     curso: "Curso de Exemplo",
+    cursos_matriculados: "Curso de Exemplo, Outro Curso",
+    turmas_matriculadas:
+      "Curso de Exemplo — TER, QUI · 08:00–10:00 · Sala 1\nOutro Curso — SEG, QUA · 19:00–21:00 · Sala 2",
+    matriculas_html:
+      "<ul><li>Curso de Exemplo · TER, QUI · 08:00–10:00 · Sala 1 · 10/03/2025 · 08:00 – 10:00 · Sala 1</li><li>Outro Curso · SEG, QUA · 19:00–21:00 · Sala 2 · 15/03/2025 · 19:00 – 21:00 · Sala 2</li></ul>",
+    matriculas_texto:
+      "- Curso de Exemplo · TER, QUI · 08:00–10:00 · Sala 1 · 10/03/2025 · 08:00 – 10:00 · Sala 1\n- Outro Curso · SEG, QUA · 19:00–21:00 · Sala 2 · 15/03/2025 · 19:00 – 21:00 · Sala 2",
     unidade: "N/A",
-    link: "",
+    link,
+    data_inicio: "10/03/2025",
+    horario: "08:00 – 10:00",
+    local: "Sala 1",
+    link_area_aluno: link,
+    telefone_igh: "(91) 99999-0000",
+    email_suporte: "suporte@exemplo.com.br",
   };
 }

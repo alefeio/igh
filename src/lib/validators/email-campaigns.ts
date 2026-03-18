@@ -2,12 +2,14 @@ import { z } from "zod";
 
 const emailAudienceTypeEnum = z.enum([
   "ALL_STUDENTS",
+  "ENROLLED_STUDENTS",
   "CLASS_GROUP",
   "STUDENTS_INCOMPLETE",
   "STUDENTS_COMPLETE",
   "STUDENTS_ACTIVE",
   "STUDENTS_INACTIVE",
   "BY_COURSE",
+  "SPECIFIC_STUDENTS",
   "TEACHERS",
   "ADMINS",
   "ALL_ACTIVE_USERS",
@@ -17,22 +19,36 @@ export const emailAudienceFiltersSchema = z
   .object({
     classGroupId: z.string().uuid().optional(),
     courseId: z.string().uuid().optional(),
+    studentIds: z.array(z.string().uuid()).max(500).optional(),
   })
   .passthrough()
   .optional()
   .nullable();
 
-export const createEmailCampaignSchema = z.object({
-  name: z.string().min(1, "Nome é obrigatório").max(200),
-  description: z.string().max(500).optional().nullable(),
-  audienceType: emailAudienceTypeEnum,
-  audienceFilters: emailAudienceFiltersSchema,
-  templateId: z.string().uuid().optional().nullable(),
-  subject: z.string().max(500).optional().nullable(),
-  htmlContent: z.string().max(100_000).optional().nullable(),
-  textContent: z.string().max(100_000).optional().nullable(),
-  scheduledAt: z.string().optional().nullable(),
-});
+export const createEmailCampaignSchema = z
+  .object({
+    name: z.string().min(1, "Nome é obrigatório").max(200),
+    description: z.string().max(500).optional().nullable(),
+    audienceType: emailAudienceTypeEnum,
+    audienceFilters: emailAudienceFiltersSchema,
+    templateId: z.string().uuid().optional().nullable(),
+    subject: z.string().max(500).optional().nullable(),
+    htmlContent: z.string().max(100_000).optional().nullable(),
+    textContent: z.string().max(100_000).optional().nullable(),
+    scheduledAt: z.string().optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.audienceType === "SPECIFIC_STUDENTS") {
+      const ids = data.audienceFilters?.studentIds;
+      if (!ids || ids.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Selecione ao menos um aluno.",
+          path: ["audienceFilters"],
+        });
+      }
+    }
+  });
 
 export const updateEmailCampaignSchema = z.object({
   name: z.string().min(1).max(200).optional(),

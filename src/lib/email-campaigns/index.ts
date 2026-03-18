@@ -20,6 +20,8 @@ export {
   confirmEmailCampaign,
   cancelEmailCampaign,
   duplicateEmailCampaign,
+  requeueFailedEmailCampaignRecipients,
+  requeueEmailCampaignRecipient,
   listEmailCampaigns,
   getEmailCampaignDetails,
   recalculateEmailCampaignTotals,

@@ -46,6 +46,21 @@ type Campaign = {
   recipients: Recipient[];
 };
 
+const AUDIENCE_LABEL: Record<string, string> = {
+  ALL_STUDENTS: "Todos os alunos",
+  ENROLLED_STUDENTS: "Alunos matriculados",
+  CLASS_GROUP: "Turma específica",
+  STUDENTS_INCOMPLETE: "Alunos com cadastro incompleto",
+  STUDENTS_COMPLETE: "Alunos com cadastro completo",
+  STUDENTS_ACTIVE: "Alunos ativos",
+  STUDENTS_INACTIVE: "Alunos inativos",
+  BY_COURSE: "Alunos por curso",
+  SPECIFIC_STUDENTS: "Alunos específicos",
+  TEACHERS: "Professores",
+  ADMINS: "Admins",
+  ALL_ACTIVE_USERS: "Todos os usuários ativos",
+};
+
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Rascunho",
   SCHEDULED: "Agendada",
@@ -78,6 +93,7 @@ export default function EmailCampaignDetailPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [resendingRecipientId, setResendingRecipientId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
     totalFound: number;
     totalWithEmail: number;
@@ -153,6 +169,38 @@ export default function EmailCampaignDetailPage() {
       await load();
     } finally {
       setProcessing(false);
+    }
+  }
+
+  async function handleResendRecipient(recipientId: string) {
+    if (!id || !recipientId) return;
+    if (resendingRecipientId) return;
+    if (!confirm("Reenviar este e-mail para este destinatário?")) return;
+    setResendingRecipientId(recipientId);
+    try {
+      const res = await fetch(
+        `/api/email/campaigns/${id}/recipients/${recipientId}/resend`,
+        { method: "POST" }
+      );
+      const json = (await res.json()) as ApiResponse<{
+        processed: number;
+        remaining: number;
+        done: boolean;
+      }>;
+      if (!res.ok || !json.ok) {
+        toast.push(
+          "error",
+          !json.ok ? json.error?.message ?? "Falha ao reenviar." : "Falha ao reenviar."
+        );
+        return;
+      }
+      toast.push(
+        "success",
+        `Reenvio iniciado. Processados ${json.data.processed}. Restantes: ${json.data.remaining}.`
+      );
+      await load();
+    } finally {
+      setResendingRecipientId(null);
     }
   }
 
@@ -330,7 +378,7 @@ export default function EmailCampaignDetailPage() {
             {STATUS_LABEL[campaign.status] ?? campaign.status}
           </Badge>
           <span className="text-sm text-[var(--text-muted)]">
-            Público: {campaign.audienceType}
+            Público: {AUDIENCE_LABEL[campaign.audienceType] ?? campaign.audienceType}
           </span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -453,6 +501,7 @@ export default function EmailCampaignDetailPage() {
                 <th className="px-4 py-2 text-left font-medium">E-mail</th>
                 <th className="px-4 py-2 text-left font-medium">Status</th>
                 <th className="px-4 py-2 text-left font-medium">Erro</th>
+                <th className="px-4 py-2 text-left font-medium">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -478,6 +527,30 @@ export default function EmailCampaignDetailPage() {
                   </td>
                   <td className="px-4 py-2 text-[var(--text-muted)]">
                     {r.errorMessage ?? "—"}
+                  </td>
+                  <td className="px-4 py-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleResendRecipient(r.id)}
+                      disabled={
+                        resendingRecipientId !== null ||
+                        campaign.status === "DRAFT" ||
+                        campaign.status === "CANCELED" ||
+                        r.status === "INVALID_EMAIL"
+                      }
+                      title={
+                        campaign.status === "DRAFT"
+                          ? "Confirme a campanha antes de reenviar."
+                          : campaign.status === "CANCELED"
+                            ? "Campanha cancelada."
+                            : r.status === "INVALID_EMAIL"
+                              ? "E-mail inválido."
+                              : undefined
+                      }
+                    >
+                      {resendingRecipientId === r.id ? "Reenviando..." : "Reenviar"}
+                    </Button>
                   </td>
                 </tr>
               ))}

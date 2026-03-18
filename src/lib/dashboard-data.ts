@@ -331,6 +331,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     ENCERRADA: 0,
     CANCELADA: 0,
     INTERNO: 0,
+    EXTERNO: 0,
   };
   for (const row of classGroupsByStatusRows) {
     classGroupsByStatus[row.status] = row._count.id;

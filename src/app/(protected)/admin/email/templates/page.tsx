@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { useToast } from "@/components/feedback/ToastProvider";
 import type { ApiResponse } from "@/lib/api-types";
 
@@ -21,6 +22,30 @@ type Template = {
   createdAt: string;
 };
 
+function sanitizeHtmlForPreview(html: string): string {
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const blocked = ["script", "iframe", "object", "embed", "link", "meta"];
+    for (const tag of blocked) doc.querySelectorAll(tag).forEach((n) => n.remove());
+    doc.querySelectorAll("*").forEach((el) => {
+      for (const attr of Array.from(el.attributes)) {
+        const name = attr.name.toLowerCase();
+        const value = attr.value ?? "";
+        if (name.startsWith("on")) {
+          el.removeAttribute(attr.name);
+          continue;
+        }
+        if ((name === "href" || name === "src") && value.trim().toLowerCase().startsWith("javascript:")) {
+          el.removeAttribute(attr.name);
+        }
+      }
+    });
+    return doc.body.innerHTML;
+  } catch {
+    return "";
+  }
+}
+
 export default function EmailTemplatesPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -35,6 +60,10 @@ export default function EmailTemplatesPage() {
   const [textContent, setTextContent] = useState("");
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
+  const htmlPreview = useMemo(
+    () => sanitizeHtmlForPreview(htmlContent ?? ""),
+    [htmlContent]
+  );
 
   async function load() {
     setLoading(true);
@@ -92,7 +121,8 @@ export default function EmailTemplatesPage() {
       toast.push("error", "Assunto do template é obrigatório.");
       return;
     }
-    const hasHtml = htmlContent.trim() !== "";
+    const hasHtml =
+      htmlContent.replace(/<[^>]+>/g, "").replace(/&nbsp;/gi, " ").trim() !== "";
     const hasText = textContent.trim() !== "";
     if (!hasHtml && !hasText) {
       toast.push("error", "Informe o conteúdo em HTML e/ou texto.");
@@ -282,24 +312,45 @@ export default function EmailTemplatesPage() {
             <textarea
               value={htmlContent}
               onChange={(e) => setHtmlContent(e.target.value)}
-              rows={4}
-              className="w-full rounded border border-[var(--border)] bg-[var(--bg)] font-mono text-sm"
+              placeholder="Corpo em HTML (opcional)."
+              rows={6}
+              className="w-full rounded border border-[var(--border)] bg-[var(--bg)] px-3 py-2 font-mono text-sm"
             />
+            <div className="mt-2 rounded border border-[var(--border)] bg-[var(--card-bg)] p-3">
+              <div className="mb-2 text-xs font-medium text-[var(--text-muted)]">
+                Pré-visualização
+              </div>
+              {htmlPreview.trim() ? (
+                <div
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ __html: htmlPreview }}
+                />
+              ) : (
+                <div className="text-sm text-[var(--text-muted)]">
+                  (Sem HTML para pré-visualizar)
+                </div>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Placeholders: {"{nome}"}, {"{primeiro_nome}"}, {"{curso}"}, {"{turma}"} (dias · horário · local),{" "}
+              {"{data_inicio}"}, {"{horario}"}, {"{local}"}, {"{link}"} e {"{link_area_aluno}"} (login),{" "}
+              {"{telefone_igh}"} e {"{email_suporte}"} (definir PUBLIC_CONTACT_PHONE e PUBLIC_SUPPORT_EMAIL no .env).
+            </p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">
               Conteúdo texto (opcional)
             </label>
-            <textarea
+            <RichTextEditor
+              key={(editing?.id ?? "template-new") + "-text"}
               value={textContent}
-              onChange={(e) => setTextContent(e.target.value)}
-              rows={3}
-              className="w-full rounded border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm"
+              onChange={setTextContent}
+              placeholder="Digite o corpo do e-mail..."
+              minHeight="220px"
+              className="rounded border border-[var(--border)] bg-[var(--bg)]"
             />
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Pelo menos HTML ou texto. Placeholders: {"{nome}"},{" "}
-              {"{primeiro_nome}"}, {"{turma}"}, {"{curso}"}, {"{unidade}"},{" "}
-              {"{link}"}
+              Pelo menos HTML ou texto. Mesmos placeholders do campo HTML.
             </p>
           </div>
           {!editing && (

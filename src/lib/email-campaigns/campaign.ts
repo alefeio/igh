@@ -238,6 +238,107 @@ export async function duplicateEmailCampaign(
   });
 }
 
+/**
+ * Reenvia e-mails da campanha para destinatários com falha.
+ * Recoloca FAILED/BOUNCED/COMPLAINED em PENDING, limpando campos de provider/erro.
+ * Não reenfileira INVALID_EMAIL.
+ */
+export async function requeueFailedEmailCampaignRecipients(campaignId: string) {
+  const campaign = await prisma.emailCampaign.findUnique({
+    where: { id: campaignId },
+    select: { id: true, status: true },
+  });
+  if (!campaign) return null;
+  if (campaign.status === CANCELED) return null;
+
+  const result = await prisma.$transaction(async (tx) => {
+    const update = await tx.emailCampaignRecipient.updateMany({
+      where: {
+        campaignId,
+        status: { in: ["FAILED", "BOUNCED", "COMPLAINED"] },
+      },
+      data: {
+        status: PENDING,
+        providerName: null,
+        providerMessageId: null,
+        providerResponse: Prisma.DbNull,
+        errorMessage: null,
+        sentAt: null,
+        deliveredAt: null,
+        openedAt: null,
+        clickedAt: null,
+        bouncedAt: null,
+        complainedAt: null,
+      },
+    });
+    await tx.emailCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: PROCESSING,
+        startedAt: new Date(),
+        finishedAt: null,
+      },
+    });
+    return update;
+  });
+
+  return { updatedCount: result.count };
+}
+
+/**
+ * Reenvia um destinatário específico da campanha.
+ * Recoloca o recipient em PENDING e limpa campos de provider/erro.
+ * Não permite reenviar INVALID_EMAIL.
+ */
+export async function requeueEmailCampaignRecipient(
+  campaignId: string,
+  recipientId: string
+) {
+  const campaign = await prisma.emailCampaign.findUnique({
+    where: { id: campaignId },
+    select: { id: true, status: true },
+  });
+  if (!campaign) return null;
+  if (campaign.status === CANCELED) return null;
+
+  const recipient = await prisma.emailCampaignRecipient.findFirst({
+    where: { id: recipientId, campaignId },
+    select: { id: true, status: true },
+  });
+  if (!recipient) return null;
+  if (recipient.status === "INVALID_EMAIL") return { blocked: true as const };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.emailCampaignRecipient.update({
+      where: { id: recipientId },
+      data: {
+        status: PENDING,
+        providerName: null,
+        providerMessageId: null,
+        providerResponse: Prisma.DbNull,
+        errorMessage: null,
+        sentAt: null,
+        deliveredAt: null,
+        openedAt: null,
+        clickedAt: null,
+        bouncedAt: null,
+        complainedAt: null,
+        attempts: 0,
+      },
+    });
+    await tx.emailCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: PROCESSING,
+        startedAt: new Date(),
+        finishedAt: null,
+      },
+    });
+  });
+
+  return { blocked: false as const };
+}
+
 export async function listEmailCampaigns(opts: {
   page?: number;
   pageSize?: number;

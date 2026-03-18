@@ -117,7 +117,7 @@ export async function PATCH(
   const { id: classGroupId, sessionId } = await context.params;
   const result = await getTeacherAndSession(user.id, classGroupId, sessionId);
   if (!result) return jsonErr("NOT_FOUND", "Sessão não encontrada.", 404);
-  if (!result.session.lessonId) {
+  if (result.session.status !== "LIBERADA") {
     return jsonErr("FORBIDDEN", "Só é possível registrar frequência em sessões com aula liberada.", 403);
   }
 

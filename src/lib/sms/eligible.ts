@@ -40,6 +40,12 @@ export function buildEligibleRecipients(
       curso: rec.courseName ?? "",
       unidade: "N/A",
       link: "",
+      data_inicio: "",
+      horario: "",
+      local: "",
+      link_area_aluno: "",
+      telefone_igh: "",
+      email_suporte: "",
     };
     list.push({
       recipientType: rec.recipientType,

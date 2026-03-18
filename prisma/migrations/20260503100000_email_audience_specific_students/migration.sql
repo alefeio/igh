@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "EmailAudienceType" ADD VALUE 'SPECIFIC_STUDENTS';

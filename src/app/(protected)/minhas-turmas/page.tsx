@@ -25,6 +25,7 @@ const STATUS_TONE: Record<string, "zinc" | "green" | "red" | "blue" | "amber" | 
   ENCERRADA: "green",
   CANCELADA: "red",
   INTERNO: "violet",
+  EXTERNO: "blue",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -34,6 +35,7 @@ const STATUS_LABEL: Record<string, string> = {
   ENCERRADA: "Encerrada",
   CANCELADA: "Cancelada",
   INTERNO: "Interno",
+  EXTERNO: "Externo",
 };
 
 export default function MinhasTurmasPage() {

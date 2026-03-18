@@ -1455,7 +1455,10 @@ export default function EnrollmentsPage() {
                 .filter((cg) => {
                   const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
                   const isInterno = cg.status === "INTERNO";
-                  const permitidaParaMatricula = isPlanejadaOuAberta || (isMaster && isInterno);
+                  const isExterno = cg.status === "EXTERNO";
+                  const canSeeExterno = user?.role === "ADMIN" || isMaster;
+                  const permitidaParaMatricula =
+                    isPlanejadaOuAberta || (isMaster && isInterno) || (canSeeExterno && isExterno);
                   if (!permitidaParaMatricula) return false;
                   return true;
                 })
@@ -1525,7 +1528,14 @@ export default function EnrollmentsPage() {
                     const isCurrent = cg.id === editingEnrollment.classGroup.id;
                     const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
                     const isInterno = cg.status === "INTERNO";
-                    return isPlanejadaOuAberta || (isMaster && isInterno) || isCurrent;
+                    const isExterno = cg.status === "EXTERNO";
+                    const canSeeExterno = user?.role === "ADMIN" || isMaster;
+                    return (
+                      isPlanejadaOuAberta ||
+                      (isMaster && isInterno) ||
+                      (canSeeExterno && isExterno) ||
+                      isCurrent
+                    );
                   })
                   .map((cg) => {
                     const isCurrent = cg.id === editingEnrollment.classGroup.id;

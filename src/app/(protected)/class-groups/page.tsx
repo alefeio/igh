@@ -28,7 +28,14 @@ type ClassGroup = {
   startTime: string;
   endTime: string;
   capacity: number;
-  status: "PLANEJADA" | "ABERTA" | "EM_ANDAMENTO" | "ENCERRADA" | "CANCELADA" | "INTERNO";
+  status:
+    | "PLANEJADA"
+    | "ABERTA"
+    | "EM_ANDAMENTO"
+    | "ENCERRADA"
+    | "CANCELADA"
+    | "INTERNO"
+    | "EXTERNO";
   location: string | null;
   createdAt: string;
   course: Course;
@@ -62,6 +69,7 @@ const STATUS_TONE: Record<ClassGroup["status"], Parameters<typeof Badge>[0]["ton
   ENCERRADA: "green",
   CANCELADA: "red",
   INTERNO: "violet",
+  EXTERNO: "blue",
 };
 
 export default function ClassGroupsPage() {
@@ -379,6 +387,7 @@ export default function ClassGroupsPage() {
     { value: "ENCERRADA", label: "Encerrada" },
     { value: "CANCELADA", label: "Cancelada" },
     { value: "INTERNO", label: "Interno" },
+    { value: "EXTERNO", label: "Externo" },
   ];
 
   return (
@@ -672,7 +681,11 @@ export default function ClassGroupsPage() {
                   <option value="ENCERRADA">ENCERRADA</option>
                   <option value="CANCELADA">CANCELADA</option>
                   <option value="INTERNO">INTERNO</option>
+                  <option value="EXTERNO">EXTERNO</option>
                 </select>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  Turmas <strong>EXTERNO</strong> não aparecem no site de inscrição. Matrículas apenas por Admin/Master.
+                </p>
               </div>
             </div>
           </div>

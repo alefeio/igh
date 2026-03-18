@@ -2,7 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
-/** Lista sessões da turma (para frequência: sessões com lessonId = aula liberada). Apenas professor dono da turma. */
+function getTodayUtcDate(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/** Lista sessões da turma (para frequência: sessões com status LIBERADA). Apenas professor dono da turma. */
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
@@ -20,6 +25,18 @@ export async function GET(
     select: { id: true },
   });
   if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+
+  // Garante que sessões até hoje estejam liberadas para o professor também
+  // (antes a liberação era atualizada no fluxo do aluno).
+  const today = getTodayUtcDate();
+  await prisma.classSession.updateMany({
+    where: {
+      classGroupId,
+      status: "SCHEDULED",
+      sessionDate: { lte: today },
+    },
+    data: { status: "LIBERADA" },
+  });
 
   const sessions = await prisma.classSession.findMany({
     where: { classGroupId },
@@ -46,7 +63,7 @@ export async function GET(
       lessonTitle: s.lesson?.title ?? null,
       lessonOrder: s.lesson?.order ?? null,
       /** Sessão com aula liberada (pode fazer frequência). */
-      canTakeAttendance: !!s.lessonId,
+      canTakeAttendance: s.status === "LIBERADA",
     })),
   });
 }

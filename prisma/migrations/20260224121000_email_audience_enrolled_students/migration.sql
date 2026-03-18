@@ -1,0 +1,2 @@
+ALTER TYPE "EmailAudienceType" ADD VALUE 'ENROLLED_STUDENTS';
+

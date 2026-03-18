@@ -29,6 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
   ENCERRADA: "Encerrada",
   CANCELADA: "Cancelada",
   INTERNO: "Interno",
+  EXTERNO: "Externo",
 };
 
 /** Passos do tutorial exibido ao aluno na primeira vez no /dashboard */
@@ -257,7 +258,7 @@ function QuickLinks({ links }: { links: { href: string; label: string }[] }) {
 
 function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
   const { stats, recentEnrollmentsCount, openClassGroups, roleLabel } = data;
-  const statusOrder = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "ENCERRADA", "CANCELADA", "INTERNO"] as const;
+  const statusOrder = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "ENCERRADA", "CANCELADA", "INTERNO", "EXTERNO"] as const;
 
   return (
     <div className="container-page flex flex-col gap-6">

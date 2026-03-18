@@ -119,7 +119,8 @@ export async function POST(request: Request) {
   if (classGroup.status === "INTERNO" && !isMaster) {
     return jsonErr("FORBIDDEN", "Apenas o usuário Master pode matricular alunos em turmas com status Interno.", 403);
   }
-  if (!isMaster && !["ABERTA", "EM_ANDAMENTO", "PLANEJADA"].includes(classGroup.status)) {
+  // Em turmas EXTERNO: Admin e Master podem matricular (não é inscrição pública).
+  if (!isMaster && !["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "EXTERNO"].includes(classGroup.status)) {
     return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
   }
   if (!isMaster) {

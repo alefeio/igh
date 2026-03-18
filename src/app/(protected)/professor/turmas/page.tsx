@@ -10,6 +10,7 @@ const STATUS_LABELS: Record<string, string> = {
   ENCERRADA: "Encerrada",
   CANCELADA: "Cancelada",
   INTERNO: "Interno",
+  EXTERNO: "Externo",
 };
 
 /** Formata data apenas (sem mudança de fuso): evita dia anterior quando o Date vem em UTC (ex.: do Prisma). */

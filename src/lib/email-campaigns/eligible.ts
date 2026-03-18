@@ -1,3 +1,5 @@
+import { getAppUrl } from "@/lib/email";
+import { formatDateOnly } from "@/lib/format";
 import type { EmailAudienceRecipient } from "./audience";
 import { validateEmail } from "./email";
 import {
@@ -43,15 +45,74 @@ export function buildEligibleEmailRecipients(
     if (!byNormalized.has(key)) byNormalized.set(key, v);
   }
 
+  const linkAluno = getAppUrl("/login");
+  const telefoneIgh = process.env.PUBLIC_CONTACT_PHONE?.trim() ?? "";
+  const emailSuporte = process.env.PUBLIC_SUPPORT_EMAIL?.trim() ?? "";
+
   const list: EligibleEmailRecipient[] = [];
   for (const { rec, result } of byNormalized.values()) {
+    const activeEnrollments = Array.isArray(rec.enrollments) ? rec.enrollments : [];
+    const uniqueCourseNames = Array.from(
+      new Set(activeEnrollments.map((e) => e.courseName).filter((x): x is string => !!x && x.trim() !== ""))
+    );
+    const cursosMatriculados = uniqueCourseNames.join(", ");
+    const turmasMatriculadas = activeEnrollments
+      .map((e) => {
+        const parts = [
+          e.courseName?.trim() || null,
+          e.turmaLine?.trim() || null,
+        ].filter(Boolean);
+        return parts.join(" — ");
+      })
+      .filter((x) => x.trim() !== "")
+      .join("\n");
+    const matriculasTexto = activeEnrollments
+      .map((e) => {
+        const course = e.courseName?.trim() || "Curso";
+        const turma = e.turmaLine?.trim() || "";
+        const data = e.dataInicio?.trim() || "";
+        const horario = e.horario?.trim() || "";
+        const local = e.local?.trim() || "";
+        const line = [course, turma, data, horario, local].filter((p) => p && p.trim() !== "").join(" · ");
+        return line.trim();
+      })
+      .filter((x) => x !== "")
+      .map((x) => `- ${x}`)
+      .join("\n");
+    const matriculasHtml =
+      activeEnrollments.length === 0
+        ? ""
+        : `<ul>${activeEnrollments
+            .map((e) => {
+              const course = e.courseName?.trim() || "Curso";
+              const turma = e.turmaLine?.trim() || "";
+              const data = e.dataInicio?.trim() || "";
+              const horario = e.horario?.trim() || "";
+              const local = e.local?.trim() || "";
+              const line = [course, turma, data, horario, local]
+                .filter((p) => p && p.trim() !== "")
+                .join(" · ");
+              return `<li>${line}</li>`;
+            })
+            .join("")}</ul>`;
+
     const data: PlaceholderData = {
       nome: rec.name,
       primeiro_nome: firstName(rec.name),
-      turma: rec.classGroupName ?? "",
+      turma: rec.turmaLine ?? rec.classGroupName ?? "",
       curso: rec.courseName ?? "",
+      cursos_matriculados: cursosMatriculados,
+      turmas_matriculadas: turmasMatriculadas,
+      matriculas_html: matriculasHtml,
+      matriculas_texto: matriculasTexto,
       unidade: "N/A",
-      link: "",
+      link: linkAluno,
+      data_inicio: rec.dataInicio ?? "",
+      horario: rec.horario ?? "",
+      local: rec.local ?? "",
+      link_area_aluno: linkAluno,
+      telefone_igh: telefoneIgh,
+      email_suporte: emailSuporte,
     };
     list.push({
       recipientType: rec.recipientType,

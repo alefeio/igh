@@ -1,0 +1,2 @@
+ALTER TYPE "ClassGroupStatus" ADD VALUE 'EXTERNO';
+

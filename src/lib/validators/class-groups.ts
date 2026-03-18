@@ -15,7 +15,17 @@ export const createClassGroupSchema = z.object({
   startTime: z.string().min(3),
   endTime: z.string().min(3),
   capacity: z.number().int().positive(),
-  status: z.enum(["PLANEJADA", "ABERTA", "EM_ANDAMENTO", "ENCERRADA", "CANCELADA", "INTERNO"]).optional(),
+  status: z
+    .enum([
+      "PLANEJADA",
+      "ABERTA",
+      "EM_ANDAMENTO",
+      "ENCERRADA",
+      "CANCELADA",
+      "INTERNO",
+      "EXTERNO",
+    ])
+    .optional(),
   location: z.string().optional().or(z.literal("")),
 });
 
