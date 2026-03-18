@@ -32,7 +32,7 @@ const CLOUDINARY_UPLOAD_URL = "https://api.cloudinary.com/v1_1";
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_CERT_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
 
-type Student = { id: string; name: string; email: string | null; phone: string | null };
+type Student = { id: string; name: string; email: string | null; phone?: string | null };
 type Course = { id: string; name: string };
 type Teacher = { id: string; name: string };
 type ClassGroup = {
