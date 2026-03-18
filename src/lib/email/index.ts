@@ -1,6 +1,11 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import {
+  isResendRateLimitError,
+  sleep,
+  throttleBeforeResendCall,
+} from "@/lib/email/resend-rate-limit";
 
 export interface SendEmailParams {
   to: string | string[];
@@ -47,20 +52,30 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
     return { success: false, error: "Configuracao de email indisponivel (RESEND_API_KEY)." };
   }
 
+  const maxRetries = 5;
   try {
     const { Resend } = await import("resend");
     const resend = new Resend(RESEND_API_KEY);
-    const { data, error } = await resend.emails.send({
-      from,
-      to: toList,
-      subject,
-      html,
-    });
-
-    if (error) {
-      return { success: false, error: typeof error === "string" ? error : error.message };
+    let lastErr = "Erro ao enviar email.";
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      await throttleBeforeResendCall();
+      const { data, error } = await resend.emails.send({
+        from,
+        to: toList,
+        subject,
+        html,
+      });
+      if (!error) {
+        return { success: true, messageId: data?.id };
+      }
+      lastErr = typeof error === "string" ? error : error.message;
+      if (isResendRateLimitError(lastErr) && attempt < maxRetries) {
+        await sleep(1000 * (attempt + 1));
+        continue;
+      }
+      return { success: false, error: lastErr };
     }
-    return { success: true, messageId: data?.id };
+    return { success: false, error: lastErr };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao enviar email.";
     return { success: false, error: message };

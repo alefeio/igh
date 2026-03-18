@@ -51,7 +51,14 @@ export class MockEmailProvider implements EmailProvider {
   }
 }
 
+import {
+  isResendRateLimitError,
+  sleep,
+  throttleBeforeResendCall,
+} from "@/lib/email/resend-rate-limit";
+
 const RESEND_API_KEY = process.env.RESEND_API_KEY ?? "";
+const RESEND_RATE_LIMIT_RETRIES = 5;
 const EMAIL_FROM = process.env.EMAIL_FROM ?? process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
 const RESEND_FROM_NAME = process.env.RESEND_FROM_NAME ?? "";
 
@@ -83,25 +90,39 @@ export class ResendEmailProvider implements EmailProvider {
     try {
       const { Resend } = await import("resend");
       const resend = new Resend(RESEND_API_KEY);
-      const { data, error } = await resend.emails.send({
-        from,
-        to: params.to,
-        subject: params.subject,
-        html,
-        ...(params.text != null &&
-          params.text.trim() !== "" && { text: params.text }),
-      });
-      if (error) {
+      let lastErrorMessage = "Resend error";
+      for (let attempt = 0; attempt <= RESEND_RATE_LIMIT_RETRIES; attempt++) {
+        await throttleBeforeResendCall();
+        const { data, error } = await resend.emails.send({
+          from,
+          to: params.to,
+          subject: params.subject,
+          html,
+          ...(params.text != null &&
+            params.text.trim() !== "" && { text: params.text }),
+        });
+        if (!error) {
+          return {
+            success: true,
+            providerMessageId: data?.id ?? undefined,
+            providerResponse: data ? (data as unknown as Record<string, unknown>) : undefined,
+          };
+        }
+        lastErrorMessage =
+          typeof error === "string" ? error : (error as { message?: string }).message ?? "Resend error";
+        if (isResendRateLimitError(lastErrorMessage) && attempt < RESEND_RATE_LIMIT_RETRIES) {
+          await sleep(1000 * (attempt + 1));
+          continue;
+        }
         return {
           success: false,
-          errorMessage: typeof error === "string" ? error : (error as { message?: string }).message ?? "Resend error",
+          errorMessage: lastErrorMessage,
           providerResponse: (error as Record<string, unknown>) ?? undefined,
         };
       }
       return {
-        success: true,
-        providerMessageId: data?.id ?? undefined,
-        providerResponse: data ? (data as unknown as Record<string, unknown>) : undefined,
+        success: false,
+        errorMessage: lastErrorMessage,
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

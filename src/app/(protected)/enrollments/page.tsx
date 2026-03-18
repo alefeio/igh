@@ -426,7 +426,7 @@ export default function EnrollmentsPage() {
               row["Status"] = ENROLLMENT_STATUS_LABELS[e.status] ?? e.status;
               break;
             case "dataMatricula":
-              row["Data matrícula"] = formatDateOnly(e.enrolledAt);
+              row["Data de início da turma"] = formatDateOnly(e.classGroup.startDate);
               break;
           }
         }
@@ -1304,7 +1304,7 @@ export default function EnrollmentsPage() {
             <tr>
               <Th>Aluno</Th>
               <Th>Curso / Turma</Th>
-              <Th>Data matrícula</Th>
+              <Th>Início da turma</Th>
               <Th>Status</Th>
               <Th>Dados completos</Th>
               <Th>Ações</Th>
@@ -1333,7 +1333,7 @@ export default function EnrollmentsPage() {
                     )}
                   </div>
                 </Td>
-                <Td>{formatDateOnly(e.enrolledAt)}</Td>
+                <Td>{formatDateOnly(e.classGroup.startDate)}</Td>
                 <Td>
                   <span className="flex flex-wrap items-center gap-1">
                     <Badge tone={ENROLLMENT_STATUS_TONE[e.status] ?? "zinc"}>
@@ -1774,7 +1774,7 @@ export default function EnrollmentsPage() {
                 checked={excelColumns.dataMatricula}
                 onChange={(e) => setExcelColumns((p) => ({ ...p, dataMatricula: e.target.checked }))}
               />
-              Data matrícula
+              Data de início da turma
             </label>
           </div>
 
