@@ -34,12 +34,24 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const json = (await res.json()) as ApiResponse<{
+      const raw = await res.text();
+      let json: ApiResponse<{
         user: { id: string; mustChangePassword?: boolean };
         needsRoleChoice?: boolean;
       }>;
+      try {
+        json = raw ? (JSON.parse(raw) as typeof json) : { ok: false, error: { code: "EMPTY", message: "Resposta vazia do servidor." } };
+      } catch {
+        toast.push(
+          "error",
+          res.ok
+            ? "Resposta inválida do servidor. Atualize a página e tente de novo."
+            : `Erro no login (${res.status}). Tente novamente.`
+        );
+        return;
+      }
       if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha no login.");
+        toast.push("error", json.ok === false ? json.error.message : "Falha no login.");
         return;
       }
       if (json.data?.needsRoleChoice) {

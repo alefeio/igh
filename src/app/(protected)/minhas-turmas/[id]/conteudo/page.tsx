@@ -53,9 +53,74 @@ type ExerciseStats = {
 
 type CourseContentData = {
   courseName: string;
+  courseImageUrl?: string | null;
+  teacherName: string;
+  teacherPhotoUrl: string | null;
   modules: Module[];
   exerciseStats?: ExerciseStats;
 };
+
+/** Bloco do professor no hero do conteúdo (foto + nome). */
+function TeacherHeroCard({
+  name,
+  photoUrl,
+  variant = "plain",
+}: {
+  name: string;
+  photoUrl: string | null;
+  /** overlay: sobre foto do curso; plain: quando não há imagem de capa */
+  variant?: "overlay" | "plain";
+}) {
+  const initials =
+    name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase() || "?";
+  const photo = photoUrl?.trim();
+
+  const containerClass =
+    variant === "overlay"
+      ? "shrink-0"
+      : "shrink-0 rounded-2xl bg-white p-3 shadow-lg ring-1 ring-black/10 sm:p-4 dark:bg-white dark:ring-black/20";
+  const labelClass =
+    variant === "overlay"
+      ? "text-[0.65rem] font-semibold uppercase tracking-wider text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]"
+      : "text-[0.65rem] font-semibold uppercase tracking-wider text-zinc-500";
+  const nameClass =
+    variant === "overlay"
+      ? "mt-0.5 text-sm font-semibold leading-snug text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)] sm:text-base"
+      : "mt-0.5 text-sm font-semibold leading-snug text-zinc-900 sm:text-base";
+
+  return (
+    <div className={containerClass}>
+      <div className="flex flex-col items-center gap-2 sm:gap-3">
+        <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-2 ring-zinc-200 sm:h-36 sm:w-36">
+          {photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photo}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span
+              className="flex h-full w-full items-center justify-center bg-zinc-100 text-2xl font-bold text-zinc-500 sm:text-3xl"
+              aria-hidden
+            >
+              {initials}
+            </span>
+          )}
+        </div>
+        <div className="max-w-[10rem] text-center">
+          <p className={labelClass}>Professor</p>
+          <p className={nameClass}>{name}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ConteudoPage() {
   const params = useParams();
@@ -70,7 +135,9 @@ export default function ConteudoPage() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/me/enrollments/${enrollmentId}/course-content`);
+        const res = await fetch(`/api/me/enrollments/${enrollmentId}/course-content`, {
+          cache: "no-store",
+        });
         const json = (await res.json()) as ApiResponse<CourseContentData>;
         if (res.ok && json?.ok) setData(json.data);
         else toast.push("error", json && "error" in json ? json.error.message : "Conteúdo não disponível ou ainda não liberado.");
@@ -88,6 +155,11 @@ export default function ConteudoPage() {
         target: "[data-tour=\"conteudo-voltar\"]",
         title: "Voltar à turma",
         content: "Use este link para retornar ao detalhe da matrícula e ver informações da turma.",
+      },
+      {
+        target: "[data-tour=\"conteudo-foto-curso\"]",
+        title: "Foto do curso",
+        content: "Identificação visual do curso. Abaixo vêm seu progresso e os módulos.",
       },
       {
         target: "[data-tour=\"conteudo-header\"]",
@@ -182,6 +254,39 @@ export default function ConteudoPage() {
           ← Voltar à turma
         </Link>
       </nav>
+
+      <section
+        data-tour="conteudo-foto-curso"
+        className="overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-sm"
+        aria-label={`Foto do curso ${data.courseName}`}
+      >
+        {data.courseImageUrl?.trim() ? (
+          <div className="relative aspect-[21/9] min-h-[220px] max-h-80 w-full sm:min-h-[240px] sm:max-h-[22rem] sm:aspect-[2.5/1]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={data.courseImageUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" aria-hidden />
+            <div className="absolute bottom-0 left-0 right-0 flex flex-row items-end justify-between gap-4 p-4 sm:p-5">
+              <p className="min-w-0 flex-1 pb-1 text-lg font-semibold text-white drop-shadow-md sm:text-xl">
+                {data.courseName}
+              </p>
+              <TeacherHeroCard name={data.teacherName} photoUrl={data.teacherPhotoUrl} variant="overlay" />
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-[140px] flex-row items-center justify-between gap-4 bg-gradient-to-br from-[var(--igh-primary)]/20 to-[var(--igh-primary)]/5 px-4 py-8 sm:min-h-[160px]">
+            <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-2">
+              <BookOpen className="h-10 w-10 text-[var(--igh-primary)] opacity-80" aria-hidden />
+              <p className="text-base font-semibold text-[var(--text-primary)] sm:text-lg">{data.courseName}</p>
+              <p className="text-xs text-[var(--text-muted)]">Imagem do curso não cadastrada</p>
+            </div>
+            <TeacherHeroCard name={data.teacherName} photoUrl={data.teacherPhotoUrl} variant="plain" />
+          </div>
+        )}
+      </section>
 
       {/* Seu progresso — sempre com dados do course-content (nunca falha) */}
       {totalLessons > 0 && (

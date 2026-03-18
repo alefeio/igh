@@ -16,6 +16,7 @@ type EnrollmentDetail = {
   classGroupId: string;
   course: { name: string; description: string | null; workloadHours: number | null };
   teacher: string;
+  teacherPhotoUrl: string | null;
   daysOfWeek: string[];
   startDate: string;
   endDate: string | null;
@@ -211,7 +212,29 @@ export default function MinhasTurmasDetailPage() {
               </div>
               <div>
                 <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Professor</div>
-                <p className="mt-1 text-[var(--text-primary)]">{e.teacher}</p>
+                <div className="mt-1 flex items-center gap-2 text-[var(--text-primary)]">
+                  {e.teacherPhotoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={e.teacherPhotoUrl}
+                      alt=""
+                      className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-[var(--card-border)]"
+                    />
+                  ) : (
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--igh-surface)] text-xs font-semibold text-[var(--text-muted)] ring-1 ring-[var(--card-border)]"
+                      aria-hidden
+                    >
+                      {e.teacher
+                        .split(/\s+/)
+                        .slice(0, 2)
+                        .map((w) => w[0])
+                        .join("")
+                        .toUpperCase() || "?"}
+                    </span>
+                  )}
+                  <span>{e.teacher}</span>
+                </div>
               </div>
               <div>
                 <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Dias da semana</div>

@@ -27,6 +27,8 @@ type Settings = {
   socialLinkedin: string | null;
   seoTitleDefault: string | null;
   seoDescriptionDefault: string | null;
+  /** Base para links em e-mails (campanhas): {link}, {link_area_aluno} */
+  publicAppUrl: string | null;
 };
 
 const empty = (s: string | null | undefined) => s ?? "";
@@ -94,6 +96,7 @@ export default function ConfiguracoesPage() {
         socialLinkedin: empty(s.socialLinkedin),
         seoTitleDefault: empty(s.seoTitleDefault),
         seoDescriptionDefault: empty(s.seoDescriptionDefault),
+        publicAppUrl: empty((s as Settings).publicAppUrl),
       });
       setAddresses(addrs.map((a: AddressEntry) => ({ ...a })));
     } finally {
@@ -155,10 +158,33 @@ export default function ConfiguracoesPage() {
     <div className="flex flex-col gap-4">
       <div>
         <div className="text-lg font-semibold">Configurações do site</div>
-        <div className="text-sm text-[var(--text-secondary)]">Logo, identidade, contato, redes sociais e SEO.</div>
+        <div className="text-sm text-[var(--text-secondary)]">
+          Logo, identidade, contato, links em e-mails, redes sociais e SEO.
+        </div>
       </div>
 
       <form className="flex flex-col gap-6" onSubmit={save}>
+        <div className="card">
+          <div className="card-header">URL pública do site (e-mails)</div>
+          <div className="card-body flex flex-col gap-3">
+            <div>
+              <label className="text-sm font-medium">URL base (https://…)</label>
+              <Input
+                className="mt-1"
+                value={form.publicAppUrl ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, publicAppUrl: e.target.value }))}
+                placeholder="https://www.instituto.com.br"
+              />
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Usada nos placeholders <code className="rounded bg-[var(--bg-muted)] px-1">{"{link}"}</code>,{" "}
+                <code className="rounded bg-[var(--bg-muted)] px-1">{"{link_area_aluno}"}</code> e similares nas{" "}
+                <strong>campanhas de e-mail</strong>, quando a variável <code className="px-1">APP_URL</code> não está
+                definida no servidor. Se <code className="px-1">APP_URL</code> existir no .env, ela tem prioridade.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="card">
           <div className="card-header">Identidade</div>
           <div className="card-body flex flex-col gap-3">

@@ -75,6 +75,7 @@ model Teacher {
   name        String
   phone       String?
   email       String?
+  photoUrl    String?
   isActive    Boolean      @default(true)
   deletedAt   DateTime?
   createdAt   DateTime     @default(now())
@@ -465,6 +466,8 @@ model SiteSettings {
   socialLinkedin        String?
   seoTitleDefault       String?
   seoDescriptionDefault String?
+  /** Base URL do site (https://...) para placeholders {link}, {link_area_aluno} em e-mails quando APP_URL não está no .env */
+  publicAppUrl          String?
   updatedAt             DateTime @updatedAt
   addresses             Json?
 }

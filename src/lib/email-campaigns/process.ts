@@ -1,5 +1,11 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { EmailAudienceFilters } from "./audience";
+import {
+  buildPlaceholderDataForCampaignSend,
+  emailBodyHasUnresolvedPlaceholders,
+} from "./eligible";
+import { renderHtmlContent, renderSubject, renderTextContent } from "./placeholders";
 import { getEmailProvider } from "./provider";
 import { recalculateEmailCampaignTotals } from "./campaign";
 
@@ -20,27 +26,26 @@ export async function processEmailCampaignBatch(
   campaignId: string,
   batchSize: number = BATCH_SIZE
 ): Promise<ProcessEmailBatchResult> {
-  const campaign = await prisma.emailCampaign.findUnique({
+  const campaignMeta = await prisma.emailCampaign.findUnique({
     where: { id: campaignId },
     select: { id: true, status: true },
   });
-  if (!campaign) {
+  if (!campaignMeta) {
     return { campaignId, processed: 0, remaining: 0, done: true };
   }
   if (
-    campaign.status !== "PROCESSING" &&
-    campaign.status !== "SCHEDULED"
+    campaignMeta.status !== "PROCESSING" &&
+    campaignMeta.status !== "SCHEDULED"
   ) {
     return { campaignId, processed: 0, remaining: 0, done: true };
   }
 
-  if (campaign.status === "SCHEDULED") {
+  if (campaignMeta.status === "SCHEDULED") {
     await prisma.emailCampaign.update({
       where: { id: campaignId },
       data: {
         status: "PROCESSING",
         startedAt: new Date(),
-        dispatchCount: { increment: 1 },
       },
     });
   }
@@ -51,14 +56,56 @@ export async function processEmailCampaignBatch(
     orderBy: { createdAt: "asc" },
   });
 
+  // Conta "disparos" como execuções de processamento que de fato tentam enviar (ex.: clique em "Processar lote").
+  if (pending.length > 0) {
+    await prisma.emailCampaign.update({
+      where: { id: campaignId },
+      data: { dispatchCount: { increment: 1 } },
+    });
+  }
+
+  const campaignFull = await prisma.emailCampaign.findUnique({
+    where: { id: campaignId },
+    select: {
+      htmlContent: true,
+      textContent: true,
+      subject: true,
+      audienceType: true,
+      audienceFilters: true,
+    },
+  });
+
   const provider = getEmailProvider();
 
   for (const rec of pending) {
+    let html = rec.renderedHtmlContent;
+    let text = rec.renderedTextContent;
+    let subj = rec.renderedSubject;
+    const needsRerender =
+      campaignFull?.htmlContent?.trim() &&
+      (emailBodyHasUnresolvedPlaceholders(html) ||
+        emailBodyHasUnresolvedPlaceholders(subj) ||
+        emailBodyHasUnresolvedPlaceholders(text));
+    if (needsRerender && campaignFull) {
+      const data = await buildPlaceholderDataForCampaignSend(
+        rec.recipientType,
+        rec.recipientId,
+        rec.recipientNameSnapshot,
+        campaignFull.audienceType,
+        campaignFull.audienceFilters as EmailAudienceFilters | null
+      );
+      html = renderHtmlContent(campaignFull.htmlContent!, data);
+      subj = renderSubject(campaignFull.subject ?? subj, data);
+      if (campaignFull.textContent?.trim()) {
+        text = renderTextContent(campaignFull.textContent, data);
+      }
+    }
+
     const result = await provider.send({
       to: rec.emailNormalized,
-      subject: rec.renderedSubject,
-      html: rec.renderedHtmlContent,
-      text: rec.renderedTextContent,
+      subject: subj,
+      html,
+      text,
     });
     await prisma.emailCampaignRecipient.update({
       where: { id: rec.id },

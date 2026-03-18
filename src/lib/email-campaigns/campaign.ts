@@ -126,7 +126,7 @@ export async function confirmEmailCampaign(
     campaign.audienceFilters as EmailAudienceFilters | null
   );
   const preview = previewEmailCampaign(recipients);
-  const eligible = buildEligibleEmailRecipients(
+  const eligible = await buildEligibleEmailRecipients(
     recipients,
     subject,
     htmlContent,

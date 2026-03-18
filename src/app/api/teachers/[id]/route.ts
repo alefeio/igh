@@ -111,6 +111,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       phone: parsed.data.phone === "" ? null : (parsed.data.phone ?? existing.phone),
       email: newEmail ?? existing.email,
       isActive: parsed.data.isActive ?? existing.isActive,
+      ...(parsed.data.photoUrl !== undefined
+        ? { photoUrl: parsed.data.photoUrl.trim() === "" ? null : parsed.data.photoUrl.trim() }
+        : {}),
       ...(teacherUserId != null ? { userId: teacherUserId } : {}),
       ...(parsed.data.isActive === true ? { deletedAt: null } : {}),
     },

@@ -20,7 +20,7 @@ export async function GET() {
       classGroup: {
         include: {
           course: { select: { id: true, name: true } },
-          teacher: { select: { id: true, name: true } },
+          teacher: { select: { id: true, name: true, photoUrl: true } },
         },
       },
     },
@@ -32,6 +32,7 @@ export async function GET() {
       classGroupId: e.classGroupId,
       courseName: e.classGroup.course.name,
       teacherName: e.classGroup.teacher.name,
+      teacherPhotoUrl: e.classGroup.teacher.photoUrl ?? null,
       startDate: e.classGroup.startDate,
       status: e.classGroup.status,
       location: e.classGroup.location,

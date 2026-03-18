@@ -129,7 +129,7 @@ Acesse `http://localhost:3000`.
 - **ADMIN**:
   - acessa `/dashboard`, `/students` (criar/editar alunos e anexar documentos; não pode excluir aluno nem remover anexo)
 
-> O middleware valida o JWT no Edge e aplica restrição por rota. As APIs também reforçam RBAC no backend.
+> O **proxy** (`src/proxy.ts`, ex-middleware) valida o JWT no Edge e aplica restrição por rota. As APIs também reforçam RBAC no backend.
 
 ---
 

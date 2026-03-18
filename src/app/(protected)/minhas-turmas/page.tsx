@@ -13,6 +13,7 @@ type EnrollmentItem = {
   classGroupId: string;
   courseName: string;
   teacherName: string;
+  teacherPhotoUrl: string | null;
   startDate: string;
   status: string;
   location: string | null;
@@ -124,7 +125,31 @@ export default function MinhasTurmasPage() {
                   {enrollments.map((e) => (
                     <tr key={e.id}>
                       <Td>{e.courseName}</Td>
-                      <Td>{e.teacherName}</Td>
+                      <Td>
+                        <div className="flex items-center gap-2">
+                          {e.teacherPhotoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={e.teacherPhotoUrl}
+                              alt=""
+                              className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-[var(--card-border)]"
+                            />
+                          ) : (
+                            <span
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--igh-surface)] text-xs font-semibold text-[var(--text-muted)] ring-1 ring-[var(--card-border)]"
+                              aria-hidden
+                            >
+                              {e.teacherName
+                                .split(/\s+/)
+                                .slice(0, 2)
+                                .map((w) => w[0])
+                                .join("")
+                                .toUpperCase() || "?"}
+                            </span>
+                          )}
+                          <span>{e.teacherName}</span>
+                        </div>
+                      </Td>
                       <Td>{formatDate(e.startDate)}</Td>
                       <Td>
                         <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>

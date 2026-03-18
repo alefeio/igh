@@ -51,7 +51,22 @@ export function getEnrollmentCertificateFolder(enrollmentId: string): string {
 
 const SITE_UPLOAD_PREFIX = "igh/site";
 
-export function getSiteUploadFolder(kind: "logo" | "favicon" | "banners" | "partners" | "formations" | "projects" | "testimonials" | "news" | "transparency" | "about" | "inscreva" | "contato"): string {
+export function getSiteUploadFolder(
+  kind:
+    | "logo"
+    | "favicon"
+    | "banners"
+    | "partners"
+    | "formations"
+    | "projects"
+    | "testimonials"
+    | "news"
+    | "transparency"
+    | "about"
+    | "inscreva"
+    | "contato"
+    | "teachers"
+): string {
   return `${SITE_UPLOAD_PREFIX}/${kind}`.replace(/\/+/g, "/");
 }
 

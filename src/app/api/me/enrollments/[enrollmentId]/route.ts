@@ -30,7 +30,7 @@ export async function GET(
       classGroup: {
         include: {
           course: true,
-          teacher: { select: { id: true, name: true } },
+          teacher: { select: { id: true, name: true, photoUrl: true } },
           sessions: { orderBy: { sessionDate: "asc" } },
         },
       },
@@ -59,7 +59,7 @@ export async function GET(
       classGroup: {
         include: {
           course: true,
-          teacher: { select: { id: true, name: true } },
+          teacher: { select: { id: true, name: true, photoUrl: true } },
           sessions: {
             orderBy: { sessionDate: "asc" },
             include: {
@@ -101,6 +101,7 @@ export async function GET(
         workloadHours: course.workloadHours,
       },
       teacher: g2.teacher.name,
+      teacherPhotoUrl: g2.teacher.photoUrl ?? null,
       daysOfWeek: g2.daysOfWeek,
       startDate: g2.startDate,
       endDate: g2.endDate,

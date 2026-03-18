@@ -14,7 +14,8 @@ export type SiteUploadKind =
   | "transparency"
   | "about"
   | "inscreva"
-  | "contato";
+  | "contato"
+  | "teachers";
 
 type Props = {
   kind: SiteUploadKind;

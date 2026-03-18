@@ -1,5 +1,7 @@
 import "server-only";
 
+import { prisma } from "@/lib/prisma";
+
 export interface SendEmailParams {
   to: string | string[];
   subject: string;
@@ -15,6 +17,23 @@ export interface SendEmailResult {
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 const EMAIL_FROM = process.env.EMAIL_FROM ?? "onboarding@resend.dev";
+
+/**
+ * URL base para links em campanhas ({link}, {link_area_aluno}).
+ * 1) APP_URL no .env do servidor · 2) Admin → Site → Configurações → URL pública do site · 3) localhost.
+ */
+export async function resolvePublicAppUrl(): Promise<string> {
+  const env = process.env.APP_URL?.trim();
+  if (env) return env.replace(/\/$/, "");
+  try {
+    const s = await prisma.siteSettings.findFirst({ select: { publicAppUrl: true } });
+    const u = s?.publicAppUrl?.trim();
+    if (u) return u.replace(/\/$/, "");
+  } catch {
+    /* ignore */
+  }
+  return "http://localhost:3000";
+}
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 export async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {

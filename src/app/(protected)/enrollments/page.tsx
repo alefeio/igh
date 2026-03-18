@@ -32,7 +32,7 @@ const CLOUDINARY_UPLOAD_URL = "https://api.cloudinary.com/v1_1";
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_CERT_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
 
-type Student = { id: string; name: string; email: string | null };
+type Student = { id: string; name: string; email: string | null; phone: string | null };
 type Course = { id: string; name: string };
 type Teacher = { id: string; name: string };
 type ClassGroup = {
@@ -102,6 +102,29 @@ export default function EnrollmentsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportExcelOpen, setExportExcelOpen] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  type ExcelColumnKey =
+    | "aluno"
+    | "curso"
+    | "cursoTurma"
+    | "telefone"
+    | "email"
+    | "professor"
+    | "status"
+    | "dataMatricula";
+
+  const [excelColumns, setExcelColumns] = useState<Record<ExcelColumnKey, boolean>>({
+    aluno: true,
+    curso: false,
+    cursoTurma: true,
+    telefone: false,
+    email: false,
+    professor: false,
+    status: false,
+    dataMatricula: true,
+  });
 
   const [openNewStudent, setOpenNewStudent] = useState(false);
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
@@ -364,17 +387,63 @@ export default function EnrollmentsPage() {
   const PIE_COLORS = ["#0066b3", "#1a365d", "#e87500", "#0d9488", "#7c3aed", "#dc2626", "#65a30d", "#ca8a04"];
 
   function exportToExcel() {
-    const sorted = [...filteredItems].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
-    const rows = sorted.map((e) => ({
-      Aluno: e.student.name,
-      "Curso/Turma": `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${e.classGroup.daysOfWeek.join(", ")})` : ""}${e.classGroup.location ? ` — ${e.classGroup.location}` : ""}`,
-      "Data matrícula": new Date(e.enrolledAt).toLocaleDateString("pt-BR"),
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Matrículas");
-    XLSX.writeFile(wb, `matriculas_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast.push("success", "Planilha exportada.");
+    if (exportingExcel) return;
+    if (filteredItems.length === 0) return;
+
+    const selectedKeys = (Object.keys(excelColumns) as ExcelColumnKey[]).filter((k) => excelColumns[k]);
+    if (selectedKeys.length === 0) {
+      toast.push("error", "Selecione pelo menos uma coluna para exportar.");
+      return;
+    }
+
+    setExportingExcel(true);
+    try {
+      const sorted = [...filteredItems].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
+
+      const rows = sorted.map((e) => {
+        const row: Record<string, string> = {};
+        for (const key of selectedKeys) {
+          switch (key) {
+            case "aluno":
+              row["Aluno"] = e.student.name ?? "";
+              break;
+            case "curso":
+              row["Curso"] = e.classGroup.course.name ?? "";
+              break;
+            case "cursoTurma":
+              row["Curso/Turma"] = `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${e.classGroup.daysOfWeek.join(", ")})` : ""}${e.classGroup.location ? ` — ${e.classGroup.location}` : ""}`;
+              break;
+            case "telefone":
+              row["Telefone"] = e.student.phone ?? "";
+              break;
+            case "email":
+              row["Email"] = e.student.email ?? "";
+              break;
+            case "professor":
+              row["Professor"] = e.classGroup.teacher?.name ?? "";
+              break;
+            case "status":
+              row["Status"] = ENROLLMENT_STATUS_LABELS[e.status] ?? e.status;
+              break;
+            case "dataMatricula":
+              row["Data matrícula"] = formatDateOnly(e.enrolledAt);
+              break;
+          }
+        }
+        return row;
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Matrículas");
+      XLSX.writeFile(wb, `matriculas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.push("success", "Planilha exportada.");
+      setExportExcelOpen(false);
+    } catch {
+      toast.push("error", "Falha ao exportar Excel.");
+    } finally {
+      setExportingExcel(false);
+    }
   }
 
   async function exportToPdf() {
@@ -628,7 +697,11 @@ export default function EnrollmentsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
-          <Button variant="secondary" onClick={exportToExcel} disabled={itemsForView.length === 0}>
+          <Button
+            variant="secondary"
+            onClick={() => setExportExcelOpen(true)}
+            disabled={filteredItems.length === 0}
+          >
             Exportar Excel
           </Button>
           <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf || itemsForView.length === 0}>
@@ -1623,6 +1696,106 @@ export default function EnrollmentsPage() {
             </div>
           </form>
         )}
+      </Modal>
+
+      <Modal
+        open={exportExcelOpen}
+        title="Exportar Excel"
+        onClose={() => {
+          setExportExcelOpen(false);
+        }}
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-[var(--text-muted)]">
+            Serão exportadas <strong className="text-[var(--text-primary)]">{filteredItems.length}</strong> matrículas
+            com os filtros atuais da tela.
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={excelColumns.aluno}
+                onChange={(e) => setExcelColumns((p) => ({ ...p, aluno: e.target.checked }))}
+              />
+              Nome do aluno
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={excelColumns.curso}
+                onChange={(e) => setExcelColumns((p) => ({ ...p, curso: e.target.checked }))}
+              />
+              Curso
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={excelColumns.cursoTurma}
+                onChange={(e) => setExcelColumns((p) => ({ ...p, cursoTurma: e.target.checked }))}
+              />
+              Curso/Turma
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={excelColumns.telefone}
+                onChange={(e) => setExcelColumns((p) => ({ ...p, telefone: e.target.checked }))}
+              />
+              Telefone
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={excelColumns.email}
+                onChange={(e) => setExcelColumns((p) => ({ ...p, email: e.target.checked }))}
+              />
+              Email
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={excelColumns.professor}
+                onChange={(e) => setExcelColumns((p) => ({ ...p, professor: e.target.checked }))}
+              />
+              Professor
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={excelColumns.status}
+                onChange={(e) => setExcelColumns((p) => ({ ...p, status: e.target.checked }))}
+              />
+              Status
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={excelColumns.dataMatricula}
+                onChange={(e) => setExcelColumns((p) => ({ ...p, dataMatricula: e.target.checked }))}
+              />
+              Data matrícula
+            </label>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setExportExcelOpen(false)}
+              disabled={exportingExcel}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={exportToExcel}
+              disabled={exportingExcel || filteredItems.length === 0}
+            >
+              {exportingExcel ? "Exportando…" : "Exportar"}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <Modal open={openNewStudent} title="Cadastrar aluno" onClose={() => setOpenNewStudent(false)}>

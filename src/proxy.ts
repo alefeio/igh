@@ -5,7 +5,7 @@ import { jwtVerify } from "jose";
 const PUBLIC_PATHS = ["/login", "/setup", "/confirmar-inscricao", "/esqueci-senha", "/redefinir-senha"];
 const AUTH_COOKIE_NAME = "auth_token";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/_next")) {

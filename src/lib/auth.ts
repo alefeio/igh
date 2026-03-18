@@ -7,8 +7,19 @@ import { compare, hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { User, UserRole } from "@/generated/prisma/client";
 
-const AUTH_COOKIE_NAME = "auth_token";
+/** Nome do cookie de sessão (usar em Route Handlers com NextResponse.cookies). */
+export const AUTH_TOKEN_COOKIE_NAME = "auth_token";
 const AUTH_SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
+
+export function getAuthCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  };
+}
 
 export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActive" | "mustChangePassword"> & {
   isAdmin?: boolean;
@@ -32,13 +43,13 @@ export async function verifyPassword(password: string, passwordHash: string): Pr
   return compare(password, passwordHash);
 }
 
-/** Cria o cookie de sessão. effectiveRole: use quando o usuário escolheu acessar como Admin (e tem isAdmin). */
-export async function createSessionCookie(
+/** JWT da sessão (para gravar no cookie via NextResponse em API routes). */
+export async function buildAuthSessionToken(
   user: SessionUser & { isAdmin?: boolean },
   effectiveRole?: UserRole
-): Promise<void> {
+): Promise<string> {
   const role = effectiveRole ?? user.role;
-  const token = await new SignJWT({
+  return new SignJWT({
     name: user.name,
     email: user.email,
     role,
@@ -48,25 +59,26 @@ export async function createSessionCookie(
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(AUTH_SECRET);
+}
 
+/** Cria o cookie de sessão. effectiveRole: use quando o usuário escolheu acessar como Admin (e tem isAdmin). */
+export async function createSessionCookie(
+  user: SessionUser & { isAdmin?: boolean },
+  effectiveRole?: UserRole
+): Promise<void> {
+  const token = await buildAuthSessionToken(user, effectiveRole);
   const cookieStore = await cookies();
-  cookieStore.set(AUTH_COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7, // 7 dias
-  });
+  cookieStore.set(AUTH_TOKEN_COOKIE_NAME, token, getAuthCookieOptions());
 }
 
 export async function clearSessionCookie(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(AUTH_COOKIE_NAME);
+  cookieStore.delete(AUTH_TOKEN_COOKIE_NAME);
 }
 
 export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
-  const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
+  const token = cookieStore.get(AUTH_TOKEN_COOKIE_NAME)?.value;
   if (!token) return null;
 
   try {

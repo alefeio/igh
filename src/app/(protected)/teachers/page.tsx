@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -30,6 +31,7 @@ type Teacher = {
   name: string;
   email: string | null;
   phone: string | null;
+  photoUrl: string | null;
   isActive: boolean;
   deletedAt: string | null;
   createdAt: string;
@@ -49,6 +51,7 @@ export default function TeachersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   const canSubmit = useMemo(() => {
@@ -59,6 +62,7 @@ export default function TeachersPage() {
     setName("");
     setEmail("");
     setPhone("");
+    setPhotoUrl("");
     setIsActive(true);
     setEditing(null);
   }
@@ -73,6 +77,7 @@ export default function TeachersPage() {
     setName(t.name);
     setEmail(t.email ?? "");
     setPhone(t.phone ?? "");
+    setPhotoUrl(t.photoUrl ?? "");
     setIsActive(t.isActive);
     setOpen(true);
   }
@@ -102,12 +107,17 @@ export default function TeachersPage() {
     if (!canSubmit || saving) return;
     setSaving(true);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
         isActive,
       };
+      if (editing) {
+        payload.photoUrl = photoUrl.trim();
+      } else if (photoUrl.trim()) {
+        payload.photoUrl = photoUrl.trim();
+      }
       const url = editing ? `/api/teachers/${editing.id}` : "/api/teachers";
       const method = editing ? "PATCH" : "POST";
 
@@ -207,6 +217,7 @@ export default function TeachersPage() {
         <Table>
           <thead>
             <tr>
+              <Th>Foto</Th>
               <Th>Nome</Th>
               <Th>Contato</Th>
               <Th>Status</Th>
@@ -216,6 +227,20 @@ export default function TeachersPage() {
           <tbody>
             {items.map((t) => (
               <tr key={t.id}>
+                <Td>
+                  {t.photoUrl?.trim() ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={t.photoUrl.trim()}
+                      alt=""
+                      className="h-11 w-11 rounded-full object-cover ring-1 ring-[var(--card-border)]"
+                    />
+                  ) : (
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--igh-surface)] text-xs text-[var(--text-muted)] ring-1 ring-[var(--card-border)]">
+                      —
+                    </span>
+                  )}
+                </Td>
                 <Td>{t.name}</Td>
                 <Td>
                   <div className="flex flex-col">
@@ -261,6 +286,7 @@ export default function TeachersPage() {
                 <Td />
                 <Td />
                 <Td />
+                <Td />
               </tr>
             ) : null}
           </tbody>
@@ -295,6 +321,30 @@ export default function TeachersPage() {
             <div className="mt-1">
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Foto (opcional)</label>
+            <Input
+              className="mt-1"
+              value={photoUrl}
+              onChange={(e) => setPhotoUrl(e.target.value)}
+              placeholder="https://..."
+            />
+            <CloudinaryImageUpload
+              kind="teachers"
+              currentUrl={photoUrl.trim() || undefined}
+              onUploaded={(url) => setPhotoUrl(url)}
+              label="Enviar foto"
+            />
+            {photoUrl.trim() ? (
+              <div className="mt-2 flex items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoUrl.trim()} alt="" className="h-20 w-20 rounded-full object-cover ring-1 ring-[var(--card-border)]" />
+                <Button type="button" variant="secondary" size="sm" onClick={() => setPhotoUrl("")}>
+                  Remover foto
+                </Button>
+              </div>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <input

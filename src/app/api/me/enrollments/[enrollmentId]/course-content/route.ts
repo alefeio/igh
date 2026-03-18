@@ -3,6 +3,26 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId, getCourseLessonIdsInOrder } from "@/lib/course-modules";
 
+export const dynamic = "force-dynamic";
+
+/** Foto do curso: URL do cadastro; se vazio, primeira imagem de alguma aula (como na prática muitos cursos usam). */
+function resolveCourseImageUrl(
+  courseImageUrl: string | null | undefined,
+  modules: Awaited<ReturnType<typeof getModulesWithLessonsByCourseId>>
+): string | null {
+  const u = courseImageUrl?.trim();
+  if (u) return u;
+  for (const mod of modules) {
+    for (const les of mod.lessons) {
+      for (const url of les.imageUrls ?? []) {
+        const t = url?.trim();
+        if (t) return t;
+      }
+    }
+  }
+  return null;
+}
+
 /** Fim do dia de hoje no fuso do Brasil (UTC−3), para liberar sessões pelo calendário local. */
 function getEndOfTodayBrazil(): Date {
   const BRAZIL_UTC_OFFSET_HOURS = 3; // BRT = UTC−3 → subtrair 3h de UTC para obter a "data" em Brasil
@@ -36,7 +56,7 @@ export async function GET(
     include: {
       classGroup: {
         include: {
-          course: { select: { id: true, name: true } },
+          course: { select: { id: true, name: true, imageUrl: true } },
           sessions: {
             where: { status: "LIBERADA" },
             orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
@@ -66,7 +86,8 @@ export async function GET(
     include: {
       classGroup: {
         include: {
-          course: { select: { id: true, name: true } },
+          course: { select: { id: true, name: true, imageUrl: true } },
+          teacher: { select: { name: true, photoUrl: true } },
           sessions: {
             where: { status: "LIBERADA" },
             orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
@@ -95,6 +116,12 @@ export async function GET(
   });
 
   const modules = await getModulesWithLessonsByCourseId(courseId);
+
+  const courseRow = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: { imageUrl: true },
+  });
+  const courseImageUrl = resolveCourseImageUrl(courseRow?.imageUrl ?? null, modules);
 
   const lessonIds = modules.flatMap((m) => m.lessons.map((l) => l.id));
   const orderedLessons = modules.flatMap((m) => m.lessons);
@@ -230,8 +257,12 @@ export async function GET(
     })),
   }));
 
+  const t = enrollmentAfterUpdate.classGroup.teacher;
   return jsonOk({
     courseName: enrollmentAfterUpdate.classGroup.course.name,
+    courseImageUrl,
+    teacherName: t.name,
+    teacherPhotoUrl: t.photoUrl ?? null,
     modules: modulesWithLiberada,
     exerciseStats: {
       totalCorrect,

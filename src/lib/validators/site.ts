@@ -58,6 +58,7 @@ export const siteSettingsSchema = z.object({
   socialLinkedin: z.string().optional(),
   seoTitleDefault: z.string().optional(),
   seoDescriptionDefault: z.string().optional(),
+  publicAppUrl: z.union([z.literal(""), z.string().url("URL inválida (use https://...)")]).optional(),
 });
 
 // SiteMenuItem

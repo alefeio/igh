@@ -88,6 +88,90 @@ export type EmailAudienceFilters = {
   [key: string]: unknown;
 };
 
+/**
+ * Reconstroi o destinatário como na resolução de audiência, para re-renderizar placeholders no envio
+ * (campanhas antigas com HTML congelado sem substituir {cursos_html}, etc.).
+ */
+export async function loadRecipientForPlaceholderRender(
+  recipientType: string,
+  recipientId: string,
+  name: string,
+  audienceType: EmailAudienceType,
+  filters: EmailAudienceFilters | null
+): Promise<EmailAudienceRecipient> {
+  const base: EmailAudienceRecipient = {
+    recipientType: recipientType as EmailAudienceRecipient["recipientType"],
+    recipientId,
+    name,
+    email: null,
+  };
+  if (recipientType !== "student") {
+    return base;
+  }
+  const fg = filters ?? {};
+
+  if (audienceType === "CLASS_GROUP" && fg.classGroupId) {
+    const e = await prisma.enrollment.findFirst({
+      where: { studentId: recipientId, classGroupId: fg.classGroupId, status: "ACTIVE" },
+      select: { classGroup: { select: CLASS_GROUP_DETAIL } },
+    });
+    const f = fieldsFromClassGroup(e?.classGroup ?? undefined);
+    return {
+      ...base,
+      ...f,
+      enrollments: e?.classGroup ? [enrollmentDetailsFromClassGroup(e.classGroup)] : [],
+    };
+  }
+
+  if (audienceType === "BY_COURSE" && fg.courseId) {
+    const list = await prisma.enrollment.findMany({
+      where: { studentId: recipientId, status: "ACTIVE", classGroup: { courseId: fg.courseId } },
+      orderBy: { enrolledAt: "desc" },
+      select: { classGroup: { select: CLASS_GROUP_DETAIL } },
+    });
+    const primary = list[0]?.classGroup ?? undefined;
+    const f = fieldsFromClassGroup(primary);
+    return {
+      ...base,
+      ...f,
+      enrollments: list.map((x) => enrollmentDetailsFromClassGroup(x.classGroup ?? undefined)),
+    };
+  }
+
+  if (
+    audienceType === "ALL_STUDENTS" ||
+    audienceType === "STUDENTS_COMPLETE" ||
+    audienceType === "STUDENTS_INCOMPLETE" ||
+    audienceType === "STUDENTS_ACTIVE" ||
+    audienceType === "STUDENTS_INACTIVE"
+  ) {
+    const e = await prisma.enrollment.findFirst({
+      where: { studentId: recipientId, status: "ACTIVE" },
+      orderBy: { enrolledAt: "desc" },
+      select: { classGroup: { select: CLASS_GROUP_DETAIL } },
+    });
+    const f = fieldsFromClassGroup(e?.classGroup ?? undefined);
+    return {
+      ...base,
+      ...f,
+      enrollments: e?.classGroup ? [enrollmentDetailsFromClassGroup(e.classGroup)] : [],
+    };
+  }
+
+  const list = await prisma.enrollment.findMany({
+    where: { studentId: recipientId, status: "ACTIVE" },
+    orderBy: { enrolledAt: "desc" },
+    select: { classGroup: { select: CLASS_GROUP_DETAIL } },
+  });
+  const primary = list[0]?.classGroup ?? undefined;
+  const f = fieldsFromClassGroup(primary);
+  return {
+    ...base,
+    ...f,
+    enrollments: list.map((x) => enrollmentDetailsFromClassGroup(x.classGroup ?? undefined)),
+  };
+}
+
 function studentEmail(
   studentEmail: string | null,
   userEmail: string | null
