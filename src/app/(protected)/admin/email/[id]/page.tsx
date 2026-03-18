@@ -36,6 +36,7 @@ type Campaign = {
   totalFailed: number;
   totalOpened: number;
   totalClicked: number;
+  dispatchCount: number;
   scheduledAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -382,6 +383,12 @@ export default function EmailCampaignDetailPage() {
           </span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+          <div>
+            Disparos:{" "}
+            <strong title="Rodadas de envio em massa (1ª vez, nova rodada após reenfileirar falhas, etc.)">
+              {campaign.dispatchCount ?? 0}
+            </strong>
+          </div>
           <div>
             Encontrados: <strong>{campaign.totalFound}</strong>
           </div>

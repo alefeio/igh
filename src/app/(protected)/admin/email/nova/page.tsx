@@ -447,7 +447,7 @@ export default function NovaCampanhaEmailPage() {
           <textarea
             value={htmlContent}
             onChange={(e) => setHtmlContent(e.target.value)}
-            placeholder="Corpo em HTML. Placeholders: {nome}, {primeiro_nome}, {turma}, {curso}, {unidade}, {link}"
+            placeholder="Corpo em HTML. Ex.: {nome}, {cursos_html} (lista &lt;ul&gt; de matrículas), {curso}, {turma}, {link}…"
             rows={6}
             className="w-full rounded border border-[var(--border)] bg-[var(--bg)] px-3 py-2 font-mono text-sm"
           />

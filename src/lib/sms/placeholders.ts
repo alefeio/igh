@@ -9,6 +9,8 @@ export interface PlaceholderData {
   turmas_matriculadas?: string;
   /** Lista detalhada para HTML (ex.: <ul>...</ul>). */
   matriculas_html?: string;
+  /** Alias de matriculas_html (lista HTML de cursos/matriculas). */
+  cursos_html?: string;
   /** Lista detalhada para texto (uma por linha). */
   matriculas_texto?: string;
   unidade?: string;
@@ -33,6 +35,7 @@ const PLACEHOLDERS = [
   "cursos_matriculados",
   "turmas_matriculadas",
   "matriculas_html",
+  "cursos_html",
   "matriculas_texto",
   "unidade",
   "link",

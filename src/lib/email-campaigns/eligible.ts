@@ -51,7 +51,22 @@ export function buildEligibleEmailRecipients(
 
   const list: EligibleEmailRecipient[] = [];
   for (const { rec, result } of byNormalized.values()) {
-    const activeEnrollments = Array.isArray(rec.enrollments) ? rec.enrollments : [];
+    let activeEnrollments = Array.isArray(rec.enrollments) ? rec.enrollments : [];
+    /** Públicos sem array enrollments (ex.: turma única) ainda têm curso/turma no próprio rec. */
+    if (
+      activeEnrollments.length === 0 &&
+      ((rec.courseName?.trim() ?? "") !== "" || (rec.turmaLine?.trim() ?? "") !== "")
+    ) {
+      activeEnrollments = [
+        {
+          courseName: rec.courseName ?? null,
+          turmaLine: rec.turmaLine ?? rec.classGroupName ?? null,
+          dataInicio: rec.dataInicio ?? null,
+          horario: rec.horario ?? null,
+          local: rec.local ?? null,
+        },
+      ];
+    }
     const uniqueCourseNames = Array.from(
       new Set(activeEnrollments.map((e) => e.courseName).filter((x): x is string => !!x && x.trim() !== ""))
     );
@@ -104,6 +119,7 @@ export function buildEligibleEmailRecipients(
       cursos_matriculados: cursosMatriculados,
       turmas_matriculadas: turmasMatriculadas,
       matriculas_html: matriculasHtml,
+      cursos_html: matriculasHtml,
       matriculas_texto: matriculasTexto,
       unidade: "N/A",
       link: linkAluno,

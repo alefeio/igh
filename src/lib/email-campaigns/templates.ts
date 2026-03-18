@@ -127,6 +127,8 @@ export function getSamplePlaceholderData(): PlaceholderData {
       "Curso de Exemplo — TER, QUI · 08:00–10:00 · Sala 1\nOutro Curso — SEG, QUA · 19:00–21:00 · Sala 2",
     matriculas_html:
       "<ul><li>Curso de Exemplo · TER, QUI · 08:00–10:00 · Sala 1 · 10/03/2025 · 08:00 – 10:00 · Sala 1</li><li>Outro Curso · SEG, QUA · 19:00–21:00 · Sala 2 · 15/03/2025 · 19:00 – 21:00 · Sala 2</li></ul>",
+    cursos_html:
+      "<ul><li>Curso de Exemplo · TER, QUI · 08:00–10:00 · Sala 1 · 10/03/2025 · 08:00 – 10:00 · Sala 1</li><li>Outro Curso · SEG, QUA · 19:00–21:00 · Sala 2 · 15/03/2025 · 19:00 – 21:00 · Sala 2</li></ul>",
     matriculas_texto:
       "- Curso de Exemplo · TER, QUI · 08:00–10:00 · Sala 1 · 10/03/2025 · 08:00 – 10:00 · Sala 1\n- Outro Curso · SEG, QUA · 19:00–21:00 · Sala 2 · 15/03/2025 · 19:00 – 21:00 · Sala 2",
     unidade: "N/A",

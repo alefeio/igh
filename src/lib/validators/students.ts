@@ -128,8 +128,25 @@ export const createStudentSchema = baseStudentSchema
 
 const partialBase = baseStudentSchema.partial().extend({
   birthDate: z.string().optional().refine((v) => v == null || v === "" || !Number.isNaN(Date.parse(v!)), "Data inválida"),
-  cpf: z.string().min(1).transform((v) => normalizeDigits(v)).refine((v) => v.length === 11, "CPF deve ter 11 dígitos").optional(),
-  phone: z.string().min(1).transform((v) => normalizeDigits(v)).refine((v) => v.length >= 10, "Celular mínimo 10 dígitos").optional(),
+  /** PATCH: string vazia = não alterar o campo (evita "Too small: expected string to have >=1 characters"). */
+  cpf: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z
+      .string()
+      .min(1, "CPF é obrigatório quando informado")
+      .transform((v) => normalizeDigits(v))
+      .refine((v) => v.length === 11, "CPF deve ter 11 dígitos")
+      .optional()
+  ),
+  phone: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z
+      .string()
+      .min(1, "Celular é obrigatório quando informado")
+      .transform((v) => normalizeDigits(v))
+      .refine((v) => v.length >= 10, "Celular mínimo 10 dígitos")
+      .optional()
+  ),
   state: z.string().length(2, "UF deve ter 2 caracteres").optional(),
   email: z.union([z.string().email("E-mail inválido"), z.literal("")]).optional(),
   guardianCpf: optionalCpfSchema,

@@ -37,7 +37,11 @@ export async function processEmailCampaignBatch(
   if (campaign.status === "SCHEDULED") {
     await prisma.emailCampaign.update({
       where: { id: campaignId },
-      data: { status: "PROCESSING", startedAt: new Date() },
+      data: {
+        status: "PROCESSING",
+        startedAt: new Date(),
+        dispatchCount: { increment: 1 },
+      },
     });
   }
 
@@ -97,7 +101,11 @@ export async function startDueScheduledEmailCampaigns(): Promise<string[]> {
       status: "SCHEDULED",
       scheduledAt: { lte: now },
     },
-    data: { status: "PROCESSING", startedAt: now },
+    data: {
+      status: "PROCESSING",
+      startedAt: now,
+      dispatchCount: { increment: 1 },
+    },
   });
   const list = await prisma.emailCampaign.findMany({
     where: { status: "PROCESSING", startedAt: now },

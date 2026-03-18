@@ -168,7 +168,11 @@ export async function confirmEmailCampaign(
   if (sendImmediately) {
     await prisma.emailCampaign.update({
       where: { id: campaignId },
-      data: { status: PROCESSING, startedAt: new Date() },
+      data: {
+        status: PROCESSING,
+        startedAt: new Date(),
+        dispatchCount: { increment: 1 },
+      },
     });
   }
 
@@ -277,6 +281,7 @@ export async function requeueFailedEmailCampaignRecipients(campaignId: string) {
         status: PROCESSING,
         startedAt: new Date(),
         finishedAt: null,
+        dispatchCount: { increment: 1 },
       },
     });
     return update;

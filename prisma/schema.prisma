@@ -938,6 +938,8 @@ model EmailCampaign {
   totalFailed            Int                    @default(0)
   totalOpened            Int                    @default(0)
   totalClicked           Int                    @default(0)
+  /** Rodadas de envio em massa (1ª execução, nova rodada após reenfileirar falhas, etc.). */
+  dispatchCount          Int                    @default(0)
   scheduledAt            DateTime?
   startedAt              DateTime?
   finishedAt             DateTime?

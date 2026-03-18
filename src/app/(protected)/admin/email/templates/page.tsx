@@ -334,7 +334,9 @@ export default function EmailTemplatesPage() {
             <p className="mt-1 text-xs text-[var(--text-muted)]">
               Placeholders: {"{nome}"}, {"{primeiro_nome}"}, {"{curso}"}, {"{turma}"} (dias · horário · local),{" "}
               {"{data_inicio}"}, {"{horario}"}, {"{local}"}, {"{link}"} e {"{link_area_aluno}"} (login),{" "}
-              {"{telefone_igh}"} e {"{email_suporte}"} (definir PUBLIC_CONTACT_PHONE e PUBLIC_SUPPORT_EMAIL no .env).
+              {"{telefone_igh}"} e {"{email_suporte}"} (definir PUBLIC_CONTACT_PHONE e PUBLIC_SUPPORT_EMAIL no .env).{" "}
+              Lista de matrículas (HTML): {"{cursos_html}"} ou {"{matriculas_html}"} (equivalentes); texto:{" "}
+              {"{matriculas_texto}"}; {"{cursos_matriculados}"}, {"{turmas_matriculadas}"}.
             </p>
           </div>
           <div>
