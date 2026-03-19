@@ -83,6 +83,7 @@ model Teacher {
   userId      String?      @unique
   classGroups ClassGroup[]
   user        User?        @relation(fields: [userId], references: [id])
+  lessonQuestionReplies LessonQuestionTeacherReply[]
 }
 
 model Course {
@@ -398,9 +399,25 @@ model EnrollmentLessonQuestion {
   updatedAt    DateTime  @updatedAt
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   replies      EnrollmentLessonQuestionReply[]
+  teacherReplies LessonQuestionTeacherReply[]
 
   @@index([enrollmentId, lessonId])
   @@index([lessonId])
+}
+
+/** Resposta oficial do professor a uma dúvida na aula (gamificação + visibilidade para alunos). */
+model LessonQuestionTeacherReply {
+  id         String                   @id @default(uuid())
+  questionId String
+  teacherId  String
+  content    String
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+  question   EnrollmentLessonQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  teacher    Teacher                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([teacherId])
 }
 
 /** Resposta de um aluno ao comentário/dúvida de outro (em "Dúvidas sobre esta aula"). */

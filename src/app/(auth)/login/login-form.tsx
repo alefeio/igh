@@ -16,7 +16,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   const router = useRouter();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [setupHint, setSetupHint] = useState(false);
 
@@ -32,7 +32,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ login, password }),
       });
       const raw = await res.text();
       let json: ApiResponse<{
@@ -72,9 +72,15 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   return (
     <form className="flex flex-col gap-3" onSubmit={submit}>
       <div>
-        <label className="text-sm font-medium text-[var(--text-primary)]">E-mail</label>
+        <label className="text-sm font-medium text-[var(--text-primary)]">E-mail ou CPF</label>
         <div className="mt-1">
-          <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+          <Input
+            value={login}
+            onChange={(e) => setLogin(e.target.value)}
+            type="text"
+            autoComplete="username"
+            placeholder="seu@email.com ou somente números do CPF"
+          />
         </div>
       </div>
       <div>

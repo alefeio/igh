@@ -194,6 +194,7 @@ export default function AulaConteudoPage() {
   const [submittingExerciseId, setSubmittingExerciseId] = useState<string | null>(null);
   const [submittingAllExercises, setSubmittingAllExercises] = useState(false);
   type LessonQuestionReply = { id: string; content: string; createdAt: string; enrollmentId: string; authorName: string };
+  type LessonTeacherReply = { id: string; content: string; createdAt: string; teacherName: string };
   type LessonQuestion = {
     id: string;
     content: string;
@@ -202,6 +203,7 @@ export default function AulaConteudoPage() {
     enrollmentId: string;
     authorName: string;
     replies?: LessonQuestionReply[];
+    teacherReplies?: LessonTeacherReply[];
   };
   const [questions, setQuestions] = useState<LessonQuestion[]>([]);
   const [questionContent, setQuestionContent] = useState("");
@@ -2182,8 +2184,22 @@ export default function AulaConteudoPage() {
                               )}
                             </div>
                             <div className="mt-3 border-t border-[var(--card-border)] pt-3 pl-3">
+                              {(q.teacherReplies ?? []).length > 0 && (
+                                <div className="mb-3 rounded-md border border-[var(--igh-primary)]/30 bg-[var(--igh-primary)]/5 p-2">
+                                  <p className="mb-2 text-xs font-semibold text-[var(--igh-primary)]">Resposta do professor</p>
+                                  {(q.teacherReplies ?? []).map((r) => (
+                                    <div key={r.id} className="mb-2 text-xs last:mb-0">
+                                      <div className="flex flex-wrap items-baseline gap-2">
+                                        <span className="font-medium text-[var(--text-primary)]">{r.teacherName}</span>
+                                        <span className="text-[var(--text-muted)]">{formatNoteDate(r.createdAt)}</span>
+                                      </div>
+                                      <p className="mt-1 whitespace-pre-wrap text-[var(--text-primary)]">{r.content}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                               {(q.replies ?? []).length > 0 && (
-                                <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">Respostas ({(q.replies ?? []).length})</p>
+                                <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">Respostas de alunos ({(q.replies ?? []).length})</p>
                               )}
                               {(q.replies ?? []).map((r) => (
                                 <div key={r.id} className="mb-2 flex flex-wrap items-baseline gap-2 text-xs">

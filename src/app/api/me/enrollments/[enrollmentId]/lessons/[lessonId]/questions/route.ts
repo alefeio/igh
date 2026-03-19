@@ -68,6 +68,10 @@ export async function GET(
           },
         },
       },
+      teacherReplies: {
+        orderBy: { createdAt: "asc" },
+        include: { teacher: { select: { name: true } } },
+      },
     },
   });
 
@@ -85,6 +89,12 @@ export async function GET(
       enrollmentId: string;
       enrollment: { student: { name: string } };
     }>;
+    teacherReplies?: Array<{
+      id: string;
+      content: string;
+      createdAt: Date;
+      teacher: { name: string };
+    }>;
   };
   return jsonOk(
     (questions as QuestionRow[]).map((q) => ({
@@ -100,6 +110,12 @@ export async function GET(
         createdAt: r.createdAt.toISOString(),
         enrollmentId: r.enrollmentId,
         authorName: r.enrollment.student.name,
+      })),
+      teacherReplies: (q.teacherReplies ?? []).map((r) => ({
+        id: r.id,
+        content: r.content,
+        createdAt: r.createdAt.toISOString(),
+        teacherName: r.teacher.name,
       })),
     }))
   );

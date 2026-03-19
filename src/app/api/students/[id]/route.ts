@@ -5,6 +5,7 @@ import { updateStudentSchema } from "@/lib/validators/students";
 import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
+import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 
 export async function GET(
   _request: Request,
@@ -237,12 +238,8 @@ export async function PATCH(
         });
       }
     } else {
-      const birth = updated.birthDate;
-      const day = String(birth.getDate()).padStart(2, "0");
-      const month = String(birth.getMonth() + 1).padStart(2, "0");
-      const year = birth.getFullYear();
-      const birthDateAsPassword = `${day}${month}${year}`;
-      const birthDateFormatted = `${day}/${month}/${year}`;
+      const { password: birthDateAsPassword, formatted: birthDateFormatted } =
+        birthDateToStudentPasswordParts(updated.birthDate);
       const passwordHash = await hashPassword(birthDateAsPassword);
       const createdUser = await prisma.user.create({
         data: {

@@ -4,6 +4,7 @@ import { hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createPublicStudentSchema } from "@/lib/validators/public-enrollment";
 import { signStudentToken } from "@/lib/student-token";
+import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered } from "@/lib/email/templates";
 
@@ -61,10 +62,8 @@ export async function POST(request: Request) {
   }
 
   if (emailNormalized) {
-    const day = String(birthDateValue.getUTCDate()).padStart(2, "0");
-    const month = String(birthDateValue.getUTCMonth() + 1).padStart(2, "0");
-    const year = birthDateValue.getUTCFullYear();
-    const birthDateAsPassword = `${day}${month}${year}`;
+    const { password: birthDateAsPassword, formatted: birthDateFormatted } =
+      birthDateToStudentPasswordParts(birthDateValue);
     const passwordHash = await hashPassword(birthDateAsPassword);
 
     const user = await prisma.user.create({
@@ -104,7 +103,6 @@ export async function POST(request: Request) {
 
     const token = await signStudentToken(student.id);
 
-    const birthDateFormatted = `${day}/${month}/${year}`;
     const { subject, html } = templateStudentRegistered({
       name: student.name,
       email: emailNormalized,

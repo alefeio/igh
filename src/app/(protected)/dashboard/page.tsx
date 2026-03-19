@@ -21,6 +21,8 @@ import {
   type ClassGroupSummary,
   type StudentEnrollmentSummary,
 } from "@/lib/dashboard-data";
+import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
+import { EXERCISES_TARGET_PER_LESSON } from "@/lib/teacher-gamification";
 
 const STATUS_LABELS: Record<string, string> = {
   PLANEJADA: "Planejada",
@@ -256,8 +258,86 @@ function QuickLinks({ links }: { links: { href: string; label: string }[] }) {
   );
 }
 
+function TeacherGamificationPanel({ g }: { g: TeacherGamificationResult }) {
+  const pct = Math.min(100, Math.round((g.points.total / g.maxPointsEstimate) * 100));
+  const t = g.totals;
+  return (
+    <section
+      className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-4 dark:border-amber-900/50 dark:bg-amber-950/20 sm:p-5"
+      data-tour="teacher-gamification"
+      aria-labelledby="teacher-gamification-heading"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 id="teacher-gamification-heading" className="flex items-center gap-2 text-base font-semibold text-[var(--text-primary)]">
+          <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-400" aria-hidden />
+          Sua gamificação
+        </h2>
+        <Link
+          href="/gamificacao"
+          className="text-sm font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+        >
+          Ver ranking completo →
+        </Link>
+      </div>
+      <p className="mt-1 text-xs text-[var(--text-muted)]">
+        Pontos por conteúdo, {EXERCISES_TARGET_PER_LESSON} exercícios por aula, frequência em sessões
+        passadas, respostas no fórum e engajamento dos alunos.
+      </p>
+      <div className="mt-4 flex flex-wrap items-end gap-6">
+        <div>
+          <p className="text-3xl font-bold tabular-nums text-[var(--text-primary)]">{g.points.total}</p>
+          <p className="text-xs font-medium text-[var(--text-muted)]">pontos totais</p>
+        </div>
+        <div className="min-w-[160px] flex-1">
+          <p className="mb-1 text-xs text-[var(--text-muted)]">Evolução em relação ao teto estimado ({pct}%)</p>
+          <div className="h-2.5 overflow-hidden rounded-full bg-[var(--igh-surface)]">
+            <div className="h-full rounded-full bg-amber-500 transition-all" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      </div>
+      <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+        <li className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+          <span className="text-[var(--text-muted)]">Conteúdo nas aulas</span>
+          <p className="font-semibold text-[var(--text-primary)]">
+            {t.lessonsWithContent}/{t.lessonsTotal} aulas · {g.points.content} pts
+          </p>
+        </li>
+        <li className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+          <span className="text-[var(--text-muted)]">Exercícios ({EXERCISES_TARGET_PER_LESSON}/aula)</span>
+          <p className="font-semibold text-[var(--text-primary)]">
+            {t.lessonsWithFiveExercises} aulas completas · {g.points.exercises} pts
+          </p>
+        </li>
+        <li className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+          <span className="text-[var(--text-muted)]">Frequência (sessões passadas)</span>
+          <p className="font-semibold text-[var(--text-primary)]">
+            {t.pastSessionsAttendanceComplete}/{t.pastSessionsTotal} sessões OK · {g.points.attendance} pts
+          </p>
+        </li>
+        <li className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+          <span className="text-[var(--text-muted)]">Fórum / dúvidas</span>
+          <p className="font-semibold text-[var(--text-primary)]">
+            {t.teacherRepliesInScope + t.studentRepliesInScope} participações · {g.points.forum} pts{" "}
+            <span className="font-normal text-[var(--text-muted)]">
+              (prof: {t.teacherRepliesInScope}, alunos: {t.studentRepliesInScope})
+            </span>
+          </p>
+        </li>
+        <li className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 sm:col-span-2">
+          <span className="text-[var(--text-muted)]">Engajamento dos alunos (leitura + exercícios)</span>
+          <p className="font-semibold text-[var(--text-primary)]">
+            {t.studentLessonPairsEngaged}/{t.studentLessonPairsTotal} pares com leitura/conclusão ·{" "}
+            {t.studentLessonPairsWithExercise}/{t.studentLessonPairsTotal} com tentativa em exercício ·{" "}
+            {g.points.studentEngagement} pts
+          </p>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
 function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
-  const { stats, recentEnrollmentsCount, openClassGroups, roleLabel } = data;
+  const { stats, recentEnrollmentsCount, openClassGroups, roleLabel, teachersGamificationRanking } = data;
   const statusOrder = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "ENCERRADA", "CANCELADA", "INTERNO", "EXTERNO"] as const;
 
   return (
@@ -345,6 +425,43 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
         </section>
       )}
 
+      <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4" aria-labelledby="admin-gamificacao-heading">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="admin-gamificacao-heading" className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Gamificação — professores
+          </h2>
+          <Link href="/gamificacao" className="text-sm font-medium text-[var(--igh-primary)] hover:underline">
+            Quadro completo →
+          </Link>
+        </div>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          Comparativo por pontos (conteúdo, exercícios, frequência, fórum, engajamento dos alunos).
+        </p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--card-border)] text-left text-xs font-medium text-[var(--text-muted)]">
+                <th className="py-2 pr-3">#</th>
+                <th className="py-2 pr-3">Professor</th>
+                <th className="py-2 text-right">Pontos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {teachersGamificationRanking.slice(0, 8).map((r, i) => (
+                <tr key={r.teacherId} className="border-b border-[var(--card-border)]">
+                  <td className="py-2 pr-3 text-[var(--text-secondary)]">{i + 1}</td>
+                  <td className="py-2 pr-3 font-medium text-[var(--text-primary)]">{r.teacherName}</td>
+                  <td className="py-2 text-right font-semibold tabular-nums">{r.points.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {teachersGamificationRanking.length === 0 && (
+          <p className="mt-2 text-sm text-[var(--text-muted)]">Nenhum professor ativo.</p>
+        )}
+      </section>
+
       <section data-tour="admin-dashboard-atalhos">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Atalhos</h2>
         <QuickLinks
@@ -354,6 +471,7 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
             { href: "/teachers", label: "Professores" },
             { href: "/courses", label: "Cursos" },
             { href: "/class-groups", label: "Turmas" },
+            { href: "/gamificacao", label: "Gamificação (professores)" },
           ]}
         />
       </section>
@@ -362,7 +480,7 @@ function DashboardAdmin({ data }: { data: DashboardDataAdmin }) {
 }
 
 function DashboardTeacher({ data }: { data: Extract<DashboardData, { role: "TEACHER" }> }) {
-  const { myClassGroupsCount, myEnrollmentsCount, classGroups, roleLabel } = data;
+  const { myClassGroupsCount, myEnrollmentsCount, classGroups, roleLabel, gamification } = data;
   const totalVagasDisponiveis = classGroups.reduce(
     (acc, cg) => acc + Math.max(0, (cg.capacity ?? 0) - (cg.enrollmentsCount ?? 0)),
     0
@@ -387,6 +505,8 @@ function DashboardTeacher({ data }: { data: Extract<DashboardData, { role: "TEAC
           <StatCard label="Vagas disponíveis" value={totalVagasDisponiveis} />
         </div>
       </section>
+
+      {gamification ? <TeacherGamificationPanel g={gamification} /> : null}
 
       {classGroups.length > 0 && (
         <section data-tour="teacher-dashboard-turmas">
@@ -462,6 +582,7 @@ function DashboardTeacher({ data }: { data: Extract<DashboardData, { role: "TEAC
         <QuickLinks
           links={[
             { href: "/professor/turmas", label: "Turmas que leciono" },
+            { href: "/gamificacao", label: "Gamificação e ranking" },
             { href: "/enrollments", label: "Matrículas" },
             { href: "/students", label: "Alunos" },
           ]}

@@ -128,10 +128,25 @@ export default function ProfessorTurmaDetailPage() {
   const [exerciseByEnrollment, setExerciseByEnrollment] = useState<ExerciseByEnrollment[]>([]);
   const [lessonProgressByEnrollment, setLessonProgressByEnrollment] = useState<LessonProgressByEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia">("alunos");
+  const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas">("alunos");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [savingAttendance, setSavingAttendance] = useState(false);
+
+  type ProfLessonQuestion = {
+    id: string;
+    lessonId: string;
+    lessonTitle: string;
+    moduleTitle: string;
+    content: string;
+    createdAt: string;
+    authorName: string;
+    teacherReplies: { id: string; content: string; createdAt: string; teacherName: string }[];
+  };
+  const [lessonQuestions, setLessonQuestions] = useState<ProfLessonQuestion[]>([]);
+  const [loadingDuvidas, setLoadingDuvidas] = useState(false);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
 
   const loadClassGroup = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${id}`);
@@ -162,6 +177,18 @@ export default function ProfessorTurmaDetailPage() {
     const res = await fetch(`/api/teacher/class-groups/${id}/lesson-progress`);
     const json = (await res.json()) as ApiResponse<{ byEnrollment: LessonProgressByEnrollment[] }>;
     if (res.ok && json?.ok) setLessonProgressByEnrollment(json.data.byEnrollment ?? []);
+  }, [id]);
+
+  const loadLessonQuestions = useCallback(async () => {
+    setLoadingDuvidas(true);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${id}/lesson-questions`);
+      const json = (await res.json()) as ApiResponse<{ questions: ProfLessonQuestion[] }>;
+      if (res.ok && json?.ok) setLessonQuestions(json.data.questions ?? []);
+      else setLessonQuestions([]);
+    } finally {
+      setLoadingDuvidas(false);
+    }
   }, [id]);
 
   const loadAttendance = useCallback(
@@ -198,6 +225,61 @@ export default function ProfessorTurmaDetailPage() {
   useEffect(() => {
     if (tab === "aulas") loadLessonProgress();
   }, [tab, loadLessonProgress]);
+
+  useEffect(() => {
+    if (tab === "duvidas") void loadLessonQuestions();
+  }, [tab, loadLessonQuestions]);
+
+  const handleSendTeacherReply = async (questionId: string) => {
+    const content = (replyDrafts[questionId] ?? "").trim();
+    if (!content) {
+      toast.push("error", "Digite a resposta.");
+      return;
+    }
+    setSavingReplyQuestionId(questionId);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${id}/lesson-questions/${questionId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const json = (await res.json()) as ApiResponse<{
+        id: string;
+        content: string;
+        createdAt: string;
+        teacherName: string;
+      }>;
+      if (res.ok && json?.ok && json.data) {
+        toast.push("success", "Resposta publicada.");
+        setReplyDrafts((d) => ({ ...d, [questionId]: "" }));
+        setLessonQuestions((prev) =>
+          prev.map((q) =>
+            q.id === questionId
+              ? {
+                  ...q,
+                  teacherReplies: [
+                    ...q.teacherReplies,
+                    {
+                      id: json.data!.id,
+                      content: json.data!.content,
+                      createdAt: json.data!.createdAt,
+                      teacherName: json.data!.teacherName,
+                    },
+                  ],
+                }
+              : q
+          )
+        );
+      } else {
+        toast.push(
+          "error",
+          json && "error" in json ? (json.error as { message?: string }).message ?? "Erro ao enviar." : "Erro ao enviar."
+        );
+      }
+    } finally {
+      setSavingReplyQuestionId(null);
+    }
+  };
 
   const handleTogglePresent = (enrollmentId: string) => {
     setAttendance((prev) =>
@@ -252,7 +334,8 @@ export default function ProfessorTurmaDetailPage() {
       {
         target: "[data-tour=\"pt-tabs\"]",
         title: "Abas da turma",
-        content: "Use as abas para alternar entre: lista de alunos, exercícios realizados, progresso nas aulas e frequência (presenças).",
+        content:
+          "Use as abas para alternar entre: lista de alunos, exercícios realizados, progresso nas aulas, frequência (presenças) e dúvidas dos alunos no fórum das aulas.",
       },
       {
         target: "[data-tour=\"pt-tab-alunos\"]",
@@ -275,9 +358,15 @@ export default function ProfessorTurmaDetailPage() {
         content: "Selecione uma sessão com aula liberada e marque presença (presente/ausente) de cada aluno. Depois clique em Salvar frequência.",
       },
       {
+        target: "[data-tour=\"pt-tab-duvidas\"]",
+        title: "Dúvidas no fórum",
+        content: "Veja perguntas dos alunos sobre as aulas do curso e responda como professor. Suas respostas aparecem na área do aluno e contam na gamificação.",
+      },
+      {
         target: null,
         title: "Tudo pronto!",
-        content: "Use esta página para acompanhar sua turma: alunos, exercícios, progresso e frequência. Bom trabalho!",
+        content:
+          "Use esta página para acompanhar sua turma: alunos, exercícios, progresso, frequência e dúvidas. Bom trabalho!",
       },
     ];
   }, [classGroup]);
@@ -373,6 +462,18 @@ export default function ProfessorTurmaDetailPage() {
           data-tour="pt-tab-frequencia"
         >
           Frequência
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("duvidas")}
+          className={`rounded-lg px-3 py-2 text-sm font-medium ${
+            tab === "duvidas"
+              ? "bg-[var(--igh-primary)] text-white"
+              : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+          }`}
+          data-tour="pt-tab-duvidas"
+        >
+          Dúvidas (fórum)
         </button>
       </nav>
 
@@ -537,6 +638,66 @@ export default function ProfessorTurmaDetailPage() {
                 );
               })}
             </div>
+          )}
+        </section>
+      )}
+
+      {tab === "duvidas" && (
+        <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] overflow-hidden">
+          <h2 className="border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">
+            Dúvidas dos alunos (fórum por aula)
+          </h2>
+          <p className="px-4 py-2 text-xs text-[var(--text-muted)]">
+            Respostas publicadas aqui aparecem para os alunos na área da aula e contam pontos na gamificação do professor.
+          </p>
+          {loadingDuvidas ? (
+            <p className="p-4 text-sm text-[var(--text-muted)]">Carregando...</p>
+          ) : lessonQuestions.length === 0 ? (
+            <p className="p-4 text-sm text-[var(--text-muted)]">Nenhuma dúvida registrada ainda neste curso.</p>
+          ) : (
+            <ul className="divide-y divide-[var(--card-border)]">
+              {lessonQuestions.map((q) => (
+                <li key={q.id} className="p-4">
+                  <p className="text-xs font-medium text-[var(--igh-primary)]">
+                    {q.moduleTitle ? `${q.moduleTitle} · ` : ""}
+                    {q.lessonTitle}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">
+                    {q.authorName} · {formatDateTime(q.createdAt)}
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--text-primary)]">{q.content}</p>
+                  {q.teacherReplies.length > 0 && (
+                    <div className="mt-3 rounded-md border border-[var(--igh-primary)]/30 bg-[var(--igh-primary)]/5 p-2">
+                      <p className="text-xs font-semibold text-[var(--igh-primary)]">Suas respostas</p>
+                      {q.teacherReplies.map((r) => (
+                        <div key={r.id} className="mt-2 text-xs">
+                          <span className="font-medium text-[var(--text-primary)]">{r.teacherName}</span>
+                          <span className="ml-2 text-[var(--text-muted)]">{formatDateTime(r.createdAt)}</span>
+                          <p className="mt-1 whitespace-pre-wrap text-[var(--text-secondary)]">{r.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3">
+                    <textarea
+                      value={replyDrafts[q.id] ?? ""}
+                      onChange={(e) => setReplyDrafts((d) => ({ ...d, [q.id]: e.target.value }))}
+                      rows={3}
+                      placeholder="Responder como professor..."
+                      className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                    />
+                    <Button
+                      type="button"
+                      className="mt-2"
+                      onClick={() => void handleSendTeacherReply(q.id)}
+                      disabled={savingReplyQuestionId === q.id}
+                    >
+                      {savingReplyQuestionId === q.id ? "Enviando..." : "Publicar resposta"}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       )}

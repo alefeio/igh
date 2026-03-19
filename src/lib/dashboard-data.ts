@@ -2,6 +2,8 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
+import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
+import { computeAllTeachersGamification, computeTeacherGamification } from "@/lib/teacher-gamification";
 
 const ROLE_LABELS: Record<string, string> = {
   MASTER: "Administrador Master",
@@ -40,6 +42,8 @@ export type DashboardDataAdmin = {
   stats: DashboardStats;
   recentEnrollmentsCount: number;
   openClassGroups: ClassGroupSummary[];
+  /** Ranking completo de gamificação (professores); a UI pode exibir só os primeiros. */
+  teachersGamificationRanking: TeacherGamificationResult[];
 };
 
 export type DashboardDataTeacher = {
@@ -48,6 +52,8 @@ export type DashboardDataTeacher = {
   myClassGroupsCount: number;
   myEnrollmentsCount: number;
   classGroups: ClassGroupSummary[];
+  /** Gamificação (conteúdo, exercícios, frequência, fórum, engajamento dos alunos) */
+  gamification: TeacherGamificationResult | null;
 };
 
 export type StudentEnrollmentSummary = {
@@ -243,6 +249,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         myClassGroupsCount: 0,
         myEnrollmentsCount: 0,
         classGroups: [],
+        gamification: null,
       };
     }
     const classGroups = await prisma.classGroup.findMany({
@@ -263,6 +270,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         status: "ACTIVE",
       },
     });
+    const gamification = await computeTeacherGamification(teacher.id);
     return {
       role: "TEACHER",
       roleLabel,
@@ -280,6 +288,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         enrollmentsCount: cg._count.enrollments,
         daysOfWeek: cg.daysOfWeek,
       })),
+      gamification,
     };
   }
 
@@ -361,11 +370,14 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     daysOfWeek: cg.daysOfWeek,
   }));
 
+  const teachersGamificationRanking = await computeAllTeachersGamification();
+
   return {
     role: user.role as "ADMIN" | "MASTER",
     roleLabel,
     stats,
     recentEnrollmentsCount,
     openClassGroups,
+    teachersGamificationRanking,
   };
 }

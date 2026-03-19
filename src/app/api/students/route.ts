@@ -6,6 +6,7 @@ import { createStudentSchema, normalizeDigits } from "@/lib/validators/students"
 import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
+import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 
 export async function GET(request: Request) {
   const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
@@ -188,13 +189,9 @@ export async function POST(request: Request) {
       });
     }
   } else if (emailTrimmed) {
-    const d = birthDate.getDate();
-    const m = birthDate.getMonth() + 1;
-    const y = birthDate.getFullYear();
-    const day = String(d).padStart(2, "0");
-    const month = String(m).padStart(2, "0");
-    const birthDateAsPassword = `${day}${month}${y}`;
-    birthDateFormattedForEmail = `${day}/${month}/${y}`;
+    const { password: birthDateAsPassword, formatted: birthDateFormatted } =
+      birthDateToStudentPasswordParts(birthDate);
+    birthDateFormattedForEmail = birthDateFormatted;
     birthDateAsPasswordForEmail = birthDateAsPassword;
     const passwordHash = await hashPassword(birthDateAsPassword);
     const createdUser = await prisma.user.create({
