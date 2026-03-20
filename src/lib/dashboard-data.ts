@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
+import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
 import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
 import { computeAllTeachersGamification, computeTeacherGamification } from "@/lib/teacher-gamification";
 
@@ -36,6 +37,14 @@ export type ClassGroupSummary = {
   daysOfWeek: string[];
 };
 
+/** Resumo das avaliações de experiência (plataforma, aulas, professor). */
+export type PlatformExperienceDashboardSummary = {
+  totalCount: number;
+  avgPlatform: number | null;
+  avgLessons: number | null;
+  avgTeacher: number | null;
+};
+
 export type DashboardDataAdmin = {
   role: "ADMIN" | "MASTER";
   roleLabel: string;
@@ -44,6 +53,7 @@ export type DashboardDataAdmin = {
   openClassGroups: ClassGroupSummary[];
   /** Ranking completo de gamificação (professores); a UI pode exibir só os primeiros. */
   teachersGamificationRanking: TeacherGamificationResult[];
+  platformExperienceSummary: PlatformExperienceDashboardSummary;
 };
 
 export type DashboardDataTeacher = {
@@ -54,6 +64,8 @@ export type DashboardDataTeacher = {
   classGroups: ClassGroupSummary[];
   /** Gamificação (conteúdo, exercícios, frequência, fórum, engajamento dos alunos) */
   gamification: TeacherGamificationResult | null;
+  /** Médias apenas de alunos com matrícula ativa em turmas deste professor. */
+  platformExperienceSummary: PlatformExperienceDashboardSummary;
 };
 
 export type StudentEnrollmentSummary = {
@@ -94,6 +106,12 @@ export type DashboardDataStudent = {
   totalExerciseCorrect: number;
   /** Total de tentativas em exercícios (todas as matrículas) */
   totalExerciseAttempts: number;
+  /** Total de sessões com frequência marcada como presente (present=true) */
+  totalAttendancePresent: number;
+  /** Total de participações no fórum: dúvidas/perguntas criadas pelo aluno */
+  totalForumQuestions: number;
+  /** Total de participações no fórum: respostas do aluno nas dúvidas */
+  totalForumReplies: number;
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -118,6 +136,9 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         lastViewedLesson: null,
         totalExerciseCorrect: 0,
         totalExerciseAttempts: 0,
+        totalAttendancePresent: 0,
+        totalForumQuestions: 0,
+        totalForumReplies: 0,
       };
     }
     const enrollmentsRaw = await prisma.enrollment.findMany({
@@ -134,7 +155,22 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     });
     const enrollmentIds = enrollmentsRaw.map((e) => e.id);
     const courseIds = [...new Set(enrollmentsRaw.map((e) => e.classGroup.courseId))];
-    const [modulesWithCount, progressCounts, exerciseAnswers] = await Promise.all([
+    const today = (() => {
+      // "Hoje" no calendário do Brasil (UTC-3), para comparar com sessionDate.
+      const BRAZIL_UTC_OFFSET_HOURS = 3;
+      const now = new Date();
+      const brazil = new Date(now.getTime() - BRAZIL_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+      return new Date(Date.UTC(brazil.getUTCFullYear(), brazil.getUTCMonth(), brazil.getUTCDate()));
+    })();
+
+    const [
+      modulesWithCount,
+      progressCounts,
+      exerciseAnswers,
+      attendancePresentCount,
+      forumQuestionsCount,
+      forumRepliesCount,
+    ] = await Promise.all([
       prisma.courseModule.findMany({
         where: { courseId: { in: courseIds } },
         select: { courseId: true, _count: { select: { lessons: true } } },
@@ -150,6 +186,25 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
             select: { enrollmentId: true, correct: true },
           })
         : Promise.resolve([]),
+      enrollmentIds.length > 0
+        ? prisma.sessionAttendance.count({
+            where: {
+              enrollmentId: { in: enrollmentIds },
+              present: true,
+              classSession: { sessionDate: { lte: today } },
+            },
+          })
+        : Promise.resolve(0),
+      enrollmentIds.length > 0
+        ? prisma.enrollmentLessonQuestion.count({
+            where: { enrollmentId: { in: enrollmentIds } },
+          })
+        : Promise.resolve(0),
+      enrollmentIds.length > 0
+        ? prisma.enrollmentLessonQuestionReply.count({
+            where: { enrollmentId: { in: enrollmentIds } },
+          })
+        : Promise.resolve(0),
     ]);
     const lessonsByCourseId = new Map<string, number>();
     for (const m of modulesWithCount) {
@@ -234,6 +289,9 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       lastViewedLesson,
       totalExerciseCorrect,
       totalExerciseAttempts,
+      totalAttendancePresent: attendancePresentCount,
+      totalForumQuestions: forumQuestionsCount,
+      totalForumReplies: forumRepliesCount,
     };
   }
 
@@ -250,6 +308,12 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         myEnrollmentsCount: 0,
         classGroups: [],
         gamification: null,
+        platformExperienceSummary: {
+          totalCount: 0,
+          avgPlatform: null,
+          avgLessons: null,
+          avgTeacher: null,
+        },
       };
     }
     const classGroups = await prisma.classGroup.findMany({
@@ -270,7 +334,46 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         status: "ACTIVE",
       },
     });
-    const gamification = await computeTeacherGamification(teacher.id);
+    const [gamification, enrollmentsForFeedback] = await Promise.all([
+      computeTeacherGamification(teacher.id),
+      prisma.enrollment.findMany({
+        where: {
+          status: "ACTIVE",
+          classGroup: { teacherId: teacher.id },
+          student: { userId: { not: null }, deletedAt: null },
+        },
+        select: { student: { select: { userId: true } } },
+      }),
+    ]);
+
+    const studentUserIdsForFeedback = [
+      ...new Set(
+        enrollmentsForFeedback
+          .map((e) => e.student.userId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      ),
+    ];
+
+    let platformExperienceSummary: PlatformExperienceDashboardSummary = {
+      totalCount: 0,
+      avgPlatform: null,
+      avgLessons: null,
+      avgTeacher: null,
+    };
+    if (studentUserIdsForFeedback.length > 0) {
+      const agg = await prisma.platformExperienceFeedback.aggregate({
+        where: { userId: { in: studentUserIdsForFeedback } },
+        _avg: { ratingPlatform: true, ratingLessons: true, ratingTeacher: true },
+        _count: { id: true },
+      });
+      platformExperienceSummary = {
+        totalCount: agg._count.id,
+        avgPlatform: formatExperienceAvg(agg._avg.ratingPlatform),
+        avgLessons: formatExperienceAvg(agg._avg.ratingLessons),
+        avgTeacher: formatExperienceAvg(agg._avg.ratingTeacher),
+      };
+    }
+
     return {
       role: "TEACHER",
       roleLabel,
@@ -289,6 +392,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         daysOfWeek: cg.daysOfWeek,
       })),
       gamification,
+      platformExperienceSummary,
     };
   }
 
@@ -304,6 +408,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     classGroupsByStatusRows,
     recentEnrollmentsCount,
     openClassGroupsRaw,
+    platformExperienceAgg,
   ] = await Promise.all([
     prisma.student.count({ where: { deletedAt: null } }),
     prisma.teacher.count({ where: { deletedAt: null } }),
@@ -330,6 +435,10 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       },
       orderBy: { startDate: "asc" },
       take: 8,
+    }),
+    prisma.platformExperienceFeedback.aggregate({
+      _avg: { ratingPlatform: true, ratingLessons: true, ratingTeacher: true },
+      _count: { id: true },
     }),
   ]);
 
@@ -372,6 +481,13 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
 
   const teachersGamificationRanking = await computeAllTeachersGamification();
 
+  const platformExperienceSummary: PlatformExperienceDashboardSummary = {
+    totalCount: platformExperienceAgg._count.id,
+    avgPlatform: formatExperienceAvg(platformExperienceAgg._avg.ratingPlatform),
+    avgLessons: formatExperienceAvg(platformExperienceAgg._avg.ratingLessons),
+    avgTeacher: formatExperienceAvg(platformExperienceAgg._avg.ratingTeacher),
+  };
+
   return {
     role: user.role as "ADMIN" | "MASTER",
     roleLabel,
@@ -379,5 +495,6 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     recentEnrollmentsCount,
     openClassGroups,
     teachersGamificationRanking,
+    platformExperienceSummary,
   };
 }

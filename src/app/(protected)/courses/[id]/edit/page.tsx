@@ -220,7 +220,7 @@ export default function CourseEditPage() {
 
   if (loading || !course) {
     return (
-      <div className="container-page">
+      <div className="min-w-0">
         <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-12 text-center text-[var(--text-muted)]">
           Carregando...
         </div>
@@ -229,7 +229,7 @@ export default function CourseEditPage() {
   }
 
   return (
-    <div className="container-page flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <DashboardTutorial showForStudent={isTeacher && user.role !== "MASTER"} steps={tutorialSteps} storageKey="teacher-course-edit-tutorial-done" />
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">

@@ -8,7 +8,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Presentation } from "lucide-react";
 
 type ClassGroup = {
   id: string;
@@ -25,6 +25,8 @@ type Enrollment = {
   id: string;
   studentName: string;
   studentEmail: string | null;
+  /** Data de nascimento no formato YYYY-MM-DD (só data). */
+  studentBirthDate?: string | null;
   enrolledAt: string;
   documentationAlert: "yellow" | "red" | null;
 };
@@ -43,6 +45,8 @@ type AttendanceRow = {
   enrollmentId: string;
   studentName: string;
   present: boolean;
+  /** Texto livre quando ausente; vazio ou null se não houver justificativa. */
+  absenceJustification: string | null;
   documentationAlert: "yellow" | "red" | null;
 };
 
@@ -147,6 +151,14 @@ export default function ProfessorTurmaDetailPage() {
   const [loadingDuvidas, setLoadingDuvidas] = useState(false);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
+
+  const attendanceSorted = useMemo(
+    () =>
+      [...attendance].sort((a, b) =>
+        a.studentName.localeCompare(b.studentName, "pt-BR", { sensitivity: "base" })
+      ),
+    [attendance]
+  );
 
   const loadClassGroup = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${id}`);
@@ -283,7 +295,21 @@ export default function ProfessorTurmaDetailPage() {
 
   const handleTogglePresent = (enrollmentId: string) => {
     setAttendance((prev) =>
-      prev.map((r) => (r.enrollmentId === enrollmentId ? { ...r, present: !r.present } : r))
+      prev.map((r) => {
+        if (r.enrollmentId !== enrollmentId) return r;
+        const nextPresent = !r.present;
+        return {
+          ...r,
+          present: nextPresent,
+          absenceJustification: nextPresent ? null : r.absenceJustification,
+        };
+      })
+    );
+  };
+
+  const handleAbsenceJustificationChange = (enrollmentId: string, value: string) => {
+    setAttendance((prev) =>
+      prev.map((r) => (r.enrollmentId === enrollmentId ? { ...r, absenceJustification: value } : r))
     );
   };
 
@@ -297,12 +323,19 @@ export default function ProfessorTurmaDetailPage() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            attendance: attendance.map((r) => ({ enrollmentId: r.enrollmentId, present: r.present })),
+            attendance: attendance.map((r) => ({
+              enrollmentId: r.enrollmentId,
+              present: r.present,
+              absenceJustification: r.present ? null : r.absenceJustification,
+            })),
           }),
         }
       );
-      const json = (await res.json()) as ApiResponse<unknown>;
-      if (res.ok && json?.ok) toast.push("success", "Frequência salva.");
+      const json = (await res.json()) as ApiResponse<{ attendance: AttendanceRow[] }>;
+      if (res.ok && json?.ok) {
+        if (json.data?.attendance) setAttendance(json.data.attendance);
+        toast.push("success", "Frequência salva.");
+      }
       else {
         const msg =
           json && "error" in json
@@ -329,7 +362,14 @@ export default function ProfessorTurmaDetailPage() {
       {
         target: "[data-tour=\"pt-header\"]",
         title: "Detalhes da turma",
-        content: "Aqui aparecem o nome do curso, a quantidade de alunos e a data/horário de início.",
+        content:
+          "Aqui aparecem o nome do curso, a quantidade de alunos e a data/horário de início. Use Modo apresentação para abrir slides e material da aula em sala.",
+      },
+      {
+        target: "[data-tour=\"pt-apresentar\"]",
+        title: "Modo apresentação",
+        content:
+          "Abre o conteúdo do curso em formato adequado para projetor ou compartilhamento de tela: slides, vídeo, material complementar e gabarito dos exercícios (somente leitura).",
       },
       {
         target: "[data-tour=\"pt-tabs\"]",
@@ -355,7 +395,8 @@ export default function ProfessorTurmaDetailPage() {
       {
         target: "[data-tour=\"pt-tab-frequencia\"]",
         title: "Frequência",
-        content: "Selecione uma sessão com aula liberada e marque presença (presente/ausente) de cada aluno. Depois clique em Salvar frequência.",
+        content:
+          "Selecione uma sessão com aula liberada e marque presença (presente/ausente) de cada aluno, em ordem alfabética. Para ausências, você pode registrar uma justificativa opcional. Depois clique em Salvar frequência.",
       },
       {
         target: "[data-tour=\"pt-tab-duvidas\"]",
@@ -373,14 +414,14 @@ export default function ProfessorTurmaDetailPage() {
 
   if (loading && !classGroup) {
     return (
-      <div className="container-page flex justify-center py-12">
+      <div className="flex min-w-0 justify-center py-12">
         <p className="text-[var(--text-muted)]">Carregando...</p>
       </div>
     );
   }
   if (!classGroup) {
     return (
-      <div className="container-page flex flex-col gap-4 py-8">
+      <div className="flex min-w-0 flex-col gap-4 py-8">
         <p className="text-[var(--text-muted)]">Turma não encontrada.</p>
         <Link href="/professor/turmas" className="text-[var(--igh-primary)] hover:underline">
           ← Voltar às turmas
@@ -393,7 +434,7 @@ export default function ProfessorTurmaDetailPage() {
   const sessionsWithLesson = sessions.filter((s) => s.canTakeAttendance);
 
   return (
-    <div className="container-page flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <DashboardTutorial
         showForStudent={user.role !== "MASTER"}
         steps={tutorialSteps}
@@ -412,6 +453,14 @@ export default function ProfessorTurmaDetailPage() {
             {classGroup.startTime && classGroup.endTime && ` · ${classGroup.startTime} – ${classGroup.endTime}`}
           </p>
         </div>
+        <Link
+          href={`/professor/turmas/${id}/apresentar`}
+          className="inline-flex items-center gap-2 rounded-md border border-[var(--igh-primary)]/40 bg-[var(--igh-primary)]/10 px-4 py-2.5 text-sm font-semibold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/15"
+          data-tour="pt-apresentar"
+        >
+          <Presentation className="h-4 w-4 shrink-0" aria-hidden />
+          Modo apresentação
+        </Link>
       </header>
 
       <nav className="flex flex-wrap gap-2 border-b border-[var(--card-border)] pb-2" data-tour="pt-tabs">
@@ -504,6 +553,11 @@ export default function ProfessorTurmaDetailPage() {
                       <p className="font-medium text-[var(--text-primary)]">{e.studentName}</p>
                       {e.studentEmail && (
                         <p className="text-xs text-[var(--text-muted)]">{e.studentEmail}</p>
+                      )}
+                      {e.studentBirthDate && (
+                        <p className="text-xs text-[var(--text-muted)]">
+                          Nasc.: {formatDate(e.studentBirthDate)}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -708,7 +762,7 @@ export default function ProfessorTurmaDetailPage() {
             Frequência (aulas liberadas)
           </h2>
           <p className="px-4 py-2 text-xs text-[var(--text-muted)]">
-            Selecione uma sessão com aula liberada para marcar presença. Se a sessão de hoje não aparecer, a aula ainda não foi liberada para ela.
+            Selecione uma sessão com aula liberada para marcar presença (alunos em ordem alfabética). Se a sessão de hoje não aparecer, a aula ainda não foi liberada para ela.
           </p>
           <div className="flex flex-wrap gap-2 p-4">
             {sessionsWithLesson.length === 0 ? (
@@ -737,37 +791,60 @@ export default function ProfessorTurmaDetailPage() {
               <p className="mb-3 text-sm font-medium text-[var(--text-primary)]">
                 Marque presença (presente / ausente)
               </p>
-              <ul className="space-y-2">
-                {attendance.map((row) => (
+              <ul className="space-y-3">
+                {attendanceSorted.map((row) => (
                   <li
                     key={row.enrollmentId}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-[var(--card-border)] px-3 py-2"
+                    className="rounded-lg border border-[var(--card-border)] px-3 py-2"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      {row.documentationAlert && (
-                        <span
-                          title={row.documentationAlert === "red" ? "Dados incompletos e documentação faltando" : "Documentação incompleta (identidade e/ou comprovante de residência)"}
-                          className="inline-flex shrink-0"
-                        >
-                          <AlertCircle
-                            className={`h-5 w-5 ${row.documentationAlert === "red" ? "text-red-600" : "text-amber-500"}`}
-                            aria-hidden
-                          />
-                        </span>
-                      )}
-                      <span className="text-sm text-[var(--text-primary)] truncate">{row.studentName}</span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {row.documentationAlert && (
+                          <span
+                            title={row.documentationAlert === "red" ? "Dados incompletos e documentação faltando" : "Documentação incompleta (identidade e/ou comprovante de residência)"}
+                            className="inline-flex shrink-0"
+                          >
+                            <AlertCircle
+                              className={`h-5 w-5 ${row.documentationAlert === "red" ? "text-red-600" : "text-amber-500"}`}
+                              aria-hidden
+                            />
+                          </span>
+                        )}
+                        <span className="text-sm font-medium text-[var(--text-primary)] truncate">{row.studentName}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePresent(row.enrollmentId)}
+                        className={`shrink-0 rounded px-3 py-1 text-sm font-medium ${
+                          row.present
+                            ? "bg-green-600 text-white"
+                            : "bg-[var(--igh-surface)] text-[var(--text-muted)]"
+                        }`}
+                      >
+                        {row.present ? "Presente" : "Ausente"}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleTogglePresent(row.enrollmentId)}
-                      className={`rounded px-3 py-1 text-sm font-medium ${
-                        row.present
-                          ? "bg-green-600 text-white"
-                          : "bg-[var(--igh-surface)] text-[var(--text-muted)]"
-                      }`}
-                    >
-                      {row.present ? "Presente" : "Ausente"}
-                    </button>
+                    {!row.present && (
+                      <div className="mt-2 border-t border-[var(--card-border)] pt-2">
+                        <label
+                          htmlFor={`absence-${row.enrollmentId}`}
+                          className="text-xs font-medium text-[var(--text-muted)]"
+                        >
+                          Justificativa da ausência (opcional)
+                        </label>
+                        <textarea
+                          id={`absence-${row.enrollmentId}`}
+                          value={row.absenceJustification ?? ""}
+                          onChange={(e) =>
+                            handleAbsenceJustificationChange(row.enrollmentId, e.target.value)
+                          }
+                          rows={2}
+                          maxLength={2000}
+                          placeholder="Ex.: faltou por motivo de saúde, trabalho…"
+                          className="mt-1 w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                        />
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

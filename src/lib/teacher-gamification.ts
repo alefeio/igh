@@ -16,8 +16,6 @@ export const GAMIFICATION_POINTS = {
   attendancePerPresentStudent: 2,
   /** Por resposta do professor (ou aluno) no fórum */
   forumPerReply: 5,
-  /** Máximo por engajamento dos alunos (leitura + exercícios) */
-  studentEngagementMax: 150,
 } as const;
 
 /** Metadados da tabela de ranking em /gamificacao (rótulo, alinhamento e texto explicativo). */
@@ -48,7 +46,7 @@ export function getGamificationRankingTableColumns(): readonly GamificationRanki
       label: "Total",
       align: "right",
       description:
-        "Soma exata dos pontos das colunas `Conteúdo + Exercícios + Frequência + Fórum + Alunos`.",
+        "Soma: Conteúdo + Exercícios (cadastro na aula) + Frequência + Fórum + Horas assistidas + Exercícios realizados.",
     },
     {
       label: "Conteúdo",
@@ -80,20 +78,21 @@ export function getGamificationRankingTableColumns(): readonly GamificationRanki
         `Cada resposta vale ${p.forumPerReply} pontos e NÃO existe teto: mais respostas geram mais pontos.`,
     },
     {
-      label: "Alunos",
+      label: "Horas assist.",
       align: "right",
       description:
-        "Mede engajamento dos alunos por pares (matrícula x aula) dentro do escopo de aulas dos cursos das turmas. " +
-        `Total de pares possíveis: studentLessonPairsTotal. ` +
-        `r1 = studentLessonPairsEngaged / studentLessonPairsTotal (engaged = EnrollmentLessonProgress com completed=true OU percentRead >= ${ENGAGEMENT_READ_PERCENT}). ` +
-        `r2 = studentLessonPairsWithExercise / studentLessonPairsTotal (withExercise = pelo menos uma tentativa em EnrollmentLessonExerciseAnswer para aquela aula). ` +
-        `engagementRate = (r1 + r2) / 2. Pontos = round(${p.studentEngagementMax} * engagementRate). `,
+        "Soma dos minutos de estudo que os alunos acumularam nas aulas do escopo (campo totalMinutesStudied), convertida em horas (arredondada). Cada hora soma 1 ponto nesta coluna e no total.",
+    },
+    {
+      label: "Ex. realizados",
+      align: "right",
+      description:
+        "Para cada tentativa de exercício pelos alunos (respostas no escopo) soma-se 1; para cada tentativa correta soma-se mais 1. Valor = tentativas + acertos (entra no total).",
     },
   ];
 }
 
 const MIN_RICH_TEXT_LENGTH = 40;
-const ENGAGEMENT_READ_PERCENT = 30;
 
 /** Data (somente dia) no calendário do Brasil (UTC−3) para comparar com sessionDate. */
 export function getBrazilTodayDateOnly(): Date {
@@ -126,9 +125,12 @@ export type TeacherGamificationTotals = {
   pastSessionsAttendanceComplete: number;
   teacherRepliesInScope: number;
   studentRepliesInScope: number;
-  studentLessonPairsTotal: number;
-  studentLessonPairsEngaged: number;
-  studentLessonPairsWithExercise: number;
+  /** Soma dos minutos estudados (alunos, aulas no escopo). */
+  studentTotalMinutesStudied: number;
+  /** `round(minutos / 60)` — entra no total como pontuação. */
+  studentWatchHours: number;
+  studentExerciseAttempts: number;
+  studentExerciseCorrect: number;
 };
 
 export type TeacherGamificationPoints = {
@@ -136,7 +138,10 @@ export type TeacherGamificationPoints = {
   exercises: number;
   attendance: number;
   forum: number;
-  studentEngagement: number;
+  /** Horas totais de estudo dos alunos (1 h = 1 ponto). */
+  studentWatchHours: number;
+  /** Tentativas em exercícios + acertos (cada um soma 1). */
+  studentExerciseScore: number;
   total: number;
 };
 
@@ -173,16 +178,18 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
       pastSessionsAttendanceComplete: 0,
       teacherRepliesInScope: 0,
       studentRepliesInScope: 0,
-      studentLessonPairsTotal: 0,
-      studentLessonPairsEngaged: 0,
-      studentLessonPairsWithExercise: 0,
+      studentTotalMinutesStudied: 0,
+      studentWatchHours: 0,
+      studentExerciseAttempts: 0,
+      studentExerciseCorrect: 0,
     };
     const emptyPoints: TeacherGamificationPoints = {
       content: 0,
       exercises: 0,
       attendance: 0,
       forum: 0,
-      studentEngagement: 0,
+      studentWatchHours: 0,
+      studentExerciseScore: 0,
       total: 0,
     };
     return {
@@ -220,11 +227,6 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
   const lessonsTotal = lessonsWithMeta.length;
   const lessonsWithContent = lessonsWithMeta.filter((l) => l.hasContent).length;
   const lessonsWithFiveExercises = lessonsWithMeta.filter((l) => l.fullExercises).length;
-
-  const lessonCountByCourse = new Map<string, number>();
-  for (const mod of modules) {
-    lessonCountByCourse.set(mod.courseId, (lessonCountByCourse.get(mod.courseId) ?? 0) + mod.lessons.length);
-  }
 
   const classGroupIds = groups.map((g) => g.id);
   const today = getBrazilTodayDateOnly();
@@ -300,41 +302,35 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
           },
         });
 
-  let studentLessonPairsTotal = 0;
-  for (const e of enrollments) {
-    studentLessonPairsTotal += lessonCountByCourse.get(e.classGroup.courseId) ?? 0;
-  }
-
-  let studentLessonPairsEngaged = 0;
-  let studentLessonPairsWithExercise = 0;
+  let studentTotalMinutesStudied = 0;
+  let studentWatchHours = 0;
+  let studentExerciseAttempts = 0;
+  let studentExerciseCorrect = 0;
 
   if (enrollmentIds.length > 0 && lessonIds.length > 0) {
-    const progress = await prisma.enrollmentLessonProgress.findMany({
+    const progressAgg = await prisma.enrollmentLessonProgress.aggregate({
       where: { enrollmentId: { in: enrollmentIds }, lessonId: { in: lessonIds } },
-      select: { completed: true, percentRead: true },
+      _sum: { totalMinutesStudied: true },
     });
-    for (const p of progress) {
-      if (p.completed || p.percentRead >= ENGAGEMENT_READ_PERCENT) studentLessonPairsEngaged++;
-    }
+    studentTotalMinutesStudied = progressAgg._sum.totalMinutesStudied ?? 0;
+    studentWatchHours = Math.round(studentTotalMinutesStudied / 60);
 
-    const answers = await prisma.enrollmentLessonExerciseAnswer.findMany({
-      where: { enrollmentId: { in: enrollmentIds } },
-      select: {
-        enrollmentId: true,
-        exercise: { select: { lessonId: true } },
+    studentExerciseAttempts = await prisma.enrollmentLessonExerciseAnswer.count({
+      where: {
+        enrollmentId: { in: enrollmentIds },
+        exercise: { lessonId: { in: lessonIds } },
       },
     });
-    const pairKeys = new Set<string>();
-    for (const a of answers) {
-      pairKeys.add(`${a.enrollmentId}:${a.exercise.lessonId}`);
-    }
-    // só pares cuja aula pertence ao escopo
-    const lessonSet = new Set(lessonIds);
-    for (const key of pairKeys) {
-      const lessonId = key.split(":")[1];
-      if (lessonId && lessonSet.has(lessonId)) studentLessonPairsWithExercise++;
-    }
+    studentExerciseCorrect = await prisma.enrollmentLessonExerciseAnswer.count({
+      where: {
+        enrollmentId: { in: enrollmentIds },
+        exercise: { lessonId: { in: lessonIds } },
+        correct: true,
+      },
+    });
   }
+
+  const pointsStudentExerciseScore = studentExerciseAttempts + studentExerciseCorrect;
 
   const pointsContent = lessonsWithContent * GAMIFICATION_POINTS.contentPerLesson;
   const pointsExercises = lessonsWithFiveExercises * GAMIFICATION_POINTS.exercisesFullLesson;
@@ -345,35 +341,32 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
     (teacherRepliesInScope + studentRepliesInScope) * GAMIFICATION_POINTS.forumPerReply;
   const pointsForum = rawForum;
 
-  let engagementRate = 0;
-  if (studentLessonPairsTotal > 0) {
-    const r1 = studentLessonPairsEngaged / studentLessonPairsTotal;
-    const r2 = studentLessonPairsWithExercise / studentLessonPairsTotal;
-    engagementRate = (r1 + r2) / 2;
-  }
-  const pointsStudentEngagement = Math.round(GAMIFICATION_POINTS.studentEngagementMax * engagementRate);
-
   const points: TeacherGamificationPoints = {
     content: pointsContent,
     exercises: pointsExercises,
     attendance: pointsAttendance,
     forum: pointsForum,
-    studentEngagement: pointsStudentEngagement,
+    studentWatchHours,
+    studentExerciseScore: pointsStudentExerciseScore,
     total:
       pointsContent +
       pointsExercises +
       pointsAttendance +
       pointsForum +
-      pointsStudentEngagement,
+      studentWatchHours +
+      pointsStudentExerciseScore,
   };
 
-  const maxPointsEstimate =
+  const structuralTeacherMax =
     lessonsTotal * GAMIFICATION_POINTS.contentPerLesson +
     lessonsTotal * GAMIFICATION_POINTS.exercisesFullLesson +
     pastSessions.length * GAMIFICATION_POINTS.attendancePerSession +
-    presentStudentsMaxTotal * GAMIFICATION_POINTS.attendancePerPresentStudent +
-    pointsForum +
-    GAMIFICATION_POINTS.studentEngagementMax;
+    presentStudentsMaxTotal * GAMIFICATION_POINTS.attendancePerPresentStudent;
+  const maxPointsEstimate = Math.max(
+    1,
+    points.total,
+    structuralTeacherMax + pointsForum + studentWatchHours + pointsStudentExerciseScore
+  );
 
   return {
     teacherId: teacher.id,
@@ -386,9 +379,10 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
       pastSessionsAttendanceComplete,
       teacherRepliesInScope,
       studentRepliesInScope,
-      studentLessonPairsTotal,
-      studentLessonPairsEngaged,
-      studentLessonPairsWithExercise,
+      studentTotalMinutesStudied,
+      studentWatchHours,
+      studentExerciseAttempts,
+      studentExerciseCorrect,
     },
     points,
     maxPointsEstimate: Math.max(1, maxPointsEstimate),

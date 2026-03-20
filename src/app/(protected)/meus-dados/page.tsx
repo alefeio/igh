@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { MeusDadosForm } from "./MeusDadosForm";
 
@@ -13,16 +14,19 @@ export default async function MeusDadosPage() {
     redirect("/login");
   }
   return (
-    <div className="container-page flex flex-col gap-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-          Meus dados
-        </h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Complete seu cadastro com os dados restantes e anexe documento de identidade e comprovante de residência.
-        </p>
-      </header>
-      <MeusDadosForm />
+    <div className="flex min-w-0 flex-col gap-6 sm:gap-8">
+      <DashboardHero
+        eyebrow="Aluno"
+        title="Meus dados"
+        description="Complete seu cadastro com os dados restantes e anexe documento de identidade e comprovante de residência."
+      />
+      <SectionCard
+        title="Cadastro e documentos"
+        description="Preencha os campos obrigatórios e envie os arquivos solicitados."
+        variant="elevated"
+      >
+        <MeusDadosForm />
+      </SectionCard>
     </div>
   );
 }

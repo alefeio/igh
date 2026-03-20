@@ -82,6 +82,11 @@ export async function GET(
       const hasAddressProof = st.attachments.some((a) => a.type === "ADDRESS_PROOF");
       const docsMissing = !hasIdDocument || !hasAddressProof;
       const dataComplete = isDataComplete(st);
+      const bd = st.birthDate;
+      const studentBirthDate =
+        bd != null
+          ? `${bd.getUTCFullYear()}-${String(bd.getUTCMonth() + 1).padStart(2, "0")}-${String(bd.getUTCDate()).padStart(2, "0")}`
+          : null;
       return {
         id: e.id,
         enrolledAt: e.enrolledAt,
@@ -89,6 +94,7 @@ export async function GET(
         studentId: st.id,
         studentName: st.name,
         studentEmail: st.email,
+        studentBirthDate,
         documentationAlert: docsMissing ? (dataComplete ? "yellow" : "red") : null,
       };
     }),

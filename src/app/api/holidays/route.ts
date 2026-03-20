@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createHolidaySchema } from "@/lib/validators/holidays";
 import { createAuditLog } from "@/lib/audit";
+import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-sessions-holiday-resync";
 import { SENTINEL_YEAR_RECURRING } from "@/lib/schedule";
 
 export async function GET(request: Request) {
@@ -65,5 +66,10 @@ export async function POST(request: Request) {
     performedByUserId: user.id,
   });
 
-  return jsonOk({ holiday }, { status: 201 });
+  let scheduleRecalculation: { classGroupsProcessed: number; classGroupsUpdated: number } | null = null;
+  if (holiday.isActive) {
+    scheduleRecalculation = await recalculateAllClassGroupSessionsAfterHolidayChange();
+  }
+
+  return jsonOk({ holiday, scheduleRecalculation }, { status: 201 });
 }

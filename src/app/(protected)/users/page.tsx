@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -191,29 +192,44 @@ export default function UsersPage() {
   const visibleUsers = showInactive ? users : users.filter((u) => u.isActive);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-lg font-semibold">Usuários (ADMIN)</div>
-          <div className="text-sm text-[var(--text-secondary)]">
-            Por padrão, apenas ativos. Use &quot;Exibir inativos&quot; para reativar ou excluir.
+    <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      <DashboardHero
+        eyebrow="Administração"
+        title="Usuários ADMIN"
+        description='Contas com perfil administrativo. Por padrão, apenas ativos — use "Exibir inativos" para reativar ou excluir.'
+        rightSlot={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowInactive((prev) => !prev)}
+              className="w-full sm:w-auto"
+            >
+              {showInactive ? "Ocultar inativos" : "Exibir inativos"}
+            </Button>
+            <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">
+              Novo ADMIN
+            </Button>
           </div>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setShowInactive((prev) => !prev)}
-          >
-            {showInactive ? "Ocultar inativos" : "Exibir inativos"}
-          </Button>
-          <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">Novo ADMIN</Button>
-        </div>
-      </div>
+        }
+      />
 
-      {loading ? (
-        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
-      ) : (
+      <SectionCard
+        title="Listagem"
+        description={
+          loading
+            ? "Carregando usuários…"
+            : `${visibleUsers.length} ${visibleUsers.length === 1 ? "registro" : "registros"} exibidos.`
+        }
+        variant="elevated"
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+          </div>
+        ) : (
+        <TableShell>
         <Table>
           <thead>
             <tr>
@@ -279,7 +295,9 @@ export default function UsersPage() {
             ) : null}
           </tbody>
         </Table>
-      )}
+        </TableShell>
+        )}
+      </SectionCard>
 
       <Modal open={editOpen} title="Editar usuário" onClose={() => { setEditOpen(false); setEditing(null); setEditName(""); setEditEmail(""); setEditPassword(""); setEditIsActive(true); }}>
         <form className="flex flex-col gap-3" onSubmit={updateAdmin}>

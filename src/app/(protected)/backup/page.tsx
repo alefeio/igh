@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
@@ -72,23 +73,20 @@ export default function BackupPage() {
   }
 
   return (
-    <div className="container-page flex flex-col gap-8">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-          Backup e restauração do banco
-        </h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Faça o download de um dump completo do banco de dados ou restaure a partir de um arquivo de backup gerado por esta página.
-        </p>
-      </header>
+    <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      <DashboardHero
+        eyebrow="Master"
+        title="Backup e restauração do banco"
+        description="Download de dump completo (.sql) ou restauração a partir do arquivo gerado aqui. Operações sensíveis — use com cuidado."
+      />
 
       <div className="grid gap-6 sm:grid-cols-2">
-        <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Fazer backup</h2>
-          <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Gera um arquivo .sql com o conteúdo completo do banco (schema e dados). Use o mesmo arquivo na restauração.
-          </p>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
+        <SectionCard
+          title="Fazer backup"
+          description="Schema e dados em um único arquivo .sql."
+          variant="elevated"
+        >
+          <p className="text-xs text-[var(--text-muted)]">
             Requer <strong>pg_dump</strong> instalado no servidor (ex.: ferramentas do PostgreSQL).
           </p>
           <div className="mt-4">
@@ -101,15 +99,15 @@ export default function BackupPage() {
               {backupLoading ? "Gerando backup..." : "Baixar backup do banco"}
             </Button>
           </div>
-        </section>
+        </SectionCard>
 
-        <section className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Restaurar banco</h2>
-          <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Substitui todo o conteúdo do banco pelo arquivo de backup. Use apenas arquivos .sql gerados pelo backup desta aplicação.
-          </p>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Requer <strong>psql</strong> instalado no servidor. Esta ação é irreversível.
+        <SectionCard
+          title="Restaurar banco"
+          description="Substitui todo o conteúdo do banco. Irreversível."
+          variant="elevated"
+        >
+          <p className="text-xs text-[var(--text-muted)]">
+            Requer <strong>psql</strong> instalado no servidor. Use apenas arquivos .sql gerados por este backup.
           </p>
           <form onSubmit={handleRestore} className="mt-4 flex flex-col gap-3">
             <input
@@ -122,7 +120,7 @@ export default function BackupPage() {
               {restoreLoading ? "Restaurando..." : "Restaurar banco"}
             </Button>
           </form>
-        </section>
+        </SectionCard>
       </div>
     </div>
   );

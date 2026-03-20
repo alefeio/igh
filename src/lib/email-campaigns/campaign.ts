@@ -242,12 +242,27 @@ export async function duplicateEmailCampaign(
   });
 }
 
+const DEFAULT_REQUEUE_FAILURE_STATUSES: EmailRecipientStatus[] = [
+  "FAILED",
+  "BOUNCED",
+  "COMPLAINED",
+];
+
 /**
- * Reenvia e-mails da campanha para destinatários com falha.
- * Recoloca FAILED/BOUNCED/COMPLAINED em PENDING, limpando campos de provider/erro.
+ * Reenvia e-mails da campanha para destinatários em estados de falha.
+ * Recoloca os status informados (padrão: FAILED/BOUNCED/COMPLAINED) em PENDING, limpando campos de provider/erro.
  * Não reenfileira INVALID_EMAIL.
+ * Se nenhuma linha for atualizada, a campanha não é alterada (sem novo disparo).
  */
-export async function requeueFailedEmailCampaignRecipients(campaignId: string) {
+export async function requeueFailedEmailCampaignRecipients(
+  campaignId: string,
+  options?: { statuses?: EmailRecipientStatus[] }
+) {
+  const failureStatuses =
+    options?.statuses && options.statuses.length > 0
+      ? options.statuses
+      : DEFAULT_REQUEUE_FAILURE_STATUSES;
+
   const campaign = await prisma.emailCampaign.findUnique({
     where: { id: campaignId },
     select: { id: true, status: true },
@@ -255,11 +270,11 @@ export async function requeueFailedEmailCampaignRecipients(campaignId: string) {
   if (!campaign) return null;
   if (campaign.status === CANCELED) return null;
 
-  const result = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const update = await tx.emailCampaignRecipient.updateMany({
       where: {
         campaignId,
-        status: { in: ["FAILED", "BOUNCED", "COMPLAINED"] },
+        status: { in: failureStatuses },
       },
       data: {
         status: PENDING,
@@ -275,6 +290,9 @@ export async function requeueFailedEmailCampaignRecipients(campaignId: string) {
         complainedAt: null,
       },
     });
+    if (update.count === 0) {
+      return { updatedCount: 0 };
+    }
     await tx.emailCampaign.update({
       where: { id: campaignId },
       data: {
@@ -284,10 +302,8 @@ export async function requeueFailedEmailCampaignRecipients(campaignId: string) {
         dispatchCount: { increment: 1 },
       },
     });
-    return update;
+    return { updatedCount: update.count };
   });
-
-  return { updatedCount: result.count };
 }
 
 /**

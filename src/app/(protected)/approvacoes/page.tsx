@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
 type PendingItem = {
@@ -42,7 +42,6 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export default function AprovacoesPage() {
-  const router = useRouter();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<PendingItem[]>([]);
@@ -107,23 +106,29 @@ export default function AprovacoesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Aprovações do site</h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Alterações solicitadas por usuários Admin. Aprove para aplicar no site ou rejeite para descartar.
-        </p>
-      </div>
+    <div className="flex min-w-0 flex-col gap-6 sm:gap-8">
+      <DashboardHero
+        eyebrow="Master"
+        title="Aprovações do site"
+        description="Alterações solicitadas por usuários Admin. Aprove para aplicar no site ou rejeite para descartar."
+      />
 
-      {loading ? (
-        <p className="text-sm text-[var(--text-secondary)]">Carregando...</p>
-      ) : items.length === 0 ? (
-        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-6 text-center text-[var(--text-secondary)]">
-          Nenhuma solicitação pendente.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]">
-          <Table>
+      <SectionCard
+        title="Solicitações pendentes"
+        description={loading ? "Carregando lista…" : `${items.length} ${items.length === 1 ? "item" : "itens"} na fila.`}
+        variant="elevated"
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/40 px-6 py-10 text-center text-sm text-[var(--text-muted)]">
+            Nenhuma solicitação pendente.
+          </div>
+        ) : (
+          <TableShell>
             <thead>
               <tr>
                 <Th>Data</Th>
@@ -144,7 +149,7 @@ export default function AprovacoesPage() {
                     <div className="text-xs text-[var(--text-muted)]">{item.requestedBy.email}</div>
                   </Td>
                   <Td>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
                         variant="primary"
@@ -167,9 +172,9 @@ export default function AprovacoesPage() {
                 </tr>
               ))}
             </tbody>
-          </Table>
-        </div>
-      )}
+          </TableShell>
+        )}
+      </SectionCard>
     </div>
   );
 }

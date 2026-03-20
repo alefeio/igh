@@ -1,8 +1,11 @@
 "use client";
 
 import {
+  AlertCircle,
+  ArrowLeft,
   ArrowUp,
   BookMarked,
+  BookOpen,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -10,7 +13,9 @@ import {
   ChevronUp,
   ClipboardList,
   FileText,
+  GraduationCap,
   Highlighter,
+  ListVideo,
   Maximize2,
   MessageCircleQuestion,
   Minimize2,
@@ -24,6 +29,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
+import { DashboardHero, QuickActionGrid, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { HighlightableContentViewer, type LessonPassage } from "@/components/lesson/HighlightableContentViewer";
@@ -217,7 +223,7 @@ export default function AulaConteudoPage() {
   const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
   const headerActionsRef = useRef<HTMLDivElement>(null);
   /** Ref da seção "Seções da aula" (botões): quando ela some no scroll, mostramos a barra flutuante. */
-  const sectionsBarRef = useRef<HTMLElement>(null);
+  const sectionsBarRef = useRef<HTMLDivElement>(null);
   const [showFloatingActions, setShowFloatingActions] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const SECTION_KEYS = ["trechos", "material", "anotacoes", "exercicios", "duvidas"] as const;
@@ -637,6 +643,59 @@ export default function AulaConteudoPage() {
     [enrollmentId, lessonId, progress?.completed]
   );
 
+  const gotoPrevSlide = useCallback(() => {
+    if (!hasMultiplePages) return;
+    const cur = contentPageIndexRef.current;
+    if (cur <= 0) return;
+    const prev = Math.max(0, cur - 1);
+    const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+    const body = JSON.stringify({ lastContentPageIndex: prev });
+    navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
+    persistSlideIndex(prev, "tecla ArrowLeft");
+    router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${prev + 1}#conteudo`);
+    setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }, [enrollmentId, lessonId, hasMultiplePages, persistSlideIndex, router]);
+
+  const gotoNextSlide = useCallback(() => {
+    if (!hasMultiplePages) return;
+    const cur = contentPageIndexRef.current;
+    const last = totalPages - 1;
+    if (cur >= last) return;
+    const next = Math.min(last, cur + 1);
+    const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+    const body = JSON.stringify({ lastContentPageIndex: next });
+    navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
+    persistSlideIndex(next, "tecla ArrowRight");
+    router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${next + 1}#conteudo`);
+    setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }, [enrollmentId, lessonId, hasMultiplePages, persistSlideIndex, router, totalPages]);
+
+  useEffect(() => {
+    if (!hasMultiplePages) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+
+      const target = e.target;
+      if (target instanceof HTMLElement) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        if (target.isContentEditable) return;
+      }
+
+      // Evita rolagem da página quando usar as setas.
+      e.preventDefault();
+
+      if (e.key === "ArrowLeft") gotoPrevSlide();
+      else gotoNextSlide();
+    };
+
+    window.addEventListener("keydown", onKeyDown, { passive: false });
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hasMultiplePages, gotoPrevSlide, gotoNextSlide]);
+
   /** A cada slide exibido (URL com ?pagina=), persiste no banco. Ao ocultar aba ou sair, persiste também. */
   useEffect(() => {
     if (!enrollmentId || !lessonId || !hasMultiplePages || progress?.completed) return;
@@ -941,15 +1000,28 @@ export default function AulaConteudoPage() {
 
   if (loading || !data) {
     return (
-      <div className="container-page flex flex-col gap-6">
-        <Link className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded" href={`/minhas-turmas/${enrollmentId}/conteudo`}>
-          ← Voltar ao conteúdo
-        </Link>
-        <div className="card">
-          <div className="card-body py-8 text-center text-[var(--text-secondary)]">
-            {loading ? "Carregando aula..." : "Aula não encontrada."}
-          </div>
-        </div>
+      <div className="flex min-w-0 flex-col gap-8 pb-10 pt-1 sm:gap-10">
+          <nav aria-label="Navegação">
+            <Link
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              href={`/minhas-turmas/${enrollmentId}/conteudo`}
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+              Voltar ao conteúdo
+            </Link>
+          </nav>
+          <SectionCard title={loading ? "Carregando" : "Aula"} description={loading ? "Buscando dados da aula…" : "Não foi possível localizar esta aula."}>
+            <div className="flex flex-col items-center justify-center py-10">
+              {loading ? (
+                <div className="h-12 w-12 animate-pulse rounded-2xl bg-[var(--igh-primary)]/20" aria-hidden />
+              ) : (
+                <AlertCircle className="h-12 w-12 text-amber-500/80" aria-hidden />
+              )}
+              <p className="mt-4 text-center text-sm font-medium text-[var(--text-muted)]">
+                {loading ? "Carregando aula…" : "Aula não encontrada."}
+              </p>
+            </div>
+          </SectionCard>
       </div>
     );
   }
@@ -957,15 +1029,27 @@ export default function AulaConteudoPage() {
   const found = foundForEffect;
   if (!found || !found.lesson.isLiberada) {
     return (
-      <div className="container-page flex flex-col gap-6">
-        <Link className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded" href={`/minhas-turmas/${enrollmentId}/conteudo`}>
-          ← Voltar ao conteúdo
-        </Link>
-        <div className="card">
-          <div className="card-body py-8 text-center text-[var(--text-secondary)]">
-            {found ? "Esta aula ainda não está liberada." : "Aula não encontrada."}
-          </div>
-        </div>
+      <div className="flex min-w-0 flex-col gap-8 pb-10 pt-1 sm:gap-10">
+          <nav aria-label="Navegação">
+            <Link
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              href={`/minhas-turmas/${enrollmentId}/conteudo`}
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+              Voltar ao conteúdo
+            </Link>
+          </nav>
+          <SectionCard
+            title={found ? "Aula bloqueada" : "Aula não encontrada"}
+            description={found ? "Esta aula ainda não está liberada pelo cronograma ou pela turma." : "Verifique o link ou volte à lista de aulas."}
+          >
+            <div className="flex flex-col items-center justify-center py-10">
+              <AlertCircle className="h-12 w-12 text-amber-500/80" aria-hidden />
+              <p className="mt-4 text-center text-sm font-medium text-[var(--text-muted)]">
+                {found ? "Esta aula ainda não está liberada." : "Aula não encontrada."}
+              </p>
+            </div>
+          </SectionCard>
       </div>
     );
   }
@@ -979,55 +1063,56 @@ export default function AulaConteudoPage() {
 
   if (currentIndexForAccess > 0 && prevLessonExercisesComplete === null) {
     return (
-      <div className="container-page flex flex-col gap-6">
-        <Link
-          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
-          href={`/minhas-turmas/${enrollmentId}/conteudo`}
-        >
-          ← Voltar ao conteúdo
-        </Link>
-        <div className="card">
-          <div className="card-body py-8 text-center text-[var(--text-secondary)]">
-            Verificando acesso...
-          </div>
-        </div>
+      <div className="flex min-w-0 flex-col gap-8 pb-10 pt-1 sm:gap-10">
+          <nav aria-label="Navegação">
+            <Link
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              href={`/minhas-turmas/${enrollmentId}/conteudo`}
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+              Voltar ao conteúdo
+            </Link>
+          </nav>
+          <SectionCard title="Verificando acesso" description="Confirmando se você pode abrir esta aula.">
+            <div className="flex flex-col items-center justify-center py-10">
+              <div className="h-12 w-12 animate-pulse rounded-2xl bg-[var(--igh-primary)]/20" aria-hidden />
+              <p className="mt-4 text-center text-sm font-medium text-[var(--text-muted)]">Verificando acesso…</p>
+            </div>
+          </SectionCard>
       </div>
     );
   }
 
   if (currentIndexForAccess > 0 && prevLessonExercisesComplete === false && prevLessonForAccess) {
     return (
-      <div className="container-page flex flex-col gap-6">
-        <Link
-          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
-          href={`/minhas-turmas/${enrollmentId}/conteudo`}
-        >
-          ← Voltar ao conteúdo
-        </Link>
-        <div className="card">
-          <div className="card-header flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-              <ClipboardList className="h-5 w-5" aria-hidden />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                Conclua os exercícios da aula anterior
-              </h2>
-              <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
-                Para acessar esta aula, é necessário responder a todos os exercícios da aula anterior.
-              </p>
-            </div>
-          </div>
-          <div className="card-body">
+      <div className="flex min-w-0 flex-col gap-8 pb-10 pt-1 sm:gap-10">
+          <nav aria-label="Navegação">
+            <Link
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              href={`/minhas-turmas/${enrollmentId}/conteudo`}
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+              Voltar ao conteúdo
+            </Link>
+          </nav>
+          <SectionCard
+            title="Conclua os exercícios da aula anterior"
+            description="Para acessar esta aula, é necessário responder a todos os exercícios da aula anterior."
+            variant="elevated"
+            action={
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                <ClipboardList className="h-5 w-5" aria-hidden />
+              </div>
+            }
+          >
             <Link
               href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLessonForAccess.id}?secao=exercicios#secoes`}
-              className="inline-flex items-center gap-2 rounded-md bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--igh-primary)] px-5 py-3 text-sm font-bold text-white shadow-md shadow-[var(--igh-primary)]/25 transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
             >
-              <ClipboardList className="h-4 w-4" aria-hidden />
+              <ClipboardList className="h-4 w-4 shrink-0" aria-hidden />
               Ir para exercícios da aula anterior
             </Link>
-          </div>
-        </div>
+          </SectionCard>
       </div>
     );
   }
@@ -1418,8 +1503,13 @@ export default function AulaConteudoPage() {
   /** Primeira vez = nenhuma resposta enviada ainda; mostra só o botão "Verificar todas" no final. */
   const isFirstTimeExercises = exercises.length > 0 && Object.keys(exerciseResult).length === 0;
 
+  const aulaPosicao =
+    currentIndex >= 0 && orderedLessons.length > 0
+      ? `Aula ${currentIndex + 1} de ${orderedLessons.length}`
+      : null;
+
   return (
-    <div className="container-page flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-8 pb-10 pt-1 sm:gap-10">
       <DashboardTutorial showForStudent={user.role !== "MASTER"} steps={tutorialSteps} storageKey="minhas-turmas-aula-tutorial-done" />
       {showFloatingActions && (
         <div
@@ -1478,21 +1568,25 @@ export default function AulaConteudoPage() {
           <ArrowUp className="h-5 w-5" aria-hidden />
         </button>
       )}
-      <nav aria-label="Navegação da aula" className="flex flex-wrap items-center gap-2 text-sm">
+      <nav aria-label="Navegação da aula">
         <Link
           href={`/minhas-turmas/${enrollmentId}/conteudo`}
-          className="text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
           data-tour="aula-voltar"
         >
-          ← Voltar ao conteúdo
+          <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+          Voltar ao conteúdo
         </Link>
-        <span className="text-[var(--text-muted)]" aria-hidden>·</span>
-        <span className="text-[var(--text-muted)]">{moduleTitle}</span>
+        <p className="mt-2 text-xs font-medium text-[var(--text-muted)]">
+          <span className="text-[var(--igh-primary)]">{moduleTitle}</span>
+          {aulaPosicao ? <span aria-hidden> · </span> : null}
+          {aulaPosicao ? <span>{aulaPosicao}</span> : null}
+        </p>
       </nav>
 
       <nav
         aria-label="Navegação entre aulas"
-        className="flex flex-nowrap items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
+        className="flex flex-nowrap items-center gap-2 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)]/90 px-4 py-3 shadow-sm backdrop-blur-sm"
         data-tour="aula-nav-aulas"
       >
         <div className="flex shrink-0">
@@ -1500,13 +1594,13 @@ export default function AulaConteudoPage() {
             <Link
               href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLesson.id}`}
               aria-label="Aula anterior"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-semibold text-[var(--igh-primary)] transition hover:border-[var(--igh-primary)]/35 hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
             >
               <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
               <span className="hidden sm:inline">Aula anterior</span>
             </Link>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2">
+            <span className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2">
               <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
               <span className="hidden sm:inline">Aula anterior</span>
             </span>
@@ -1516,7 +1610,7 @@ export default function AulaConteudoPage() {
           <Link
             href="/minhas-turmas/favoritos"
             aria-label="Favoritos"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-semibold text-[var(--igh-primary)] transition hover:border-[var(--igh-primary)]/35 hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
           >
             <BookMarked className="h-4 w-4 shrink-0" aria-hidden />
             <span className="hidden sm:inline">Favoritos</span>
@@ -1534,7 +1628,7 @@ export default function AulaConteudoPage() {
                   );
                   openSectionPanel("exercicios");
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm text-[var(--text-muted)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm text-[var(--text-muted)] transition hover:border-[var(--igh-primary)]/25 hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
               >
                 <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="hidden sm:inline">Próxima aula</span>
@@ -1543,14 +1637,14 @@ export default function AulaConteudoPage() {
               <Link
                 href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`}
                 aria-label="Próxima aula"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-semibold text-[var(--igh-primary)] transition hover:border-[var(--igh-primary)]/35 hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
               >
                 <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="hidden sm:inline">Próxima aula</span>
               </Link>
             )
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2">
+            <span className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2">
               <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
               <span className="hidden sm:inline">Próxima aula</span>
             </span>
@@ -1558,92 +1652,104 @@ export default function AulaConteudoPage() {
         </div>
       </nav>
 
-      <div className="card">
-        <div ref={headerActionsRef} className="card-header flex flex-wrap items-start justify-between gap-4" data-tour="aula-header">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-[var(--text-muted)]">{moduleTitle}</p>
-            <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-              {lesson.title}
-            </h1>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
+      <div ref={headerActionsRef} data-tour="aula-header">
+        <DashboardHero
+          eyebrow={moduleTitle}
+          title={lesson.title}
+          description={
+            <span>
+              <span className="font-medium text-[var(--text-primary)]">{data.courseName}</span>
+              {aulaPosicao ? (
+                <>
+                  <span className="text-[var(--text-muted)]"> · </span>
+                  <span>{aulaPosicao}</span>
+                </>
+              ) : null}
+            </span>
+          }
+          rightSlot={
             <button
               type="button"
               onClick={handleToggleFavorite}
               disabled={togglingFavorite}
               aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
               aria-pressed={isFavorite}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] shadow-sm transition hover:border-[var(--igh-primary)]/35 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
               title={isFavorite ? "Favorita" : "Favoritar"}
             >
-              <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
+              <span className="text-xl" aria-hidden>
+                {isFavorite ? "★" : "☆"}
+              </span>
             </button>
-          </div>
-        </div>
-        <div className="card-body space-y-8">
-          <section
-            className="flex flex-wrap items-center gap-4 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
-            aria-labelledby="progress-heading"
-            data-tour="aula-progresso"
-          >
-            <h2 id="progress-heading" className="sr-only">Progresso da aula</h2>
-            <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
-                prog.completed
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                  : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-              }`}
-            >
-              {prog.completed ? "Concluída" : "Em andamento"}
-            </span>
-            {!prog.completed && (
-              <button
-                type="button"
-                onClick={handleMarkComplete}
-                disabled={markingComplete}
-                aria-busy={markingComplete}
-                className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
-              >
-                {markingComplete ? "Salvando..." : "Marcar como concluída"}
-              </button>
-            )}
-          </section>
+          }
+        />
+      </div>
 
-          <section
-            className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
-            aria-labelledby="historico-heading"
-            data-tour="aula-historico"
+      <div className="flex flex-col gap-8">
+          <SectionCard
+            id="progress-heading"
+            title="Progresso e histórico"
+            description="Status da aula e registro do seu estudo nesta lição."
+            variant="elevated"
+            dataTour="aula-progresso"
           >
-            <h2 id="historico-heading" className="mb-3 text-base font-semibold text-[var(--text-primary)]">
-              Histórico de estudo
-            </h2>
-            <dl className="grid gap-2 text-sm sm:grid-cols-3">
-              <div>
-                <dt className="text-[var(--text-muted)]">Última vez que acessou</dt>
-                <dd className="font-medium text-[var(--text-primary)]">
-                  {prog.lastAccessedAt ? formatNoteDate(prog.lastAccessedAt) : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[var(--text-muted)]">Quanto tempo estudou</dt>
-                <dd className="font-medium text-[var(--text-primary)]">
-                  {formatStudyDuration(prog.totalMinutesStudied)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[var(--text-muted)]">Quando concluiu</dt>
-                <dd className="font-medium text-[var(--text-primary)]">
-                  {prog.completedAt ? formatNoteDate(prog.completedAt) : "—"}
-                </dd>
-              </div>
-            </dl>
-          </section>
+            <div
+              className="flex flex-wrap items-center gap-4 rounded-2xl border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
+              data-tour="aula-progresso-inner"
+            >
+              <span
+                className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
+                  prog.completed
+                    ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                    : "bg-amber-500/15 text-amber-900 dark:text-amber-200"
+                }`}
+              >
+                {prog.completed ? "Concluída" : "Em andamento"}
+              </span>
+              {!prog.completed && (
+                <button
+                  type="button"
+                  onClick={handleMarkComplete}
+                  disabled={markingComplete}
+                  aria-busy={markingComplete}
+                  className="rounded-xl bg-[var(--igh-primary)] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-[var(--igh-primary)]/20 transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+                >
+                  {markingComplete ? "Salvando..." : "Marcar como concluída"}
+                </button>
+              )}
+            </div>
+
+            <div className="mt-6 border-t border-[var(--card-border)] pt-6" data-tour="aula-historico">
+              <h3 className="mb-3 text-sm font-bold text-[var(--text-primary)]">Histórico de estudo</h3>
+              <dl className="grid gap-4 text-sm sm:grid-cols-3">
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-4 py-3">
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Último acesso</dt>
+                  <dd className="mt-1 font-semibold text-[var(--text-primary)]">
+                    {prog.lastAccessedAt ? formatNoteDate(prog.lastAccessedAt) : "—"}
+                  </dd>
+                </div>
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-4 py-3">
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Tempo estudado</dt>
+                  <dd className="mt-1 font-semibold text-[var(--text-primary)]">
+                    {formatStudyDuration(prog.totalMinutesStudied)}
+                  </dd>
+                </div>
+                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-4 py-3">
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Conclusão</dt>
+                  <dd className="mt-1 font-semibold text-[var(--text-primary)]">
+                    {prog.completedAt ? formatNoteDate(prog.completedAt) : "—"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </SectionCard>
 
           {/* Menu do painel: recolhido por padrão (só ícones); botão expandir mostra os nomes. */}
-          <section ref={sectionsBarRef} id="secoes" aria-labelledby="secoes-aula-heading" className="scroll-mt-24" data-tour="aula-secoes">
-            <h2 id="secoes-aula-heading" className="mb-2 text-base font-semibold text-[var(--text-primary)]">
-              Seções da aula
-            </h2>
+          <div ref={sectionsBarRef} id="secoes" className="scroll-mt-24" data-tour="aula-secoes">
+          <SectionCard
+            title="Seções da aula"
+            description="Trechos salvos, material, anotações, exercícios (após concluir a aula) e dúvidas."
+          >
             <nav aria-label="Seções da aula" className="flex flex-wrap items-center gap-2">
             {!panelMenuCollapsed ? (
               <>
@@ -1831,10 +1937,11 @@ export default function AulaConteudoPage() {
               </>
             )}
             </nav>
-          </section>
+          </SectionCard>
+          </div>
 
           {openSection && (
-            <div ref={sectionPanelRef} className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 scroll-mt-24">
+            <div ref={sectionPanelRef} className="scroll-mt-24 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)]/95 p-4 shadow-sm backdrop-blur-sm sm:p-5">
               {openSection === "trechos" && (
                 <div>
                   <h2 className="mb-2 text-base font-semibold text-[var(--text-primary)]">Trechos destacados</h2>
@@ -2239,43 +2346,46 @@ export default function AulaConteudoPage() {
           )}
 
           {lesson.summary && lesson.summary.trim() && (
-            <section
-              className="rounded-lg border border-[var(--card-border)] border-l-4 border-l-[var(--igh-primary)] bg-[var(--igh-surface)] p-4 pl-4"
-              aria-labelledby="resumo-heading"
-              data-tour="aula-resumo"
+            <SectionCard
+              title="Resumo rápido da aula"
+              description="O que você vai aprender nesta lição."
+              variant="elevated"
+              dataTour="aula-resumo"
             >
-              <h2 id="resumo-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
-                Resumo rápido da aula
-              </h2>
-              <p className="mb-2 text-xs text-[var(--text-muted)]">
-                O que você vai aprender:
-              </p>
-              <ul className="list-disc pl-6 space-y-1 text-sm leading-relaxed text-[var(--text-secondary)]">
-                {lesson.summary
-                  .trim()
-                  .split(/\n/)
-                  .map((line) => line.trim())
-                  .filter(Boolean)
-                  .map((line, i) => (
-                    <li key={i}>{line.replace(/^[•\-*]\s*/, "")}</li>
-                  ))}
-              </ul>
-            </section>
+              <div className="rounded-xl border border-[var(--igh-primary)]/25 bg-[var(--igh-primary)]/5 px-4 py-4">
+                <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-[var(--text-secondary)]">
+                  {lesson.summary
+                    .trim()
+                    .split(/\n/)
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .map((line, i) => (
+                      <li key={i}>{line.replace(/^[•\-*]\s*/, "")}</li>
+                    ))}
+                </ul>
+              </div>
+            </SectionCard>
           )}
 
           {lesson.videoUrl && (
-            <section className="flex justify-center rounded-lg overflow-hidden bg-black" aria-label="Vídeo da aula" data-tour="aula-video">
-              <div className="aspect-video w-full max-w-3xl">
-                <LessonVideoPlayer videoUrl={lesson.videoUrl} />
+            <SectionCard title="Vídeo da aula" variant="elevated" dataTour="aula-video">
+              <div className="flex justify-center overflow-hidden rounded-xl bg-black shadow-inner">
+                <div className="aspect-video w-full max-w-3xl">
+                  <LessonVideoPlayer videoUrl={lesson.videoUrl} />
+                </div>
               </div>
-            </section>
+            </SectionCard>
           )}
 
           {lesson.contentRich && lesson.contentRich.trim() && (
-            <section id="conteudo" aria-label="Conteúdo da aula" data-tour="aula-conteudo">
+            <div id="conteudo" className="scroll-mt-24" data-tour="aula-conteudo">
+            <SectionCard
+              title="Conteúdo para leitura"
+              description="Páginas do material, tamanho da fonte, destaques e tela cheia."
+            >
               <div
                 ref={contentWrapperRef}
-                className={`rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 ${isContentFullscreen ? "min-h-screen overflow-y-auto overflow-x-hidden p-6" : ""}`}
+                className={`rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 ${isContentFullscreen ? "min-h-screen overflow-y-auto overflow-x-hidden p-6" : ""}`}
               >
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   {hasMultiplePages ? (
@@ -2420,12 +2530,15 @@ export default function AulaConteudoPage() {
                   </div>
                 </div>
               </div>
-            </section>
+            </SectionCard>
+            </div>
           )}
 
 
           {!lesson.videoUrl && !(lesson.contentRich && lesson.contentRich.trim()) && lesson.imageUrls.length === 0 && !(lesson.summary && lesson.summary.trim()) && (!lesson.attachmentUrls || lesson.attachmentUrls.length === 0) && (
-            <p className="text-sm text-[var(--text-muted)]">Nenhum conteúdo adicional para esta aula.</p>
+            <SectionCard title="Conteúdo" description="Esta aula ainda não tem material principal cadastrado.">
+              <p className="text-center text-sm text-[var(--text-muted)]">Nenhum conteúdo adicional para esta aula.</p>
+            </SectionCard>
           )}
 
           <section id="anotacoes-legacy" className="hidden" aria-hidden>
@@ -2504,8 +2617,44 @@ export default function AulaConteudoPage() {
             )}
           </section>
 
-        </div>
       </div>
+
+        <section aria-label="Atalhos úteis" className="pb-2">
+          <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">Atalhos úteis</h2>
+          <p className="mb-4 text-sm text-[var(--text-muted)]">Volte ao curso, veja exercícios da turma ou sua matrícula.</p>
+          <QuickActionGrid
+            items={[
+              {
+                href: `/minhas-turmas/${enrollmentId}/conteudo`,
+                label: "Conteúdo do curso",
+                description: "Módulos e lista de aulas",
+                icon: BookOpen,
+                accent: "from-[var(--igh-primary)] to-violet-600",
+              },
+              {
+                href: `/minhas-turmas/${enrollmentId}/exercicios`,
+                label: "Exercícios da turma",
+                description: "Acertos e revisão por aula",
+                icon: ListVideo,
+                accent: "from-sky-500 to-cyan-600",
+              },
+              {
+                href: `/minhas-turmas/${enrollmentId}`,
+                label: "Detalhe da turma",
+                description: "Informações da matrícula",
+                icon: GraduationCap,
+                accent: "from-slate-600 to-slate-800",
+              },
+              {
+                href: "/minhas-turmas/favoritos",
+                label: "Favoritos",
+                description: "Aulas salvas",
+                icon: BookMarked,
+                accent: "from-amber-500 to-orange-600",
+              },
+            ]}
+          />
+        </section>
     </div>
   );
 }

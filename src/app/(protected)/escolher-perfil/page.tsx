@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
@@ -9,7 +10,7 @@ import type { ApiResponse } from "@/lib/api-types";
 type RolesResponse = { canStudent: boolean; canTeacher: boolean; canAdmin: boolean; canMaster?: boolean };
 
 export default function EscolherPerfilPage() {
-  const user = useUser();
+  useUser();
   const router = useRouter();
   const [roles, setRoles] = useState<RolesResponse | null>(null);
 
@@ -40,8 +41,15 @@ export default function EscolherPerfilPage() {
 
   if (roles === null) {
     return (
-      <div className="container-page flex justify-center py-12">
-        <p className="text-sm text-[var(--text-muted)]">Carregando perfis...</p>
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-8 sm:px-0">
+        <DashboardHero
+          eyebrow="Sessão"
+          title="Escolher perfil"
+          description="Carregando os perfis disponíveis para sua conta."
+        />
+        <SectionCard title="Aguarde" variant="elevated">
+          <p className="text-sm text-[var(--text-muted)]">Carregando perfis…</p>
+        </SectionCard>
       </div>
     );
   }
@@ -61,15 +69,14 @@ export default function EscolherPerfilPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-6 px-4 py-8">
-      <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-6 shadow-sm">
-        <h1 className="text-lg font-semibold text-[var(--text-primary)]">
-          Como deseja acessar o sistema?
-        </h1>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">
-          Escolha o perfil com o qual deseja entrar nesta sessão.
-        </p>
-        <div className="mt-6 flex flex-col gap-3">
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-8 sm:gap-8 sm:px-0 sm:py-4">
+      <DashboardHero
+        eyebrow="Sessão"
+        title="Como deseja acessar o sistema?"
+        description="Escolha o perfil com o qual deseja entrar nesta sessão."
+      />
+      <SectionCard title="Perfis disponíveis" variant="elevated">
+        <div className="flex flex-col gap-3">
           {canStudent && (
             <Button variant="primary" className="w-full" onClick={() => enterAs("STUDENT")}>
               Entrar como Aluno
@@ -91,7 +98,7 @@ export default function EscolherPerfilPage() {
             </Button>
           )}
         </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }

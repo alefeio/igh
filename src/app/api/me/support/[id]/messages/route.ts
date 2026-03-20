@@ -108,7 +108,10 @@ export async function POST(
   }).catch(() => {});
 
   // Notificação em tempo real: admin respondeu → atualiza badge do aluno; aluno respondeu → atualiza badge do admin.
-  broadcastSupportBadgeUpdate(isFromSupport ? "student" : "admin");
+  broadcastSupportBadgeUpdate(
+    isFromSupport ? "student" : "admin",
+    isFromSupport ? ticket.userId : undefined
+  );
 
   return jsonOk({ message });
 }

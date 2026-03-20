@@ -1,11 +1,25 @@
 "use client";
 
-import { BookOpen, AlertCircle, CheckCircle2, ClipboardList } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  BookOpen,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardList,
+  GraduationCap,
+  ListVideo,
+  Lock,
+  PlayCircle,
+  Star,
+  Target,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
+import { QuickActionGrid, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import type { ApiResponse } from "@/lib/api-types";
@@ -60,6 +74,35 @@ type CourseContentData = {
   exerciseStats?: ExerciseStats;
 };
 
+/** Bandeira quadriculada (chegada) — alinhada ao dashboard do aluno. */
+function FinishLineFlagIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      className={className}
+      aria-hidden
+    >
+      <path
+        d="M4 22V3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        className="text-[var(--text-muted)]"
+      />
+      <g className="dark:invert">
+        <rect x="6" y="4" width="16" height="12" rx="1" fill="#18181b" />
+        <rect x="6" y="4" width="4" height="4" fill="#fafafa" />
+        <rect x="14" y="4" width="4" height="4" fill="#fafafa" />
+        <rect x="10" y="8" width="4" height="4" fill="#fafafa" />
+        <rect x="18" y="8" width="4" height="4" fill="#fafafa" />
+        <rect x="6" y="12" width="4" height="4" fill="#fafafa" />
+        <rect x="14" y="12" width="4" height="4" fill="#fafafa" />
+      </g>
+    </svg>
+  );
+}
+
 /** Bloco do professor no hero do conteúdo (foto + nome). */
 function TeacherHeroCard({
   name,
@@ -83,20 +126,20 @@ function TeacherHeroCard({
   const containerClass =
     variant === "overlay"
       ? "shrink-0"
-      : "shrink-0 rounded-2xl bg-white p-3 shadow-lg ring-1 ring-black/10 sm:p-4 dark:bg-white dark:ring-black/20";
+      : "shrink-0 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3 shadow-lg shadow-black/5 ring-1 ring-black/[0.03] backdrop-blur-sm sm:p-4 dark:ring-white/[0.06]";
   const labelClass =
     variant === "overlay"
-      ? "text-[0.65rem] font-semibold uppercase tracking-wider text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]"
-      : "text-[0.65rem] font-semibold uppercase tracking-wider text-zinc-500";
+      ? "text-[0.65rem] font-bold uppercase tracking-wider text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]"
+      : "text-[0.65rem] font-bold uppercase tracking-wider text-[var(--text-muted)]";
   const nameClass =
     variant === "overlay"
-      ? "mt-0.5 text-sm font-semibold leading-snug text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)] sm:text-base"
-      : "mt-0.5 text-sm font-semibold leading-snug text-zinc-900 sm:text-base";
+      ? "mt-0.5 text-sm font-bold leading-snug text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)] sm:text-base"
+      : "mt-0.5 text-sm font-bold leading-snug text-[var(--text-primary)] sm:text-base";
 
   return (
     <div className={containerClass}>
       <div className="flex flex-col items-center gap-2 sm:gap-3">
-        <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ring-2 ring-zinc-200 sm:h-36 sm:w-36">
+        <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--card-bg)] ring-2 ring-[var(--igh-primary)]/25 sm:h-32 sm:w-32">
           {photo ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -106,7 +149,7 @@ function TeacherHeroCard({
             />
           ) : (
             <span
-              className="flex h-full w-full items-center justify-center bg-zinc-100 text-2xl font-bold text-zinc-500 sm:text-3xl"
+              className="flex h-full w-full items-center justify-center bg-[var(--igh-surface)] text-2xl font-bold text-[var(--text-muted)] sm:text-3xl"
               aria-hidden
             >
               {initials}
@@ -194,19 +237,21 @@ export default function ConteudoPage() {
 
   if (loading || !data) {
     return (
-      <div className="container-page flex flex-col gap-6">
-        <Link
-          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
-          href={`/minhas-turmas/${enrollmentId}`}
-        >
-          ← Voltar à turma
-        </Link>
-        <div className="card">
-          <div className="card-body py-10 text-center text-[var(--text-secondary)]">
-            {loading ? "Carregando conteúdo do curso..." : "Conteúdo não encontrado."}
+      <div className="flex min-w-0 flex-col gap-6 pb-8 pt-0">
+          <Link
+            className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+            href={`/minhas-turmas/${enrollmentId}`}
+          >
+            <ArrowLeft className="h-4 w-4 text-[var(--igh-primary)]" aria-hidden />
+            Voltar à turma
+          </Link>
+          <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-10 text-center shadow-inner">
+            <div className="mx-auto mb-4 h-12 w-12 animate-pulse rounded-2xl bg-[var(--igh-primary)]/20" />
+            <p className="text-sm font-medium text-[var(--text-muted)]">
+              {loading ? "Carregando seu conteúdo…" : "Conteúdo não encontrado."}
+            </p>
           </div>
         </div>
-      </div>
     );
   }
 
@@ -243,173 +288,204 @@ export default function ConteudoPage() {
     return null;
   })();
 
+  const progressPct = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
+
   return (
-    <div className="container-page flex flex-col gap-6">
-      <nav aria-label="Navegação">
-        <Link
-          data-tour="conteudo-voltar"
-          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
-          href={`/minhas-turmas/${enrollmentId}`}
-        >
-          ← Voltar à turma
-        </Link>
-      </nav>
+    <div className="flex min-w-0 flex-col gap-8 pb-10 pt-1 sm:gap-10">
+        <nav aria-label="Navegação">
+          <Link
+            data-tour="conteudo-voltar"
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+            href={`/minhas-turmas/${enrollmentId}`}
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+            Voltar à turma
+          </Link>
+        </nav>
 
-      <section
-        data-tour="conteudo-foto-curso"
-        className="overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-sm"
-        aria-label={`Foto do curso ${data.courseName}`}
-      >
-        {data.courseImageUrl?.trim() ? (
-          <div className="relative aspect-[21/9] min-h-[220px] max-h-80 w-full sm:min-h-[240px] sm:max-h-[22rem] sm:aspect-[2.5/1]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={data.courseImageUrl}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" aria-hidden />
-            <div className="absolute bottom-0 left-0 right-0 flex flex-row items-end justify-between gap-4 p-4 sm:p-5">
-              <p className="min-w-0 flex-1 pb-1 text-lg font-semibold text-white drop-shadow-md sm:text-xl">
-                {data.courseName}
-              </p>
-              <TeacherHeroCard name={data.teacherName} photoUrl={data.teacherPhotoUrl} variant="overlay" />
-            </div>
-          </div>
-        ) : (
-          <div className="flex min-h-[140px] flex-row items-center justify-between gap-4 bg-gradient-to-br from-[var(--igh-primary)]/20 to-[var(--igh-primary)]/5 px-4 py-8 sm:min-h-[160px]">
-            <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-2">
-              <BookOpen className="h-10 w-10 text-[var(--igh-primary)] opacity-80" aria-hidden />
-              <p className="text-base font-semibold text-[var(--text-primary)] sm:text-lg">{data.courseName}</p>
-              <p className="text-xs text-[var(--text-muted)]">Imagem do curso não cadastrada</p>
-            </div>
-            <TeacherHeroCard name={data.teacherName} photoUrl={data.teacherPhotoUrl} variant="plain" />
-          </div>
-        )}
-      </section>
-
-      {/* Seu progresso — sempre com dados do course-content (nunca falha) */}
-      {totalLessons > 0 && (
         <section
-          data-tour="conteudo-progresso"
-          className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
-          aria-labelledby="progress-heading"
+          data-tour="conteudo-foto-curso"
+          className="overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-lg shadow-black/[0.06] ring-1 ring-black/[0.03] dark:ring-white/[0.05]"
+          aria-label={`Foto do curso ${data.courseName}`}
         >
-          <h2 id="progress-heading" className="text-base font-semibold text-[var(--text-primary)]">
-            Seu progresso
-          </h2>
-          <div className="mt-2 flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2 text-[var(--text-primary)]">
-              <BookOpen className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
-              <span className="text-sm font-medium">
-                <span className="font-semibold text-[var(--igh-primary)]">{completedCount}</span> de{" "}
-                <span className="font-semibold">{totalLessons}</span> {totalLessons === 1 ? "aula concluída" : "aulas concluídas"}
-              </span>
-            </div>
-            {allCompleted ? (
-              <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300">
-                Curso concluído
-              </span>
-            ) : moduleInProgress ? (
-              <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                Módulo {moduleInProgress.order + 1} em andamento
-              </span>
-            ) : null}
-          </div>
-          {totalLessons > 0 && (
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[var(--card-border)]">
-              <div
-                className="h-full rounded-full bg-[var(--igh-primary)] transition-all"
-                style={{ width: `${(completedCount / totalLessons) * 100}%` }}
+          {data.courseImageUrl?.trim() ? (
+            <div className="relative aspect-[21/9] min-h-[220px] max-h-80 w-full sm:min-h-[240px] sm:max-h-[22rem] sm:aspect-[2.5/1]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={data.courseImageUrl}
+                alt=""
+                className="h-full w-full object-cover"
               />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" aria-hidden />
+              <div className="absolute bottom-0 left-0 right-0 flex flex-row items-end justify-between gap-4 p-4 sm:p-6">
+                <div className="min-w-0 flex-1 pb-1">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/80">Seu curso</p>
+                  <p className="mt-1 text-xl font-bold text-white drop-shadow-md sm:text-2xl">{data.courseName}</p>
+                </div>
+                <TeacherHeroCard name={data.teacherName} photoUrl={data.teacherPhotoUrl} variant="overlay" />
+              </div>
+            </div>
+          ) : (
+            <div className="relative flex min-h-[160px] flex-row items-center justify-between gap-6 overflow-hidden bg-gradient-to-br from-[var(--igh-primary)]/25 via-violet-500/10 to-[var(--igh-primary)]/5 px-5 py-10 sm:min-h-[180px] sm:px-8">
+              <div
+                className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[var(--igh-primary)]/20 blur-3xl"
+                aria-hidden
+              />
+              <div className="relative flex min-w-0 flex-1 flex-col items-start justify-center gap-2">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--card-bg)]/80 text-[var(--igh-primary)] shadow-md backdrop-blur-sm">
+                  <BookOpen className="h-6 w-6" aria-hidden />
+                </div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--igh-primary)]">Conteúdo</p>
+                <p className="text-lg font-bold text-[var(--text-primary)] sm:text-xl">{data.courseName}</p>
+                <p className="text-xs text-[var(--text-muted)]">Capa do curso ainda não foi cadastrada — o foco é no que você vai aprender.</p>
+              </div>
+              <TeacherHeroCard name={data.teacherName} photoUrl={data.teacherPhotoUrl} variant="plain" />
             </div>
           )}
-          {recommendedLesson && (
-            <div className="mt-4">
+        </section>
+
+        {totalLessons > 0 && (
+          <SectionCard
+            dataTour="conteudo-progresso"
+            title="Seu progresso neste curso"
+            description="Cada aula concluída aproxima você da linha de chegada."
+            id="progress-heading"
+            variant="elevated"
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              {allCompleted ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                  Curso concluído
+                </span>
+              ) : moduleInProgress ? (
+                <span className="inline-flex items-center rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-800 dark:text-amber-200">
+                  Módulo {moduleInProgress.order + 1} em andamento
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-6 flex flex-wrap items-end gap-6">
+              <div>
+                <p className="text-5xl font-bold tabular-nums tracking-tight text-[var(--text-primary)]">{completedCount}</p>
+                <p className="mt-1 text-sm font-medium text-[var(--text-muted)]">
+                  de <span className="font-bold text-[var(--text-primary)]">{totalLessons}</span>{" "}
+                  {totalLessons === 1 ? "aula" : "aulas"}
+                </p>
+              </div>
+              <div className="min-w-[200px] flex-1">
+                <div className="flex items-center gap-2">
+                  <PlayCircle className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-[var(--igh-surface)] shadow-inner">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[var(--igh-primary)] to-violet-500 transition-all duration-500"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                  <span
+                    className="inline-flex shrink-0"
+                    title="Chegada — fim do percurso do curso"
+                    role="img"
+                    aria-label="Chegada, linha de chegada do percurso"
+                  >
+                    <FinishLineFlagIcon className="h-5 w-5 text-[var(--igh-primary)]" />
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-bold text-[var(--igh-primary)]">{progressPct}% do percurso</p>
+              </div>
+            </div>
+            {recommendedLesson && (
               <Link
                 href={
                   recommendedLesson.lastContentPageIndex != null
                     ? `/minhas-turmas/${enrollmentId}/conteudo/aula/${recommendedLesson.id}?pagina=${recommendedLesson.lastContentPageIndex + 1}`
                     : `/minhas-turmas/${enrollmentId}/conteudo/aula/${recommendedLesson.id}`
                 }
-                className="inline-flex items-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                className="group mt-6 flex flex-wrap items-center gap-4 rounded-2xl border-2 border-[var(--igh-primary)]/35 bg-gradient-to-r from-[var(--igh-primary)]/10 to-violet-500/10 p-4 transition hover:border-[var(--igh-primary)]/55 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:p-5"
               >
-                {completedCount > 0
-                  ? `Continuar de onde parou: ${recommendedLesson.title}`
-                  : "Inicie sua jornada"}
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--igh-primary)] text-white shadow-lg shadow-[var(--igh-primary)]/30">
+                  <PlayCircle className="h-6 w-6" aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--igh-primary)]">
+                    {completedCount > 0 ? "Continuar de onde parou" : "Começar agora"}
+                  </p>
+                  <p className="mt-0.5 font-bold text-[var(--text-primary)] group-hover:text-[var(--igh-primary)]">
+                    {recommendedLesson.title}
+                  </p>
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-[var(--igh-primary)] transition group-hover:translate-x-0.5" aria-hidden />
               </Link>
-            </div>
-          )}
-        </section>
-      )}
+            )}
+          </SectionCard>
+        )}
 
-      <div className="card">
-        <header className="card-header" data-tour="conteudo-header">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-            {data.courseName}
-          </h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {totalLessons === 0
-              ? "Módulos e aulas do curso"
-              : `${totalLessons} ${totalLessons === 1 ? "aula" : "aulas"}${completedCount > 0 ? ` · ${completedCount} concluída${completedCount > 1 ? "s" : ""}` : ""}`}
-          </p>
-        </header>
-        <div className="card-body space-y-8">
-          {/* Desempenho nos exercícios — dados vêm do course-content (uma única requisição) */}
-          <section
-            data-tour="conteudo-desempenho"
-            className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
-            aria-labelledby="desempenho-heading"
+        <SectionCard
+          dataTour="conteudo-header"
+          title={data.courseName}
+          description={
+            totalLessons === 0
+              ? "Módulos e aulas aparecerão aqui quando estiverem cadastrados."
+              : `${totalLessons} ${totalLessons === 1 ? "aula" : "aulas"} no programa${completedCount > 0 ? ` · ${completedCount} concluída${completedCount > 1 ? "s" : ""}` : ""}`
+          }
+          id="conteudo-curso-heading"
+          variant="default"
+          className="scroll-mt-4"
+        >
+          <div className="space-y-10">
+          <SectionCard
+            dataTour="conteudo-desempenho"
+            title="Desempenho nos exercícios"
+            description="Acertos e tentativas por aula — ideal para revisar antes de seguir em frente."
+            id="desempenho-heading"
+            variant="elevated"
+            className="border-[var(--igh-primary)]/12 bg-gradient-to-br from-[var(--igh-surface)]/60 to-[var(--card-bg)]"
           >
-            <h2 id="desempenho-heading" className="text-base font-semibold text-[var(--text-primary)]">
-              Desempenho nos exercícios
-            </h2>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Com base nos acertos e erros das questões por aula.
-            </p>
-
             {(data.exerciseStats?.totalAttempts ?? 0) === 0 ? (
-              <p className="mt-4 text-sm text-[var(--text-muted)]">
-                Você ainda não respondeu exercícios neste curso. Responda às questões ao final das aulas para ver aqui seu desempenho geral e por aula.
+              <p className="text-sm leading-relaxed text-[var(--text-muted)]">
+                Responda às questões ao final das aulas para ver aqui seu desempenho geral, por aula e quais tópicos merecem uma segunda leitura.
               </p>
             ) : (
               <>
-                {/* Card: desempenho geral */}
-                <div className="mt-4 flex flex-wrap items-center gap-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--igh-primary)]/15 text-[var(--igh-primary)]">
-                    <ClipboardList className="h-6 w-6" aria-hidden />
+                <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-inner sm:p-5">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--igh-primary)]/25 to-violet-500/15 text-[var(--igh-primary)] shadow-sm">
+                    <ClipboardList className="h-7 w-7" aria-hidden />
                   </div>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                      Desempenho geral
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      Desempenho geral neste curso
                     </p>
-                    <p className="text-xl font-bold text-[var(--text-primary)]">
+                    <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--text-primary)]">
                       {data.exerciseStats?.totalCorrect ?? 0}
-                      <span className="ml-1 text-base font-normal text-[var(--text-muted)]">
+                      <span className="ml-1 text-base font-semibold text-[var(--text-muted)]">
                         / {data.exerciseStats?.totalAttempts ?? 0} acertos
                       </span>
-                      <span className="ml-2 text-lg font-semibold text-[var(--igh-primary)]">
-                        ({((data.exerciseStats?.totalAttempts ?? 0) > 0 ? Math.round(((data.exerciseStats?.totalCorrect ?? 0) / (data.exerciseStats?.totalAttempts ?? 1)) * 100) : 0)}%)
+                      <span className="ml-2 text-xl font-bold text-[var(--igh-primary)]">
+                        (
+                        {(data.exerciseStats?.totalAttempts ?? 0) > 0
+                          ? Math.round(
+                              ((data.exerciseStats?.totalCorrect ?? 0) / (data.exerciseStats?.totalAttempts ?? 1)) * 100
+                            )
+                          : 0}
+                        %)
                       </span>
                     </p>
                   </div>
-                  <div className="ml-auto">
-                    <Link
-                      href={`/minhas-turmas/${enrollmentId}/exercicios`}
-                      className="text-xs font-medium text-[var(--igh-primary)] underline hover:no-underline"
-                    >
-                      Ver respostas por aula
-                    </Link>
-                  </div>
+                  <Link
+                    href={`/minhas-turmas/${enrollmentId}/exercicios`}
+                    className="inline-flex items-center gap-1 rounded-xl bg-[var(--igh-primary)]/10 px-4 py-2 text-xs font-bold text-[var(--igh-primary)] transition hover:bg-[var(--igh-primary)]/20"
+                  >
+                    Ver por aula
+                    <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                  </Link>
                 </div>
 
-                {/* Cards menores: desempenho por aula */}
                 {(data.exerciseStats?.lessonStats?.length ?? 0) > 0 && (
-                  <div className="mt-4">
-                    <h3 className="mb-3 text-sm font-medium text-[var(--text-primary)]">
+                  <div className="mt-6">
+                    <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
+                      <ListVideo className="h-4 w-4 text-[var(--igh-primary)]" aria-hidden />
                       Por aula
                     </h3>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       {(data.exerciseStats?.lessonStats ?? [])
                         .slice()
                         .sort((a, b) => a.moduleOrder - b.moduleOrder || a.lessonTitle.localeCompare(b.lessonTitle))
@@ -427,10 +503,10 @@ export default function ConteudoPage() {
                                     : `/minhas-turmas/${enrollmentId}/conteudo/aula/${t.lessonId}`;
                                 })()
                               }
-                              className={`flex flex-col rounded-lg border p-3 text-left transition hover:border-[var(--igh-primary)]/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                              className={`group flex flex-col rounded-2xl border p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
                                 precisaRevisar
-                                  ? "border-amber-400 bg-amber-50/50 dark:border-amber-600 dark:bg-amber-950/20"
-                                  : "border-[var(--card-border)] bg-[var(--card-bg)]"
+                                  ? "border-amber-400/80 bg-amber-50/60 dark:border-amber-600 dark:bg-amber-950/25"
+                                  : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/35"
                               }`}
                             >
                               <p className="line-clamp-2 font-medium text-[var(--text-primary)]">
@@ -462,15 +538,16 @@ export default function ConteudoPage() {
                 )}
               </>
             )}
-          </section>
+          </SectionCard>
 
           {data.modules.length === 0 ? (
             <div
-              className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-10 text-center"
+              className="rounded-2xl border-2 border-dashed border-[var(--igh-primary)]/25 bg-[var(--igh-surface)]/50 px-6 py-14 text-center shadow-inner"
               role="status"
             >
-              <p className="text-sm text-[var(--text-muted)]">
-                Nenhum módulo cadastrado para este curso ainda.
+              <BookOpen className="mx-auto h-10 w-10 text-[var(--igh-primary)]/50" aria-hidden />
+              <p className="mt-4 text-sm font-medium text-[var(--text-muted)]">
+                Nenhum módulo cadastrado para este curso ainda. Volte em breve ou fale com a coordenação.
               </p>
             </div>
           ) : (
@@ -478,35 +555,44 @@ export default function ConteudoPage() {
               <section
                 key={mod.id}
                 data-tour={modIndex === 0 ? "conteudo-modulos" : undefined}
-                className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
+                className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.04] sm:p-6"
                 aria-labelledby={`module-${mod.id}`}
               >
-                <h2 id={`module-${mod.id}`} className="text-base font-semibold text-[var(--text-primary)]">
-                  {mod.title}
-                </h2>
-                {mod.description && (
-                  <p className="mt-1 text-sm leading-relaxed text-[var(--text-muted)]">
-                    {mod.description}
+                <div className="border-b border-[var(--card-border)] pb-4">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--igh-primary)]">
+                    Módulo {mod.order + 1}
                   </p>
-                )}
-                <ul className="mt-4 list-none space-y-0 p-0" aria-label={`Aulas do módulo ${mod.title}`}>
+                  <h2 id={`module-${mod.id}`} className="mt-1 text-lg font-bold text-[var(--text-primary)]">
+                    {mod.title}
+                  </h2>
+                  {mod.description && (
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">{mod.description}</p>
+                  )}
+                </div>
+                <ul className="mt-2 list-none space-y-0 p-0" aria-label={`Aulas do módulo ${mod.title}`}>
                   {mod.lessons.map((lesson, index) => (
                     <li
                       key={lesson.id}
-                      className={`flex flex-wrap items-center justify-between gap-3 py-3 ${
-                        index < mod.lessons.length - 1
-                          ? "border-b border-[var(--card-border)]"
-                          : ""
+                      className={`flex flex-wrap items-center justify-between gap-4 py-4 ${
+                        index < mod.lessons.length - 1 ? "border-b border-[var(--card-border)]" : ""
                       }`}
                     >
-                      <span className="min-w-0 flex-1 font-medium text-[var(--text-primary)]">
-                        {lesson.title}
-                        {lesson.completed && (
-                          <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300">
-                            Concluída
-                          </span>
-                        )}
-                      </span>
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--igh-surface)] text-xs font-bold tabular-nums text-[var(--text-muted)] ring-1 ring-[var(--card-border)]">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-[var(--text-primary)]">{lesson.title}</span>
+                            {lesson.completed && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                                <CheckCircle2 className="h-3 w-3" aria-hidden />
+                                Concluída
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                       {lesson.isLiberada ? (
                         lesson.previousLessonExercisesComplete !== false ? (
                           <Link
@@ -515,33 +601,35 @@ export default function ConteudoPage() {
                                 ? `/minhas-turmas/${enrollmentId}/conteudo/aula/${lesson.id}?pagina=${lesson.lastContentPageIndex + 1}`
                                 : `/minhas-turmas/${enrollmentId}/conteudo/aula/${lesson.id}`
                             }
-                            className="shrink-0 rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[var(--igh-primary)] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-[var(--igh-primary)]/25 transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
                           >
+                            <PlayCircle className="h-4 w-4" aria-hidden />
                             Abrir conteúdo
                           </Link>
                         ) : (
-                          <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                          <span className="flex max-w-md shrink-0 flex-col items-stretch gap-2 sm:items-end">
                             <span
-                              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                              className="rounded-xl border border-amber-300/80 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
                               role="status"
                             >
-                              Resolva os exercícios da aula anterior para acessar esta aula
+                              Conclua os exercícios da aula anterior para desbloquear esta aula.
                             </span>
                             {prevLessonIdByLessonId.get(lesson.id) && (
                               <Link
                                 href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLessonIdByLessonId.get(lesson.id)}?secao=exercicios#secoes`}
-                                className="text-xs font-medium text-[var(--igh-primary)] underline hover:no-underline"
+                                className="text-right text-xs font-bold text-[var(--igh-primary)] hover:underline"
                               >
-                                Ir para exercícios da aula anterior
+                                Ir aos exercícios da aula anterior →
                               </Link>
                             )}
                           </span>
                         )
                       ) : (
                         <span
-                          className="shrink-0 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-xs font-medium text-[var(--text-muted)]"
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1.5 text-xs font-bold text-[var(--text-muted)]"
                           aria-label="Aula ainda não liberada"
                         >
+                          <Lock className="h-3.5 w-3.5" aria-hidden />
                           Em breve
                         </span>
                       )}
@@ -551,8 +639,38 @@ export default function ConteudoPage() {
               </section>
             ))
           )}
-        </div>
-      </div>
+          </div>
+        </SectionCard>
+
+        <section className="mt-2" aria-label="Acesso rápido neste curso">
+          <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">Atalhos úteis</h2>
+          <p className="mb-4 text-sm text-[var(--text-muted)]">Navegue sem sair do fluxo de estudo.</p>
+          <QuickActionGrid
+            items={[
+              {
+                href: `/minhas-turmas/${enrollmentId}`,
+                label: "Detalhe da turma",
+                description: "Matrícula, dados e informações",
+                icon: GraduationCap,
+                accent: "from-slate-600 to-slate-800",
+              },
+              {
+                href: `/minhas-turmas/${enrollmentId}/exercicios`,
+                label: "Exercícios do curso",
+                description: "Todas as questões desta matrícula",
+                icon: Target,
+                accent: "from-violet-500 to-purple-700",
+              },
+              {
+                href: "/minhas-turmas/favoritos",
+                label: "Favoritos",
+                description: "Aulas salvas em qualquer curso",
+                icon: Star,
+                accent: "from-amber-500 to-orange-600",
+              },
+            ]}
+          />
+        </section>
 
       <DashboardTutorial
         showForStudent={user.role !== "MASTER"}

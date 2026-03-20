@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 
 import { StudentForm } from "@/components/students/StudentForm";
 import { buildEnrollmentPdfBlob } from "@/lib/enrollment-pdf";
+import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -694,32 +695,33 @@ export default function EnrollmentsPage() {
   }
 
   return (
-    <div className="container-page flex flex-col gap-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-            Matrículas
-          </h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Análise de matrículas por status, turma e data. Crie matrículas, confira vagas e exporte dados. E-mail de boas-vindas pode ser enviado ao aluno.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 shrink-0">
-          <Button
-            variant="secondary"
-            onClick={() => setExportExcelOpen(true)}
-            disabled={filteredItems.length === 0}
-          >
-            Exportar Excel
-          </Button>
-          <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf || itemsForView.length === 0}>
-            {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
-          </Button>
-          {(user.role === "ADMIN" || user.role === "MASTER") && (
-            <Button onClick={openCreate} className="w-full sm:w-auto">Nova matrícula</Button>
-          )}
-        </div>
-      </header>
+    <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      <DashboardHero
+        eyebrow="Matrículas"
+        title="Matrículas"
+        description="Análise por status, turma e data. Crie matrículas, confira vagas e exporte dados. E-mail de boas-vindas pode ser enviado ao aluno."
+        rightSlot={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setExportExcelOpen(true)}
+                disabled={filteredItems.length === 0}
+              >
+                Exportar Excel
+              </Button>
+              <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf || itemsForView.length === 0}>
+                {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
+              </Button>
+            </div>
+            {(user.role === "ADMIN" || user.role === "MASTER") && (
+              <Button onClick={openCreate} className="w-full sm:w-auto">
+                Nova matrícula
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {loading ? (
         <div
@@ -730,13 +732,12 @@ export default function EnrollmentsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3" aria-labelledby="enrollments-date-filter-heading">
-            <h2 id="enrollments-date-filter-heading" className="text-sm font-medium text-[var(--text-primary)] mb-3">
-              Filtrar por data de matrícula
-            </h2>
-            <p className="text-xs text-[var(--text-muted)] mb-3">
-              O intervalo aplica-se a toda a página: resumo, gráficos, vagas por curso e listagem.
-            </p>
+          <SectionCard
+            id="enrollments-date-filter-heading"
+            title="Filtrar por data de matrícula"
+            description="O intervalo aplica-se a toda a página: resumo, gráficos, vagas por curso e listagem."
+            variant="elevated"
+          >
             <div className="flex flex-wrap items-end gap-3">
               <div>
                 <label htmlFor="enrollments-date-from" className="block text-xs font-medium text-[var(--text-muted)] mb-0.5">
@@ -768,7 +769,7 @@ export default function EnrollmentsPage() {
                 </Button>
               )}
             </div>
-          </section>
+          </SectionCard>
 
           {kpis.pre > 0 && isMaster && (
             <div
@@ -848,16 +849,12 @@ export default function EnrollmentsPage() {
           </section>
 
           {(pieData.length > 0 || columnData.length > 0) && (
-            <section className="card" aria-labelledby="enrollments-charts-heading">
-              <header className="card-header">
-                <h2 id="enrollments-charts-heading" className="text-base font-semibold text-[var(--text-primary)]">
-                  Análise visual
-                </h2>
-                <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-                  Distribuição por curso e por data de matrícula.
-                </p>
-              </header>
-              <div className="card-body pt-0">
+            <SectionCard
+              id="enrollments-charts-heading"
+              title="Análise visual"
+              description="Distribuição por curso e por data de matrícula."
+              variant="elevated"
+            >
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {pieData.length > 0 && (
                   <div className="flex flex-col">
@@ -946,20 +943,15 @@ export default function EnrollmentsPage() {
                   </div>
                 )}
               </div>
-              </div>
-            </section>
+            </SectionCard>
           )}
 
-          <section className="card" aria-labelledby="enrollments-summary-heading">
-            <header className="card-header">
-              <h2 id="enrollments-summary-heading" className="text-base font-semibold text-[var(--text-primary)]">
-                Vagas por curso e turma
-              </h2>
-              <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-                Total de capacidade (azul) e de alunos (vermelho) por curso. Use o botão em cada gráfico para ver detalhes por turma.
-              </p>
-            </header>
-            <div className="card-body">
+          <SectionCard
+            id="enrollments-summary-heading"
+            title="Vagas por curso e turma"
+            description="Total de capacidade (azul) e de alunos (vermelho) por curso. Use o botão em cada gráfico para ver detalhes por turma."
+            variant="elevated"
+          >
             {dashboard.courses.length === 0 ? (
               <p className="mt-3 text-sm text-[var(--text-secondary)]">Nenhuma matrícula para exibir.</p>
             ) : (
@@ -1058,19 +1050,14 @@ export default function EnrollmentsPage() {
                 </div>
               </>
             )}
-            </div>
-          </section>
+          </SectionCard>
 
-          <section className="card" aria-labelledby="enrollments-by-teacher-heading">
-            <header className="card-header">
-              <h2 id="enrollments-by-teacher-heading" className="text-base font-semibold text-[var(--text-primary)]">
-                Por professor
-              </h2>
-              <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-                Quantidade de alunos (matrículas ativas) por professor. Use o botão abaixo para ver turmas e listagens.
-              </p>
-            </header>
-            <div className="card-body">
+          <SectionCard
+            id="enrollments-by-teacher-heading"
+            title="Por professor"
+            description="Quantidade de alunos (matrículas ativas) por professor. Use o botão abaixo para ver turmas e listagens."
+            variant="elevated"
+          >
               {teachersToDisplay.length === 0 ? (
                 <p className="text-sm text-[var(--text-secondary)]">Nenhum professor cadastrado.</p>
               ) : (
@@ -1192,8 +1179,7 @@ export default function EnrollmentsPage() {
                   )}
                 </>
               )}
-            </div>
-          </section>
+          </SectionCard>
 
           <section id="enrollments-list" className="card scroll-mt-4" aria-labelledby="enrollments-list-heading">
             <header className="card-header flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">

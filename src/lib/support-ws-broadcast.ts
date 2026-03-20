@@ -4,10 +4,15 @@
  */
 const BROADCAST_PATH = "/__broadcast_support";
 
-export function broadcastSupportBadgeUpdate(audience: "all" | "student" | "admin" = "all"): void {
+export function broadcastSupportBadgeUpdate(
+  audience: "all" | "student" | "admin" = "all",
+  forUserId?: string
+): void {
   const port = process.env.PORT || "3000";
   const secret = process.env.SUPPORT_WS_BROADCAST_SECRET || "support-ws-broadcast-dev";
-  const payload = JSON.stringify({ audience });
+  const payload = JSON.stringify(
+    forUserId ? { audience, forUserId } : { audience }
+  );
   // Dispara no próximo tick para a resposta da API já ter sido enviada (evita bloqueio no mesmo processo).
   const run = () => {
     fetch(`http://127.0.0.1:${port}${BROADCAST_PATH}`, {

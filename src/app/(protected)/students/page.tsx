@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { StudentForm } from "@/components/students/StudentForm";
 import type { StudentFormStudent } from "@/components/students/StudentForm";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 import { formatDateOnly } from "@/lib/format";
 import { AlertCircle } from "lucide-react";
@@ -262,53 +263,78 @@ export default function StudentsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="text-lg font-semibold">Alunos</div>
-          <div className="text-sm text-[var(--text-secondary)]">
-            {isTeacher
-              ? "Alunos matriculados nas turmas que você leciona. Busca por nome ou CPF."
-              : "Cadastro base do aluno. Busca por nome ou CPF."}
-          </div>
+    <div className="flex min-w-0 flex-col gap-6 sm:gap-8">
+      <DashboardHero
+        eyebrow={isTeacher ? "Professor" : "Cadastros"}
+        title="Alunos"
+        description={
+          isTeacher
+            ? "Alunos matriculados nas turmas que você leciona. Use a busca por nome ou CPF."
+            : "Cadastro base do aluno. Use a busca por nome ou CPF."
+        }
+        rightSlot={
+          !isTeacher ? (
+            <Button onClick={openCreate} className="w-full sm:w-auto">
+              Novo aluno
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <SectionCard
+        title="Busca"
+        description="Filtre a listagem por nome ou CPF."
+        variant="elevated"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Buscar por nome ou CPF"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="max-w-xs"
+          />
+          {isMaster && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={includeDeleted}
+                onChange={(e) => setIncludeDeleted(e.target.checked)}
+              />
+              Incluir excluídos
+            </label>
+          )}
         </div>
-        {!isTeacher && <Button onClick={openCreate}>Novo aluno</Button>}
-      </div>
+      </SectionCard>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          placeholder="Buscar por nome ou CPF"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="max-w-xs"
-        />
-        {isMaster && (
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={includeDeleted}
-              onChange={(e) => setIncludeDeleted(e.target.checked)}
-            />
-            Incluir excluídos
-          </label>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
-      ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Nome</Th>
-              <Th>CPF</Th>
-              <Th>Celular</Th>
-              <Th>E-mail</Th>
-              <Th className="w-10 text-center" title="Documentação">Doc.</Th>
-              <Th />
-            </tr>
-          </thead>
-          <tbody>
+      <SectionCard
+        title="Listagem"
+        description={
+          loading
+            ? "Carregando alunos…"
+            : `${items.length} ${items.length === 1 ? "registro" : "registros"} exibidos.`
+        }
+        variant="elevated"
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+          </div>
+        ) : (
+          <TableShell>
+            <thead>
+              <tr>
+                <Th>Nome</Th>
+                <Th>CPF</Th>
+                <Th>Celular</Th>
+                <Th>E-mail</Th>
+                <Th className="w-10 text-center" title="Documentação">
+                  Doc.
+                </Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
             {items.map((s) => {
               const docAlert = documentationAlert(s);
               return (
@@ -376,7 +402,8 @@ export default function StudentsPage() {
                   </div>
                 </Td>
               </tr>
-            );})}
+              );
+            })}
             {items.length === 0 && (
               <tr>
                 <Td colSpan={6} className="text-[var(--text-secondary)]">
@@ -385,8 +412,9 @@ export default function StudentsPage() {
               </tr>
             )}
           </tbody>
-        </Table>
-      )}
+          </TableShell>
+        )}
+      </SectionCard>
 
       <Modal
         open={open}

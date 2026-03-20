@@ -1,8 +1,10 @@
 "use client";
 
+import { GraduationCap, LayoutDashboard, Star, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { DashboardHero, QuickActionGrid, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Td, Th } from "@/components/ui/Table";
@@ -70,107 +72,148 @@ export default function MinhasTurmasPage() {
     return new Date(iso).toLocaleDateString("pt-BR");
   }
 
+  const subtitle = loading
+    ? "Carregando turmas em que você está matriculado…"
+    : enrollments.length === 0
+      ? "Você não está matriculado em nenhuma turma no momento."
+      : `${enrollments.length} ${enrollments.length === 1 ? "matrícula ativa" : "matrículas ativas"}`;
+
   return (
-    <div className="container-page flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-8 pb-4 sm:gap-10">
       <nav aria-label="Navegação" className="flex flex-wrap items-center justify-end gap-2">
         <Link
           href="/minhas-turmas/favoritos"
-          className="text-sm font-medium text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-amber-500/40 hover:bg-amber-500/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
         >
-          ★ Minha lista de favoritos
+          <Star className="h-4 w-4 shrink-0 text-amber-500" aria-hidden />
+          Minha lista de favoritos
         </Link>
       </nav>
 
-      <div className="card">
-        <header className="card-header">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-            Minhas turmas
-          </h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {loading
-              ? "Turmas em que você está matriculado."
-              : enrollments.length === 0
-                ? "Você não está matriculado em nenhuma turma no momento."
-                : `${enrollments.length} ${enrollments.length === 1 ? "turma" : "turmas"}`}
-          </p>
-        </header>
-        <div className="card-body">
-          {loading ? (
-            <div className="py-10 text-center text-[var(--text-secondary)]" role="status">
-              Carregando turmas...
-            </div>
-          ) : enrollments.length === 0 ? (
-            <div
-              className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-10 text-center"
-              role="status"
+      <DashboardHero
+        eyebrow="Área do aluno"
+        title="Minhas turmas"
+        description={subtitle}
+      />
+
+      <SectionCard
+        title="Suas matrículas"
+        description="Curso, professor, datas e status — abra os detalhes para acessar conteúdo e exercícios."
+        variant="elevated"
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-12 w-12 animate-pulse rounded-2xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-4 text-sm font-medium text-[var(--text-muted)]">Carregando turmas…</p>
+          </div>
+        ) : enrollments.length === 0 ? (
+          <div
+            className="rounded-2xl border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-6 py-14 text-center"
+            role="status"
+          >
+            <GraduationCap className="mx-auto h-12 w-12 text-[var(--text-muted)]" aria-hidden />
+            <p className="mt-4 text-sm font-medium text-[var(--text-muted)]">
+              Você não está matriculado em nenhuma turma no momento.
+            </p>
+            <Link
+              href="/dashboard"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[var(--igh-primary)] px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-[var(--igh-primary)]/20 transition hover:opacity-95"
             >
-              <p className="text-sm text-[var(--text-muted)]">
-                Você não está matriculado em nenhuma turma no momento.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Curso</Th>
-                    <Th>Professor</Th>
-                    <Th>Início</Th>
-                    <Th>Status</Th>
-                    <Th>Local</Th>
-                    <Th></Th>
+              Ir ao painel
+            </Link>
+          </div>
+        ) : (
+          <TableShell>
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Curso</Th>
+                  <Th>Professor</Th>
+                  <Th>Início</Th>
+                  <Th>Status</Th>
+                  <Th>Local</Th>
+                  <Th></Th>
+                </tr>
+              </thead>
+              <tbody>
+                {enrollments.map((e) => (
+                  <tr key={e.id}>
+                    <Td>{e.courseName}</Td>
+                    <Td>
+                      <div className="flex items-center gap-2">
+                        {e.teacherPhotoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={e.teacherPhotoUrl}
+                            alt=""
+                            className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-[var(--card-border)]"
+                          />
+                        ) : (
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--igh-surface)] text-xs font-semibold text-[var(--text-muted)] ring-1 ring-[var(--card-border)]"
+                            aria-hidden
+                          >
+                            {e.teacherName
+                              .split(/\s+/)
+                              .slice(0, 2)
+                              .map((w) => w[0])
+                              .join("")
+                              .toUpperCase() || "?"}
+                          </span>
+                        )}
+                        <span>{e.teacherName}</span>
+                      </div>
+                    </Td>
+                    <Td>{formatDate(e.startDate)}</Td>
+                    <Td>
+                      <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
+                    </Td>
+                    <Td>{e.location ?? "—"}</Td>
+                    <Td>
+                      <Link
+                        href={`/minhas-turmas/${e.id}`}
+                        className="font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+                      >
+                        Ver detalhes
+                      </Link>
+                    </Td>
                   </tr>
-                </thead>
-                <tbody>
-                  {enrollments.map((e) => (
-                    <tr key={e.id}>
-                      <Td>{e.courseName}</Td>
-                      <Td>
-                        <div className="flex items-center gap-2">
-                          {e.teacherPhotoUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={e.teacherPhotoUrl}
-                              alt=""
-                              className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-[var(--card-border)]"
-                            />
-                          ) : (
-                            <span
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--igh-surface)] text-xs font-semibold text-[var(--text-muted)] ring-1 ring-[var(--card-border)]"
-                              aria-hidden
-                            >
-                              {e.teacherName
-                                .split(/\s+/)
-                                .slice(0, 2)
-                                .map((w) => w[0])
-                                .join("")
-                                .toUpperCase() || "?"}
-                            </span>
-                          )}
-                          <span>{e.teacherName}</span>
-                        </div>
-                      </Td>
-                      <Td>{formatDate(e.startDate)}</Td>
-                      <Td>
-                        <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
-                      </Td>
-                      <Td>{e.location ?? "—"}</Td>
-                      <Td>
-                        <Link
-                          href={`/minhas-turmas/${e.id}`}
-                          className="text-[var(--igh-primary)] font-medium underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
-                        >
-                          Ver detalhes
-                        </Link>
-                      </Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </div>
-          )}
-        </div>
-      </div>
+                ))}
+              </tbody>
+            </Table>
+          </TableShell>
+        )}
+      </SectionCard>
+
+      <section aria-label="Atalhos">
+        <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">Atalhos úteis</h2>
+        <p className="mb-4 text-sm text-[var(--text-muted)]">Acesso rápido ao que você usa com frequência.</p>
+        <QuickActionGrid
+          items={[
+            {
+              href: "/dashboard",
+              label: "Painel inicial",
+              description: "Resumo e progresso",
+              icon: LayoutDashboard,
+              accent: "from-[var(--igh-primary)] to-violet-600",
+            },
+            {
+              href: "/minhas-turmas/favoritos",
+              label: "Favoritos",
+              description: "Aulas salvas para revisar",
+              icon: Star,
+              accent: "from-amber-500 to-orange-600",
+            },
+            {
+              href: "/meus-dados",
+              label: "Meus dados",
+              description: "Cadastro e documentos",
+              icon: UserCircle,
+              accent: "from-emerald-500 to-teal-600",
+            },
+          ]}
+        />
+      </section>
     </div>
   );
 }

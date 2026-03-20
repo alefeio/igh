@@ -28,14 +28,18 @@ app.prepare().then(() => {
           const chunks = [];
           req.on("data", (chunk) => chunks.push(chunk));
           req.on("end", () => {
+            let forUserId;
             try {
               const body = Buffer.concat(chunks).toString("utf8");
               if (body) {
                 const parsed = JSON.parse(body);
                 if (parsed.audience === "student" || parsed.audience === "admin") audience = parsed.audience;
+                if (typeof parsed.forUserId === "string" && parsed.forUserId.length > 0) {
+                  forUserId = parsed.forUserId;
+                }
               }
             } catch (_) {}
-            broadcastSupportBadge(audience);
+            broadcastSupportBadge(audience, forUserId);
             res.writeHead(204);
             res.end();
           });

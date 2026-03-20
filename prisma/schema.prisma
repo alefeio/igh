@@ -40,6 +40,27 @@ model User {
   emailCampaignsConfirmed    EmailCampaign[]     @relation("EmailCampaignConfirmedBy")
   emailCampaignsCanceled     EmailCampaign[]     @relation("EmailCampaignCanceledBy")
   emailTemplatesCreated       EmailTemplate[]     @relation("EmailTemplateCreatedBy")
+  platformExperienceFeedbacks PlatformExperienceFeedback[]
+}
+
+/** Avaliação da experiência do aluno (plataforma, aulas, professor, comentário e indicação). */
+model PlatformExperienceFeedback {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** Nota de 1 a 10 — plataforma (navegação, uso geral). */
+  ratingPlatform Int
+  /** Nota de 1 a 10 — aulas e conteúdo. */
+  ratingLessons  Int
+  /** Nota de 1 a 10 — atuação do(s) professor(es). */
+  ratingTeacher  Int
+  comment   String?  @db.Text
+  /** Texto livre: quem indicaria, contato, etc. */
+  referral  String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model SentEmail {
@@ -219,12 +240,14 @@ model ClassSession {
 
 /** Frequência do aluno em uma sessão de aula (professor marca presença). */
 model SessionAttendance {
-  id             String       @id @default(uuid())
-  classSessionId String
-  enrollmentId   String
-  present        Boolean      @default(false)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                   String       @id @default(uuid())
+  classSessionId       String
+  enrollmentId         String
+  present              Boolean      @default(false)
+  /** Justificativa informada pelo professor quando o aluno está ausente (opcional). */
+  absenceJustification String?      @db.Text
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
   classSession   ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
   enrollment     Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 

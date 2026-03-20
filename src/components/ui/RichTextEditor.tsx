@@ -269,7 +269,7 @@ export function RichTextEditor({
       <div className={toolbarClassName}>
         {toolbarContent}
       </div>
-      <div className="overflow-hidden rounded-b-md">
+      <div className="lesson-rich-html overflow-hidden rounded-b-md">
         <EditorContent editor={editor} />
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -391,49 +392,64 @@ export default function ClassGroupsPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-lg font-semibold">Turmas</div>
-          <div className="text-sm text-[var(--text-secondary)]">
-            Todas as turmas. Pesquise por curso, data de início ou horário e filtre por status.
+    <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      <DashboardHero
+        eyebrow="Operação"
+        title="Turmas"
+        description="Todas as turmas do sistema. Pesquise por curso, data de início ou horário e filtre por status."
+        rightSlot={
+          <Button onClick={openCreate} className="w-full sm:w-auto">
+            Nova turma
+          </Button>
+        }
+      />
+
+      <SectionCard title="Filtros" description="Refine a listagem antes de editar ou criar sessões." variant="elevated">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <div className="min-w-0 flex-1 sm:max-w-xs">
+            <Input
+              type="text"
+              placeholder="Pesquisar por curso, data ou horário"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="theme-input w-full rounded-md border px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-[var(--text-muted)]">Status:</span>
+            {STATUS_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => toggleStatusFilter(value)}
+                className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                  statusFilters.includes(value)
+                    ? "bg-[var(--igh-primary)] text-white"
+                    : "bg-[var(--igh-surface)] text-[var(--igh-muted)] hover:bg-[var(--card-border)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
-        <Button onClick={openCreate} className="w-full sm:w-auto">Nova</Button>
-      </div>
+      </SectionCard>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-        <div className="min-w-0 flex-1 sm:max-w-xs">
-          <Input
-            type="text"
-            placeholder="Pesquisar por curso, data ou horário"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="theme-input w-full rounded-md border px-3 py-2 text-sm"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-[var(--text-muted)]">Status:</span>
-          {STATUS_OPTIONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => toggleStatusFilter(value)}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                statusFilters.includes(value)
-                  ? "bg-[var(--igh-primary)] text-white"
-                  : "bg-[var(--igh-surface)] text-[var(--igh-muted)] hover:bg-[var(--card-border)]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
-      ) : (
+      <SectionCard
+        title="Listagem de turmas"
+        description={
+          loading
+            ? "Carregando…"
+            : `${visibleItems.length} ${visibleItems.length === 1 ? "turma" : "turmas"} com os filtros atuais.`
+        }
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+          </div>
+        ) : (
+        <TableShell>
         <Table>
           <thead>
             <tr>
@@ -517,7 +533,9 @@ export default function ClassGroupsPage() {
             ) : null}
           </tbody>
         </Table>
-      )}
+        </TableShell>
+        )}
+      </SectionCard>
 
       <Modal
         open={open}

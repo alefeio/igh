@@ -84,9 +84,9 @@ export async function GET(
   });
   const attendances = await prisma.sessionAttendance.findMany({
     where: { classSessionId: sessionId },
-    select: { enrollmentId: true, present: true },
+    select: { enrollmentId: true, present: true, absenceJustification: true },
   });
-  const byEnrollment = new Map(attendances.map((a) => [a.enrollmentId, a.present]));
+  const byEnrollment = new Map(attendances.map((a) => [a.enrollmentId, a]));
 
   return jsonOk({
     sessionId,
@@ -97,18 +97,22 @@ export async function GET(
       const docsMissing = !hasIdDocument || !hasAddressProof;
       const dataComplete = isDataComplete(st);
       const documentationAlert = docsMissing ? (dataComplete ? "yellow" : "red") : null;
+      const row = byEnrollment.get(e.id);
       return {
         enrollmentId: e.id,
         studentName: st.name,
         studentId: st.id,
-        present: byEnrollment.get(e.id) ?? false,
+        present: row?.present ?? false,
+        absenceJustification: row?.absenceJustification ?? null,
         documentationAlert,
       };
     }),
   });
 }
 
-/** Atualiza frequência da sessão. Body: { attendance: { enrollmentId: string, present: boolean }[] }. */
+const MAX_ABSENCE_JUSTIFICATION = 2000;
+
+/** Atualiza frequência da sessão. Body: { attendance: { enrollmentId, present, absenceJustification? }[] }. */
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string; sessionId: string }> }
@@ -123,13 +127,21 @@ export async function PATCH(
 
   const body = await request.json().catch(() => null);
   const list = Array.isArray(body?.attendance) ? body.attendance : [];
-  const valid = list.filter(
-    (x: unknown) =>
-      x &&
-      typeof x === "object" &&
-      typeof (x as { enrollmentId?: string }).enrollmentId === "string" &&
-      typeof (x as { present?: boolean }).present === "boolean"
-  );
+
+  const parsed: { enrollmentId: string; present: boolean; absenceJustification: string | null }[] = [];
+  for (const x of list) {
+    if (!x || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    if (typeof o.enrollmentId !== "string" || typeof o.present !== "boolean") continue;
+    let absenceJustification: string | null = null;
+    if (o.present === false) {
+      if (typeof o.absenceJustification === "string") {
+        const t = o.absenceJustification.trim().slice(0, MAX_ABSENCE_JUSTIFICATION);
+        absenceJustification = t.length > 0 ? t : null;
+      }
+    }
+    parsed.push({ enrollmentId: o.enrollmentId, present: o.present, absenceJustification });
+  }
 
   const enrollmentIds = await prisma.enrollment
     .findMany({
@@ -140,9 +152,9 @@ export async function PATCH(
   const allowed = new Set(enrollmentIds);
 
   await prisma.$transaction(
-    valid
-      .filter((x: { enrollmentId: string; present: boolean }) => allowed.has(x.enrollmentId))
-      .map((x: { enrollmentId: string; present: boolean }) =>
+    parsed
+      .filter((x) => allowed.has(x.enrollmentId))
+      .map((x) =>
         prisma.sessionAttendance.upsert({
           where: {
             classSessionId_enrollmentId: {
@@ -154,17 +166,21 @@ export async function PATCH(
             classSessionId: sessionId,
             enrollmentId: x.enrollmentId,
             present: x.present,
+            absenceJustification: x.present ? null : x.absenceJustification,
           },
-          update: { present: x.present },
+          update: {
+            present: x.present,
+            absenceJustification: x.present ? null : x.absenceJustification,
+          },
         })
       )
   );
 
   const attendances = await prisma.sessionAttendance.findMany({
     where: { classSessionId: sessionId },
-    select: { enrollmentId: true, present: true },
+    select: { enrollmentId: true, present: true, absenceJustification: true },
   });
-  const byEnrollment = new Map(attendances.map((a) => [a.enrollmentId, a.present]));
+  const byEnrollment = new Map(attendances.map((a) => [a.enrollmentId, a]));
   const enrollmentsAfter = await prisma.enrollment.findMany({
     where: { classGroupId, status: "ACTIVE" },
     orderBy: { student: { name: "asc" } },
@@ -194,10 +210,12 @@ export async function PATCH(
       const docsMissing = !hasIdDocument || !hasAddressProof;
       const dataComplete = isDataComplete(st);
       const documentationAlert = docsMissing ? (dataComplete ? "yellow" : "red") : null;
+      const row = byEnrollment.get(e.id);
       return {
         enrollmentId: e.id,
         studentName: st.name,
-        present: byEnrollment.get(e.id) ?? false,
+        present: row?.present ?? false,
+        absenceJustification: row?.absenceJustification ?? null,
         documentationAlert,
       };
     }),

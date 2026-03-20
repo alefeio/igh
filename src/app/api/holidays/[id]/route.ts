@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateHolidaySchema } from "@/lib/validators/holidays";
 import { createAuditLog } from "@/lib/audit";
+import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-sessions-holiday-resync";
 import { SENTINEL_YEAR_RECURRING } from "@/lib/schedule";
 
 export async function GET(
@@ -72,7 +73,9 @@ export async function PATCH(
     performedByUserId: user.id,
   });
 
-  return jsonOk({ holiday: updated });
+  const scheduleRecalculation = await recalculateAllClassGroupSessionsAfterHolidayChange();
+
+  return jsonOk({ holiday: updated, scheduleRecalculation });
 }
 
 export async function DELETE(
@@ -95,5 +98,7 @@ export async function DELETE(
     performedByUserId: user.id,
   });
 
-  return jsonOk({ deleted: true });
+  const scheduleRecalculation = await recalculateAllClassGroupSessionsAfterHolidayChange();
+
+  return jsonOk({ deleted: true, scheduleRecalculation });
 }

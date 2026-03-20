@@ -3,9 +3,9 @@
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
+import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { ApiResponse } from "@/lib/api-types";
 
@@ -52,13 +52,14 @@ export default function TrocarSenhaPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md">
-      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Trocar senha</h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Por segurança, altere sua senha temporária antes de continuar.
-        </p>
-        <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-6 sm:gap-8">
+      <DashboardHero
+        eyebrow="Conta"
+        title="Trocar senha"
+        description="Por segurança, altere sua senha temporária antes de continuar."
+      />
+      <SectionCard title="Definir nova senha" variant="elevated">
+        <form onSubmit={submit} className="flex flex-col gap-4">
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)]">Senha atual</label>
             <div className="mt-1">
@@ -98,7 +99,7 @@ export default function TrocarSenhaPage() {
             {loading ? "Alterando..." : "Alterar senha"}
           </Button>
         </form>
-      </div>
+      </SectionCard>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -149,12 +150,13 @@ export default function MinhasTurmasDetailPage() {
 
   if (loading || !data) {
     return (
-      <div className="container-page flex flex-col gap-6">
+      <div className="flex min-w-0 flex-col gap-6">
         <Link
-          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
           href="/minhas-turmas"
         >
-          ← Voltar às turmas
+          <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+          Voltar às turmas
         </Link>
         <div className="card">
           <div className="card-body py-10 text-center text-[var(--text-secondary)]">
@@ -169,14 +171,15 @@ export default function MinhasTurmasDetailPage() {
   const hasConteudo = e.sessions.some((s) => s.status === "LIBERADA");
 
   return (
-    <div className="container-page flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <nav aria-label="Navegação">
         <Link
           data-tour="mt-voltar"
-          className="text-sm text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
           href="/minhas-turmas"
         >
-          ← Voltar às turmas
+          <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+          Voltar às turmas
         </Link>
       </nav>
 

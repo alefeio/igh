@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { requireSessionUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -44,6 +46,7 @@ export default async function ProfessorTurmasPage() {
       endTime: true,
       status: true,
       capacity: true,
+      location: true,
       _count: { select: { enrollments: true } },
     },
   });
@@ -55,26 +58,33 @@ export default async function ProfessorTurmasPage() {
     endTime: cg.endTime,
     status: cg.status,
     capacity: cg.capacity,
+    location: cg.location,
     enrollmentsCount: cg._count.enrollments,
   }));
 
   return (
-    <div className="container-page flex flex-col gap-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-          Turmas que leciono
-        </h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Acesse cada turma para ver a lista de alunos, exercícios realizados e registrar frequência nas aulas liberadas.
-        </p>
-      </header>
+    <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      <DashboardHero
+        eyebrow="Professor"
+        title="Turmas que leciono"
+        description="Lista de alunos, exercícios e frequência — abra cada turma para gerenciar."
+      />
 
+      <SectionCard
+        title="Suas turmas"
+        description={
+          classGroupsForTable.length === 0
+            ? "Nenhuma turma atribuída no momento."
+            : `${classGroupsForTable.length} ${classGroupsForTable.length === 1 ? "turma" : "turmas"}.`
+        }
+        variant="elevated"
+      >
       {classGroupsForTable.length === 0 ? (
-        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-8 text-center text-[var(--text-muted)]">
+        <div className="rounded-2xl border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-6 py-12 text-center text-[var(--text-muted)]">
           Você não tem turmas atribuídas no momento.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]">
+        <TableShell>
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]">
@@ -82,6 +92,7 @@ export default async function ProfessorTurmasPage() {
                 <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Status</th>
                 <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Início</th>
                 <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Horário</th>
+                <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Local</th>
                 <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Alunos</th>
                 <th className="px-3 py-2 text-right font-medium text-[var(--text-primary)]">Ações</th>
               </tr>
@@ -104,6 +115,9 @@ export default async function ProfessorTurmasPage() {
                   <td className="px-3 py-2 text-[var(--text-secondary)]">
                     {cg.startTime} – {cg.endTime}
                   </td>
+                  <td className="px-3 py-2 text-[var(--text-secondary)] max-w-[200px] truncate" title={cg.location ?? undefined}>
+                    {cg.location?.trim() ? cg.location : "—"}
+                  </td>
                   <td className="px-3 py-2 text-[var(--text-secondary)]">
                     {cg.enrollmentsCount} / {cg.capacity}
                   </td>
@@ -119,8 +133,9 @@ export default async function ProfessorTurmasPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableShell>
       )}
+      </SectionCard>
     </div>
   );
 }

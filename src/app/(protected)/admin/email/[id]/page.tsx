@@ -94,6 +94,7 @@ export default function EmailCampaignDetailPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [resendingFailedBatch, setResendingFailedBatch] = useState(false);
   const [resendingRecipientId, setResendingRecipientId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
     totalFound: number;
@@ -170,6 +171,50 @@ export default function EmailCampaignDetailPage() {
       await load();
     } finally {
       setProcessing(false);
+    }
+  }
+
+  async function handleResendAllFailed() {
+    if (!id || resendingFailedBatch || !campaign) return;
+    const failedCount = campaign.recipients.filter((r) => r.status === "FAILED").length;
+    if (failedCount === 0) return;
+    if (
+      !confirm(
+        `Reenfileirar e iniciar o envio para ${failedCount} destinatário(s) com status «Falha»?`
+      )
+    ) {
+      return;
+    }
+    setProcessError(null);
+    setResendingFailedBatch(true);
+    try {
+      const res = await fetch(`/api/email/campaigns/${id}/resend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ onlyFailed: true }),
+      });
+      const json = (await res.json()) as ApiResponse<{
+        requeued: number;
+        processed: number;
+        remaining: number;
+        done: boolean;
+      }>;
+      if (!res.ok || !json.ok) {
+        const msg = !json.ok
+          ? json.error?.message ?? "Falha ao reenfileirar."
+          : "Falha ao reenfileirar.";
+        setProcessError(msg);
+        toast.push("error", msg);
+        return;
+      }
+      toast.push(
+        "success",
+        `${json.data.requeued} reenfileirado(s). Processados ${json.data.processed} neste lote. Restantes: ${json.data.remaining}.`
+      );
+      await load();
+    } finally {
+      setResendingFailedBatch(false);
     }
   }
 
@@ -341,6 +386,12 @@ export default function EmailCampaignDetailPage() {
     campaign.status === "PROCESSING" || campaign.status === "SCHEDULED";
   const hasPending = campaign.recipients.some((r) => r.status === "PENDING");
   const isDraft = campaign.status === "DRAFT";
+  const failedRecipientCount = campaign.recipients.filter((r) => r.status === "FAILED").length;
+  const pendingRecipientCount = campaign.recipients.filter((r) => r.status === "PENDING").length;
+  const canResendFailedBatch =
+    failedRecipientCount > 0 &&
+    campaign.status !== "DRAFT" &&
+    campaign.status !== "CANCELED";
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
@@ -454,11 +505,38 @@ export default function EmailCampaignDetailPage() {
             </Button>
           </div>
         )}
-        {canProcess && hasPending && !processError && (
-          <div className="mt-4">
-            <Button onClick={handleProcessBatch} disabled={processing}>
-              {processing ? "Processando..." : "Processar lote"}
+        {canResendFailedBatch && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => void handleResendAllFailed()}
+              disabled={resendingFailedBatch || processing}
+              title="Coloca novamente na fila apenas quem está com status Falha e processa um lote"
+            >
+              {resendingFailedBatch
+                ? "Reenfileirando..."
+                : `Reenviar todos com falha (${failedRecipientCount})`}
             </Button>
+            <span className="text-xs text-[var(--text-muted)]">
+              Apenas destinatários com status «Falha»; ignora bounce e reclamação.
+            </span>
+          </div>
+        )}
+        {canProcess && hasPending && !processError && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button
+              onClick={handleProcessBatch}
+              disabled={processing || resendingFailedBatch}
+              title="Envia e-mail apenas para destinatários com status Pendente (até 25 por clique)"
+            >
+              {processing
+                ? "Processando..."
+                : `Processar apenas pendentes (${pendingRecipientCount})`}
+            </Button>
+            <span className="text-xs text-[var(--text-muted)]">
+              Somente quem está com status «Pendente»; até 25 por vez. Outros status não entram neste
+              lote.
+            </span>
           </div>
         )}
         {canCancel && (

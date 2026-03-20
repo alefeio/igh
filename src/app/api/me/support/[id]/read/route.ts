@@ -29,7 +29,7 @@ export async function PATCH(
     data: { studentLastReadAt: new Date() },
   });
 
-  broadcastSupportBadgeUpdate();
+  broadcastSupportBadgeUpdate("student", user.id);
 
   return jsonOk({ ok: true });
 }

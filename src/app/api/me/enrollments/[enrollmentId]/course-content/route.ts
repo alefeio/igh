@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId, getCourseLessonIdsInOrder } from "@/lib/course-modules";
+import { getEndOfTodayBrazil } from "@/lib/brazil-today";
 
 export const dynamic = "force-dynamic";
 
@@ -21,18 +22,6 @@ function resolveCourseImageUrl(
     }
   }
   return null;
-}
-
-/** Fim do dia de hoje no fuso do Brasil (UTC−3), para liberar sessões pelo calendário local. */
-function getEndOfTodayBrazil(): Date {
-  const BRAZIL_UTC_OFFSET_HOURS = 3; // BRT = UTC−3 → subtrair 3h de UTC para obter a "data" em Brasil
-  const now = new Date();
-  const brazilMoment = new Date(now.getTime() - BRAZIL_UTC_OFFSET_HOURS * 60 * 60 * 1000);
-  const y = brazilMoment.getUTCFullYear();
-  const m = brazilMoment.getUTCMonth();
-  const d = brazilMoment.getUTCDate();
-  // Fim desse dia em Brasil = 23:59:59.999 BRT = 02:59:59.999 do dia seguinte em UTC
-  return new Date(Date.UTC(y, m, d, 23 + BRAZIL_UTC_OFFSET_HOURS, 59, 59, 999));
 }
 
 /** Conteúdo do curso por módulos e aulas; marca quais aulas estão liberadas para esta matrícula. Apenas STUDENT. */

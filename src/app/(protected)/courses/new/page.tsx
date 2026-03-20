@@ -57,7 +57,7 @@ export default function NewCoursePage() {
   }
 
   return (
-    <div className="container-page flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <header className="flex flex-col gap-2">
         <Button variant="ghost" size="sm" className="-ml-1 w-fit text-[var(--text-muted)]" onClick={() => router.push("/courses")}>
           ← Voltar aos cursos

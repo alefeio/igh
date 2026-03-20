@@ -47,7 +47,9 @@ export async function GET() {
     const lastMsg = t.messages[0];
     const lastRead = t.studentLastReadAt ?? new Date(0);
     const hasUnread =
-      lastMsg?.isFromSupport === true && lastMsg.createdAt > lastRead;
+      t.status !== "CLOSED" &&
+      lastMsg?.isFromSupport === true &&
+      lastMsg.createdAt > lastRead;
 
     // Status exibido depende de quem está vendo:
     // - Se estiver fechado, sempre CLOSED.

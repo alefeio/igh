@@ -299,7 +299,7 @@ export default function LessonEditPage() {
 
   if (loading || (isNew && !moduleIdFromQuery) || (!isNew && !moduleId)) {
     return (
-      <div className="container-page">
+      <div className="min-w-0">
         <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-12 text-center text-[var(--text-muted)]">
           Carregando...
         </div>
@@ -308,7 +308,7 @@ export default function LessonEditPage() {
   }
 
   return (
-    <div className="container-page flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <DashboardTutorial showForStudent={user.role !== "MASTER"} steps={tutorialSteps} storageKey="teacher-lesson-edit-tutorial-done" />
       <header className="flex flex-col gap-2">
         <Button variant="ghost" size="sm" className="-ml-1 w-fit text-[var(--text-muted)]" onClick={() => router.push(`/courses/${courseId}/edit`)} data-tour="lesson-edit-back">

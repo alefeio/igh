@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Holiday = {
@@ -18,6 +19,19 @@ type Holiday = {
   isActive: boolean;
   createdAt: string;
 };
+
+type ScheduleRecalculation = {
+  classGroupsProcessed: number;
+  classGroupsUpdated: number;
+};
+
+function successMessageWithSchedule(
+  base: string,
+  schedule?: ScheduleRecalculation | null
+): string {
+  if (!schedule || schedule.classGroupsUpdated <= 0) return base;
+  return `${base} Calendário de aulas recalculado para ${schedule.classGroupsUpdated} turma(s) não encerradas.`;
+}
 
 function formatDate(iso: string) {
   return iso.slice(0, 10);
@@ -108,24 +122,36 @@ export default function HolidaysPage() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const json = (await res.json()) as ApiResponse<{ holiday: Holiday }>;
+        const json = (await res.json()) as ApiResponse<{
+          holiday: Holiday;
+          scheduleRecalculation?: ScheduleRecalculation;
+        }>;
         if (!res.ok || !json.ok) {
           toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar feriado.");
           return;
         }
-        toast.push("success", "Feriado atualizado.");
+        toast.push(
+          "success",
+          successMessageWithSchedule("Feriado atualizado.", json.data.scheduleRecalculation)
+        );
       } else {
         const res = await fetch("/api/holidays", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const json = (await res.json()) as ApiResponse<{ holiday: Holiday }>;
+        const json = (await res.json()) as ApiResponse<{
+          holiday: Holiday;
+          scheduleRecalculation?: ScheduleRecalculation | null;
+        }>;
         if (!res.ok || !json.ok) {
           toast.push("error", !json.ok ? json.error.message : "Falha ao criar feriado.");
           return;
         }
-        toast.push("success", "Feriado criado.");
+        toast.push(
+          "success",
+          successMessageWithSchedule("Feriado criado.", json.data.scheduleRecalculation ?? null)
+        );
       }
       setOpen(false);
       resetForm();
@@ -141,12 +167,18 @@ export default function HolidaysPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ isActive: false }),
     });
-    const json = (await res.json()) as ApiResponse<{ holiday: Holiday }>;
+    const json = (await res.json()) as ApiResponse<{
+      holiday: Holiday;
+      scheduleRecalculation?: ScheduleRecalculation;
+    }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao inativar feriado.");
       return;
     }
-    toast.push("success", "Feriado inativado.");
+    toast.push(
+      "success",
+      successMessageWithSchedule("Feriado inativado.", json.data.scheduleRecalculation)
+    );
     await load();
   }
 
@@ -156,115 +188,142 @@ export default function HolidaysPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ isActive: true }),
     });
-    const json = (await res.json()) as ApiResponse<{ holiday: Holiday }>;
+    const json = (await res.json()) as ApiResponse<{
+      holiday: Holiday;
+      scheduleRecalculation?: ScheduleRecalculation;
+    }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao reativar feriado.");
       return;
     }
-    toast.push("success", "Feriado reativado.");
+    toast.push(
+      "success",
+      successMessageWithSchedule("Feriado reativado.", json.data.scheduleRecalculation)
+    );
     await load();
   }
 
   async function deleteHoliday(h: Holiday) {
     if (!confirm(`Excluir o feriado "${h.name || formatDateDisplay(h.date, h.recurring)}"?`)) return;
     const res = await fetch(`/api/holidays/${h.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{
+      deleted: boolean;
+      scheduleRecalculation?: ScheduleRecalculation;
+    }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao excluir feriado.");
       return;
     }
-    toast.push("success", "Feriado excluído.");
+    toast.push(
+      "success",
+      successMessageWithSchedule("Feriado excluído.", json.data.scheduleRecalculation)
+    );
     await load();
   }
 
   const visibleItems = showInactive ? items : items.filter((h) => h.isActive);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-lg font-semibold">Feriados</div>
-          <div className="text-sm text-[var(--text-secondary)]">
-            Feriados não geram aulas nas turmas. Por padrão, apenas ativos são exibidos.
+    <div className="flex min-w-0 flex-col gap-6 sm:gap-8">
+      <DashboardHero
+        eyebrow="Cadastros"
+        title="Feriados"
+        description="Feriados não geram aulas nas turmas. Por padrão, apenas ativos são exibidos."
+        rightSlot={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={() => setShowInactive((prev) => !prev)}
+            >
+              {showInactive ? "Ocultar inativos" : "Exibir inativos"}
+            </Button>
+            <Button onClick={openCreate} className="w-full sm:w-auto">
+              Novo feriado
+            </Button>
           </div>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setShowInactive((prev) => !prev)}
-          >
-            {showInactive ? "Ocultar inativos" : "Exibir inativos"}
-          </Button>
-          <Button onClick={openCreate} className="w-full sm:w-auto">Novo feriado</Button>
-        </div>
-      </div>
+        }
+      />
 
-      {loading ? (
-        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
-      ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Data</Th>
-              <Th>Nome</Th>
-              <Th>Status</Th>
-              <Th />
-            </tr>
-          </thead>
-          <tbody>
-            {visibleItems.map((h) => (
-              <tr key={h.id}>
-                <Td>{formatDateDisplay(h.date, h.recurring)}</Td>
-                <Td>{h.name ?? "-"}</Td>
-                <Td>
-                  {h.isActive ? (
-                    <Badge tone="green">Ativo</Badge>
-                  ) : (
-                    <Badge tone="red">Inativo</Badge>
-                  )}
-                </Td>
-                <Td>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="secondary" onClick={() => openEdit(h)}>
-                      Editar
-                    </Button>
+      <SectionCard
+        title="Listagem"
+        description={
+          loading
+            ? "Carregando…"
+            : `${visibleItems.length} ${visibleItems.length === 1 ? "registro" : "registros"} exibidos.`
+        }
+        variant="elevated"
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+          </div>
+        ) : (
+          <TableShell>
+            <thead>
+              <tr>
+                <Th>Data</Th>
+                <Th>Nome</Th>
+                <Th>Status</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {visibleItems.map((h) => (
+                <tr key={h.id}>
+                  <Td>{formatDateDisplay(h.date, h.recurring)}</Td>
+                  <Td>{h.name ?? "-"}</Td>
+                  <Td>
                     {h.isActive ? (
-                      <Button
-                        variant="secondary"
-                        onClick={() => inactivateHoliday(h)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Inativar
-                      </Button>
+                      <Badge tone="green">Ativo</Badge>
                     ) : (
-                      <>
-                        <Button variant="secondary" onClick={() => reactivateHoliday(h)}>
-                          Reativar
-                        </Button>
+                      <Badge tone="red">Inativo</Badge>
+                    )}
+                  </Td>
+                  <Td>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button variant="secondary" onClick={() => openEdit(h)}>
+                        Editar
+                      </Button>
+                      {h.isActive ? (
                         <Button
                           variant="secondary"
-                          onClick={() => deleteHoliday(h)}
+                          onClick={() => inactivateHoliday(h)}
                           className="text-red-600 hover:text-red-700"
                         >
-                          Excluir
+                          Inativar
                         </Button>
-                      </>
-                    )}
-                  </div>
-                </Td>
-              </tr>
-            ))}
-            {visibleItems.length === 0 ? (
-              <tr>
-                <Td colSpan={4} className="text-[var(--text-secondary)]">
-                  {showInactive ? "Nenhum feriado encontrado." : "Nenhum feriado ativo."}
-                </Td>
-              </tr>
-            ) : null}
-          </tbody>
-        </Table>
-      )}
+                      ) : (
+                        <>
+                          <Button variant="secondary" onClick={() => reactivateHoliday(h)}>
+                            Reativar
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => deleteHoliday(h)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            Excluir
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+              {visibleItems.length === 0 ? (
+                <tr>
+                  <Td colSpan={4} className="text-[var(--text-secondary)]">
+                    {showInactive ? "Nenhum feriado encontrado." : "Nenhum feriado ativo."}
+                  </Td>
+                </tr>
+              ) : null}
+            </tbody>
+          </TableShell>
+        )}
+      </SectionCard>
 
       <Modal
         open={open}

@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
 type TimeSlot = {
@@ -171,93 +172,108 @@ export default function TimeSlotsPage() {
   const visibleItems = showInactive ? items : items.filter((s) => s.isActive);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-lg font-semibold">Horários predefinidos</div>
-          <div className="text-sm text-[var(--text-secondary)]">
-            Cadastre horários (início e fim) para usar ao criar turmas e evitar erros de digitação.
+    <div className="flex min-w-0 flex-col gap-6 sm:gap-8">
+      <DashboardHero
+        eyebrow="Cadastros"
+        title="Horários predefinidos"
+        description="Cadastre início e fim para usar ao criar turmas e evitar erros de digitação."
+        rightSlot={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={() => setShowInactive((prev) => !prev)}
+            >
+              {showInactive ? "Ocultar inativos" : "Exibir inativos"}
+            </Button>
+            <Button onClick={openCreate} className="w-full sm:w-auto">
+              Novo horário
+            </Button>
           </div>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setShowInactive((prev) => !prev)}
-          >
-            {showInactive ? "Ocultar inativos" : "Exibir inativos"}
-          </Button>
-          <Button onClick={openCreate} className="w-full sm:w-auto">Novo horário</Button>
-        </div>
-      </div>
+        }
+      />
 
-      {loading ? (
-        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
-      ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Início</Th>
-              <Th>Fim</Th>
-              <Th>Nome (opcional)</Th>
-              <Th>Status</Th>
-              <Th />
-            </tr>
-          </thead>
-          <tbody>
-            {visibleItems.map((s) => (
-              <tr key={s.id}>
-                <Td>{s.startTime}</Td>
-                <Td>{s.endTime}</Td>
-                <Td>{s.name ?? "-"}</Td>
-                <Td>
-                  {s.isActive ? (
-                    <Badge tone="green">Ativo</Badge>
-                  ) : (
-                    <Badge tone="red">Inativo</Badge>
-                  )}
-                </Td>
-                <Td>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="secondary" onClick={() => openEdit(s)}>
-                      Editar
-                    </Button>
+      <SectionCard
+        title="Listagem"
+        description={
+          loading
+            ? "Carregando…"
+            : `${visibleItems.length} ${visibleItems.length === 1 ? "registro" : "registros"} exibidos.`
+        }
+        variant="elevated"
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+          </div>
+        ) : (
+          <TableShell>
+            <thead>
+              <tr>
+                <Th>Início</Th>
+                <Th>Fim</Th>
+                <Th>Nome (opcional)</Th>
+                <Th>Status</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {visibleItems.map((s) => (
+                <tr key={s.id}>
+                  <Td>{s.startTime}</Td>
+                  <Td>{s.endTime}</Td>
+                  <Td>{s.name ?? "-"}</Td>
+                  <Td>
                     {s.isActive ? (
-                      <Button
-                        variant="secondary"
-                        onClick={() => inactivateSlot(s)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Inativar
-                      </Button>
+                      <Badge tone="green">Ativo</Badge>
                     ) : (
-                      <>
-                        <Button variant="secondary" onClick={() => reactivateSlot(s)}>
-                          Reativar
-                        </Button>
+                      <Badge tone="red">Inativo</Badge>
+                    )}
+                  </Td>
+                  <Td>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button variant="secondary" onClick={() => openEdit(s)}>
+                        Editar
+                      </Button>
+                      {s.isActive ? (
                         <Button
                           variant="secondary"
-                          onClick={() => deleteSlot(s)}
+                          onClick={() => inactivateSlot(s)}
                           className="text-red-600 hover:text-red-700"
                         >
-                          Excluir
+                          Inativar
                         </Button>
-                      </>
-                    )}
-                  </div>
-                </Td>
-              </tr>
-            ))}
-            {visibleItems.length === 0 ? (
-              <tr>
-                <Td colSpan={5} className="text-[var(--text-secondary)]">
-                  {showInactive ? "Nenhum horário encontrado." : "Nenhum horário ativo. Cadastre em Horários."}
-                </Td>
-              </tr>
-            ) : null}
-          </tbody>
-        </Table>
-      )}
+                      ) : (
+                        <>
+                          <Button variant="secondary" onClick={() => reactivateSlot(s)}>
+                            Reativar
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => deleteSlot(s)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            Excluir
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+              {visibleItems.length === 0 ? (
+                <tr>
+                  <Td colSpan={5} className="text-[var(--text-secondary)]">
+                    {showInactive ? "Nenhum horário encontrado." : "Nenhum horário ativo. Cadastre um novo horário."}
+                  </Td>
+                </tr>
+              ) : null}
+            </tbody>
+          </TableShell>
+        )}
+      </SectionCard>
 
       <Modal
         open={open}

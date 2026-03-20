@@ -79,7 +79,9 @@ export function RichTextViewer({ content, className = "" }: RichTextViewerProps)
   }
 
   return (
-    <div className={`prose prose-sm max-w-none text-[var(--text-secondary)] ${className}`}>
+    <div
+      className={`lesson-rich-html prose prose-sm max-w-none text-[var(--text-secondary)] ${className}`}
+    >
       <EditorContent editor={editor} />
     </div>
   );

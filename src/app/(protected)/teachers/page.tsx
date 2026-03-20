@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -184,36 +185,46 @@ export default function TeachersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-lg font-semibold">Professores</div>
-          <div className="text-sm text-[var(--text-secondary)]">
-            Filtro: Ativos (padrão), Inativos ou Todos. Inativos podem ser reativados.
+    <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      <DashboardHero
+        eyebrow="Cadastros"
+        title="Professores"
+        description="Filtro: ativos (padrão), inativos ou todos. Inativos podem ser reativados ou excluídos."
+        rightSlot={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <div className="flex rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-0.5 text-sm shadow-sm">
+              {(["active", "inactive", "all"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatusFilter(s)}
+                  className={`rounded-lg px-3 py-1.5 touch-manipulation ${
+                    statusFilter === s ? "bg-[var(--igh-primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                >
+                  {s === "active" ? "Ativos" : s === "inactive" ? "Inativos" : "Todos"}
+                </button>
+              ))}
+            </div>
+            <Button onClick={openCreate} className="w-full sm:w-auto">
+              Novo professor
+            </Button>
           </div>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <div className="flex rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] p-0.5 text-sm">
-            {(["active", "inactive", "all"] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatusFilter(s)}
-                className={`rounded px-3 py-1.5 touch-manipulation ${
-                  statusFilter === s ? "bg-[var(--igh-primary)] text-white" : "text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                }`}
-              >
-                {s === "active" ? "Ativos" : s === "inactive" ? "Inativos" : "Todos"}
-              </button>
-            ))}
-          </div>
-          <Button onClick={openCreate} className="w-full sm:w-auto">Novo</Button>
-        </div>
-      </div>
+        }
+      />
 
-      {loading ? (
-        <div className="text-sm text-[var(--text-secondary)]">Carregando...</div>
-      ) : (
+      <SectionCard
+        title="Corpo docente"
+        description={loading ? "Carregando…" : `${items.length} ${items.length === 1 ? "cadastro" : "cadastros"}.`}
+        variant="elevated"
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+          </div>
+        ) : (
+        <TableShell>
         <Table>
           <thead>
             <tr>
@@ -291,7 +302,9 @@ export default function TeachersPage() {
             ) : null}
           </tbody>
         </Table>
-      )}
+        </TableShell>
+        )}
+      </SectionCard>
 
       <Modal
         open={open}

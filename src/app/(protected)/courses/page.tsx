@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { useUser } from "@/components/layout/UserProvider";
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Table, Td, Th } from "@/components/ui/Table";
@@ -110,55 +111,52 @@ export default function CoursesPage() {
   }
 
   return (
-    <div className="container-page flex flex-col gap-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
-            Cursos
-          </h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Cadastre cursos, módulos e aulas. Por padrão são exibidos apenas os ativos. «Não listado» não aparece no site.
-          </p>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setShowInactive((prev) => !prev)}
-            className="w-full sm:w-auto"
-          >
-            {showInactive ? "Ocultar inativos e não listados" : "Exibir inativos e não listados"}
-          </Button>
-          <Button onClick={() => router.push("/courses/new")} className="w-full sm:w-auto">
-            Novo curso
-          </Button>
-        </div>
-      </header>
+    <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      <DashboardHero
+        eyebrow={isTeacher ? "Área do professor" : "Conteúdo"}
+        title="Cursos"
+        description={
+          isTeacher
+            ? "Cursos aos quais você tem acesso para edição."
+            : "Cadastre cursos, módulos e aulas. Por padrão só aparecem ativos. «Não listado» não entra no site."
+        }
+        rightSlot={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowInactive((prev) => !prev)}
+              className="w-full sm:w-auto"
+            >
+              {showInactive ? "Ocultar inativos e não listados" : "Exibir inativos e não listados"}
+            </Button>
+            <Button onClick={() => router.push("/courses/new")} className="w-full sm:w-auto">
+              Novo curso
+            </Button>
+          </div>
+        }
+      />
 
       {loading ? (
-        <div
-          className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-12 text-center text-[var(--text-muted)]"
-          role="status"
-          aria-live="polite"
-        >
-          Carregando cursos...
-        </div>
-      ) : (
-        <div className="card">
-          <div className="card-header">
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">
-              Listagem de cursos
-            </h2>
-            <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-              {visibleItems.length === 0
-                ? "Nenhum curso para exibir"
-                : `${visibleItems.length} ${visibleItems.length === 1 ? "curso" : "cursos"}`}
-            </p>
+        <SectionCard title="Cursos" description="Carregando a lista…" variant="elevated">
+          <div className="flex flex-col items-center justify-center py-14 text-[var(--text-muted)]" role="status" aria-live="polite">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm">Carregando cursos…</p>
           </div>
-          <div className="card-body overflow-x-auto p-0">
+        </SectionCard>
+      ) : (
+        <SectionCard
+          title="Listagem de cursos"
+          description={
+            visibleItems.length === 0
+              ? "Nenhum curso para exibir com os filtros atuais."
+              : `${visibleItems.length} ${visibleItems.length === 1 ? "curso" : "cursos"}`
+          }
+          variant="elevated"
+        >
             {visibleItems.length === 0 ? (
               <div
-                className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-10 text-center"
+                className="rounded-2xl border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-6 py-12 text-center"
                 role="status"
               >
                 <p className="text-sm text-[var(--text-muted)]">
@@ -170,7 +168,7 @@ export default function CoursesPage() {
                   <Button
                     type="button"
                     variant="primary"
-                    className="mt-3"
+                    className="mt-4"
                     onClick={() => router.push("/courses/new")}
                   >
                     Novo curso
@@ -178,6 +176,7 @@ export default function CoursesPage() {
                 )}
               </div>
             ) : (
+              <TableShell>
               <Table>
                 <thead>
                   <tr>
@@ -271,9 +270,9 @@ export default function CoursesPage() {
                   ))}
                 </tbody>
               </Table>
+              </TableShell>
             )}
-          </div>
-        </div>
+        </SectionCard>
       )}
     </div>
   );

@@ -117,16 +117,17 @@ button:disabled {
   @apply mx-auto w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6 min-w-0;
 }
 
+/* Painel: alinhado ao visual SectionCard (bordas mais suaves, leve profundidade) */
 .card {
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
-  @apply rounded-lg shadow-sm;
+  @apply rounded-2xl shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05];
 }
 
 .card-header {
   border-bottom: 1px solid var(--card-border);
   color: var(--text-primary);
-  @apply px-3 py-3 sm:px-4;
+  @apply rounded-t-2xl px-3 py-3 sm:px-4;
 }
 
 .card-body {
@@ -325,4 +326,34 @@ body {
 [data-resize-state="resizing"] [data-resize-handle],
 [data-resize-handle]:hover {
   background-color: var(--igh-primary-hover);
+}
+
+/*
+ * Área principal logada (aluno, professor, admin, master): listas sem marcador,
+ * exceto resumo da aula (aluno) e blocos de conteúdo rico (visualização + edição TipTap).
+ */
+[data-main-plain-lists="true"] ul,
+[data-main-plain-lists="true"] ol {
+  list-style: none;
+  padding-left: 0;
+  margin-left: 0;
+}
+
+[data-main-plain-lists="true"] [data-tour="aula-resumo"] ul {
+  list-style-type: disc;
+  list-style-position: outside;
+  padding-left: 1.5rem;
+  margin-left: 0;
+}
+
+[data-main-plain-lists="true"] .lesson-rich-html ul {
+  list-style-type: disc;
+  list-style-position: outside;
+  padding-left: 1.5rem;
+}
+
+[data-main-plain-lists="true"] .lesson-rich-html ol {
+  list-style-type: decimal;
+  list-style-position: outside;
+  padding-left: 1.5rem;
 }

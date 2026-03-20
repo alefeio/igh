@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { DashboardShell, sessionRoleToDashboardRole } from "@/components/dashboard/DashboardUI";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
@@ -11,6 +12,7 @@ export function ResponsiveShell({
   children,
 }: {
   user: {
+    id: string;
     name: string;
     email: string;
     role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
@@ -58,8 +60,10 @@ export function ResponsiveShell({
           <div className="min-w-0 flex-1" aria-hidden />
           <TopBar user={user} />
         </header>
-        <main className="min-h-0 flex-1">
-          <div className="container-page">{children}</div>
+        <main className="min-h-0 flex-1" data-main-plain-lists="true">
+          <DashboardShell role={sessionRoleToDashboardRole(user.role)}>
+            <div className="container-page">{children}</div>
+          </DashboardShell>
         </main>
       </div>
     </div>

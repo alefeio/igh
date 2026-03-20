@@ -15,6 +15,7 @@ export function TopBar({
   user,
 }: {
   user: {
+    id: string;
     name: string;
     email: string;
     role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
@@ -40,7 +41,7 @@ export function TopBar({
     user.isAdmin;
 
   const fetchSupportBadge = useCallback(() => {
-    fetch("/api/me/support/badge", { credentials: "include" })
+    fetch("/api/me/support/badge", { credentials: "include", cache: "no-store" })
       .then((r) =>
         r.json() as Promise<ApiResponse<{ unreadCount?: number; openCount?: number }>>
       )
@@ -52,6 +53,8 @@ export function TopBar({
 
   const isSupportRef = useRef(isSupport);
   isSupportRef.current = isSupport;
+  const userIdRef = useRef(user.id);
+  userIdRef.current = user.id;
 
   useEffect(() => {
     fetchSupportBadge();
@@ -70,10 +73,21 @@ export function TopBar({
       };
       ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data as string) as { type?: string; audience?: string };
+          const data = JSON.parse(event.data as string) as {
+            type?: string;
+            audience?: string;
+            forUserId?: string;
+          };
           if (data.type !== "support_badge") return;
           const audience = data.audience ?? "all";
+          const forUserId = typeof data.forUserId === "string" ? data.forUserId : undefined;
           const support = isSupportRef.current;
+
+          /* Admin respondeu: só o aluno dono do chamado deve atualizar badge e ouvir som. */
+          if (audience === "student" && forUserId && forUserId !== userIdRef.current) {
+            return;
+          }
+
           const shouldRefetch =
             audience === "all" ||
             (audience === "student" && !support) ||
@@ -213,8 +227,8 @@ export function TopBar({
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </Link>
-          {/* Aluno: bolinha quando tem resposta nova */}
-          {!isSupport && (supportBadge.unreadCount ?? 0) > 0 && (
+          {/* Aluno (perfil atual): bolinha quando tem resposta nova nos próprios chamados */}
+          {user.role === "STUDENT" && !isSupport && (supportBadge.unreadCount ?? 0) > 0 && (
             <span
               className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-[var(--card-bg)]"
               aria-hidden

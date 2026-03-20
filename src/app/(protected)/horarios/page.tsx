@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Course = { id: string; name: string };
@@ -138,38 +140,49 @@ export default function QuadroHorariosPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-[var(--text-primary)]">
-            Quadro de horários dos cursos
-          </h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            Use o botão abaixo para exportar ou imprimir e disponibilizar no instituto.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={includeEncerradas}
-              onChange={(e) => setIncludeEncerradas(e.target.checked)}
-            />
-            Incluir turmas encerradas
-          </label>
-          <Button onClick={handleExportPdf} disabled={loading || sorted.length === 0}>
-            Exportar / Imprimir PDF
-          </Button>
-        </div>
-      </div>
+    <div className="flex min-w-0 flex-col gap-6 sm:gap-8">
+      <DashboardHero
+        eyebrow="Gestão"
+        title="Quadro de horários dos cursos"
+        description="Exporte ou imprima para disponibilizar no instituto."
+        rightSlot={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-primary)]">
+              <input
+                type="checkbox"
+                checked={includeEncerradas}
+                onChange={(e) => setIncludeEncerradas(e.target.checked)}
+              />
+              Incluir turmas encerradas
+            </label>
+            <Button onClick={handleExportPdf} disabled={loading || sorted.length === 0} className="w-full sm:w-auto">
+              Exportar / Imprimir PDF
+            </Button>
+          </div>
+        }
+      />
 
-      {loading ? (
-        <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
-      ) : sorted.length === 0 ? (
-        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-6 text-center text-sm text-[var(--text-muted)]">
-          Nenhuma turma encontrada para exibir no quadro.
-        </div>
-      ) : (
+      <SectionCard
+        title="Turmas e horários"
+        description={
+          loading
+            ? "Carregando turmas…"
+            : sorted.length === 0
+              ? "Nenhuma turma no período selecionado."
+              : `${sorted.length} ${sorted.length === 1 ? "turma listada" : "turmas listadas"}.`
+        }
+        variant="elevated"
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+          </div>
+        ) : sorted.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/40 px-6 py-10 text-center text-sm text-[var(--text-muted)]">
+            Nenhuma turma encontrada para exibir no quadro.
+          </div>
+        ) : (
         <>
           {/* Área usada na impressão / PDF */}
           <div id="quadro-print-area" className="sr-only print:not-sr-only">
@@ -206,38 +219,39 @@ export default function QuadroHorariosPage() {
           </div>
 
           {/* Tabela visível na tela (mesmos dados) */}
-          <div className="overflow-x-auto rounded border border-[var(--border)] print:hidden">
-            <table className="w-full text-sm">
+          <div className="print:hidden">
+            <TableShell>
               <thead>
-                <tr className="border-b border-[var(--border)] bg-[var(--igh-surface)]">
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--text-primary)]">Curso</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--text-primary)]">Dias da semana</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--text-primary)]">Horário</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--text-primary)]">Professor(a)</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--text-primary)]">Local</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--text-primary)]">Início</th>
-                  <th className="px-4 py-3 text-left font-semibold text-[var(--text-primary)]">Término</th>
+                <tr>
+                  <Th>Curso</Th>
+                  <Th>Dias da semana</Th>
+                  <Th>Horário</Th>
+                  <Th>Professor(a)</Th>
+                  <Th>Local</Th>
+                  <Th>Início</Th>
+                  <Th>Término</Th>
                 </tr>
               </thead>
               <tbody>
                 {sorted.map((cg) => (
-                  <tr key={cg.id} className="border-b border-[var(--border)] last:border-b-0">
-                    <td className="px-4 py-2 text-[var(--text-primary)]">{cg.course?.name ?? "—"}</td>
-                    <td className="px-4 py-2 text-[var(--text-secondary)]">{formatDays(cg.daysOfWeek)}</td>
-                    <td className="px-4 py-2 text-[var(--text-secondary)]">
+                  <tr key={cg.id}>
+                    <Td className="font-medium text-[var(--text-primary)]">{cg.course?.name ?? "—"}</Td>
+                    <Td className="text-[var(--text-secondary)]">{formatDays(cg.daysOfWeek)}</Td>
+                    <Td className="text-[var(--text-secondary)]">
                       {cg.startTime && cg.endTime ? `${cg.startTime} – ${cg.endTime}` : "—"}
-                    </td>
-                    <td className="px-4 py-2 text-[var(--text-secondary)]">{cg.teacher?.name ?? "—"}</td>
-                    <td className="px-4 py-2 text-[var(--text-secondary)]">{cg.location?.trim() || "—"}</td>
-                    <td className="px-4 py-2 text-[var(--text-secondary)]">{formatDate(cg.startDate)}</td>
-                    <td className="px-4 py-2 text-[var(--text-secondary)]">{formatDate(cg.endDate)}</td>
+                    </Td>
+                    <Td className="text-[var(--text-secondary)]">{cg.teacher?.name ?? "—"}</Td>
+                    <Td className="text-[var(--text-secondary)]">{cg.location?.trim() || "—"}</Td>
+                    <Td className="text-[var(--text-secondary)]">{formatDate(cg.startDate)}</Td>
+                    <Td className="text-[var(--text-secondary)]">{formatDate(cg.endDate)}</Td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </TableShell>
           </div>
         </>
-      )}
+        )}
+      </SectionCard>
     </div>
   );
 }
