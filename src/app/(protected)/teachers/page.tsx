@@ -8,7 +8,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Td, Th } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import type { ApiResponse } from "@/lib/api-types";
 
@@ -225,7 +225,6 @@ export default function TeachersPage() {
           </div>
         ) : (
         <TableShell>
-        <Table>
           <thead>
             <tr>
               <Th>Foto</Th>
@@ -301,7 +300,6 @@ export default function TeachersPage() {
               </tr>
             ) : null}
           </tbody>
-        </Table>
         </TableShell>
         )}
       </SectionCard>

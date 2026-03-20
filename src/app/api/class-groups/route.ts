@@ -10,35 +10,13 @@ import {
   parseDurationHours,
   expandHolidaysToDateStrings,
 } from "@/lib/schedule";
-
-function getTodayUtc(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
+import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
 
 export async function GET() {
   try {
     const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
 
-    const today = getTodayUtc();
-
-    await prisma.$transaction([
-      prisma.classGroup.updateMany({
-        where: {
-          status: "PLANEJADA",
-          startDate: { lte: today },
-        },
-        data: { status: "EM_ANDAMENTO" },
-      }),
-      prisma.classGroup.updateMany({
-        where: {
-          status: "EM_ANDAMENTO",
-          preventAutoClose: false,
-          endDate: { lt: today },
-        },
-        data: { status: "ENCERRADA" },
-      }),
-    ]);
+    await applyClassGroupAutomaticStatusUpdates();
 
     const isTeacher = user.role === "TEACHER";
     let teacherId: string | null = null;

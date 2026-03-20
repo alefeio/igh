@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { DashboardHero, QuickActionGrid, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
 type EnrollmentItem = {
@@ -124,63 +124,61 @@ export default function MinhasTurmasPage() {
           </div>
         ) : (
           <TableShell>
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Curso</Th>
-                  <Th>Professor</Th>
-                  <Th>Início</Th>
-                  <Th>Status</Th>
-                  <Th>Local</Th>
-                  <Th></Th>
+            <thead>
+              <tr>
+                <Th>Curso</Th>
+                <Th>Professor</Th>
+                <Th>Início</Th>
+                <Th>Status</Th>
+                <Th>Local</Th>
+                <Th></Th>
+              </tr>
+            </thead>
+            <tbody>
+              {enrollments.map((e) => (
+                <tr key={e.id}>
+                  <Td>{e.courseName}</Td>
+                  <Td>
+                    <div className="flex items-center gap-2">
+                      {e.teacherPhotoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={e.teacherPhotoUrl}
+                          alt=""
+                          className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-[var(--card-border)]"
+                        />
+                      ) : (
+                        <span
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--igh-surface)] text-xs font-semibold text-[var(--text-muted)] ring-1 ring-[var(--card-border)]"
+                          aria-hidden
+                        >
+                          {e.teacherName
+                            .split(/\s+/)
+                            .slice(0, 2)
+                            .map((w) => w[0])
+                            .join("")
+                            .toUpperCase() || "?"}
+                        </span>
+                      )}
+                      <span>{e.teacherName}</span>
+                    </div>
+                  </Td>
+                  <Td>{formatDate(e.startDate)}</Td>
+                  <Td>
+                    <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
+                  </Td>
+                  <Td>{e.location ?? "—"}</Td>
+                  <Td>
+                    <Link
+                      href={`/minhas-turmas/${e.id}`}
+                      className="font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+                    >
+                      Ver detalhes
+                    </Link>
+                  </Td>
                 </tr>
-              </thead>
-              <tbody>
-                {enrollments.map((e) => (
-                  <tr key={e.id}>
-                    <Td>{e.courseName}</Td>
-                    <Td>
-                      <div className="flex items-center gap-2">
-                        {e.teacherPhotoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={e.teacherPhotoUrl}
-                            alt=""
-                            className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-[var(--card-border)]"
-                          />
-                        ) : (
-                          <span
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--igh-surface)] text-xs font-semibold text-[var(--text-muted)] ring-1 ring-[var(--card-border)]"
-                            aria-hidden
-                          >
-                            {e.teacherName
-                              .split(/\s+/)
-                              .slice(0, 2)
-                              .map((w) => w[0])
-                              .join("")
-                              .toUpperCase() || "?"}
-                          </span>
-                        )}
-                        <span>{e.teacherName}</span>
-                      </div>
-                    </Td>
-                    <Td>{formatDate(e.startDate)}</Td>
-                    <Td>
-                      <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
-                    </Td>
-                    <Td>{e.location ?? "—"}</Td>
-                    <Td>
-                      <Link
-                        href={`/minhas-turmas/${e.id}`}
-                        className="font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
-                      >
-                        Ver detalhes
-                      </Link>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+              ))}
+            </tbody>
           </TableShell>
         )}
       </SectionCard>

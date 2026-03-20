@@ -24,6 +24,7 @@ import {
   Users2,
 } from "lucide-react";
 
+import { DashboardForumActivityRail } from "@/components/dashboard/DashboardForumActivityRail";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import {
   DashboardHero,
@@ -683,6 +684,7 @@ function DashboardTeacher({
     roleLabel,
     gamification,
     platformExperienceSummary,
+    forumLessonsWithActivity,
   } = data;
   const totalVagasDisponiveis = classGroups.reduce(
     (acc, cg) => acc + Math.max(0, (cg.capacity ?? 0) - (cg.enrollmentsCount ?? 0)),
@@ -741,6 +743,10 @@ function DashboardTeacher({
             title="Avaliações dos meus alunos"
             description="Apenas alunos com matrícula ativa em turmas suas. Inclui notas e comentários quando enviados."
           />
+        </div>
+
+        <div className="mt-8">
+          <DashboardForumActivityRail variant="teacher" items={forumLessonsWithActivity} />
         </div>
 
         {gamification ? (
@@ -828,6 +834,13 @@ function DashboardTeacher({
                 description: "Sessões, presenças e conteúdo",
                 icon: School,
                 accent: "from-amber-500 to-orange-600",
+              },
+              {
+                href: "/professor/forum",
+                label: "Fórum dos cursos",
+                description: "Dúvidas por aula — todas as turmas do curso",
+                icon: MessageCircle,
+                accent: "from-sky-500 to-cyan-700",
               },
               {
                 href: "/gamificacao",
@@ -979,6 +992,7 @@ function DashboardStudent({
     totalAttendancePresent,
     totalForumQuestions,
     totalForumReplies,
+    forumLessonsWithActivity,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
   const pointsContent = totalLessonsCompleted * POINTS_PER_LESSON;
@@ -1118,6 +1132,8 @@ function DashboardStudent({
             )}
           </SectionCard>
           </div>
+
+          <DashboardForumActivityRail variant="student" items={forumLessonsWithActivity} />
 
           {continueLink && continueLabel && (
             <section aria-labelledby="continuar-heading">
@@ -1292,6 +1308,13 @@ function DashboardStudent({
               icon: BookOpen,
               accent: "from-[var(--igh-primary)] to-violet-600",
               dataTour: "dashboard-acesso-minhas-turmas",
+            },
+            {
+              href: "/minhas-turmas/forum",
+              label: "Fórum dos cursos",
+              description: "Discussões por aula com toda a turma do curso",
+              icon: MessageCircle,
+              accent: "from-sky-500 to-indigo-600",
             },
             {
               href: "/minhas-turmas/favoritos",

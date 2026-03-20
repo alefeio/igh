@@ -18,7 +18,9 @@ type Item = {
 const ITEMS: Item[] = [
   { href: "/dashboard", label: "Dashboard", alwaysShow: true, category: "Início" },
   { href: "/minhas-turmas", label: "Minhas turmas", studentOnly: true, category: "Aluno" },
+  { href: "/minhas-turmas/forum", label: "Fórum dos cursos", studentOnly: true, category: "Aluno" },
   { href: "/professor/turmas", label: "Turmas que leciono", teacherOnly: true, category: "Professor" },
+  { href: "/professor/forum", label: "Fórum dos cursos", teacherOnly: true, category: "Professor" },
   { href: "/gamificacao", label: "Gamificação (professores)", teacherOnly: true, category: "Professor" },
   { href: "/professor/avaliacoes-experiencia", label: "Avaliações dos alunos", teacherOnly: true, category: "Professor" },
   { href: "/users", label: "Usuários (Admin)", masterOnly: true, category: "Administração" },

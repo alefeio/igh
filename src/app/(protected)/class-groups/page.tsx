@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
 function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): string {
@@ -450,7 +450,6 @@ export default function ClassGroupsPage() {
           </div>
         ) : (
         <TableShell>
-        <Table>
           <thead>
             <tr>
               <Th>Turma</Th>
@@ -532,7 +531,6 @@ export default function ClassGroupsPage() {
               </tr>
             ) : null}
           </tbody>
-        </Table>
         </TableShell>
         )}
       </SectionCard>

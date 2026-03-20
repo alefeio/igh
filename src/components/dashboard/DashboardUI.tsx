@@ -268,7 +268,7 @@ export function StatusBars({
 export function TableShell({ children }: { children: ReactNode }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-inner">
-      <table className="min-w-full text-sm">{children}</table>
+      <table className="min-w-full text-sm text-[var(--text-primary)]">{children}</table>
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Modal } from "@/components/ui/Modal";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Td, Th } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import type { ApiResponse } from "@/lib/api-types";
 import { formatDateTime } from "@/lib/format";
@@ -230,7 +230,6 @@ export default function UsersPage() {
           </div>
         ) : (
         <TableShell>
-        <Table>
           <thead>
             <tr>
               <Th>Nome</Th>
@@ -294,7 +293,6 @@ export default function UsersPage() {
               </tr>
             ) : null}
           </tbody>
-        </Table>
         </TableShell>
         )}
       </SectionCard>

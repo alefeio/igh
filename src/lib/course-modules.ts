@@ -97,6 +97,19 @@ export async function getCourseLessonIdsInOrder(courseId: string): Promise<strin
 }
 
 /**
+ * IDs de todas as aulas dos cursos indicados (via módulos).
+ * `EnrollmentLessonQuestion` só tem `lessonId` (sem relação Prisma `lesson`); use este helper para filtrar por curso.
+ */
+export async function getCourseLessonIdsByCourseIds(courseIds: string[]): Promise<string[]> {
+  if (courseIds.length === 0) return [];
+  const rows = await prisma.courseLesson.findMany({
+    where: { module: { courseId: { in: courseIds } } },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
+/**
  * Busca curso por slug ou nome (ex.: "computacao" ou "Computação").
  */
 export async function findCourseBySlugOrName(

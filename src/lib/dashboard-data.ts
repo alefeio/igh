@@ -2,6 +2,11 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
+import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
+import {
+  getForumLessonsWithActivityForCourses,
+  type DashboardForumLessonActivity,
+} from "@/lib/dashboard-forum-activity";
 import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
 import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
 import { computeAllTeachersGamification, computeTeacherGamification } from "@/lib/teacher-gamification";
@@ -66,6 +71,8 @@ export type DashboardDataTeacher = {
   gamification: TeacherGamificationResult | null;
   /** Médias apenas de alunos com matrícula ativa em turmas deste professor. */
   platformExperienceSummary: PlatformExperienceDashboardSummary;
+  /** Aulas com fórum ativo nos cursos que leciona (≥1 tópico de qualquer pessoa) */
+  forumLessonsWithActivity: DashboardForumLessonActivity[];
 };
 
 export type StudentEnrollmentSummary = {
@@ -112,11 +119,14 @@ export type DashboardDataStudent = {
   totalForumQuestions: number;
   /** Total de participações no fórum: respostas do aluno nas dúvidas */
   totalForumReplies: number;
+  /** Aulas com fórum ativo no curso (≥1 tópico de qualquer pessoa), para atalhos no painel */
+  forumLessonsWithActivity: DashboardForumLessonActivity[];
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
 
 export async function getDashboardData(user: SessionUser): Promise<DashboardData> {
+  await applyClassGroupAutomaticStatusUpdates();
   const roleLabel = ROLE_LABELS[user.role] ?? user.role;
 
   if (user.role === "STUDENT") {
@@ -139,6 +149,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         totalAttendancePresent: 0,
         totalForumQuestions: 0,
         totalForumReplies: 0,
+        forumLessonsWithActivity: [],
       };
     }
     const enrollmentsRaw = await prisma.enrollment.findMany({
@@ -170,6 +181,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       attendancePresentCount,
       forumQuestionsCount,
       forumRepliesCount,
+      forumLessonsWithActivity,
     ] = await Promise.all([
       prisma.courseModule.findMany({
         where: { courseId: { in: courseIds } },
@@ -205,6 +217,9 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
             where: { enrollmentId: { in: enrollmentIds } },
           })
         : Promise.resolve(0),
+      courseIds.length > 0
+        ? getForumLessonsWithActivityForCourses(courseIds)
+        : Promise.resolve([]),
     ]);
     const lessonsByCourseId = new Map<string, number>();
     for (const m of modulesWithCount) {
@@ -292,6 +307,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       totalAttendancePresent: attendancePresentCount,
       totalForumQuestions: forumQuestionsCount,
       totalForumReplies: forumRepliesCount,
+      forumLessonsWithActivity,
     };
   }
 
@@ -314,6 +330,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
           avgLessons: null,
           avgTeacher: null,
         },
+        forumLessonsWithActivity: [],
       };
     }
     const classGroups = await prisma.classGroup.findMany({
@@ -334,7 +351,13 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         status: "ACTIVE",
       },
     });
-    const [gamification, enrollmentsForFeedback] = await Promise.all([
+    const teacherCourseRows = await prisma.classGroup.findMany({
+      where: { teacherId: teacher.id },
+      select: { courseId: true },
+    });
+    const teacherCourseIds = [...new Set(teacherCourseRows.map((r) => r.courseId))];
+
+    const [gamification, enrollmentsForFeedback, forumLessonsWithActivity] = await Promise.all([
       computeTeacherGamification(teacher.id),
       prisma.enrollment.findMany({
         where: {
@@ -344,6 +367,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         },
         select: { student: { select: { userId: true } } },
       }),
+      getForumLessonsWithActivityForCourses(teacherCourseIds),
     ]);
 
     const studentUserIdsForFeedback = [
@@ -393,6 +417,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       })),
       gamification,
       platformExperienceSummary,
+      forumLessonsWithActivity,
     };
   }
 

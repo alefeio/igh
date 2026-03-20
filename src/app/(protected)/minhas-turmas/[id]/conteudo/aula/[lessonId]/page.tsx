@@ -236,8 +236,8 @@ export default function AulaConteudoPage() {
     exercicios: false,
     duvidas: false,
   });
-  /** Menu do painel: true = recolhido (só ícones). Padrão recolhido. */
-  const [panelMenuCollapsed, setPanelMenuCollapsed] = useState(true);
+  /** Menu do painel: true = recolhido (só ícones). No PC expandido por padrão; no mobile (≤767px) minimizado. */
+  const [panelMenuCollapsed, setPanelMenuCollapsed] = useState(false);
   const sectionPanelRef = useRef<HTMLDivElement>(null);
   /** Índice inicial quando a URL ainda não tem ?pagina= (antes de restaurar do progresso). */
   const [initialSlideIndex, setInitialSlideIndex] = useState(0);
@@ -272,6 +272,15 @@ export default function AulaConteudoPage() {
     },
     [enrollmentId, lessonId, openSection, router, searchParams]
   );
+
+  /** Viewport: mobile = menu de seções minimizado; desktop (≥ Tailwind md) = expandido. */
+  useLayoutEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setPanelMenuCollapsed(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   /** Ao carregar ou quando a URL mudar, abre a seção indicada por ?secao= */
   useEffect(() => {
@@ -1744,7 +1753,7 @@ export default function AulaConteudoPage() {
             </div>
           </SectionCard>
 
-          {/* Menu do painel: recolhido por padrão (só ícones); botão expandir mostra os nomes. */}
+          {/* Menu do painel: no PC expandido (nomes visíveis); no mobile só ícones até expandir. */}
           <div ref={sectionsBarRef} id="secoes" className="scroll-mt-24" data-tour="aula-secoes">
           <SectionCard
             title="Seções da aula"

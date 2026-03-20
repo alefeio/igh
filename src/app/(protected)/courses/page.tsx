@@ -8,7 +8,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Table, Td, Th } from "@/components/ui/Table";
+import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Course = {
@@ -177,7 +177,6 @@ export default function CoursesPage() {
               </div>
             ) : (
               <TableShell>
-              <Table>
                 <thead>
                   <tr>
                     <Th>Foto</Th>
@@ -269,7 +268,6 @@ export default function CoursesPage() {
                     </tr>
                   ))}
                 </tbody>
-              </Table>
               </TableShell>
             )}
         </SectionCard>

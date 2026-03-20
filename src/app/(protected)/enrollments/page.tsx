@@ -1536,12 +1536,15 @@ export default function EnrollmentsPage() {
               <option value="">Selecione</option>
               {classGroups
                 .filter((cg) => {
-                  const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
+                  const permiteMatriculaPadrao =
+                    cg.status === "PLANEJADA" ||
+                    cg.status === "ABERTA" ||
+                    cg.status === "EM_ANDAMENTO";
                   const isInterno = cg.status === "INTERNO";
                   const isExterno = cg.status === "EXTERNO";
                   const canSeeExterno = user?.role === "ADMIN" || isMaster;
                   const permitidaParaMatricula =
-                    isPlanejadaOuAberta || (isMaster && isInterno) || (canSeeExterno && isExterno);
+                    permiteMatriculaPadrao || (isMaster && isInterno) || (canSeeExterno && isExterno);
                   if (!permitidaParaMatricula) return false;
                   return true;
                 })
@@ -1609,12 +1612,15 @@ export default function EnrollmentsPage() {
                 {classGroups
                   .filter((cg) => {
                     const isCurrent = cg.id === editingEnrollment.classGroup.id;
-                    const isPlanejadaOuAberta = cg.status === "PLANEJADA" || cg.status === "ABERTA";
+                    const permiteMatriculaPadrao =
+                      cg.status === "PLANEJADA" ||
+                      cg.status === "ABERTA" ||
+                      cg.status === "EM_ANDAMENTO";
                     const isInterno = cg.status === "INTERNO";
                     const isExterno = cg.status === "EXTERNO";
                     const canSeeExterno = user?.role === "ADMIN" || isMaster;
                     return (
-                      isPlanejadaOuAberta ||
+                      permiteMatriculaPadrao ||
                       (isMaster && isInterno) ||
                       (canSeeExterno && isExterno) ||
                       isCurrent

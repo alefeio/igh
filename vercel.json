@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/class-groups-status",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
