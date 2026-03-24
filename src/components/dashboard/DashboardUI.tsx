@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, PropsWithChildren, ReactNode } from "react";
 
 export type DashboardRole = "student" | "teacher" | "admin";
 
@@ -265,10 +265,20 @@ export function StatusBars({
   );
 }
 
-export function TableShell({ children }: { children: ReactNode }) {
+export type TableShellProps = PropsWithChildren<
+  Omit<ComponentPropsWithoutRef<"table">, "children">
+>;
+
+/** Wrapper com scroll horizontal; filhos devem ser elementos de tabela (caption, thead, tbody), sem outro &lt;table&gt; aninhado. */
+export function TableShell({ children, className, ...tableProps }: TableShellProps) {
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-inner">
-      <table className="min-w-full text-sm text-[var(--text-primary)]">{children}</table>
+      <table
+        className={["min-w-full text-sm text-[var(--text-primary)]", className].filter(Boolean).join(" ")}
+        {...tableProps}
+      >
+        {children}
+      </table>
     </div>
   );
 }

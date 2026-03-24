@@ -83,8 +83,7 @@ export default async function GamificacaoProfessoresPage() {
             ))}
           </dl>
         </details>
-        <TableShell>
-        <table className="min-w-full text-sm" aria-describedby="gamificacao-ranking-legend-hint">
+        <TableShell aria-describedby="gamificacao-ranking-legend-hint">
           <caption id="gamificacao-ranking-legend-hint" className="sr-only">
             Passe o cursor sobre os títulos das colunas para uma dica rápida, ou abra &quot;O que significa cada
             coluna?&quot; acima para o texto completo.
@@ -142,7 +141,6 @@ export default async function GamificacaoProfessoresPage() {
               ))
             )}
           </tbody>
-        </table>
         </TableShell>
       </SectionCard>
     </div>
