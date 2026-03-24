@@ -418,6 +418,7 @@ function DashboardAdmin({ data, userName }: { data: DashboardDataAdmin; userName
     roleLabel,
     teachersGamificationRanking,
     platformExperienceSummary,
+    forumLessonsWithActivity,
   } = data;
   const statusOrder = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "ENCERRADA", "CANCELADA", "INTERNO", "EXTERNO"] as const;
   const firstName = userName?.split(/\s+/)[0] ?? "Admin";
@@ -515,6 +516,10 @@ function DashboardAdmin({ data, userName }: { data: DashboardDataAdmin; userName
             title="Avaliações dos alunos"
             description="Médias de 1 a 10 (plataforma, aulas, professor) em todas as respostas registradas."
           />
+        </div>
+
+        <div className="mt-8">
+          <DashboardForumActivityRail variant="admin" items={forumLessonsWithActivity} />
         </div>
 
         {openClassGroups.length > 0 && (
@@ -641,6 +646,13 @@ function DashboardAdmin({ data, userName }: { data: DashboardDataAdmin; userName
                 description: "Campanhas e disparos para a base",
                 icon: Mail,
                 accent: "from-indigo-500 to-violet-700",
+              },
+              {
+                href: "/admin/forum",
+                label: "Fóruns (todos os cursos)",
+                description: "Discussões por aula — visão global da comunidade",
+                icon: MessageCircle,
+                accent: "from-sky-500 to-indigo-600",
               },
               {
                 href: "/gamificacao",

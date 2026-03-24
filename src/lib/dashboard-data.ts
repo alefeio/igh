@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
 import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
 import {
+  buildStudentForumDashboardRail,
   getForumLessonsWithActivityForCourses,
+  getForumLessonsWithActivityGlobal,
   type DashboardForumLessonActivity,
 } from "@/lib/dashboard-forum-activity";
 import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
@@ -59,6 +61,8 @@ export type DashboardDataAdmin = {
   /** Ranking completo de gamificação (professores); a UI pode exibir só os primeiros. */
   teachersGamificationRanking: TeacherGamificationResult[];
   platformExperienceSummary: PlatformExperienceDashboardSummary;
+  /** Fóruns com atividade em toda a plataforma (atalho para integração entre cursos). */
+  forumLessonsWithActivity: DashboardForumLessonActivity[];
 };
 
 export type DashboardDataTeacher = {
@@ -106,7 +110,9 @@ export type DashboardDataStudent = {
     enrollmentId: string;
     lessonId: string;
     lessonTitle: string;
+    courseId: string;
     courseName: string;
+    moduleTitle: string;
     lastContentPageIndex: number | null;
   } | null;
   /** Total de acertos em exercícios (todas as matrículas) */
@@ -181,7 +187,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       attendancePresentCount,
       forumQuestionsCount,
       forumRepliesCount,
-      forumLessonsWithActivity,
+      forumActivityRaw,
     ] = await Promise.all([
       prisma.courseModule.findMany({
         where: { courseId: { in: courseIds } },
@@ -218,7 +224,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
           })
         : Promise.resolve(0),
       courseIds.length > 0
-        ? getForumLessonsWithActivityForCourses(courseIds)
+        ? getForumLessonsWithActivityForCourses(courseIds, 72)
         : Promise.resolve([]),
     ]);
     const lessonsByCourseId = new Map<string, number>();
@@ -274,7 +280,12 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         enrollmentId: true,
         lessonId: true,
         lastContentPageIndex: true,
-        lesson: { select: { title: true } },
+        lesson: {
+          select: {
+            title: true,
+            module: { select: { title: true, courseId: true } },
+          },
+        },
       },
     });
     const enrollmentById = new Map(enrollmentsRaw.map((e) => [e.id, e]));
@@ -287,11 +298,26 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
               enrollmentId: lastViewedProgress.enrollmentId,
               lessonId: lastViewedProgress.lessonId,
               lessonTitle: lastViewedProgress.lesson.title,
+              courseId: lastViewedProgress.lesson.module.courseId,
               courseName,
+              moduleTitle: lastViewedProgress.lesson.module.title,
               lastContentPageIndex: lastViewedProgress.lastContentPageIndex,
             };
           })()
         : null;
+
+    const forumLessonsWithActivity = buildStudentForumDashboardRail(
+      forumActivityRaw,
+      lastViewedLesson
+        ? {
+            courseId: lastViewedLesson.courseId,
+            lessonId: lastViewedLesson.lessonId,
+            lessonTitle: lastViewedLesson.lessonTitle,
+            courseName: lastViewedLesson.courseName,
+            moduleTitle: lastViewedLesson.moduleTitle,
+          }
+        : null
+    );
 
     return {
       role: "STUDENT",
@@ -351,12 +377,6 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         status: "ACTIVE",
       },
     });
-    const teacherCourseRows = await prisma.classGroup.findMany({
-      where: { teacherId: teacher.id },
-      select: { courseId: true },
-    });
-    const teacherCourseIds = [...new Set(teacherCourseRows.map((r) => r.courseId))];
-
     const [gamification, enrollmentsForFeedback, forumLessonsWithActivity] = await Promise.all([
       computeTeacherGamification(teacher.id),
       prisma.enrollment.findMany({
@@ -367,7 +387,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         },
         select: { student: { select: { userId: true } } },
       }),
-      getForumLessonsWithActivityForCourses(teacherCourseIds),
+      getForumLessonsWithActivityGlobal(),
     ]);
 
     const studentUserIdsForFeedback = [
@@ -434,6 +454,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     recentEnrollmentsCount,
     openClassGroupsRaw,
     platformExperienceAgg,
+    forumLessonsWithActivity,
   ] = await Promise.all([
     prisma.student.count({ where: { deletedAt: null } }),
     prisma.teacher.count({ where: { deletedAt: null } }),
@@ -465,6 +486,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       _avg: { ratingPlatform: true, ratingLessons: true, ratingTeacher: true },
       _count: { id: true },
     }),
+    getForumLessonsWithActivityGlobal(),
   ]);
 
   const classGroupsByStatus: Record<string, number> = {
@@ -521,5 +543,6 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     openClassGroups,
     teachersGamificationRanking,
     platformExperienceSummary,
+    forumLessonsWithActivity,
   };
 }

@@ -31,6 +31,7 @@ const ITEMS: Item[] = [
   { href: "/courses", label: "Cursos", masterOrTeacher: true, category: "Administração" },
   { href: "/class-groups", label: "Turmas", masterOnly: true, category: "Administração" },
   { href: "/horarios", label: "Quadro de horários", adminOrMaster: true, category: "Administração" },
+  { href: "/admin/forum", label: "Fóruns (todos os cursos)", adminOrMaster: true, category: "Administração" },
   { href: "/gamificacao", label: "Gamificação (professores)", adminOrMaster: true, category: "Administração" },
   { href: "/enrollments", label: "Matrículas", adminOrMaster: true, category: "Administração" },
   { href: "/admin/avaliacoes-experiencia", label: "Avaliações (alunos)", adminOrMaster: true, category: "Administração" },

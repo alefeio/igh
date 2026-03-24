@@ -43,9 +43,12 @@ function formatForumDate(iso: string) {
 export function TeacherLessonForumPanel({
   courseId,
   lessonId,
+  staffRole = "teacher",
 }: {
   courseId: string;
   lessonId: string;
+  /** Admin: só leitura, API /api/admin/course-forum/... */
+  staffRole?: "teacher" | "admin";
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -53,11 +56,15 @@ export function TeacherLessonForumPanel({
   const [questions, setQuestions] = useState<LessonQuestion[]>([]);
   const [replyByQuestion, setReplyByQuestion] = useState<Record<string, string>>({});
   const [savingForQuestion, setSavingForQuestion] = useState<string | null>(null);
+  const topicsBase =
+    staffRole === "admin"
+      ? `/api/admin/course-forum/${courseId}/lessons/${lessonId}/topics`
+      : `/api/teacher/course-forum/${courseId}/lessons/${lessonId}/topics`;
 
   const loadTopics = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/teacher/course-forum/${courseId}/lessons/${lessonId}/topics`);
+      const res = await fetch(topicsBase);
       const json = (await res.json()) as ApiResponse<TopicsPayload>;
       if (res.ok && json?.ok) {
         setMeta({ lessonTitle: json.data.lessonTitle, moduleTitle: json.data.moduleTitle });
@@ -74,13 +81,14 @@ export function TeacherLessonForumPanel({
     } finally {
       setLoading(false);
     }
-  }, [courseId, lessonId, toast]);
+  }, [topicsBase, toast]);
 
   useEffect(() => {
     void loadTopics();
   }, [loadTopics]);
 
   const sendTeacherReply = async (questionId: string) => {
+    if (staffRole === "admin") return;
     const content = (replyByQuestion[questionId] ?? "").trim();
     if (content.length < 2) {
       toast.push("error", "Digite a resposta.");
@@ -122,11 +130,30 @@ export function TeacherLessonForumPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-[var(--text-secondary)]">
-        <p className="font-semibold text-[var(--text-primary)]">Fórum por curso (todas as suas turmas)</p>
+      <div
+        className={`rounded-xl border px-4 py-3 text-sm text-[var(--text-secondary)] ${
+          staffRole === "admin"
+            ? "border-sky-500/25 bg-sky-500/5"
+            : "border-emerald-500/25 bg-emerald-500/5"
+        }`}
+      >
+        <p className="font-semibold text-[var(--text-primary)]">
+          {staffRole === "admin"
+            ? "Visão administrativa (somente leitura)"
+            : "Fórum por curso (todas as suas turmas)"}
+        </p>
         <p className="mt-1 text-xs text-[var(--text-muted)]">
-          Os tópicos reúnem alunos de <strong>todas as turmas</strong> deste curso. Respostas suas aparecem para todos — use para
-          orientar, elogiar a participação e estimular quem ajuda os colegas.
+          {staffRole === "admin" ? (
+            <>
+              Tópicos de <strong>todas as turmas</strong> deste curso. Use esta visão para acompanhar a comunidade e o
+              engajamento entre disciplinas.
+            </>
+          ) : (
+            <>
+              Os tópicos reúnem alunos de <strong>todas as turmas</strong> deste curso. Respostas suas aparecem para todos — use
+              para orientar, elogiar a participação e estimular quem ajuda os colegas.
+            </>
+          )}
         </p>
       </div>
 
@@ -172,24 +199,26 @@ export function TeacherLessonForumPanel({
                   </div>
                 )}
 
-                <div className="mt-4 border-t border-dashed border-[var(--card-border)] pt-3">
-                  <label className="mb-1 block text-xs font-medium text-[var(--text-muted)]">Responder como professor</label>
-                  <textarea
-                    value={replyByQuestion[q.id] ?? ""}
-                    onChange={(e) => setReplyByQuestion((p) => ({ ...p, [q.id]: e.target.value }))}
-                    rows={2}
-                    placeholder="Dica, correção ou reconhecimento ao engajamento da turma…"
-                    className="mb-2 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => sendTeacherReply(q.id)}
-                    disabled={savingForQuestion === q.id || !(replyByQuestion[q.id] ?? "").trim()}
-                    className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
-                  >
-                    {savingForQuestion === q.id ? "Enviando…" : "Publicar resposta"}
-                  </button>
-                </div>
+                {staffRole === "teacher" ? (
+                  <div className="mt-4 border-t border-dashed border-[var(--card-border)] pt-3">
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-muted)]">Responder como professor</label>
+                    <textarea
+                      value={replyByQuestion[q.id] ?? ""}
+                      onChange={(e) => setReplyByQuestion((p) => ({ ...p, [q.id]: e.target.value }))}
+                      rows={2}
+                      placeholder="Dica, correção ou reconhecimento ao engajamento da turma…"
+                      className="mb-2 w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => sendTeacherReply(q.id)}
+                      disabled={savingForQuestion === q.id || !(replyByQuestion[q.id] ?? "").trim()}
+                      className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                    >
+                      {savingForQuestion === q.id ? "Enviando…" : "Publicar resposta"}
+                    </button>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
