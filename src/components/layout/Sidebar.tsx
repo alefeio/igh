@@ -1,5 +1,6 @@
 "use client";
 
+import { PanelLeft, PanelLeftClose } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -59,8 +60,11 @@ const ITEMS: Item[] = [
 export function Sidebar({
   user,
   logoUrl = null,
-  mobileOpen = false,
-  onMobileClose,
+  drawerOpen = false,
+  onDrawerClose,
+  sidebarExpanded = true,
+  onSidebarCollapse,
+  onSidebarExpand,
 }: {
   user: {
     name: string;
@@ -73,8 +77,13 @@ export function Sidebar({
     availableRoles?: { canMaster: boolean; canStudent: boolean; canTeacher: boolean; canAdmin: boolean };
   };
   logoUrl?: string | null;
-  mobileOpen?: boolean;
-  onMobileClose?: () => void;
+  drawerOpen?: boolean;
+  onDrawerClose?: () => void;
+  /** md+: barra lateral fixa visível (persistida no shell). */
+  sidebarExpanded?: boolean;
+  onSidebarCollapse?: () => void;
+  /** md+: restaura barra fixa e fecha o drawer. */
+  onSidebarExpand?: () => void;
 }) {
   const pathname = usePathname();
 
@@ -117,7 +126,7 @@ export function Sidebar({
                     className={`block rounded-md px-3 py-2 text-sm ${
                       active ? "bg-[var(--igh-primary)] text-white" : "text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
                     }`}
-                    onClick={onMobileClose}
+                    onClick={onDrawerClose}
                     {...(tourId ? { "data-tour": tourId } : {})}
                   >
                     {item.label}
@@ -131,15 +140,32 @@ export function Sidebar({
     </ul>
   );
 
+  const logoBlock = (
+    <div className="flex min-w-0 flex-1 items-center justify-center">
+      {logoUrl ? (
+        <img src={logoUrl} alt="Logo" className="h-12 w-auto max-w-full object-contain" />
+      ) : (
+        <img src="/images/logo.png" alt="Logo" className="h-12 w-auto max-w-full object-contain" />
+      )}
+    </div>
+  );
+
   const sidebarContent = (
     <>
-      <div className="shrink-0 border-b border-[var(--card-border)] px-4 py-4">
-        <div className="flex justify-center">
-          {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="h-12 w-auto object-contain" />
-          ) : (
-            <img src="/images/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
-          )}
+      <div className="shrink-0 border-b border-[var(--card-border)] px-3 py-3 md:px-4 md:py-4">
+        <div className="flex items-center gap-2">
+          {logoBlock}
+          {onSidebarCollapse ? (
+            <button
+              type="button"
+              onClick={onSidebarCollapse}
+              className="hidden shrink-0 rounded-md p-2 text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] md:inline-flex"
+              aria-label="Recolher menu"
+              title="Recolher menu"
+            >
+              <PanelLeftClose className="h-5 w-5" strokeWidth={2} aria-hidden />
+            </button>
+          ) : null}
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto px-2 py-3">{navContent}</nav>
@@ -148,32 +174,54 @@ export function Sidebar({
 
   return (
     <>
-      {/* Desktop: sidebar fixa à esquerda */}
-      <aside className="hidden min-h-screen w-64 shrink-0 flex-col border-r border-[var(--card-border)] bg-[var(--card-bg)] md:flex">
-        {sidebarContent}
-      </aside>
-      {/* Mobile: drawer que desliza da esquerda */}
+      {/* md+: barra lateral fixa (recolhível) */}
+      {sidebarExpanded ? (
+        <aside className="hidden min-h-screen w-64 shrink-0 flex-col border-r border-[var(--card-border)] bg-[var(--card-bg)] md:flex">
+          {sidebarContent}
+        </aside>
+      ) : null}
+
+      {/* Drawer: mobile sempre; desktop quando menu recolhido */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] flex-col border-r border-[var(--card-border)] bg-[var(--card-bg)] shadow-lg transition-transform duration-200 ease-out md:hidden ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] flex-col border-r border-[var(--card-border)] bg-[var(--card-bg)] shadow-lg transition-transform duration-200 ease-out ${
+          drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
-        aria-hidden={!mobileOpen}
+        aria-hidden={!drawerOpen}
+        id="panel-nav-drawer"
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-[var(--card-border)] px-3 py-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--card-border)] px-3 py-2">
           <span className="text-sm font-semibold text-[var(--text-primary)]">Menu</span>
-          <button
-            type="button"
-            onClick={onMobileClose}
-            className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-            aria-label="Fechar menu"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-0.5">
+            {onSidebarExpand ? (
+              <button
+                type="button"
+                onClick={onSidebarExpand}
+                className="hidden rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] md:inline-flex"
+                aria-label="Fixar menu na lateral"
+                title="Fixar menu na lateral"
+              >
+                <PanelLeft className="h-5 w-5" strokeWidth={2} aria-hidden />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onDrawerClose}
+              className="rounded p-2 text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+              aria-label="Fechar menu"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {sidebarContent}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="shrink-0 border-b border-[var(--card-border)] px-3 py-3">
+              <div className="flex justify-center">{logoBlock}</div>
+            </div>
+            <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">{navContent}</nav>
+          </div>
         </div>
       </aside>
     </>
