@@ -1,6 +1,7 @@
 import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import { mapStaffOrTeacherReplyName } from "@/lib/course-forum-reply-display";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 // Modelo de dúvidas por aula (Prisma gera enrollmentLessonQuestion a partir de EnrollmentLessonQuestion)
@@ -70,7 +71,10 @@ export async function GET(
       },
       teacherReplies: {
         orderBy: { createdAt: "asc" },
-        include: { teacher: { select: { name: true } } },
+        include: {
+          teacher: { select: { name: true } },
+          staffUser: { select: { name: true } },
+        },
       },
     },
   });
@@ -93,7 +97,8 @@ export async function GET(
       id: string;
       content: string;
       createdAt: Date;
-      teacher: { name: string };
+      teacher: { name: string } | null;
+      staffUser: { name: string } | null;
     }>;
   };
   return jsonOk(
@@ -115,7 +120,7 @@ export async function GET(
         id: r.id,
         content: r.content,
         createdAt: r.createdAt.toISOString(),
-        teacherName: r.teacher.name,
+        teacherName: mapStaffOrTeacherReplyName(r),
       })),
     }))
   );

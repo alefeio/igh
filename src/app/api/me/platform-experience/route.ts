@@ -3,22 +3,59 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { parseRating1to10 } from "@/lib/platform-experience-feedback";
 
-const MAX_COMMENT = 4000;
+const MAX_TOPIC_COMMENT = 4000;
 const MAX_REFERRAL = 2000;
 
-/** Indica se o aluno já enviou alguma avaliação (para texto do botão / UX). */
+/** Indica se o aluno já enviou alguma avaliação (para texto do botão / UX) + professores em turmas em andamento. */
 export async function GET() {
   const user = await requireRole("STUDENT");
-  const count = await prisma.platformExperienceFeedback.count({
-    where: { userId: user.id },
-  });
+  const [count, student] = await Promise.all([
+    prisma.platformExperienceFeedback.count({
+      where: { userId: user.id },
+    }),
+    prisma.student.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    }),
+  ]);
 
-  return jsonOk({ hasSubmitted: count > 0, submissionCount: count });
+  let ongoingTeachers: { id: string; name: string }[] = [];
+  if (student) {
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        studentId: student.id,
+        status: "ACTIVE",
+        classGroup: { status: "EM_ANDAMENTO" },
+      },
+      select: {
+        classGroup: {
+          select: {
+            teacher: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+    const byId = new Map<string, string>();
+    for (const e of enrollments) {
+      const t = e.classGroup.teacher;
+      byId.set(t.id, t.name);
+    }
+    ongoingTeachers = [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }
+
+  return jsonOk({
+    hasSubmitted: count > 0,
+    submissionCount: count,
+    ongoingTeachers,
+  });
 }
 
 /**
  * Registra avaliação (sempre cria um novo registro).
- * Body: { ratingPlatform, ratingLessons, ratingTeacher (1–10 cada), comment?, referral? }
+ * Body: { ratingPlatform, ratingLessons, ratingTeacher (1–10 cada),
+ *   commentPlatform?, commentLessons?, commentTeacher?, referral? }
  */
 export async function POST(request: Request) {
   const user = await requireRole("STUDENT");
@@ -36,8 +73,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const comment =
-    typeof body?.comment === "string" ? body.comment.trim().slice(0, MAX_COMMENT) : "";
+  const slice = (v: unknown) =>
+    typeof v === "string" ? v.trim().slice(0, MAX_TOPIC_COMMENT) : "";
+  const commentPlatform = slice(body?.commentPlatform);
+  const commentLessons = slice(body?.commentLessons);
+  const commentTeacher = slice(body?.commentTeacher);
   const referral =
     typeof body?.referral === "string" ? body.referral.trim().slice(0, MAX_REFERRAL) : "";
 
@@ -47,7 +87,9 @@ export async function POST(request: Request) {
       ratingPlatform,
       ratingLessons,
       ratingTeacher,
-      comment: comment.length > 0 ? comment : null,
+      commentPlatform: commentPlatform.length > 0 ? commentPlatform : null,
+      commentLessons: commentLessons.length > 0 ? commentLessons : null,
+      commentTeacher: commentTeacher.length > 0 ? commentTeacher : null,
       referral: referral.length > 0 ? referral : null,
     },
     select: { id: true, createdAt: true },

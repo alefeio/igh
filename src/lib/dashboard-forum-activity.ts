@@ -15,6 +15,8 @@ export type DashboardForumLessonActivity = {
   lastActivityAt: string;
   /** Aluno: primeira carta = última aula estudada, mesmo sem tópicos. */
   isLastStudiedLesson?: boolean;
+  /** Texto mais recente (tópico ou resposta) nesta aula. */
+  lastMessagePreview?: string | null;
 };
 
 const DEFAULT_LIMIT = 32;
@@ -168,4 +170,51 @@ export async function getForumLessonsWithActivityGlobal(limit = GLOBAL_LIMIT_DEF
 
   rows.sort((a, b) => new Date(a.lastActivityAt).getTime() - new Date(b.lastActivityAt).getTime());
   return rows;
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Última mensagem por aula (tópico ou resposta de aluno/professor/equipe), para o trilho do dashboard. */
+export async function getLastForumMessagePreviewsByLessonIds(lessonIds: string[]): Promise<Map<string, string>> {
+  const safe = [...new Set(lessonIds)].filter((id) => UUID_RE.test(id));
+  const out = new Map<string, string>();
+  if (safe.length === 0) return out;
+
+  const inList = safe.map((id) => `'${id}'`).join(",");
+  const rows = await prisma.$queryRawUnsafe<Array<{ lesson_id: string; content: string }>>(`
+    SELECT DISTINCT ON (lesson_id) lesson_id::text, LEFT(TRIM(BOTH FROM content), 220) AS content
+    FROM (
+      SELECT q."lessonId" AS lesson_id, q.content, GREATEST(q."createdAt", q."updatedAt") AS t
+      FROM "EnrollmentLessonQuestion" q
+      WHERE q."lessonId"::text IN (${inList})
+      UNION ALL
+      SELECT q."lessonId", sr.content, sr."createdAt"
+      FROM "EnrollmentLessonQuestionReply" sr
+      INNER JOIN "EnrollmentLessonQuestion" q ON q.id = sr."questionId"
+      WHERE q."lessonId"::text IN (${inList})
+      UNION ALL
+      SELECT q."lessonId", tr.content, tr."createdAt"
+      FROM "LessonQuestionTeacherReply" tr
+      INNER JOIN "EnrollmentLessonQuestion" q ON q.id = tr."questionId"
+      WHERE q."lessonId"::text IN (${inList})
+    ) sub
+    ORDER BY lesson_id, t DESC
+  `);
+
+  for (const row of rows) {
+    if (row.content?.trim()) out.set(row.lesson_id, row.content.trim());
+  }
+  return out;
+}
+
+export async function attachForumLastMessagePreviews(
+  rows: DashboardForumLessonActivity[]
+): Promise<DashboardForumLessonActivity[]> {
+  if (rows.length === 0) return rows;
+  const previews = await getLastForumMessagePreviewsByLessonIds(rows.map((r) => r.lessonId));
+  return rows.map((r) => ({
+    ...r,
+    lastMessagePreview: previews.get(r.lessonId) ?? null,
+  }));
 }

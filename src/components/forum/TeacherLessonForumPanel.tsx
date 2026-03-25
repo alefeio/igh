@@ -47,7 +47,7 @@ export function TeacherLessonForumPanel({
 }: {
   courseId: string;
   lessonId: string;
-  /** Admin: só leitura, API /api/admin/course-forum/... */
+  /** Admin: mesma API de tópicos + POST de resposta em /api/admin/course-forum/.../reply */
   staffRole?: "teacher" | "admin";
 }) {
   const toast = useToast();
@@ -88,15 +88,18 @@ export function TeacherLessonForumPanel({
   }, [loadTopics]);
 
   const sendTeacherReply = async (questionId: string) => {
-    if (staffRole === "admin") return;
     const content = (replyByQuestion[questionId] ?? "").trim();
     if (content.length < 2) {
       toast.push("error", "Digite a resposta.");
       return;
     }
     setSavingForQuestion(questionId);
+    const url =
+      staffRole === "admin"
+        ? `/api/admin/course-forum/${courseId}/questions/${questionId}/reply`
+        : `/api/teacher/course-forum/${courseId}/questions/${questionId}/reply`;
     try {
-      const res = await fetch(`/api/teacher/course-forum/${courseId}/questions/${questionId}/reply`, {
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),
@@ -138,15 +141,13 @@ export function TeacherLessonForumPanel({
         }`}
       >
         <p className="font-semibold text-[var(--text-primary)]">
-          {staffRole === "admin"
-            ? "Visão administrativa (somente leitura)"
-            : "Fórum por curso (todas as suas turmas)"}
+          {staffRole === "admin" ? "Visão administrativa" : "Fórum por curso (todas as suas turmas)"}
         </p>
         <p className="mt-1 text-xs text-[var(--text-muted)]">
           {staffRole === "admin" ? (
             <>
-              Tópicos de <strong>todas as turmas</strong> deste curso. Use esta visão para acompanhar a comunidade e o
-              engajamento entre disciplinas.
+              Tópicos de <strong>todas as turmas</strong> deste curso. Você pode responder como equipe; as mensagens ficam
+              visíveis para todos os participantes do curso, como as respostas dos professores.
             </>
           ) : (
             <>
@@ -175,7 +176,11 @@ export function TeacherLessonForumPanel({
 
                 {(q.teacherReplies ?? []).length > 0 && (
                   <div className="mt-3 rounded-md border border-[var(--igh-primary)]/30 bg-[var(--igh-primary)]/5 p-2">
-                    <p className="mb-2 text-xs font-semibold text-[var(--igh-primary)]">Suas respostas e de outros professores</p>
+                    <p className="mb-2 text-xs font-semibold text-[var(--igh-primary)]">
+                      {staffRole === "admin"
+                        ? "Professores e equipe"
+                        : "Suas respostas e de outros professores"}
+                    </p>
                     {(q.teacherReplies ?? []).map((r) => (
                       <div key={r.id} className="mb-2 text-xs last:mb-0">
                         <span className="font-medium text-[var(--text-primary)]">{r.teacherName}</span>
@@ -199,9 +204,11 @@ export function TeacherLessonForumPanel({
                   </div>
                 )}
 
-                {staffRole === "teacher" ? (
+                {staffRole === "teacher" || staffRole === "admin" ? (
                   <div className="mt-4 border-t border-dashed border-[var(--card-border)] pt-3">
-                    <label className="mb-1 block text-xs font-medium text-[var(--text-muted)]">Responder como professor</label>
+                    <label className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                      {staffRole === "admin" ? "Responder como equipe (admin)" : "Responder como professor"}
+                    </label>
                     <textarea
                       value={replyByQuestion[q.id] ?? ""}
                       onChange={(e) => setReplyByQuestion((p) => ({ ...p, [q.id]: e.target.value }))}

@@ -5,6 +5,7 @@ export default function AdminAvaliacoesExperienciaPage() {
     <div className="min-w-0 py-2 sm:py-4">
       <PlatformExperienceEvaluationsClient
         apiUrl="/api/admin/platform-experience-feedback"
+        exportUrl="/api/admin/platform-experience-feedback/export"
         pageTitle="Avaliações de experiência"
         pageDescription="Notas de 1 a 10 em plataforma, aulas e professor, além de comentários e indicações enviados pelos alunos. Visível para administradores."
       />

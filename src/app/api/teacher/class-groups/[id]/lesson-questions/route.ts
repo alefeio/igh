@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import { mapStaffOrTeacherReplyName } from "@/lib/course-forum-reply-display";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 async function assertTeacherOwnsClassGroup(userId: string, classGroupId: string) {
@@ -48,7 +49,10 @@ export async function GET(
       enrollment: { select: { student: { select: { name: true } } } },
       teacherReplies: {
         orderBy: { createdAt: "asc" },
-        include: { teacher: { select: { name: true } } },
+        include: {
+          teacher: { select: { name: true } },
+          staffUser: { select: { name: true } },
+        },
       },
     },
   });
@@ -72,7 +76,7 @@ export async function GET(
           id: r.id,
           content: r.content,
           createdAt: r.createdAt.toISOString(),
-          teacherName: r.teacher.name,
+          teacherName: mapStaffOrTeacherReplyName(r),
         })),
       };
     }),

@@ -357,3 +357,45 @@ body {
   list-style-position: outside;
   padding-left: 1.5rem;
 }
+
+/* Modo apresentação (professor): T+/T− altera só o texto; imagens não acompanham o zoom. */
+.professor-presentation-text-scale {
+  --presentation-font-scale: 1;
+}
+.professor-presentation-text-scale .lesson-rich-html,
+.professor-presentation-text-scale .ProseMirror {
+  overflow: visible !important;
+  max-height: none !important;
+}
+.professor-presentation-text-scale .ProseMirror {
+  font-size: calc(0.875rem * var(--presentation-font-scale)) !important;
+  line-height: 1.6;
+}
+.professor-presentation-text-scale .ProseMirror h1 {
+  font-size: calc(1.5rem * var(--presentation-font-scale)) !important;
+}
+.professor-presentation-text-scale .ProseMirror h2 {
+  font-size: calc(1.25rem * var(--presentation-font-scale)) !important;
+}
+.professor-presentation-text-scale .ProseMirror h3 {
+  font-size: calc(1.125rem * var(--presentation-font-scale)) !important;
+}
+.professor-presentation-text-scale .ProseMirror pre {
+  font-size: calc(0.75rem * var(--presentation-font-scale)) !important;
+}
+.professor-presentation-text-scale .ProseMirror img {
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  vertical-align: middle;
+}
+/* Tela cheia da apresentação: evita rolagem dupla (página + bloco). */
+html.professor-presentation-fs-lock,
+html.professor-presentation-fs-lock body {
+  overflow: hidden !important;
+  height: 100% !important;
+}
+/* Evita segunda barra por rolagem no `main` do painel enquanto o bloco está em tela cheia. */
+html.professor-presentation-fs-lock main {
+  overflow: hidden !important;
+}

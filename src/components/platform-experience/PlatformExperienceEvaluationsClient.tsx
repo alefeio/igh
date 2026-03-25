@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
@@ -20,6 +21,10 @@ type Item = {
   ratingPlatform: number;
   ratingLessons: number;
   ratingTeacher: number;
+  commentPlatform: string | null;
+  commentLessons: string | null;
+  commentTeacher: string | null;
+  /** Registros antigos (antes dos comentários por tópico). */
   comment: string | null;
   referral: string | null;
   createdAt: string;
@@ -31,15 +36,19 @@ function fmtAvg(n: number | null) {
 
 export function PlatformExperienceEvaluationsClient({
   apiUrl,
+  exportUrl,
   pageTitle,
   pageDescription,
 }: {
   apiUrl: string;
+  /** GET que devolve CSV (ex.: .../platform-experience-feedback/export) */
+  exportUrl?: string;
   pageTitle: string;
   pageDescription: string;
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [items, setItems] = useState<Item[]>([]);
 
@@ -71,11 +80,51 @@ export function PlatformExperienceEvaluationsClient({
     };
   }, [apiUrl, toast]);
 
+  async function handleExportCsv() {
+    if (!exportUrl) return;
+    setExporting(true);
+    try {
+      const res = await fetch(exportUrl, { credentials: "include" });
+      if (!res.ok) {
+        toast.push("error", "Não foi possível gerar o arquivo.");
+        return;
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get("Content-Disposition");
+      let filename = "avaliacoes.csv";
+      const m = dispo?.match(/filename="([^"]+)"/);
+      if (m?.[1]) filename = m[1];
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.push("error", "Falha ao exportar.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-lg font-semibold text-[var(--text-primary)]">{pageTitle}</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">{pageDescription}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold text-[var(--text-primary)]">{pageTitle}</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">{pageDescription}</p>
+        </div>
+        {exportUrl ? (
+          <button
+            type="button"
+            onClick={() => void handleExportCsv()}
+            disabled={exporting}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--igh-primary)]/10 disabled:opacity-60 sm:w-auto"
+          >
+            <Download className="h-4 w-4 shrink-0" aria-hidden />
+            {exporting ? "Gerando…" : "Exportar CSV"}
+          </button>
+        ) : null}
       </div>
 
       {loading ? (
@@ -122,14 +171,17 @@ export function PlatformExperienceEvaluationsClient({
                   <Th>Plat.</Th>
                   <Th>Aulas</Th>
                   <Th>Prof.</Th>
-                  <Th>Comentário</Th>
+                  <Th>Com. plataforma</Th>
+                  <Th>Com. aulas</Th>
+                  <Th>Com. professor</Th>
+                  <Th>Com. legado</Th>
                   <Th>Indicação</Th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <Td colSpan={8} className="text-center text-[var(--text-muted)]">
+                    <Td colSpan={11} className="text-center text-[var(--text-muted)]">
                       Nenhuma avaliação registrada.
                     </Td>
                   </tr>
@@ -144,7 +196,16 @@ export function PlatformExperienceEvaluationsClient({
                       <Td className="tabular-nums text-sm">{r.ratingPlatform}</Td>
                       <Td className="tabular-nums text-sm">{r.ratingLessons}</Td>
                       <Td className="tabular-nums text-sm">{r.ratingTeacher}</Td>
-                      <Td className="max-w-[14rem] whitespace-pre-wrap text-sm text-[var(--text-secondary)]">
+                      <Td className="max-w-[10rem] whitespace-pre-wrap text-sm text-[var(--text-secondary)]">
+                        {r.commentPlatform ?? "—"}
+                      </Td>
+                      <Td className="max-w-[10rem] whitespace-pre-wrap text-sm text-[var(--text-secondary)]">
+                        {r.commentLessons ?? "—"}
+                      </Td>
+                      <Td className="max-w-[10rem] whitespace-pre-wrap text-sm text-[var(--text-secondary)]">
+                        {r.commentTeacher ?? "—"}
+                      </Td>
+                      <Td className="max-w-[10rem] whitespace-pre-wrap text-xs text-[var(--text-muted)]">
                         {r.comment ?? "—"}
                       </Td>
                       <Td className="max-w-[12rem] whitespace-pre-wrap text-sm text-[var(--text-secondary)]">

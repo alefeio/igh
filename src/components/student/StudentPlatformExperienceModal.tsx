@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Star } from "lucide-react";
 
-const STEPS = 5 as const;
 /** Uma vez por navegador: abre o modal automaticamente se o aluno ainda não avaliou. */
 const STORAGE_AUTO_ONCE = "student-platform-experience-auto-shown";
 
@@ -24,7 +23,7 @@ function TenStarRating({
   groupLabel: string;
 }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-0.5" role="group" aria-label={groupLabel}>
         {Array.from({ length: 10 }, (_, i) => {
           const v = i + 1;
@@ -55,14 +54,36 @@ function TenStarRating({
   );
 }
 
+function TopicCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm">
+      <h3 className="text-sm font-bold text-[var(--text-primary)]">{title}</h3>
+      {description != null ? (
+        <div className="mt-1.5 text-xs leading-relaxed text-[var(--text-muted)]">{description}</div>
+      ) : null}
+      <div className="mt-4 space-y-4">{children}</div>
+    </section>
+  );
+}
+
 export function StudentPlatformExperienceModal({ autoPromptOnce = false, className = "" }: Props) {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState(1);
   const [ratingPlatform, setRatingPlatform] = useState<number | null>(null);
   const [ratingLessons, setRatingLessons] = useState<number | null>(null);
   const [ratingTeacher, setRatingTeacher] = useState<number | null>(null);
-  const [comment, setComment] = useState("");
+  const [commentPlatform, setCommentPlatform] = useState("");
+  const [commentLessons, setCommentLessons] = useState("");
+  const [commentTeacher, setCommentTeacher] = useState("");
   const [referral, setReferral] = useState("");
+  const [ongoingTeachers, setOngoingTeachers] = useState<{ id: string; name: string }[]>([]);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -70,11 +91,12 @@ export function StudentPlatformExperienceModal({ autoPromptOnce = false, classNa
   const [success, setSuccess] = useState(false);
 
   const resetForm = useCallback(() => {
-    setStep(1);
     setRatingPlatform(null);
     setRatingLessons(null);
     setRatingTeacher(null);
-    setComment("");
+    setCommentPlatform("");
+    setCommentLessons("");
+    setCommentTeacher("");
     setReferral("");
     setError(null);
     setSuccess(false);
@@ -86,10 +108,18 @@ export function StudentPlatformExperienceModal({ autoPromptOnce = false, classNa
       const res = await fetch("/api/me/platform-experience", { credentials: "include" });
       const json = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
-        data?: { hasSubmitted?: boolean };
+        data?: {
+          hasSubmitted?: boolean;
+          ongoingTeachers?: { id: string; name: string }[];
+        };
       };
-      if (res.ok && json.ok && typeof json.data?.hasSubmitted === "boolean") {
-        setHasSubmitted(json.data.hasSubmitted);
+      if (res.ok && json.ok && json.data) {
+        if (typeof json.data.hasSubmitted === "boolean") {
+          setHasSubmitted(json.data.hasSubmitted);
+        }
+        if (Array.isArray(json.data.ongoingTeachers)) {
+          setOngoingTeachers(json.data.ongoingTeachers);
+        }
       }
     } catch {
       /* ignore */
@@ -120,19 +150,9 @@ export function StudentPlatformExperienceModal({ autoPromptOnce = false, classNa
 
   const openModal = () => {
     resetForm();
+    void fetchStatus();
     setOpen(true);
   };
-
-  const canNextStep1 = ratingPlatform != null && ratingPlatform >= 1 && ratingPlatform <= 10;
-  const canNextStep2 = ratingLessons != null && ratingLessons >= 1 && ratingLessons <= 10;
-  const canNextStep3 = ratingTeacher != null && ratingTeacher >= 1 && ratingTeacher <= 10;
-
-  function stepRatingComplete(s: number): boolean {
-    if (s === 1) return canNextStep1;
-    if (s === 2) return canNextStep2;
-    if (s === 3) return canNextStep3;
-    return true;
-  }
 
   async function submit() {
     if (
@@ -146,7 +166,7 @@ export function StudentPlatformExperienceModal({ autoPromptOnce = false, classNa
       ratingTeacher < 1 ||
       ratingTeacher > 10
     ) {
-      setError("Preencha as três notas de 1 a 10 antes de enviar.");
+      setError("Selecione uma nota de 1 a 10 em cada tópico (plataforma, aulas e professor) antes de enviar.");
       return;
     }
     setSubmitting(true);
@@ -160,7 +180,9 @@ export function StudentPlatformExperienceModal({ autoPromptOnce = false, classNa
           ratingPlatform,
           ratingLessons,
           ratingTeacher,
-          comment: comment.trim() || undefined,
+          commentPlatform: commentPlatform.trim() || undefined,
+          commentLessons: commentLessons.trim() || undefined,
+          commentTeacher: commentTeacher.trim() || undefined,
           referral: referral.trim() || undefined,
         }),
       });
@@ -183,6 +205,17 @@ export function StudentPlatformExperienceModal({ autoPromptOnce = false, classNa
     }
   }
 
+  const ratingsComplete =
+    ratingPlatform != null &&
+    ratingLessons != null &&
+    ratingTeacher != null &&
+    ratingPlatform >= 1 &&
+    ratingPlatform <= 10 &&
+    ratingLessons >= 1 &&
+    ratingLessons <= 10 &&
+    ratingTeacher >= 1 &&
+    ratingTeacher <= 10;
+
   return (
     <>
       <button
@@ -199,7 +232,7 @@ export function StudentPlatformExperienceModal({ autoPromptOnce = false, classNa
         open={open}
         onClose={closeModal}
         title="Sua avaliação"
-        size="small"
+        size="large"
       >
         {success ? (
           <div className="space-y-4 text-center">
@@ -218,86 +251,131 @@ export function StudentPlatformExperienceModal({ autoPromptOnce = false, classNa
             </button>
           </div>
         ) : (
-          <div className="space-y-5">
-            <div className="flex items-center justify-center gap-1 text-xs text-[var(--text-muted)]">
-              {Array.from({ length: STEPS }, (_, i) => (
-                <span
-                  key={i}
-                  className={`h-1.5 flex-1 max-w-[3rem] rounded-full ${i + 1 <= step ? "bg-[var(--igh-primary)]" : "bg-[var(--igh-surface)]"}`}
-                />
-              ))}
-            </div>
-            <p className="text-center text-xs text-[var(--text-muted)]">
-              Etapa {step} de {STEPS}
-            </p>
-            <p className="text-center text-xs text-[var(--text-muted)]">
-              Cada envio é um novo registro no histórico; respostas anteriores não são excluídas.
+          <div className="flex max-h-[min(85vh,720px)] flex-col gap-4">
+            <p className="shrink-0 text-center text-xs text-[var(--text-muted)]">
+              Cada envio é um novo registro no histórico; respostas anteriores não são excluídas. Em cada bloco há nota e
+              espaço para comentário.
             </p>
 
-            {step === 1 && (
-              <div className="space-y-2">
-                <p className="text-center text-sm text-[var(--text-primary)]">
-                  De 1 a 10, como você avalia a <strong className="font-semibold">plataforma</strong> (navegação, uso geral,
-                  organização)?
-                </p>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+              <TopicCard
+                title="Plataforma"
+                description={
+                  <>
+                    De 1 a 10, como você avalia a <strong className="font-semibold text-[var(--text-secondary)]">plataforma</strong>{" "}
+                    (navegação, uso geral, organização)?
+                  </>
+                }
+              >
                 <TenStarRating
                   value={ratingPlatform}
                   onChange={setRatingPlatform}
                   groupLabel="Nota de 1 a 10 para a plataforma"
                 />
-              </div>
-            )}
+                <div className="space-y-1.5">
+                  <label htmlFor="exp-comment-platform" className="text-xs font-medium text-[var(--text-primary)]">
+                    Comentário sobre a plataforma <span className="font-normal text-[var(--text-muted)]">(opcional)</span>
+                  </label>
+                  <textarea
+                    id="exp-comment-platform"
+                    value={commentPlatform}
+                    onChange={(e) => setCommentPlatform(e.target.value)}
+                    rows={3}
+                    maxLength={4000}
+                    placeholder="O que funcionou bem ou poderia melhorar na plataforma…"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                  />
+                </div>
+              </TopicCard>
 
-            {step === 2 && (
-              <div className="space-y-2">
-                <p className="text-center text-sm text-[var(--text-primary)]">
-                  De 1 a 10, como você avalia as <strong className="font-semibold">aulas</strong> e o conteúdo oferecido?
-                </p>
+              <TopicCard
+                title="Aulas"
+                description={
+                  <>
+                    De 1 a 10, como você avalia as <strong className="font-semibold text-[var(--text-secondary)]">aulas</strong> e o
+                    conteúdo oferecido?
+                  </>
+                }
+              >
                 <TenStarRating
                   value={ratingLessons}
                   onChange={setRatingLessons}
                   groupLabel="Nota de 1 a 10 para as aulas"
                 />
-              </div>
-            )}
+                <div className="space-y-1.5">
+                  <label htmlFor="exp-comment-lessons" className="text-xs font-medium text-[var(--text-primary)]">
+                    Comentário sobre as aulas <span className="font-normal text-[var(--text-muted)]">(opcional)</span>
+                  </label>
+                  <textarea
+                    id="exp-comment-lessons"
+                    value={commentLessons}
+                    onChange={(e) => setCommentLessons(e.target.value)}
+                    rows={3}
+                    maxLength={4000}
+                    placeholder="Material, dinâmica, clareza do conteúdo…"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                  />
+                </div>
+              </TopicCard>
 
-            {step === 3 && (
-              <div className="space-y-2">
-                <p className="text-center text-sm text-[var(--text-primary)]">
-                  De 1 a 10, como você avalia o <strong className="font-semibold">professor</strong> (didática, apoio,
-                  comunicação)?
-                </p>
+              <TopicCard
+                title="Professor"
+                description={
+                  <>
+                    Avalie a didática, o apoio e a comunicação. A nota refere-se ao(s) professor(es) abaixo — são os vinculados às
+                    suas turmas com status <strong className="font-medium text-[var(--text-secondary)]">em andamento</strong>.
+                  </>
+                }
+              >
+                <div className="rounded-lg border border-[var(--igh-primary)]/25 bg-[var(--igh-primary)]/5 px-3 py-2.5">
+                  <p className="text-xs font-semibold text-[var(--text-secondary)]">
+                    Professor(es) — turmas em andamento
+                  </p>
+                  {ongoingTeachers.length > 0 ? (
+                    <ul className="mt-2 space-y-1">
+                      {ongoingTeachers.map((t) => (
+                        <li
+                          key={t.id}
+                          className="text-sm font-semibold text-[var(--text-primary)]"
+                        >
+                          {t.name}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
+                      No momento você não está em turmas &quot;em andamento&quot; com matrícula ativa. A nota e o comentário abaixo
+                      referem-se ao apoio dos professores de forma geral.
+                    </p>
+                  )}
+                </div>
+
                 <TenStarRating
                   value={ratingTeacher}
                   onChange={setRatingTeacher}
                   groupLabel="Nota de 1 a 10 para o professor"
                 />
-              </div>
-            )}
+                <div className="space-y-1.5">
+                  <label htmlFor="exp-comment-teacher" className="text-xs font-medium text-[var(--text-primary)]">
+                    Comentário sobre o professor <span className="font-normal text-[var(--text-muted)]">(opcional)</span>
+                  </label>
+                  <textarea
+                    id="exp-comment-teacher"
+                    value={commentTeacher}
+                    onChange={(e) => setCommentTeacher(e.target.value)}
+                    rows={3}
+                    maxLength={4000}
+                    placeholder="Didática, retorno às dúvidas, organização das aulas…"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                  />
+                </div>
+              </TopicCard>
 
-            {step === 4 && (
-              <div className="space-y-2">
-                <label htmlFor="platform-exp-comment" className="text-sm font-medium text-[var(--text-primary)]">
-                  Comentário <span className="font-normal text-[var(--text-muted)]">(opcional)</span>
-                </label>
-                <textarea
-                  id="platform-exp-comment"
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  rows={4}
-                  maxLength={4000}
-                  placeholder="Conte o que mais gostou ou o que podemos melhorar…"
-                  className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
-                />
-              </div>
-            )}
-
-            {step === 5 && (
-              <div className="space-y-2">
-                <label htmlFor="platform-exp-referral" className="text-sm font-medium text-[var(--text-primary)]">
-                  Indicação <span className="font-normal text-[var(--text-muted)]">(opcional)</span>
-                </label>
-                <p className="text-xs text-[var(--text-muted)]">
+              <section className="rounded-xl border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/30 p-4">
+                <h3 className="text-sm font-bold text-[var(--text-primary)]">
+                  Indicação <span className="font-normal text-xs text-[var(--text-muted)]">(opcional)</span>
+                </h3>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
                   Conhece alguém que se beneficiaria dos cursos? Deixe nome, telefone ou outro contato.
                 </p>
                 <textarea
@@ -307,56 +385,26 @@ export function StudentPlatformExperienceModal({ autoPromptOnce = false, classNa
                   rows={3}
                   maxLength={2000}
                   placeholder="Ex.: indicaria fulano — (00) 00000-0000"
-                  className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                  className="mt-2 w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
                 />
-              </div>
-            )}
+              </section>
+            </div>
 
             {error && (
-              <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+              <p className="shrink-0 text-sm text-red-600 dark:text-red-400" role="alert">
                 {error}
               </p>
             )}
 
-            <div className="flex flex-wrap gap-2 pt-1">
-              {step > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setStep((s) => (s > 1 ? s - 1 : s))}
-                  disabled={submitting}
-                  className="rounded-lg border border-[var(--card-border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
-                >
-                  Voltar
-                </button>
-              )}
-              <div className="ml-auto flex gap-2">
-                {step < STEPS ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!stepRatingComplete(step)) {
-                        setError("Selecione uma nota de 1 a 10.");
-                        return;
-                      }
-                      setError(null);
-                      setStep((s) => Math.min(STEPS, s + 1));
-                    }}
-                    disabled={!stepRatingComplete(step)}
-                    className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-95 disabled:opacity-50"
-                  >
-                    Próximo
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => void submit()}
-                    disabled={submitting}
-                    className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-95 disabled:opacity-50"
-                  >
-                    {submitting ? "Enviando…" : "Enviar avaliação"}
-                  </button>
-                )}
-              </div>
+            <div className="shrink-0 border-t border-[var(--card-border)] pt-3">
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={submitting || !ratingsComplete}
+                className="w-full rounded-lg bg-[var(--igh-primary)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-95 disabled:opacity-50"
+              >
+                {submitting ? "Enviando…" : "Enviar avaliação"}
+              </button>
             </div>
           </div>
         )}

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
 import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
 import {
+  attachForumLastMessagePreviews,
   buildStudentForumDashboardRail,
   getForumLessonsWithActivityForCourses,
   getForumLessonsWithActivityGlobal,
@@ -306,17 +307,19 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
           })()
         : null;
 
-    const forumLessonsWithActivity = buildStudentForumDashboardRail(
-      forumActivityRaw,
-      lastViewedLesson
-        ? {
-            courseId: lastViewedLesson.courseId,
-            lessonId: lastViewedLesson.lessonId,
-            lessonTitle: lastViewedLesson.lessonTitle,
-            courseName: lastViewedLesson.courseName,
-            moduleTitle: lastViewedLesson.moduleTitle,
-          }
-        : null
+    const forumLessonsWithActivity = await attachForumLastMessagePreviews(
+      buildStudentForumDashboardRail(
+        forumActivityRaw,
+        lastViewedLesson
+          ? {
+              courseId: lastViewedLesson.courseId,
+              lessonId: lastViewedLesson.lessonId,
+              lessonTitle: lastViewedLesson.lessonTitle,
+              courseName: lastViewedLesson.courseName,
+              moduleTitle: lastViewedLesson.moduleTitle,
+            }
+          : null
+      )
     );
 
     return {
@@ -377,7 +380,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         status: "ACTIVE",
       },
     });
-    const [gamification, enrollmentsForFeedback, forumLessonsWithActivity] = await Promise.all([
+    const [gamification, enrollmentsForFeedback, forumRaw] = await Promise.all([
       computeTeacherGamification(teacher.id),
       prisma.enrollment.findMany({
         where: {
@@ -389,6 +392,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       }),
       getForumLessonsWithActivityGlobal(),
     ]);
+    const forumLessonsWithActivity = await attachForumLastMessagePreviews(forumRaw);
 
     const studentUserIdsForFeedback = [
       ...new Set(
@@ -454,7 +458,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     recentEnrollmentsCount,
     openClassGroupsRaw,
     platformExperienceAgg,
-    forumLessonsWithActivity,
+    forumRawGlobal,
   ] = await Promise.all([
     prisma.student.count({ where: { deletedAt: null } }),
     prisma.teacher.count({ where: { deletedAt: null } }),
@@ -488,6 +492,8 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     }),
     getForumLessonsWithActivityGlobal(),
   ]);
+
+  const forumLessonsWithActivity = await attachForumLastMessagePreviews(forumRawGlobal);
 
   const classGroupsByStatus: Record<string, number> = {
     PLANEJADA: 0,

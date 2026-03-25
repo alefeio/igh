@@ -74,7 +74,7 @@ export function DashboardForumActivityRail({
             className="flex items-center gap-2 text-lg font-bold text-[var(--text-primary)]"
           >
             <MessageCircle className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
-            {variant === "student" ? "Fóruns — continue e participe" : "Fóruns com movimento (toda a plataforma)"}
+            Fóruns
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-[var(--text-muted)]">{description}</p>
         </div>
@@ -114,6 +114,11 @@ export function DashboardForumActivityRail({
                   {item.lessonTitle}
                 </p>
                 <p className="mt-0.5 line-clamp-1 text-xs text-[var(--text-muted)]">{item.moduleTitle}</p>
+                {item.lastMessagePreview?.trim() ? (
+                  <p className="mt-2 line-clamp-2 text-xs leading-snug text-[var(--text-secondary)]">
+                    {item.lastMessagePreview.trim()}
+                  </p>
+                ) : null}
                 <p className="mt-3 text-xs text-[var(--text-secondary)]">
                   {item.topicCount === 0 ? (
                     <span className="text-[var(--text-muted)]">Nenhum tópico ainda — abra o fórum e inicie a conversa.</span>

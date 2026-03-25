@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import { mapStaffOrTeacherReplyName } from "@/lib/course-forum-reply-display";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 async function assertTeacherTeachesCourse(userId: string, courseId: string) {
@@ -50,7 +51,10 @@ export async function GET(
       },
       teacherReplies: {
         orderBy: { createdAt: "asc" },
-        include: { teacher: { select: { name: true } } },
+        include: {
+          teacher: { select: { name: true } },
+          staffUser: { select: { name: true } },
+        },
       },
     },
   });
@@ -76,7 +80,7 @@ export async function GET(
         id: r.id,
         content: r.content,
         createdAt: r.createdAt.toISOString(),
-        teacherName: r.teacher.name,
+        teacherName: mapStaffOrTeacherReplyName(r),
       })),
     })),
   });

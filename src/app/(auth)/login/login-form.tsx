@@ -96,6 +96,9 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         <Link className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]" href="/esqueci-senha">
           Esqueci minha senha
         </Link>
+        <p className="mt-1 text-[10px] leading-snug text-[var(--text-muted)]">
+          Sem e-mail no cadastro? Use CPF ou dados do responsável na mesma página.
+        </p>
       </div>
 
       {setupHint ? (

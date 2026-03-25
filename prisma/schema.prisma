@@ -41,6 +41,7 @@ model User {
   emailCampaignsCanceled     EmailCampaign[]     @relation("EmailCampaignCanceledBy")
   emailTemplatesCreated       EmailTemplate[]     @relation("EmailTemplateCreatedBy")
   platformExperienceFeedbacks PlatformExperienceFeedback[]
+  lessonQuestionStaffReplies  LessonQuestionTeacherReply[] @relation("LessonQuestionStaffReply")
 }
 
 /** Avaliação da experiência do aluno (plataforma, aulas, professor, comentário e indicação). */
@@ -54,6 +55,11 @@ model PlatformExperienceFeedback {
   ratingLessons  Int
   /** Nota de 1 a 10 — atuação do(s) professor(es). */
   ratingTeacher  Int
+  /** Comentário opcional sobre a plataforma (legado: `comment` único antes da divisão por tópico). */
+  commentPlatform String? @db.Text
+  commentLessons  String? @db.Text
+  commentTeacher  String? @db.Text
+  /** Legado: comentário único antes de commentPlatform/Lessons/Teacher. */
   comment   String?  @db.Text
   /** Texto livre: quem indicaria, contato, etc. */
   referral  String?  @db.Text
@@ -428,19 +434,24 @@ model EnrollmentLessonQuestion {
   @@index([lessonId])
 }
 
-/** Resposta oficial do professor a uma dúvida na aula (gamificação + visibilidade para alunos). */
+/** Resposta oficial do professor ou da equipe (admin/master) a uma dúvida na aula. */
 model LessonQuestionTeacherReply {
-  id         String                   @id @default(uuid())
-  questionId String
-  teacherId  String
-  content    String
-  createdAt  DateTime                 @default(now())
-  updatedAt  DateTime                 @updatedAt
-  question   EnrollmentLessonQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  teacher    Teacher                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  id          String                   @id @default(uuid())
+  questionId  String
+  /** Professor do curso (mutuamente exclusivo com staffUserId em regra de negócio). */
+  teacherId   String?
+  /** Admin/Master que respondeu no fórum (alternativa a teacherId). */
+  staffUserId String?
+  content     String
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  question    EnrollmentLessonQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  teacher     Teacher?                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  staffUser   User?                    @relation("LessonQuestionStaffReply", fields: [staffUserId], references: [id], onDelete: SetNull)
 
   @@index([questionId])
   @@index([teacherId])
+  @@index([staffUserId])
 }
 
 /** Resposta de um aluno ao comentário/dúvida de outro (em "Dúvidas sobre esta aula"). */

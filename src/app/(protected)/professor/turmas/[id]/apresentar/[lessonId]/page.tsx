@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
@@ -182,12 +182,23 @@ export default function ProfessorApresentarAulaPage() {
   }, [hasMultiplePages, gotoPrevSlide, gotoNextSlide]);
 
   useEffect(() => {
-    const onFs = () =>
-      setIsContentFullscreen(
-        !!document.fullscreenElement && document.fullscreenElement === contentWrapperRef.current
-      );
-    document.addEventListener("fullscreenchange", onFs);
-    return () => document.removeEventListener("fullscreenchange", onFs);
+    const sync = () => {
+      const active =
+        !!document.fullscreenElement && document.fullscreenElement === contentWrapperRef.current;
+      setIsContentFullscreen(active);
+      const html = document.documentElement;
+      if (active) {
+        html.classList.add("professor-presentation-fs-lock");
+      } else {
+        html.classList.remove("professor-presentation-fs-lock");
+      }
+    };
+    document.addEventListener("fullscreenchange", sync);
+    sync();
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.documentElement.classList.remove("professor-presentation-fs-lock");
+    };
   }, []);
 
   if (loading && !lesson) {
@@ -291,9 +302,13 @@ export default function ProfessorApresentarAulaPage() {
           >
             <div
               ref={contentWrapperRef}
-              className={`rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 ${isContentFullscreen ? "min-h-screen overflow-y-auto overflow-x-hidden p-6" : ""}`}
+              className={`flex min-h-0 flex-col rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 ${
+                isContentFullscreen
+                  ? "overflow-hidden p-6 [&:fullscreen]:box-border [&:fullscreen]:max-h-[100dvh] [&:fullscreen]:min-h-0 [&:fullscreen]:h-[100dvh] [&:fullscreen]:w-full [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
+                  : ""
+              }`}
             >
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
                 {hasMultiplePages ? (
                   <nav aria-label="Páginas do conteúdo" className="flex flex-wrap items-center gap-2">
                     <button
@@ -378,13 +393,20 @@ export default function ProfessorApresentarAulaPage() {
                   <span className="hidden sm:inline">{isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}</span>
                 </button>
               </div>
-              <div className="overflow-auto" style={{ minHeight: "12rem" }}>
+              <div
+                className={
+                  isContentFullscreen
+                    ? "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [overflow-anchor:none]"
+                    : "min-h-[12rem] overflow-auto overscroll-contain"
+                }
+              >
                 <div
-                  className="origin-top-left"
-                  style={{
-                    width: `${10000 / contentFontSizePercent}%`,
-                    transform: `scale(${contentFontSizePercent / 100})`,
-                  }}
+                  className="professor-presentation-text-scale min-w-0"
+                  style={
+                    {
+                      "--presentation-font-scale": String(contentFontSizePercent / 100),
+                    } as CSSProperties
+                  }
                 >
                   <HighlightableContentViewer
                     content={contentToShow}

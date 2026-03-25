@@ -69,9 +69,12 @@ function RedefinirSenhaContent() {
         <div className="card-body">
           {!token ? (
             <div className="space-y-2">
-              <p className="text-sm text-zinc-600">Use o link que enviamos por e-mail ou solicite um novo.</p>
+              <p className="text-sm text-zinc-600">
+                Use o link enviado por e-mail ou o fluxo com CPF / responsável em &quot;Esqueci minha senha&quot;, que leva até
+                esta página após confirmar seus dados.
+              </p>
               <Link className="text-sm font-medium text-blue-600 underline" href="/esqueci-senha">
-                Solicitar novo link
+                Recuperar senha
               </Link>
             </div>
           ) : (
