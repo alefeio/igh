@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
-/** Retorna os perfis disponíveis para o usuário logado (aluno, professor, admin). */
+/** Retorna os perfis disponíveis para o usuário logado (aluno, professor, admin, coordenador, master). */
 export async function GET() {
   const user = await getSessionUserFromCookie();
   if (!user) {
@@ -20,10 +20,16 @@ export async function GET() {
     }),
   ]);
 
+  const base = user.baseRole;
+  const canMaster = base === "MASTER";
+  const canCoordinator = base === "COORDINATOR";
+  const canAdmin = user.isAdmin === true || base === "ADMIN";
+
   return jsonOk({
     canStudent: !!hasStudent,
     canTeacher: !!hasTeacher,
-    canAdmin: user.isAdmin === true,
-    canMaster: user.baseRole === "MASTER",
+    canAdmin,
+    canCoordinator,
+    canMaster,
   });
 }

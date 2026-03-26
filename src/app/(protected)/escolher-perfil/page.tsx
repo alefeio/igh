@@ -7,7 +7,13 @@ import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 
-type RolesResponse = { canStudent: boolean; canTeacher: boolean; canAdmin: boolean; canMaster?: boolean };
+type RolesResponse = {
+  canStudent: boolean;
+  canTeacher: boolean;
+  canAdmin: boolean;
+  canCoordinator?: boolean;
+  canMaster?: boolean;
+};
 
 export default function EscolherPerfilPage() {
   useUser();
@@ -28,10 +34,11 @@ export default function EscolherPerfilPage() {
   }, []);
 
   const canAdmin = roles?.canAdmin === true;
+  const canCoordinator = roles?.canCoordinator === true;
   const canStudent = roles?.canStudent === true;
   const canTeacher = roles?.canTeacher === true;
   const canMaster = roles?.canMaster === true;
-  const hasAny = canAdmin || canStudent || canTeacher || canMaster;
+  const hasAny = canAdmin || canCoordinator || canStudent || canTeacher || canMaster;
 
   useEffect(() => {
     if (roles !== null && !hasAny) {
@@ -58,7 +65,7 @@ export default function EscolherPerfilPage() {
     return null;
   }
 
-  async function enterAs(role: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER") {
+  async function enterAs(role: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR") {
     const res = await fetch("/api/auth/choose-role", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -95,6 +102,11 @@ export default function EscolherPerfilPage() {
           {canAdmin && !canMaster && (
             <Button variant="secondary" className="w-full" onClick={() => enterAs("ADMIN")}>
               Entrar como Admin
+            </Button>
+          )}
+          {canCoordinator && !canMaster && (
+            <Button variant="secondary" className="w-full" onClick={() => enterAs("COORDINATOR")}>
+              Entrar como Coordenador
             </Button>
           )}
         </div>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -33,6 +34,8 @@ function roleLabel(u: AdminUser): string {
 
 export default function UsersPage() {
   const toast = useToast();
+  const sessionUser = useUser();
+  const isMaster = sessionUser.role === "MASTER" || sessionUser.baseRole === "MASTER";
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [showInactive, setShowInactive] = useState(false);
@@ -47,6 +50,7 @@ export default function UsersPage() {
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
+  const [editAccessRole, setEditAccessRole] = useState<"ADMIN" | "COORDINATOR">("ADMIN");
   const [savingCreate, setSavingCreate] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -85,6 +89,9 @@ export default function UsersPage() {
     setEditEmail(u.email);
     setEditPassword("");
     setEditIsActive(u.isActive);
+    if (u.role === "ADMIN" || u.role === "COORDINATOR") {
+      setEditAccessRole(u.role === "COORDINATOR" ? "COORDINATOR" : "ADMIN");
+    }
     setEditOpen(true);
   }
 
@@ -93,12 +100,26 @@ export default function UsersPage() {
     if (!canSubmitEdit || !editing || savingEdit) return;
     setSavingEdit(true);
     try {
-      const payload: { name: string; email: string; isActive: boolean; password?: string } = {
+      const payload: {
+        name: string;
+        email: string;
+        isActive: boolean;
+        password?: string;
+        role?: "ADMIN" | "COORDINATOR";
+      } = {
         name: editName,
         email: editEmail,
         isActive: editIsActive,
       };
       if (editPassword.trim() !== "") payload.password = editPassword;
+      if (
+        isMaster &&
+        editing &&
+        (editing.role === "ADMIN" || editing.role === "COORDINATOR") &&
+        editAccessRole !== editing.role
+      ) {
+        payload.role = editAccessRole;
+      }
 
       const res = await fetch(`/api/admin/users/${editing.id}`, {
         method: "PATCH",
@@ -310,7 +331,19 @@ export default function UsersPage() {
         )}
       </SectionCard>
 
-      <Modal open={editOpen} title="Editar usuário" onClose={() => { setEditOpen(false); setEditing(null); setEditName(""); setEditEmail(""); setEditPassword(""); setEditIsActive(true); }}>
+      <Modal
+        open={editOpen}
+        title="Editar usuário"
+        onClose={() => {
+          setEditOpen(false);
+          setEditing(null);
+          setEditName("");
+          setEditEmail("");
+          setEditPassword("");
+          setEditIsActive(true);
+          setEditAccessRole("ADMIN");
+        }}
+      >
         <form className="flex flex-col gap-3" onSubmit={updateAdmin}>
           <div>
             <label className="text-sm font-medium">Nome</label>
@@ -318,6 +351,24 @@ export default function UsersPage() {
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
             </div>
           </div>
+          {isMaster && editing && (editing.role === "ADMIN" || editing.role === "COORDINATOR") ? (
+            <div>
+              <label className="text-sm font-medium">Tipo de acesso</label>
+              <div className="mt-1">
+                <select
+                  className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                  value={editAccessRole}
+                  onChange={(e) => setEditAccessRole(e.target.value as "ADMIN" | "COORDINATOR")}
+                >
+                  <option value="ADMIN">Administrador (pode alterar cadastros)</option>
+                  <option value="COORDINATOR">Coordenador (somente leitura nas áreas de acompanhamento)</option>
+                </select>
+              </div>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Coordenador acompanha alunos, turmas, frequência e indicadores sem poder alterar dados.
+              </p>
+            </div>
+          ) : null}
           <div>
             <label className="text-sm font-medium">E-mail</label>
             <div className="mt-1">
@@ -347,7 +398,15 @@ export default function UsersPage() {
             <label htmlFor="editIsActive" className="text-sm">Ativo</label>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => { setEditOpen(false); setEditing(null); }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setEditOpen(false);
+                setEditing(null);
+                setEditAccessRole("ADMIN");
+              }}
+            >
               Cancelar
             </Button>
             <Button type="submit" disabled={!canSubmitEdit || savingEdit}>

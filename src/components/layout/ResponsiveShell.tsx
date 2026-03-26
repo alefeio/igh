@@ -24,7 +24,13 @@ export function ResponsiveShell({
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     /** Perfis disponíveis (calculado no servidor); quando presente, o select usa isso. */
-    availableRoles?: { canMaster: boolean; canStudent: boolean; canTeacher: boolean; canAdmin: boolean };
+    availableRoles?: {
+      canMaster: boolean;
+      canStudent: boolean;
+      canTeacher: boolean;
+      canAdmin: boolean;
+      canCoordinator?: boolean;
+    };
   };
   logoUrl?: string | null;
   children: React.ReactNode;

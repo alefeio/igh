@@ -145,8 +145,10 @@ export function InscrevaForm() {
         setEnrolledCourseIds(meJson.data.enrolledCourseIds ?? []);
       }
       if (cgJson?.ok && cgJson.data.classGroups) {
-        // Exibir apenas turmas ABERTA na página de inscrição (não EM_ANDAMENTO, INTERNO, etc.)
-        setClassGroups(cgJson.data.classGroups.filter((cg) => cg.status === "ABERTA"));
+        // API já filtra vagas; inclui ABERTA e EM_ANDAMENTO com vagas.
+        setClassGroups(
+          cgJson.data.classGroups.filter((cg) => cg.status === "ABERTA" || cg.status === "EM_ANDAMENTO"),
+        );
       }
     } finally {
       setLoading(false);
@@ -685,7 +687,14 @@ export function InscrevaForm() {
                               : "border-transparent bg-[var(--card-bg)] text-[var(--text-primary)] hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5"
                         }`}
                       >
-                        <span className="font-semibold">{cg.courseName}</span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold">{cg.courseName}</span>
+                          {cg.status === "EM_ANDAMENTO" ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                              Em andamento · vagas
+                            </span>
+                          ) : null}
+                        </span>
                         <span className="mt-1 block text-xs text-[var(--text-muted)]">
                           Início {formatDateOnlyBR(cg.startDate)} · {cg.startTime}–{cg.endTime}
                           {daysStr ? ` · ${daysStr}` : ""}

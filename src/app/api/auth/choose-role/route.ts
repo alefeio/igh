@@ -9,7 +9,7 @@ import {
 import { jsonErr } from "@/lib/http";
 import type { UserRole } from "@/generated/prisma/client";
 
-const ALLOWED_ROLES: UserRole[] = ["STUDENT", "TEACHER", "ADMIN", "MASTER"];
+const ALLOWED_ROLES: UserRole[] = ["STUDENT", "TEACHER", "ADMIN", "MASTER", "COORDINATOR"];
 
 function jsonOkWithSession<T>(data: T, user: Parameters<typeof buildAuthSessionToken>[0], effectiveRole: UserRole) {
   return (async () => {
@@ -20,7 +20,7 @@ function jsonOkWithSession<T>(data: T, user: Parameters<typeof buildAuthSessionT
   })();
 }
 
-/** Define o papel com o qual o usuário vai acessar (Aluno, Professor ou Admin quando tem múltiplos perfis). */
+/** Define o papel da sessão (Aluno, Professor, Admin, Coordenador ou Master) quando há múltiplos perfis. */
 export async function POST(request: Request) {
   const user = await getSessionUserFromCookie();
   if (!user) {
@@ -73,6 +73,13 @@ export async function POST(request: Request) {
       return jsonErr("FORBIDDEN", "Você não tem acesso como Admin.", 403);
     }
     return jsonOkWithSession({ role: "ADMIN" as const }, sessionPayload, "ADMIN");
+  }
+
+  if (role === "COORDINATOR") {
+    if (full.role !== "COORDINATOR") {
+      return jsonErr("FORBIDDEN", "Você não tem perfil de Coordenador.", 403);
+    }
+    return jsonOkWithSession({ role: "COORDINATOR" as const }, sessionPayload, "COORDINATOR");
   }
 
   if (role === "STUDENT") {

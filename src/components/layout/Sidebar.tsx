@@ -10,6 +10,8 @@ type Item = {
   masterOnly?: boolean;
   masterOrTeacher?: boolean;
   adminOrMaster?: boolean;
+  /** Rotas só para Admin/Master (API não autoriza coordenador) — oculto para COORDINATOR. */
+  adminMasterOnly?: boolean;
   studentOnly?: boolean;
   teacherOnly?: boolean;
   /** Professor, admin, master ou coordenador — reportes à coordenação. */
@@ -37,7 +39,13 @@ const ITEMS: Item[] = [
   { href: "/users", label: "Usuários (Admin)", masterOnly: true, category: "Administração" },
   { href: "/approvacoes", label: "Aprovações (Site)", masterOnly: true, category: "Administração" },
   { href: "/teachers", label: "Professores", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/site/formacoes", label: "Formações", adminOrMaster: true, category: "Administração" },
+  {
+    href: "/admin/site/formacoes",
+    label: "Formações",
+    adminOrMaster: true,
+    adminMasterOnly: true,
+    category: "Administração",
+  },
   { href: "/courses", label: "Cursos", masterOrTeacher: true, category: "Administração" },
   { href: "/class-groups", label: "Turmas", adminOrMaster: true, category: "Administração" },
   { href: "/horarios", label: "Quadro de horários", adminOrMaster: true, category: "Administração" },
@@ -56,8 +64,14 @@ const ITEMS: Item[] = [
   { href: "/admin/site/menu", label: "Menu", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/banners", label: "Banners", adminOrMaster: true, category: "Site" },
   { href: "/admin/tablet/banners", label: "Banners (tablet)", adminOrMaster: true, category: "Site" },
-  { href: "/admin/sms", label: "Campanhas SMS", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/email", label: "Campanhas de E-mail", adminOrMaster: true, category: "Administração" },
+  { href: "/admin/sms", label: "Campanhas SMS", adminOrMaster: true, adminMasterOnly: true, category: "Administração" },
+  {
+    href: "/admin/email",
+    label: "Campanhas de E-mail",
+    adminOrMaster: true,
+    adminMasterOnly: true,
+    category: "Administração",
+  },
   { href: "/admin/site/projetos", label: "Projetos", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/depoimentos", label: "Depoimentos", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/parceiros", label: "Parceiros", adminOrMaster: true, category: "Site" },
@@ -86,7 +100,13 @@ export function Sidebar({
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
-    availableRoles?: { canMaster: boolean; canStudent: boolean; canTeacher: boolean; canAdmin: boolean };
+    availableRoles?: {
+      canMaster: boolean;
+      canStudent: boolean;
+      canTeacher: boolean;
+      canAdmin: boolean;
+      canCoordinator?: boolean;
+    };
   };
   logoUrl?: string | null;
   drawerOpen?: boolean;
@@ -119,8 +139,12 @@ export function Sidebar({
         user.role === "ADMIN" ||
         user.role === "COORDINATOR"
       );
-    if (i.adminOrMaster)
+    if (i.adminOrMaster) {
+      if (user.role === "COORDINATOR") {
+        if (i.category === "Site" || i.adminMasterOnly) return false;
+      }
       return user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR";
+    }
     return user.role !== "STUDENT";
   });
 

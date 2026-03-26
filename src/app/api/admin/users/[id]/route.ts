@@ -24,12 +24,28 @@ export async function PATCH(
   if (!existing) return jsonErr("NOT_FOUND", "Usuário não encontrado.", 404);
   if (existing.role === "MASTER") return jsonErr("FORBIDDEN", "Não é permitido editar o usuário MASTER.", 403);
 
-  const updateData: { name?: string; email?: string; passwordHash?: string; isActive?: boolean } = {};
+  const updateData: {
+    name?: string;
+    email?: string;
+    passwordHash?: string;
+    isActive?: boolean;
+    role?: "ADMIN" | "COORDINATOR";
+  } = {};
   if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
   if (parsed.data.email !== undefined) updateData.email = parsed.data.email;
   if (parsed.data.isActive !== undefined) updateData.isActive = parsed.data.isActive;
   if (parsed.data.password !== undefined && parsed.data.password !== "") {
     updateData.passwordHash = await hashPassword(parsed.data.password);
+  }
+  if (parsed.data.role !== undefined) {
+    if (existing.role !== "ADMIN" && existing.role !== "COORDINATOR") {
+      return jsonErr(
+        "VALIDATION_ERROR",
+        "O tipo de acesso (Administrador / Coordenador) só pode ser alterado para contas com esse perfil principal.",
+        400,
+      );
+    }
+    updateData.role = parsed.data.role;
   }
 
   const updated = await prisma.user.update({

@@ -12,4 +12,6 @@ export const updateAdminSchema = z.object({
   email: z.string().email("E-mail inválido").toLowerCase().optional(),
   password: z.string().min(8, "Senha deve ter no mínimo 8 caracteres").optional().or(z.literal("")),
   isActive: z.boolean().optional(),
+  /** Só para contas cujo `role` é ADMIN ou COORDINATOR (alteração pelo Master). */
+  role: z.enum(["ADMIN", "COORDINATOR"]).optional(),
 });

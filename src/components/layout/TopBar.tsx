@@ -23,7 +23,13 @@ export function TopBar({
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
-    availableRoles?: { canMaster: boolean; canStudent: boolean; canTeacher: boolean; canAdmin: boolean };
+    availableRoles?: {
+      canMaster: boolean;
+      canStudent: boolean;
+      canTeacher: boolean;
+      canAdmin: boolean;
+      canCoordinator?: boolean;
+    };
   };
 }) {
   const router = useRouter();
@@ -189,6 +195,7 @@ export function TopBar({
   const canStudent = r?.canStudent ?? (user.hasStudentProfile === true);
   const canTeacher = r?.canTeacher ?? (user.hasTeacherProfile === true);
   const canAdmin = r?.canAdmin ?? (user.isAdmin === true || user.baseRole === "ADMIN");
+  const canCoordinator = r?.canCoordinator ?? (user.baseRole === "COORDINATOR");
 
   const roleLabels: Record<string, string> = {
     MASTER: "Administrador Master",
@@ -202,7 +209,8 @@ export function TopBar({
     ...(canMaster ? [{ value: "MASTER" as const, label: roleLabels.MASTER }] : []),
     ...(canStudent ? [{ value: "STUDENT" as const, label: roleLabels.STUDENT }] : []),
     ...(canTeacher ? [{ value: "TEACHER" as const, label: roleLabels.TEACHER }] : []),
-    ...(canAdmin ? [{ value: "ADMIN" as const, label: roleLabels.ADMIN }] : []),
+    ...(canAdmin && !canMaster ? [{ value: "ADMIN" as const, label: roleLabels.ADMIN }] : []),
+    ...(canCoordinator && !canMaster ? [{ value: "COORDINATOR" as const, label: roleLabels.COORDINATOR }] : []),
   ];
   if (!roleOptions.some((o) => o.value === user.role)) {
     roleOptions = [...roleOptions, { value: user.role as RoleOption["value"], label: roleLabels[user.role] ?? user.role }];

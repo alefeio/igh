@@ -101,6 +101,12 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
     });
 
     if (!user || !user.isActive) return null;
+    if (payload.role === "MASTER" && user.role !== "MASTER") {
+      return null;
+    }
+    if (payload.role === "COORDINATOR" && user.role !== "COORDINATOR") {
+      return null;
+    }
     if (payload.role === "ADMIN" && user.role !== "ADMIN" && user.role !== "MASTER") {
       if (!user.isAdmin) return null;
     }

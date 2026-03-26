@@ -104,9 +104,20 @@ export async function POST(request: Request) {
       prisma.student.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } }).then((r) => !!r),
       prisma.teacher.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } }).then((r) => !!r),
     ]);
-    const hasAdmin = user.isAdmin === true;
-    const profileCount = [hasStudent, hasTeacher, hasAdmin].filter(Boolean).length;
-    const needsRoleChoice = profileCount >= 2;
+    const hasMaster = user.role === "MASTER";
+    const hasCoordinator = user.role === "COORDINATOR";
+    /** Acesso como Admin (JWT ADMIN) — perfil administrativo ou flag isAdmin. */
+    const hasAdminAccess = user.isAdmin === true || user.role === "ADMIN";
+
+    let choiceCount = 0;
+    if (hasStudent) choiceCount++;
+    if (hasTeacher) choiceCount++;
+    if (hasMaster) choiceCount++;
+    else {
+      if (hasCoordinator) choiceCount++;
+      if (hasAdminAccess) choiceCount++;
+    }
+    const needsRoleChoice = choiceCount >= 2;
 
     const sessionUser: SessionUser & { isAdmin?: boolean } = {
       id: user.id,
