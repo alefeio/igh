@@ -14,7 +14,7 @@ import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-st
 
 export async function GET() {
   try {
-    const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
+    const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
 
     await applyClassGroupAutomaticStatusUpdates();
 

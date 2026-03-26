@@ -4,7 +4,7 @@ import { computeAllTeachersGamification } from "@/lib/teacher-gamification";
 
 /** Quadro comparativo: todos os professores. Admin e Master. */
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const ranking = await computeAllTeachersGamification();
   return jsonOk({ ranking });
 }

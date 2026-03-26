@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 /** Resposta no fórum como admin/master (visível para todo o curso, como resposta de professor). */
@@ -7,7 +7,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ courseId: string; questionId: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireStaffWrite();
   const { courseId, questionId } = await context.params;
 
   const question = await prisma.enrollmentLessonQuestion.findFirst({

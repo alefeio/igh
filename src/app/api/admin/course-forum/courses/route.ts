@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireStaffRead } from "@/lib/auth";
 import { jsonOk } from "@/lib/http";
 
 /** Cursos ativos com contagem de tópicos no fórum (admin — visão global). */
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireStaffRead();
 
   const courses = await prisma.course.findMany({
     where: { status: "ACTIVE" },

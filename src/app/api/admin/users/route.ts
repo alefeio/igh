@@ -5,13 +5,13 @@ import { createAdminSchema } from "@/lib/validators/users";
 import { createAuditLog } from "@/lib/audit";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
-import { templateAdminWelcome } from "@/lib/email/templates";
+import { templateAdminWelcome, templateCoordinatorWelcome } from "@/lib/email/templates";
 
 export async function GET() {
   await requireRole("MASTER");
 
   const users = await prisma.user.findMany({
-    where: { OR: [{ role: "ADMIN" }, { isAdmin: true }] },
+    where: { OR: [{ role: "ADMIN" }, { role: "COORDINATOR" }, { isAdmin: true }] },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -37,15 +37,22 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { name, email } = parsed.data;
+  const { name, email, role: targetRole = "ADMIN" } = parsed.data;
   const existing = await prisma.user.findUnique({
     where: { email },
     select: { id: true, name: true, email: true, role: true, isActive: true, isAdmin: true },
   });
 
   if (existing) {
-    if (existing.role === "ADMIN" || existing.role === "MASTER") {
-      return jsonErr("EMAIL_IN_USE", "Já existe um usuário administrador com este e-mail.", 409);
+    if (existing.role === "ADMIN" || existing.role === "MASTER" || existing.role === "COORDINATOR") {
+      return jsonErr("EMAIL_IN_USE", "Já existe um usuário administrativo com este e-mail.", 409);
+    }
+    if (targetRole === "COORDINATOR") {
+      return jsonErr(
+        "EMAIL_IN_USE",
+        "Para criar um Coordenador, use um e-mail que ainda não esteja cadastrado na plataforma.",
+        409,
+      );
     }
     if (existing.role === "STUDENT" || existing.role === "TEACHER") {
       if (existing.isAdmin) {
@@ -81,7 +88,7 @@ export async function POST(request: Request) {
       name,
       email,
       passwordHash,
-      role: "ADMIN",
+      role: targetRole,
       isActive: true,
       mustChangePassword: true,
     },
@@ -96,16 +103,24 @@ export async function POST(request: Request) {
     performedByUserId: master.id,
   });
 
-  const { subject, html } = templateAdminWelcome({
-    name: created.name,
-    email: created.email,
-    tempPassword,
-  });
+  const welcome =
+    created.role === "COORDINATOR"
+      ? templateCoordinatorWelcome({
+          name: created.name,
+          email: created.email,
+          tempPassword,
+        })
+      : templateAdminWelcome({
+          name: created.name,
+          email: created.email,
+          tempPassword,
+        });
+  const { subject, html } = welcome;
   const emailResult = await sendEmailAndRecord({
     to: created.email,
     subject,
     html,
-    emailType: "welcome_admin",
+    emailType: created.role === "COORDINATOR" ? "welcome_coordinator" : "welcome_admin",
     entityType: "User",
     entityId: created.id,
     performedByUserId: master.id,

@@ -12,6 +12,8 @@ type Item = {
   adminOrMaster?: boolean;
   studentOnly?: boolean;
   teacherOnly?: boolean;
+  /** Professor, admin, master ou coordenador — reportes à coordenação. */
+  coordinatorAccess?: boolean;
   alwaysShow?: boolean;
   category?: string;
 };
@@ -19,6 +21,12 @@ type Item = {
 const ITEMS: Item[] = [
   { href: "/dashboard", label: "Dashboard", alwaysShow: true, category: "Início" },
   { href: "/meus-dados", label: "Meus dados", alwaysShow: true, category: "Início" },
+  {
+    href: "/coordenacao",
+    label: "Coordenação",
+    coordinatorAccess: true,
+    category: "Início",
+  },
   { href: "/minhas-turmas", label: "Minhas turmas", studentOnly: true, category: "Aluno" },
   { href: "/minhas-turmas/forum", label: "Fórum dos cursos", studentOnly: true, category: "Aluno" },
   { href: "/professor/turmas", label: "Turmas que leciono", teacherOnly: true, category: "Professor" },
@@ -31,7 +39,7 @@ const ITEMS: Item[] = [
   { href: "/teachers", label: "Professores", adminOrMaster: true, category: "Administração" },
   { href: "/admin/site/formacoes", label: "Formações", adminOrMaster: true, category: "Administração" },
   { href: "/courses", label: "Cursos", masterOrTeacher: true, category: "Administração" },
-  { href: "/class-groups", label: "Turmas", masterOnly: true, category: "Administração" },
+  { href: "/class-groups", label: "Turmas", adminOrMaster: true, category: "Administração" },
   { href: "/horarios", label: "Quadro de horários", adminOrMaster: true, category: "Administração" },
   { href: "/admin/forum", label: "Fóruns (todos os cursos)", adminOrMaster: true, category: "Administração" },
   { href: "/gamificacao", label: "Gamificação (professores)", adminOrMaster: true, category: "Administração" },
@@ -73,8 +81,8 @@ export function Sidebar({
   user: {
     name: string;
     email: string;
-    role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
@@ -93,11 +101,26 @@ export function Sidebar({
 
   const filteredItems = ITEMS.filter((i) => {
     if (i.alwaysShow) return true;
+    if (i.coordinatorAccess) {
+      return (
+        user.role === "TEACHER" ||
+        user.role === "ADMIN" ||
+        user.role === "MASTER" ||
+        user.role === "COORDINATOR"
+      );
+    }
     if (i.studentOnly) return user.role === "STUDENT";
     if (i.teacherOnly) return user.role === "TEACHER";
     if (i.masterOnly) return user.role === "MASTER";
-    if (i.masterOrTeacher) return user.role === "MASTER" || user.role === "TEACHER";
-    if (i.adminOrMaster) return user.role === "ADMIN" || user.role === "MASTER";
+    if (i.masterOrTeacher)
+      return (
+        user.role === "MASTER" ||
+        user.role === "TEACHER" ||
+        user.role === "ADMIN" ||
+        user.role === "COORDINATOR"
+      );
+    if (i.adminOrMaster)
+      return user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR";
     return user.role !== "STUDENT";
   });
 

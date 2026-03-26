@@ -79,3 +79,9 @@ export function getSupportUploadFolder(userId: string): string {
   const base = process.env.CLOUDINARY_UPLOAD_FOLDER ?? "igh";
   return `${base}/support/${userId}`.replace(/\/+/g, "/");
 }
+
+/** Pasta para anexos de reportes à coordenação: base/coordinator-reports/{userId} */
+export function getCoordinatorReportUploadFolder(userId: string): string {
+  const base = process.env.CLOUDINARY_UPLOAD_FOLDER ?? "igh";
+  return `${base}/coordinator-reports/${userId}`.replace(/\/+/g, "/");
+}

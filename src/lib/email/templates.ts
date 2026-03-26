@@ -74,6 +74,28 @@ export function templateAdminWelcome(params: {
   return { subject: "Acesso liberado - Área administrativa", html: wrapHtml(body) };
 }
 
+export function templateCoordinatorWelcome(params: {
+  name: string;
+  email: string;
+  tempPassword: string;
+}): { subject: string; html: string } {
+  const { name, email, tempPassword } = params;
+  const loginUrl = getAppUrl("/login");
+  const body = `
+<h2>Acesso liberado — Coordenação</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Seu cadastro como <strong>Coordenador</strong> foi realizado. Você poderá acompanhar alunos, turmas, frequência e indicadores em modo <strong>somente leitura</strong>. Use os dados abaixo para acessar:</p>
+<ul>
+  <li><strong>Link de acesso:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
+  <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
+  <li><strong>Senha temporária:</strong> <code style="background:#f0f0f0;padding:2px 6px;">${escapeHtml(tempPassword)}</code></li>
+</ul>
+<p><strong>Importante:</strong> Por segurança, você deverá trocar a senha no primeiro acesso.</p>
+<p>Guarde esta mensagem em local seguro até alterar sua senha. Não compartilhe sua senha com ninguém.</p>
+`;
+  return { subject: "Acesso liberado — Coordenação", html: wrapHtml(body) };
+}
+
 export function templateProfessorWelcome(params: {
   name: string;
   email: string;
@@ -328,6 +350,55 @@ export function templateSupportTicketUpdate(params: {
 <p><a href="${escapeHtml(ticketUrl)}" style="color: #1e40af; font-weight: 600;">Ver chamado e responder</a></p>
 `;
   return { subject: `Chamado ${escapeHtml(protocolNumber)} - Nova atualização`, html: wrapHtml(body) };
+}
+
+/** Novo reporte à coordenação — enviado a cada usuário com perfil Coordenador. */
+export function templateCoordinatorReportNewToCoordinator(params: {
+  coordinatorName: string;
+  protocolNumber: string;
+  subject: string;
+  summaryPreview: string;
+  fromName: string;
+  reportUrl: string;
+}): { subject: string; html: string } {
+  const { coordinatorName, protocolNumber, subject, summaryPreview, fromName, reportUrl } = params;
+  const body = `
+<h2>Novo reporte — ${escapeHtml(protocolNumber)}</h2>
+<p>Olá, <strong>${escapeHtml(coordinatorName)}</strong>.</p>
+<p><strong>${escapeHtml(fromName)}</strong> enviou uma comunicação à coordenação.</p>
+<p style="margin: 8px 0 4px; font-size: 15px; font-weight: 600;">${escapeHtml(subject)}</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border-radius: 8px; margin: 12px 0;">
+  <tr><td style="padding: 12px;">
+    <p style="margin: 0; font-size: 14px; color: #374151;">${escapeHtml(summaryPreview)}</p>
+  </td></tr>
+</table>
+<p><a href="${escapeHtml(reportUrl)}" style="color: #1e40af; font-weight: 600;">Abrir e responder</a></p>
+`;
+  return { subject: `Coordenação — Novo reporte ${escapeHtml(protocolNumber)}`, html: wrapHtml(body) };
+}
+
+/** Coordenador respondeu — notifica quem reportou. */
+export function templateCoordinatorReportReplyToReporter(params: {
+  reporterName: string;
+  protocolNumber: string;
+  subject: string;
+  messagePreview: string;
+  threadUrl: string;
+}): { subject: string; html: string } {
+  const { reporterName, protocolNumber, subject, messagePreview, threadUrl } = params;
+  const body = `
+<h2>Resposta da coordenação — ${escapeHtml(protocolNumber)}</h2>
+<p>Olá, <strong>${escapeHtml(reporterName)}</strong>.</p>
+<p>A coordenação respondeu ao seu reporte:</p>
+<p style="margin: 4px 0 0; font-size: 14px; color: #4b5563;">${escapeHtml(subject)}</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border-radius: 8px; margin: 12px 0;">
+  <tr><td style="padding: 12px;">
+    <p style="margin: 0; font-size: 14px; color: #374151;">${escapeHtml(messagePreview)}</p>
+  </td></tr>
+</table>
+<p><a href="${escapeHtml(threadUrl)}" style="color: #1e40af; font-weight: 600;">Ver conversa</a></p>
+`;
+  return { subject: `Coordenação — Resposta ao reporte ${escapeHtml(protocolNumber)}`, html: wrapHtml(body) };
 }
 
 export { TERMS_VERSION };

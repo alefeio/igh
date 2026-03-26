@@ -17,6 +17,7 @@ import { computeAllTeachersGamification, computeTeacherGamification } from "@/li
 const ROLE_LABELS: Record<string, string> = {
   MASTER: "Administrador Master",
   ADMIN: "Administrador",
+  COORDINATOR: "Coordenador",
   TEACHER: "Professor",
   STUDENT: "Aluno",
 };
@@ -54,7 +55,7 @@ export type PlatformExperienceDashboardSummary = {
 };
 
 export type DashboardDataAdmin = {
-  role: "ADMIN" | "MASTER";
+  role: "ADMIN" | "MASTER" | "COORDINATOR";
   roleLabel: string;
   stats: DashboardStats;
   recentEnrollmentsCount: number;
@@ -542,7 +543,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
   };
 
   return {
-    role: user.role as "ADMIN" | "MASTER",
+    role: user.role as "ADMIN" | "MASTER" | "COORDINATOR",
     roleLabel,
     stats,
     recentEnrollmentsCount,

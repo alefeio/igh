@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -42,6 +43,8 @@ type StatusFilter = "active" | "inactive" | "all";
 
 export default function TeachersPage() {
   const toast = useToast();
+  const user = useUser();
+  const readOnly = user.role === "COORDINATOR";
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Teacher[]>([]);
   const [open, setOpen] = useState(false);
@@ -189,7 +192,11 @@ export default function TeachersPage() {
       <DashboardHero
         eyebrow="Cadastros"
         title="Professores"
-        description="Filtro: ativos (padrão), inativos ou todos. Inativos podem ser reativados ou excluídos."
+        description={
+          readOnly
+            ? "Lista do corpo docente (somente leitura)."
+            : "Filtro: ativos (padrão), inativos ou todos. Inativos podem ser reativados ou excluídos."
+        }
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
             <div className="flex rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-0.5 text-sm shadow-sm">
@@ -206,9 +213,11 @@ export default function TeachersPage() {
                 </button>
               ))}
             </div>
-            <Button onClick={openCreate} className="w-full sm:w-auto">
-              Novo professor
-            </Button>
+            {!readOnly && (
+              <Button onClick={openCreate} className="w-full sm:w-auto">
+                Novo professor
+              </Button>
+            )}
           </div>
         }
       />
@@ -267,21 +276,25 @@ export default function TeachersPage() {
                 </Td>
                 <Td>
                   <div className="flex justify-end gap-2">
-                    <Button variant="secondary" onClick={() => openEdit(t)}>
-                      Editar
-                    </Button>
-                    {t.isActive && !t.deletedAt ? (
-                      <Button variant="secondary" onClick={() => inactivateTeacher(t)} className="text-red-600 hover:text-red-700">
-                        Inativar
-                      </Button>
-                    ) : (
+                    {!readOnly && (
                       <>
-                        <Button variant="secondary" onClick={() => reactivate(t)}>
-                          Reativar
+                        <Button variant="secondary" onClick={() => openEdit(t)}>
+                          Editar
                         </Button>
-                        <Button variant="secondary" onClick={() => deleteTeacherPermanent(t)} className="text-red-600 hover:text-red-700">
-                          Excluir
-                        </Button>
+                        {t.isActive && !t.deletedAt ? (
+                          <Button variant="secondary" onClick={() => inactivateTeacher(t)} className="text-red-600 hover:text-red-700">
+                            Inativar
+                          </Button>
+                        ) : (
+                          <>
+                            <Button variant="secondary" onClick={() => reactivate(t)}>
+                              Reativar
+                            </Button>
+                            <Button variant="secondary" onClick={() => deleteTeacherPermanent(t)} className="text-red-600 hover:text-red-700">
+                              Excluir
+                            </Button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>

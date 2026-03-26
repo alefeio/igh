@@ -1,5 +1,5 @@
 import { getAttendanceOverview } from "@/lib/attendance-session-summary";
-import { requireRole } from "@/lib/auth";
+import { requireStaffRead } from "@/lib/auth";
 import { jsonOk } from "@/lib/http";
 
 /**
@@ -7,7 +7,7 @@ import { jsonOk } from "@/lib/http";
  * Query opcional: classGroupId.
  */
 export async function GET(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireStaffRead();
 
   const { searchParams } = new URL(request.url);
   const classGroupId = searchParams.get("classGroupId")?.trim() || undefined;

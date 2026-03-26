@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireStaffRead } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 
@@ -7,7 +7,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ courseId: string }> }
 ) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireStaffRead();
   const { courseId } = await context.params;
 
   const course = await prisma.course.findFirst({

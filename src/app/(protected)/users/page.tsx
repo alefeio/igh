@@ -17,11 +17,19 @@ type AdminUser = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "STUDENT" | "TEACHER";
+  role: "ADMIN" | "COORDINATOR" | "STUDENT" | "TEACHER";
   isAdmin?: boolean;
   isActive: boolean;
   createdAt: string;
 };
+
+function roleLabel(u: AdminUser): string {
+  if (u.role === "COORDINATOR") return "Coordenador";
+  if (u.role === "ADMIN" || u.isAdmin) return "Admin";
+  if (u.role === "STUDENT") return "Aluno (+ admin)";
+  if (u.role === "TEACHER") return "Professor (+ admin)";
+  return u.role;
+}
 
 export default function UsersPage() {
   const toast = useToast();
@@ -34,6 +42,7 @@ export default function UsersPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [createRole, setCreateRole] = useState<"ADMIN" | "COORDINATOR">("ADMIN");
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
@@ -157,7 +166,7 @@ export default function UsersPage() {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({ name, email, role: createRole }),
       });
       const json = (await res.json()) as ApiResponse<{
         user: { id: string };
@@ -195,8 +204,8 @@ export default function UsersPage() {
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
       <DashboardHero
         eyebrow="Administração"
-        title="Usuários ADMIN"
-        description='Contas com perfil administrativo. Por padrão, apenas ativos — use "Exibir inativos" para reativar ou excluir.'
+        title="Usuários administrativos"
+        description='Administradores e coordenadores (somente leitura). Por padrão, apenas ativos — use "Exibir inativos" para reativar ou excluir.'
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
             <Button
@@ -208,7 +217,7 @@ export default function UsersPage() {
               {showInactive ? "Ocultar inativos" : "Exibir inativos"}
             </Button>
             <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">
-              Novo ADMIN
+              Novo usuário
             </Button>
           </div>
         }
@@ -234,6 +243,7 @@ export default function UsersPage() {
             <tr>
               <Th>Nome</Th>
               <Th>E-mail</Th>
+              <Th>Perfil</Th>
               <Th>Status</Th>
               <Th>Criado em</Th>
               <Th />
@@ -244,6 +254,9 @@ export default function UsersPage() {
               <tr key={u.id}>
                 <Td>{u.name}</Td>
                 <Td>{u.email}</Td>
+                <Td>
+                  <span className="text-sm text-[var(--text-secondary)]">{roleLabel(u)}</span>
+                </Td>
                 <Td>
                   {u.isActive ? (
                     <Badge tone="green">Ativo</Badge>
@@ -285,9 +298,9 @@ export default function UsersPage() {
             ))}
             {visibleUsers.length === 0 ? (
               <tr>
-                <Td colSpan={5}>
+                <Td colSpan={6}>
                   <span className="text-[var(--text-secondary)]">
-                    {showInactive ? "Nenhum usuário encontrado." : "Nenhum ADMIN ativo cadastrado."}
+                    {showInactive ? "Nenhum usuário encontrado." : "Nenhum usuário administrativo ativo cadastrado."}
                   </span>
                 </Td>
               </tr>
@@ -344,7 +357,16 @@ export default function UsersPage() {
         </form>
       </Modal>
 
-      <Modal open={open} title="Criar usuário ADMIN" onClose={() => { setOpen(false); setName(""); setEmail(""); }}>
+      <Modal
+        open={open}
+        title="Novo usuário administrativo"
+        onClose={() => {
+          setOpen(false);
+          setName("");
+          setEmail("");
+          setCreateRole("ADMIN");
+        }}
+      >
         <form className="flex flex-col gap-3" onSubmit={createAdmin}>
           <div>
             <label className="text-sm font-medium">Nome</label>
@@ -357,6 +379,22 @@ export default function UsersPage() {
             <div className="mt-1">
               <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
             </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Tipo de acesso</label>
+            <div className="mt-1">
+              <select
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                value={createRole}
+                onChange={(e) => setCreateRole(e.target.value as "ADMIN" | "COORDINATOR")}
+              >
+                <option value="ADMIN">Administrador (pode alterar cadastros)</option>
+                <option value="COORDINATOR">Coordenador (somente leitura nas áreas de acompanhamento)</option>
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Coordenador acompanha alunos, turmas, frequência e indicadores sem poder alterar dados.
+            </p>
           </div>
           <p className="text-xs text-[var(--text-muted)]">
             Uma senha temporária será gerada e enviada por e-mail ao usuário. Ele deverá trocá-la no primeiro acesso.

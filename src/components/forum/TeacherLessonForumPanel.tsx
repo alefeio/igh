@@ -44,11 +44,14 @@ export function TeacherLessonForumPanel({
   courseId,
   lessonId,
   staffRole = "teacher",
+  readOnly = false,
 }: {
   courseId: string;
   lessonId: string;
   /** Admin: mesma API de tópicos + POST de resposta em /api/admin/course-forum/.../reply */
   staffRole?: "teacher" | "admin";
+  /** Coordenador: só leitura (sem publicar resposta como equipe). */
+  readOnly?: boolean;
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -204,7 +207,7 @@ export function TeacherLessonForumPanel({
                   </div>
                 )}
 
-                {staffRole === "teacher" || staffRole === "admin" ? (
+                {!readOnly && (staffRole === "teacher" || staffRole === "admin") ? (
                   <div className="mt-4 border-t border-dashed border-[var(--card-border)] pt-3">
                     <label className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
                       {staffRole === "admin" ? "Responder como equipe (admin)" : "Responder como professor"}

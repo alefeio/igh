@@ -5,7 +5,7 @@ import { createTimeSlotSchema } from "@/lib/validators/time-slots";
 import { createAuditLog } from "@/lib/audit";
 
 export async function GET(request: Request) {
-  await requireRole("MASTER");
+  await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
 
   const { searchParams } = new URL(request.url);
   const activeOnly = searchParams.get("activeOnly");

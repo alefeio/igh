@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -104,6 +105,8 @@ function formatClassGroupStartDate(d: string | undefined): string {
 
 export default function ClassGroupsPage() {
   const toast = useToast();
+  const user = useUser();
+  const canMutate = user.role === "MASTER";
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ClassGroup[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -425,11 +428,17 @@ export default function ClassGroupsPage() {
       <DashboardHero
         eyebrow="Operação"
         title="Turmas"
-        description="Todas as turmas do sistema. Pesquise por curso, data de início ou horário e filtre por status."
+        description={
+          canMutate
+            ? "Todas as turmas do sistema. Pesquise por curso, data de início ou horário e filtre por status."
+            : "Todas as turmas do sistema (consulta). Pesquise por curso, data de início ou horário e filtre por status."
+        }
         rightSlot={
-          <Button onClick={openCreate} className="w-full sm:w-auto">
-            Nova turma
-          </Button>
+          canMutate ? (
+            <Button onClick={openCreate} className="w-full sm:w-auto">
+              Nova turma
+            </Button>
+          ) : undefined
         }
       />
 
@@ -526,29 +535,33 @@ export default function ClassGroupsPage() {
                 <Td>{cg.enrollmentsCount ?? 0} / {cg.capacity}</Td>
                 <Td>
                   <div className="flex justify-end gap-2">
-                    <Button variant="secondary" onClick={() => openEdit(cg)}>
-                      Editar
-                    </Button>
-                    {cg.status !== "CANCELADA" ? (
-                      <Button
-                        variant="secondary"
-                        onClick={() => inactivateClassGroup(cg)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Inativar
-                      </Button>
-                    ) : (
+                    {canMutate && (
                       <>
-                        <Button variant="secondary" onClick={() => reactivateClassGroup(cg)}>
-                          Reativar
+                        <Button variant="secondary" onClick={() => openEdit(cg)}>
+                          Editar
                         </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => deleteClassGroup(cg)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          Excluir
-                        </Button>
+                        {cg.status !== "CANCELADA" ? (
+                          <Button
+                            variant="secondary"
+                            onClick={() => inactivateClassGroup(cg)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            Inativar
+                          </Button>
+                        ) : (
+                          <>
+                            <Button variant="secondary" onClick={() => reactivateClassGroup(cg)}>
+                              Reativar
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              onClick={() => deleteClassGroup(cg)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              Excluir
+                            </Button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>

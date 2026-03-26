@@ -12,7 +12,7 @@ import { generateTempPassword } from "@/lib/password";
 import { hashPassword } from "@/lib/auth";
 
 export async function GET() {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
 
   const isTeacher = user.role === "TEACHER";
   let teacherId: string | null = null;

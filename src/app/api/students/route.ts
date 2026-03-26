@@ -9,7 +9,7 @@ import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/t
 import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 
 export async function GET(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";

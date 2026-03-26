@@ -410,7 +410,16 @@ function PlatformExperienceSummarySection({
   );
 }
 
-function DashboardAdmin({ data, userName }: { data: DashboardDataAdmin; userName: string }) {
+function DashboardAdmin({
+  data,
+  userName,
+  readOnly = false,
+}: {
+  data: DashboardDataAdmin;
+  userName: string;
+  /** Coordenador: sem atalhos para campanhas ou edição do site. */
+  readOnly?: boolean;
+}) {
   const {
     stats,
     recentEnrollmentsCount,
@@ -440,11 +449,13 @@ function DashboardAdmin({ data, userName }: { data: DashboardDataAdmin; userName
     <div className="min-w-0">
         <DashboardHero
           dataTour="admin-dashboard-welcome"
-          eyebrow="Painel administrativo"
+          eyebrow={readOnly ? "Coordenação" : "Painel administrativo"}
           title={`Olá, ${firstName}`}
           description={
             <>
-              Visão executiva do sistema — pessoas, turmas, matrículas e engajamento em um só lugar.
+              {readOnly
+                ? "Acompanhamento do sistema em modo somente leitura — indicadores e atalhos para consulta."
+                : "Visão executiva do sistema — pessoas, turmas, matrículas e engajamento em um só lugar."}
               <span className="mt-2 block text-xs font-medium text-[var(--text-muted)]">
                 Perfil: <span className="text-[var(--text-primary)]">{roleLabel}</span>
               </span>
@@ -608,45 +619,49 @@ function DashboardAdmin({ data, userName }: { data: DashboardDataAdmin; userName
               {
                 href: "/enrollments",
                 label: "Matrículas",
-                description: "Confirmar, filtrar e acompanhar turmas",
+                description: readOnly ? "Consultar matrículas e turmas" : "Confirmar, filtrar e acompanhar turmas",
                 icon: UserPlus,
                 accent: "from-emerald-500 to-teal-600",
               },
               {
                 href: "/students",
                 label: "Alunos",
-                description: "Cadastros e perfis de estudantes",
+                description: readOnly ? "Listagem e dados dos estudantes" : "Cadastros e perfis de estudantes",
                 icon: GraduationCap,
                 accent: "from-violet-500 to-purple-700",
               },
               {
                 href: "/teachers",
                 label: "Professores",
-                description: "Corpo docente e vínculos",
+                description: readOnly ? "Corpo docente (consulta)" : "Corpo docente e vínculos",
                 icon: Users2,
                 accent: "from-sky-500 to-blue-700",
               },
               {
                 href: "/courses",
                 label: "Cursos",
-                description: "Conteúdo e estrutura pedagógica",
+                description: readOnly ? "Catálogo e carga horária" : "Conteúdo e estrutura pedagógica",
                 icon: BookOpen,
                 accent: "from-amber-500 to-orange-600",
               },
               {
                 href: "/class-groups",
                 label: "Turmas",
-                description: "Ofertas, calendário e vagas",
+                description: readOnly ? "Ofertas e calendário (consulta)" : "Ofertas, calendário e vagas",
                 icon: School,
                 accent: "from-rose-500 to-red-600",
               },
-              {
-                href: "/admin/email",
-                label: "E-mail em massa",
-                description: "Campanhas e disparos para a base",
-                icon: Mail,
-                accent: "from-indigo-500 to-violet-700",
-              },
+              ...(readOnly
+                ? []
+                : [
+                    {
+                      href: "/admin/email",
+                      label: "E-mail em massa",
+                      description: "Campanhas e disparos para a base",
+                      icon: Mail,
+                      accent: "from-indigo-500 to-violet-700",
+                    },
+                  ]),
               {
                 href: "/admin/forum",
                 label: "Fóruns (todos os cursos)",
@@ -668,13 +683,35 @@ function DashboardAdmin({ data, userName }: { data: DashboardDataAdmin; userName
                 icon: PieChart,
                 accent: "from-cyan-500 to-emerald-600",
               },
-              {
-                href: "/admin/site/configuracoes",
-                label: "Site & configurações",
-                description: "Institucional, banners e ajustes",
-                icon: LayoutDashboard,
-                accent: "from-slate-500 to-slate-700",
-              },
+              ...(readOnly
+                ? []
+                : [
+                    {
+                      href: "/admin/site/configuracoes",
+                      label: "Site & configurações",
+                      description: "Institucional, banners e ajustes",
+                      icon: LayoutDashboard,
+                      accent: "from-slate-500 to-slate-700",
+                    },
+                  ]),
+              ...(readOnly
+                ? [
+                    {
+                      href: "/horarios",
+                      label: "Quadro de horários",
+                      description: "Visão consolidada de turmas e horários",
+                      icon: Clock,
+                      accent: "from-blue-500 to-cyan-600",
+                    },
+                    {
+                      href: "/admin/frequencia",
+                      label: "Frequência",
+                      description: "Presenças por turma (todas as turmas)",
+                      icon: ListChecks,
+                      accent: "from-emerald-500 to-teal-700",
+                    },
+                  ]
+                : []),
             ]}
           />
         </section>
@@ -1385,8 +1422,12 @@ export default async function DashboardPage() {
 
   return (
     <>
-      {data.role === "ADMIN" || data.role === "MASTER" ? (
-        <DashboardAdmin data={data} userName={user.name} />
+      {data.role === "ADMIN" || data.role === "MASTER" || data.role === "COORDINATOR" ? (
+        <DashboardAdmin
+          data={data}
+          userName={user.name}
+          readOnly={data.role === "COORDINATOR"}
+        />
       ) : data.role === "TEACHER" ? (
         <DashboardTeacher data={data} userName={user.name} />
       ) : (
@@ -1400,19 +1441,20 @@ export default async function DashboardPage() {
           data.role !== "MASTER" &&
           (data.role === "STUDENT" ||
             data.role === "ADMIN" ||
+            data.role === "COORDINATOR" ||
             data.role === "TEACHER")
         }
         steps={
           data.role === "STUDENT"
             ? STUDENT_TUTORIAL_STEPS
-            : data.role === "ADMIN" || data.role === "MASTER"
+            : data.role === "ADMIN" || data.role === "MASTER" || data.role === "COORDINATOR"
               ? ADMIN_TUTORIAL_STEPS
               : data.role === "TEACHER"
                 ? TEACHER_TUTORIAL_STEPS
                 : []
         }
         storageKey={
-          data.role === "ADMIN" || data.role === "MASTER"
+          data.role === "ADMIN" || data.role === "MASTER" || data.role === "COORDINATOR"
             ? "admin-dashboard-tutorial-done"
             : data.role === "TEACHER"
               ? "teacher-dashboard-tutorial-done"

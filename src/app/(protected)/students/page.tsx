@@ -122,6 +122,7 @@ export default function StudentsPage() {
   const user = useUser();
   const isMaster = user.role === "MASTER";
   const isTeacher = user.role === "TEACHER";
+  const isCoordinator = user.role === "COORDINATOR";
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Student[]>([]);
@@ -273,7 +274,7 @@ export default function StudentsPage() {
             : "Cadastro base do aluno. Use a busca por nome ou CPF."
         }
         rightSlot={
-          !isTeacher ? (
+          !isTeacher && !isCoordinator ? (
             <Button onClick={openCreate} className="w-full sm:w-auto">
               Novo aluno
             </Button>
@@ -293,7 +294,7 @@ export default function StudentsPage() {
             onChange={(e) => setQ(e.target.value)}
             className="max-w-xs"
           />
-          {isMaster && (
+          {isMaster && !isCoordinator && (
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -366,7 +367,7 @@ export default function StudentsPage() {
                     <Button variant="secondary" onClick={() => openView(s)}>
                       Visualizar
                     </Button>
-                    {!isTeacher && (
+                    {!isTeacher && !isCoordinator && (
                       <>
                         {!s.deletedAt && (
                           <Button variant="secondary" onClick={() => openEdit(s)}>

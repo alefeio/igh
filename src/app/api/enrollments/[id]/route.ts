@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireStaffRead } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateEnrollmentSchema } from "@/lib/validators/enrollments";
 import { formatDateOnly } from "@/lib/format";
@@ -13,7 +13,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireStaffRead();
   const { id } = await context.params;
 
   const enrollment = await prisma.enrollment.findUnique({

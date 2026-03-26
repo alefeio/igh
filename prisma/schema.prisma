@@ -42,6 +42,8 @@ model User {
   emailTemplatesCreated       EmailTemplate[]     @relation("EmailTemplateCreatedBy")
   platformExperienceFeedbacks PlatformExperienceFeedback[]
   lessonQuestionStaffReplies  LessonQuestionTeacherReply[] @relation("LessonQuestionStaffReply")
+  coordinatorReportsFrom     CoordinatorReport[]        @relation("CoordinatorReportFrom")
+  coordinatorReportMessages  CoordinatorReportMessage[] @relation("CoordinatorReportMessageAuthor")
 }
 
 /** Avaliação da experiência do aluno (plataforma, aulas, professor, comentário e indicação). */
@@ -55,12 +57,10 @@ model PlatformExperienceFeedback {
   ratingLessons  Int
   /** Nota de 1 a 10 — atuação do(s) professor(es). */
   ratingTeacher  Int
-  /** Comentário opcional sobre a plataforma (legado: `comment` único antes da divisão por tópico). */
+  /** Comentário opcional sobre a plataforma. */
   commentPlatform String? @db.Text
   commentLessons  String? @db.Text
   commentTeacher  String? @db.Text
-  /** Legado: comentário único antes de commentPlatform/Lessons/Teacher. */
-  comment   String?  @db.Text
   /** Texto livre: quem indicaria, contato, etc. */
   referral  String?  @db.Text
   createdAt DateTime @default(now())
@@ -720,6 +720,48 @@ enum SupportTicketStatus {
   CLOSED
 }
 
+/** Reporte de professor/admin/master à coordenação (comunicação + anexos). */
+model CoordinatorReport {
+  id                    String                  @id @default(uuid())
+  protocolNumber        String                  @unique
+  fromUserId            String
+  subject               String
+  summary               String
+  status                CoordinatorReportStatus @default(OPEN)
+  attachmentUrls        String[]                @default([])
+  attachmentNames       String[]                @default([])
+  unreadByCoordinator   Boolean                 @default(true)
+  unreadByReporter      Boolean                 @default(false)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  fromUser              User                    @relation("CoordinatorReportFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  messages              CoordinatorReportMessage[]
+
+  @@index([fromUserId])
+  @@index([updatedAt])
+}
+
+model CoordinatorReportMessage {
+  id                  String            @id @default(uuid())
+  reportId            String
+  authorUserId        String
+  isFromCoordinator   Boolean           @default(false)
+  content             String
+  attachmentUrls      String[]          @default([])
+  attachmentNames     String[]          @default([])
+  createdAt           DateTime          @default(now())
+  report              CoordinatorReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  author              User              @relation("CoordinatorReportMessageAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+enum CoordinatorReportStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+}
+
 model SiteNewsCategory {
   id       String         @id @default(uuid())
   name     String
@@ -807,6 +849,7 @@ enum ClassSessionStatus {
 enum UserRole {
   MASTER
   ADMIN
+  COORDINATOR
   TEACHER
   STUDENT
 }

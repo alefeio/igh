@@ -18,8 +18,8 @@ export function ResponsiveShell({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;

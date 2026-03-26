@@ -6,8 +6,9 @@ export default function ProfessorAvaliacoesExperienciaPage() {
       <PlatformExperienceEvaluationsClient
         apiUrl="/api/teacher/platform-experience-feedback"
         exportUrl="/api/teacher/platform-experience-feedback/export"
+        exportPdfUrl="/api/teacher/platform-experience-feedback/export-pdf"
         pageTitle="Avaliações dos meus alunos"
-        pageDescription="Apenas avaliações enviadas por alunos com matrícula ativa em alguma turma sua. Médias e lista filtradas automaticamente."
+        pageDescription="Apenas avaliações enviadas por alunos com matrícula ativa em alguma turma sua. A coluna Turma mostra curso, local, dias e horário das turmas ativas do aluno. “Com.” é abreviação de Comentário."
       />
     </div>
   );

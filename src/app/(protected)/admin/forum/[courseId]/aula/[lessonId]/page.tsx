@@ -5,12 +5,14 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { DashboardHero } from "@/components/dashboard/DashboardUI";
+import { useUser } from "@/components/layout/UserProvider";
 import { TeacherLessonForumPanel } from "@/components/forum/TeacherLessonForumPanel";
 import type { ApiResponse } from "@/lib/api-types";
 
 type TopicsMeta = { lessonTitle: string; moduleTitle: string };
 
 export default function AdminForumLessonPage() {
+  const user = useUser();
   const params = useParams();
   const courseId = typeof params.courseId === "string" ? params.courseId : "";
   const lessonId = typeof params.lessonId === "string" ? params.lessonId : "";
@@ -46,7 +48,12 @@ export default function AdminForumLessonPage() {
 
       <div className="mt-6">
         {courseId && lessonId ? (
-          <TeacherLessonForumPanel courseId={courseId} lessonId={lessonId} staffRole="admin" />
+          <TeacherLessonForumPanel
+            courseId={courseId}
+            lessonId={lessonId}
+            staffRole="admin"
+            readOnly={user.role === "COORDINATOR"}
+          />
         ) : (
           <p className="text-sm text-[var(--text-muted)]">Parâmetros inválidos.</p>
         )}

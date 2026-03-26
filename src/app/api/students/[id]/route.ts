@@ -11,7 +11,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
   const { id } = await context.params;
 
   const student = await prisma.student.findUnique({

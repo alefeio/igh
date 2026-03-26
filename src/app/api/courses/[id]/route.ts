@@ -17,7 +17,7 @@ async function teacherCanAccessCourse(userId: string, courseId: string): Promise
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["MASTER", "ADMIN", "TEACHER"]);
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER", "COORDINATOR"]);
   const { id } = await context.params;
 
   const course = await prisma.course.findUnique({

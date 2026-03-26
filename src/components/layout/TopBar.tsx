@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 import { playNotificationSound } from "@/lib/notification-sound";
 
-type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER"; label: string };
+type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR"; label: string };
 
 export function TopBar({
   user,
@@ -18,8 +18,8 @@ export function TopBar({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
@@ -31,6 +31,7 @@ export function TopBar({
   const [loading, setLoading] = useState(false);
   const [switchingRole, setSwitchingRole] = useState(false);
   const [supportBadge, setSupportBadge] = useState<{ unreadCount?: number; openCount?: number }>({});
+  const [coordinatorReportBadge, setCoordinatorReportBadge] = useState<{ unreadCount?: number }>({});
   const [notificationBadge, setNotificationBadge] = useState<{ hasUnread?: boolean }>({});
 
   const isSupport =
@@ -39,6 +40,12 @@ export function TopBar({
     user.baseRole === "MASTER" ||
     user.baseRole === "ADMIN" ||
     user.isAdmin;
+
+  const hasCoordinatorReportAccess =
+    user.role === "TEACHER" ||
+    user.role === "ADMIN" ||
+    user.role === "MASTER" ||
+    user.role === "COORDINATOR";
 
   const fetchSupportBadge = useCallback(() => {
     fetch("/api/me/support/badge", { credentials: "include", cache: "no-store" })
@@ -50,6 +57,16 @@ export function TopBar({
       })
       .catch(() => {});
   }, []);
+
+  const fetchCoordinatorReportBadge = useCallback(() => {
+    if (!hasCoordinatorReportAccess) return;
+    fetch("/api/coordinator-reports/badge", { credentials: "include", cache: "no-store" })
+      .then((r) => r.json() as Promise<ApiResponse<{ unreadCount?: number }>>)
+      .then((json) => {
+        if (json?.ok && json.data) setCoordinatorReportBadge(json.data);
+      })
+      .catch(() => {});
+  }, [hasCoordinatorReportAccess]);
 
   const isSupportRef = useRef(isSupport);
   isSupportRef.current = isSupport;
@@ -137,6 +154,28 @@ export function TopBar({
   }, [fetchSupportBadge]);
 
   useEffect(() => {
+    if (!hasCoordinatorReportAccess) return;
+    fetchCoordinatorReportBadge();
+  }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadge]);
+
+  useEffect(() => {
+    const onRefetch = () => fetchCoordinatorReportBadge();
+    window.addEventListener("coordinator-report-badge-refetch", onRefetch);
+    return () => window.removeEventListener("coordinator-report-badge-refetch", onRefetch);
+  }, [fetchCoordinatorReportBadge]);
+
+  useEffect(() => {
+    if (!hasCoordinatorReportAccess) return;
+    const onVisible = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchCoordinatorReportBadge();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadge]);
+
+  useEffect(() => {
     fetch("/api/me/notifications/badge", { credentials: "include" })
       .then((r) => r.json() as Promise<ApiResponse<{ hasUnread?: boolean }>>)
       .then((json) => {
@@ -154,6 +193,7 @@ export function TopBar({
   const roleLabels: Record<string, string> = {
     MASTER: "Administrador Master",
     ADMIN: "Admin",
+    COORDINATOR: "Coordenador",
     TEACHER: "Professor",
     STUDENT: "Aluno",
   };
@@ -169,7 +209,7 @@ export function TopBar({
   }
   const hasMoreThanOneProfile = roleOptions.length >= 2;
 
-  async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER") {
+  async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR") {
     if (newRole === user.role) return;
     setSwitchingRole(true);
     try {
@@ -245,6 +285,29 @@ export function TopBar({
             </span>
           )}
         </span>
+        {hasCoordinatorReportAccess && (
+          <span className="relative inline-flex">
+            <Link
+              href="/coordenacao"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-secondary)] transition hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2"
+              title="Coordenação"
+              aria-label="Coordenação"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M4 11a9 9 0 0 1 9 9" />
+                <path d="M4 4a16 16 0 0 1 16 16" />
+                <circle cx="5" cy="19" r="1" />
+              </svg>
+            </Link>
+            {(coordinatorReportBadge.unreadCount ?? 0) > 0 && (
+              <span
+                className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-[var(--card-bg)]"
+                aria-hidden
+                title="Novidade na coordenação"
+              />
+            )}
+          </span>
+        )}
         <div className="relative">
           <button
             type="button"
@@ -282,7 +345,9 @@ export function TopBar({
                     <select
                       value={user.role}
                       disabled={switchingRole}
-                      onChange={(e) => onRoleChange(e.target.value as "STUDENT" | "TEACHER" | "ADMIN" | "MASTER")}
+                      onChange={(e) =>
+                        onRoleChange(e.target.value as "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR")
+                      }
                       className="w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-sm text-[var(--input-text)] focus:border-[var(--igh-primary)] focus:outline-none"
                     >
                       {roleOptions.map((opt) => (

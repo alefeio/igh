@@ -137,3 +137,13 @@ export async function requireRole(roles: UserRole | UserRole[]): Promise<Session
   }
   return user;
 }
+
+/** Leitura de relatórios e listagens administrativas (inclui Coordenador — sem alterar dados). */
+export async function requireStaffRead(): Promise<SessionUser> {
+  return requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+}
+
+/** Alterações em cadastros e operação (Admin e Master; não Coordenador). */
+export async function requireStaffWrite(): Promise<SessionUser> {
+  return requireRole(["ADMIN", "MASTER"]);
+}

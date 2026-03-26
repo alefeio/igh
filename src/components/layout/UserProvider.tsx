@@ -6,8 +6,8 @@ export type SessionUser = {
   id: string;
   name: string;
   email: string;
-  role: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
-  baseRole?: "MASTER" | "ADMIN" | "TEACHER" | "STUDENT";
+  role: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
+  baseRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
   mustChangePassword?: boolean;
   isAdmin?: boolean;
   /** True se o usuário possui perfil de aluno (Student) ativo. */

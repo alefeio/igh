@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { rowsToCsvSemicolon } from "@/lib/csv-export";
+import { loadExperienceFeedbackTurmaByUserIds } from "@/lib/platform-experience-turma";
 
 const MAX_ROWS = 10000;
 
@@ -18,13 +19,14 @@ export async function GET() {
         "Data",
         "Nome",
         "E-mail",
+        "Turma (curso, local, dias, horário)",
+        "Professor(es) — contexto",
         "Nota plataforma",
         "Nota aulas",
         "Nota professor",
         "Comentário plataforma",
         "Comentário aulas",
-        "Comentário professor",
-        "Comentário legado",
+        "Comentário sobre o professor",
         "Indicação",
       ],
       [],
@@ -62,13 +64,14 @@ export async function GET() {
         "Data",
         "Nome",
         "E-mail",
+        "Turma (curso, local, dias, horário)",
+        "Professor(es) — contexto",
         "Nota plataforma",
         "Nota aulas",
         "Nota professor",
         "Comentário plataforma",
         "Comentário aulas",
-        "Comentário professor",
-        "Comentário legado",
+        "Comentário sobre o professor",
         "Indicação",
       ],
       [],
@@ -90,33 +93,45 @@ export async function GET() {
     include: { user: { select: { name: true, email: true } } },
   });
 
+  const turmaByUser = await loadExperienceFeedbackTurmaByUserIds(
+    rows.map((r) => r.userId),
+  );
+
   const headers = [
     "Data",
     "Nome",
     "E-mail",
+    "Turma (curso, local, dias, horário)",
+    "Professor(es) — contexto",
     "Nota plataforma",
     "Nota aulas",
     "Nota professor",
     "Comentário plataforma",
     "Comentário aulas",
-    "Comentário professor",
-    "Comentário legado",
+    "Comentário sobre o professor",
     "Indicação",
   ];
 
-  const dataRows = rows.map((r) => [
-    r.createdAt.toISOString(),
-    r.user.name,
-    r.user.email,
-    String(r.ratingPlatform),
-    String(r.ratingLessons),
-    String(r.ratingTeacher),
-    r.commentPlatform ?? "",
-    r.commentLessons ?? "",
-    r.commentTeacher ?? "",
-    r.comment ?? "",
-    r.referral ?? "",
-  ]);
+  const dataRows = rows.map((r) => {
+    const ctx = turmaByUser.get(r.userId) ?? {
+      turmaLabel: "",
+      teacherNames: [] as string[],
+    };
+    return [
+      r.createdAt.toISOString(),
+      r.user.name,
+      r.user.email,
+      ctx.turmaLabel === "—" ? "" : ctx.turmaLabel,
+      ctx.teacherNames.join(", "),
+      String(r.ratingPlatform),
+      String(r.ratingLessons),
+      String(r.ratingTeacher),
+      r.commentPlatform ?? "",
+      r.commentLessons ?? "",
+      r.commentTeacher ?? "",
+      r.referral ?? "",
+    ];
+  });
 
   const csv = rowsToCsvSemicolon(headers, dataRows);
   const filename = `avaliacoes-minhas-turmas-${new Date().toISOString().slice(0, 10)}.csv`;
