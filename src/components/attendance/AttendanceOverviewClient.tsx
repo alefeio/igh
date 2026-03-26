@@ -1,26 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { FileDown } from "lucide-react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import { AttendanceOverviewChart } from "./AttendanceOverviewChart";
 
-export type AttendanceItem = {
-  id: string;
+export type AttendanceClassGroupSummary = {
   classGroupId: string;
-  classGroupStatus: string;
+  courseId: string;
   courseName: string;
+  turmaLabel: string;
+  horarioLabel: string;
   teacherName: string;
-  sessionDate: string;
-  sessionStatus: string;
-  sessionStartTime: string;
-  sessionEndTime: string;
-  lessonTitle: string | null;
-  studentName: string;
-  enrollmentStatus: string;
-  present: boolean;
-  absenceJustification: string | null;
-  updatedAt: string;
+  sessionCount: number;
+  presentSum: number;
+  absentSum: number;
+  justifiedAbsentSum: number;
 };
 
 type ClassGroupOption = { id: string; label: string };
@@ -28,18 +25,28 @@ type ClassGroupOption = { id: string; label: string };
 export function AttendanceOverviewClient({
   apiUrl,
   classGroupsApiUrl,
+  exportPdfUrl,
   pageTitle,
   pageDescription,
 }: {
   apiUrl: string;
   classGroupsApiUrl: string;
+  /** GET que devolve application/pdf */
+  exportPdfUrl?: string;
   pageTitle: string;
   pageDescription: string;
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<AttendanceItem[]>([]);
-  const [truncated, setTruncated] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [groups, setGroups] = useState<AttendanceClassGroupSummary[]>([]);
+  const [totals, setTotals] = useState({
+    presentSum: 0,
+    absentSum: 0,
+    justifiedAbsentSum: 0,
+    sessionCount: 0,
+    classGroupCount: 0,
+  });
   const [classGroups, setClassGroups] = useState<ClassGroupOption[]>([]);
   const [filterGroupId, setFilterGroupId] = useState("");
 
@@ -68,7 +75,16 @@ export function AttendanceOverviewClient({
     try {
       const q = filterGroupId ? `?classGroupId=${encodeURIComponent(filterGroupId)}` : "";
       const res = await fetch(`${apiUrl}${q}`, { credentials: "include" });
-      const json = (await res.json()) as ApiResponse<{ items: AttendanceItem[]; truncated: boolean }>;
+      const json = (await res.json()) as ApiResponse<{
+        groups: AttendanceClassGroupSummary[];
+        totals: {
+          presentSum: number;
+          absentSum: number;
+          justifiedAbsentSum: number;
+          sessionCount: number;
+          classGroupCount: number;
+        };
+      }>;
       if (!res.ok || !json?.ok) {
         toast.push(
           "error",
@@ -76,8 +92,16 @@ export function AttendanceOverviewClient({
         );
         return;
       }
-      setItems(json.data.items);
-      setTruncated(json.data.truncated);
+      setGroups(json.data.groups);
+      setTotals(
+        json.data.totals ?? {
+          presentSum: 0,
+          absentSum: 0,
+          justifiedAbsentSum: 0,
+          sessionCount: 0,
+          classGroupCount: 0,
+        },
+      );
     } finally {
       setLoading(false);
     }
@@ -91,14 +115,52 @@ export function AttendanceOverviewClient({
     void load();
   }, [load]);
 
-  const presentCount = useMemo(() => items.filter((i) => i.present).length, [items]);
-  const absentCount = useMemo(() => items.filter((i) => !i.present).length, [items]);
+  async function handleExportPdf() {
+    if (!exportPdfUrl) return;
+    setExportingPdf(true);
+    try {
+      const q = filterGroupId ? `?classGroupId=${encodeURIComponent(filterGroupId)}` : "";
+      const res = await fetch(`${exportPdfUrl}${q}`, { credentials: "include" });
+      if (!res.ok) {
+        toast.push("error", "Não foi possível gerar o PDF.");
+        return;
+      }
+      const blob = await res.blob();
+      const dispo = res.headers.get("Content-Disposition");
+      let filename = "frequencia.pdf";
+      const m = dispo?.match(/filename="([^"]+)"/);
+      if (m?.[1]) filename = m[1];
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.push("error", "Falha ao exportar PDF.");
+    } finally {
+      setExportingPdf(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-lg font-semibold text-[var(--text-primary)]">{pageTitle}</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">{pageDescription}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold text-[var(--text-primary)]">{pageTitle}</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">{pageDescription}</p>
+        </div>
+        {exportPdfUrl ? (
+          <button
+            type="button"
+            onClick={() => void handleExportPdf()}
+            disabled={exportingPdf}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--igh-primary)]/10 disabled:opacity-60 sm:w-auto"
+          >
+            <FileDown className="h-4 w-4 shrink-0" aria-hidden />
+            {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
+          </button>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -126,72 +188,80 @@ export function AttendanceOverviewClient({
         <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Registros</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--text-primary)]">{items.length}</div>
+              <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Aulas</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--text-primary)]">
+                {totals.sessionCount}
+              </div>
             </div>
             <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Presenças</div>
+              <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                Presenças (soma)
+              </div>
               <div className="mt-1 text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                {presentCount}
+                {totals.presentSum}
               </div>
             </div>
             <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Ausências</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-rose-600 dark:text-rose-400">
-                {absentCount}
+              <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                Ausências (soma)
+              </div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-rose-700 dark:text-rose-400">
+                {totals.absentSum}
               </div>
             </div>
             <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Limite</div>
-              <div className="mt-1 text-sm text-[var(--text-secondary)]">
-                {truncated ? "Lista limitada aos últimos registros." : "Todos os registros carregados."}
+              <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                Justif. ausência (soma)
+              </div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                {totals.justifiedAbsentSum}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Turmas</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--text-primary)]">
+                {totals.classGroupCount}
               </div>
             </div>
           </div>
+
+          <AttendanceOverviewChart groups={groups} />
 
           <div className="overflow-x-auto rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]">
             <Table>
               <thead>
                 <tr>
-                  <Th>Data</Th>
                   <Th>Curso</Th>
-                  <Th>Status turma</Th>
+                  <Th>Turma</Th>
+                  <Th>Horário</Th>
                   <Th>Professor</Th>
-                  <Th>Sessão</Th>
-                  <Th>Aula</Th>
-                  <Th>Aluno</Th>
-                  <Th>Matrícula</Th>
-                  <Th>Presença</Th>
-                  <Th>Justificativa (ausência)</Th>
+                  <Th>Presenças / ausências</Th>
+                  <Th>Ausências justificadas</Th>
                 </tr>
               </thead>
               <tbody>
-                {items.length === 0 ? (
+                {groups.length === 0 ? (
                   <tr>
-                    <Td colSpan={10} className="text-center text-[var(--text-muted)]">
-                      Nenhum registro de frequência encontrado.
+                    <Td colSpan={6} className="text-center text-[var(--text-muted)]">
+                      Nenhuma turma encontrada no filtro.
                     </Td>
                   </tr>
                 ) : (
-                  items.map((r) => (
-                    <tr key={r.id}>
-                      <Td className="whitespace-nowrap text-sm text-[var(--text-muted)]">
-                        {new Date(r.sessionDate + "T12:00:00").toLocaleDateString("pt-BR")}
+                  groups.map((r) => (
+                    <tr key={r.classGroupId}>
+                      <Td className="min-w-[10rem] max-w-[min(28rem,100%)] whitespace-normal break-words text-sm text-[var(--text-primary)]">
+                        {r.courseName}
                       </Td>
-                      <Td className="max-w-[10rem] text-sm text-[var(--text-primary)]">{r.courseName}</Td>
-                      <Td className="whitespace-nowrap text-xs text-[var(--text-muted)]">{r.classGroupStatus}</Td>
+                      <Td className="max-w-[10rem] text-sm text-[var(--text-secondary)]">{r.turmaLabel}</Td>
+                      <Td className="whitespace-nowrap text-sm text-[var(--text-primary)]">{r.horarioLabel}</Td>
                       <Td className="max-w-[10rem] text-sm">{r.teacherName}</Td>
-                      <Td className="whitespace-nowrap text-xs text-[var(--text-secondary)]">
-                        {r.sessionStatus} · {r.sessionStartTime}–{r.sessionEndTime}
+                      <Td className="whitespace-nowrap text-sm tabular-nums text-[var(--text-primary)]">
+                        {r.presentSum} / {r.absentSum}
                       </Td>
-                      <Td className="max-w-[8rem] text-sm text-[var(--text-secondary)]">{r.lessonTitle ?? "—"}</Td>
-                      <Td className="text-sm font-medium text-[var(--text-primary)]">{r.studentName}</Td>
-                      <Td className="text-xs text-[var(--text-muted)]">{r.enrollmentStatus}</Td>
-                      <Td className="text-sm">{r.present ? "Presente" : "Ausente"}</Td>
-                      <Td className="max-w-[14rem] whitespace-pre-wrap text-sm text-[var(--text-secondary)]">
-                        {!r.present && r.absenceJustification ? r.absenceJustification : "—"}
+                      <Td className="text-center text-sm tabular-nums text-[var(--text-secondary)]">
+                        {r.justifiedAbsentSum}
                       </Td>
                     </tr>
                   ))

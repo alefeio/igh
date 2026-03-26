@@ -85,54 +85,52 @@ export default async function ProfessorTurmasPage() {
         </div>
       ) : (
         <TableShell>
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]">
-                <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Curso</th>
-                <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Status</th>
-                <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Início</th>
-                <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Horário</th>
-                <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Local</th>
-                <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Alunos</th>
-                <th className="px-3 py-2 text-right font-medium text-[var(--text-primary)]">Ações</th>
+          <thead>
+            <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]">
+              <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Curso</th>
+              <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Status</th>
+              <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Início</th>
+              <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Horário</th>
+              <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Local</th>
+              <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Alunos</th>
+              <th className="px-3 py-2 text-right font-medium text-[var(--text-primary)]">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {classGroupsForTable.map((cg) => (
+              <tr key={cg.id} className="border-b border-[var(--card-border)] last:border-b-0">
+                <td className="px-3 py-2 font-medium text-[var(--text-primary)]">
+                  <Link
+                    href={`/professor/turmas/${cg.id}`}
+                    className="text-[var(--igh-primary)] hover:underline"
+                  >
+                    {cg.courseName}
+                  </Link>
+                </td>
+                <td className="px-3 py-2 text-[var(--text-secondary)]">
+                  {STATUS_LABELS[cg.status] ?? cg.status}
+                </td>
+                <td className="px-3 py-2 text-[var(--text-secondary)]">{formatDate(cg.startDate)}</td>
+                <td className="px-3 py-2 text-[var(--text-secondary)]">
+                  {cg.startTime} – {cg.endTime}
+                </td>
+                <td className="px-3 py-2 text-[var(--text-secondary)] max-w-[200px] truncate" title={cg.location ?? undefined}>
+                  {cg.location?.trim() ? cg.location : "—"}
+                </td>
+                <td className="px-3 py-2 text-[var(--text-secondary)]">
+                  {cg.enrollmentsCount} / {cg.capacity}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <Link
+                    href={`/professor/turmas/${cg.id}`}
+                    className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)]"
+                  >
+                    Ver turma
+                  </Link>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {classGroupsForTable.map((cg) => (
-                <tr key={cg.id} className="border-b border-[var(--card-border)] last:border-b-0">
-                  <td className="px-3 py-2 font-medium text-[var(--text-primary)]">
-                    <Link
-                      href={`/professor/turmas/${cg.id}`}
-                      className="text-[var(--igh-primary)] hover:underline"
-                    >
-                      {cg.courseName}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2 text-[var(--text-secondary)]">
-                    {STATUS_LABELS[cg.status] ?? cg.status}
-                  </td>
-                  <td className="px-3 py-2 text-[var(--text-secondary)]">{formatDate(cg.startDate)}</td>
-                  <td className="px-3 py-2 text-[var(--text-secondary)]">
-                    {cg.startTime} – {cg.endTime}
-                  </td>
-                  <td className="px-3 py-2 text-[var(--text-secondary)] max-w-[200px] truncate" title={cg.location ?? undefined}>
-                    {cg.location?.trim() ? cg.location : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-[var(--text-secondary)]">
-                    {cg.enrollmentsCount} / {cg.capacity}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Link
-                      href={`/professor/turmas/${cg.id}`}
-                      className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)]"
-                    >
-                      Ver turma
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            ))}
+          </tbody>
         </TableShell>
       )}
       </SectionCard>

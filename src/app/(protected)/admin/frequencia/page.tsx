@@ -6,8 +6,9 @@ export default function AdminFrequenciaPage() {
     <AttendanceOverviewClient
       apiUrl="/api/admin/attendance-overview"
       classGroupsApiUrl="/api/class-groups"
+      exportPdfUrl="/api/admin/attendance-overview/export-pdf"
       pageTitle="Frequência (todas as turmas)"
-      pageDescription="Consulta de presenças e ausências registradas pelo professor em cada sessão. Use o filtro por turma para focar em um grupo."
+      pageDescription="Resumo por dia e turma: presenças em relação às matrículas ativas e quantidade de ausências com justificativa. Exporte em PDF quando precisar."
     />
     </div>
   );

@@ -6,8 +6,9 @@ export default function ProfessorFrequenciaPage() {
     <AttendanceOverviewClient
       apiUrl="/api/teacher/attendance-overview"
       classGroupsApiUrl="/api/teacher/class-groups"
+      exportPdfUrl="/api/teacher/attendance-overview/export-pdf"
       pageTitle="Frequência das minhas turmas"
-      pageDescription="Registros de presença e ausência apenas nas turmas em que você é o professor."
+      pageDescription="Resumo por sessão: presenças / matrículas ativas e ausências com justificativa. Use o filtro por turma ou exporte em PDF."
     />
     </div>
   );

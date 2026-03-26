@@ -1,12 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { getAttendanceOverview } from "@/lib/attendance-session-summary";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
-const MAX_ROWS = 5000;
-
 /**
- * Frequência apenas das turmas em que o professor leciona.
- * Query opcional: classGroupId — deve ser turma do próprio professor.
+ * Resumo por sessão apenas das turmas do professor.
  */
 export async function GET(request: Request) {
   const user = await requireRole(["TEACHER"]);
@@ -16,7 +14,16 @@ export async function GET(request: Request) {
     select: { id: true },
   });
   if (!teacher) {
-    return jsonOk({ items: [], truncated: false });
+    return jsonOk({
+      groups: [],
+      totals: {
+        presentSum: 0,
+        absentSum: 0,
+        justifiedAbsentSum: 0,
+        sessionCount: 0,
+        classGroupCount: 0,
+      },
+    });
   }
 
   const { searchParams } = new URL(request.url);
@@ -32,64 +39,10 @@ export async function GET(request: Request) {
     }
   }
 
-  const where = {
-    classSession: {
-      classGroup: {
-        teacherId: teacher.id,
-        ...(classGroupIdParam ? { id: classGroupIdParam } : {}),
-      },
-    },
-  };
-
-  const rows = await prisma.sessionAttendance.findMany({
-    where,
-    take: MAX_ROWS,
-    orderBy: [{ classSession: { sessionDate: "desc" } }, { id: "desc" }],
-    include: {
-      classSession: {
-        select: {
-          sessionDate: true,
-          status: true,
-          startTime: true,
-          endTime: true,
-          lesson: { select: { title: true } },
-          classGroup: {
-            select: {
-              id: true,
-              status: true,
-              course: { select: { name: true } },
-              teacher: { select: { name: true } },
-            },
-          },
-        },
-      },
-      enrollment: {
-        select: {
-          status: true,
-          student: { select: { name: true } },
-        },
-      },
-    },
+  const { groups, totals } = await getAttendanceOverview({
+    classGroupId: classGroupIdParam,
+    teacherId: teacher.id,
   });
 
-  return jsonOk({
-    items: rows.map((r) => ({
-      id: r.id,
-      classGroupId: r.classSession.classGroup.id,
-      classGroupStatus: r.classSession.classGroup.status,
-      courseName: r.classSession.classGroup.course.name,
-      teacherName: r.classSession.classGroup.teacher.name,
-      sessionDate: r.classSession.sessionDate.toISOString().slice(0, 10),
-      sessionStatus: r.classSession.status,
-      sessionStartTime: r.classSession.startTime,
-      sessionEndTime: r.classSession.endTime,
-      lessonTitle: r.classSession.lesson?.title ?? null,
-      studentName: r.enrollment.student.name,
-      enrollmentStatus: r.enrollment.status,
-      present: r.present,
-      absenceJustification: r.absenceJustification,
-      updatedAt: r.updatedAt.toISOString(),
-    })),
-    truncated: rows.length >= MAX_ROWS,
-  });
+  return jsonOk({ groups, totals });
 }

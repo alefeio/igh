@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
@@ -8,7 +8,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
-import { AlertCircle, Presentation } from "lucide-react";
+import { AlertCircle, CheckCircle2, Presentation } from "lucide-react";
 
 type ClassGroup = {
   id: string;
@@ -31,6 +31,15 @@ type Enrollment = {
   documentationAlert: "yellow" | "red" | null;
 };
 
+type SessionAttendanceSummary = {
+  enrollmentTotal: number;
+  recordedCount: number;
+  presentCount: number;
+  absentCount: number;
+  hasAttendanceSaved: boolean;
+  isAttendanceComplete: boolean;
+};
+
 type Session = {
   id: string;
   sessionDate: string;
@@ -39,6 +48,7 @@ type Session = {
   status: string;
   lessonTitle: string | null;
   canTakeAttendance: boolean;
+  attendanceSummary: SessionAttendanceSummary | null;
 };
 
 type AttendanceRow = {
@@ -159,6 +169,20 @@ export default function ProfessorTurmaDetailPage() {
       ),
     [attendance]
   );
+
+  /** Totais da sessão selecionada (lista atual), sem contar manualmente. */
+  const attendanceListStats = useMemo(() => {
+    if (attendance.length === 0) return null;
+    const present = attendance.filter((r) => r.present).length;
+    const absent = attendance.length - present;
+    return { present, absent, total: attendance.length };
+  }, [attendance]);
+
+  const selectedSession = useMemo(
+    () => sessions.find((s) => s.id === selectedSessionId && s.canTakeAttendance) ?? null,
+    [sessions, selectedSessionId],
+  );
+  const selectedAttendanceSummary = selectedSession?.attendanceSummary ?? null;
 
   const loadClassGroup = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${id}`);
@@ -335,6 +359,7 @@ export default function ProfessorTurmaDetailPage() {
       if (res.ok && json?.ok) {
         if (json.data?.attendance) setAttendance(json.data.attendance);
         toast.push("success", "Frequência salva.");
+        void loadSessions();
       }
       else {
         const msg =
@@ -396,7 +421,7 @@ export default function ProfessorTurmaDetailPage() {
         target: "[data-tour=\"pt-tab-frequencia\"]",
         title: "Frequência",
         content:
-          "Selecione uma sessão com aula liberada e marque presença (presente/ausente) de cada aluno, em ordem alfabética. Para ausências, você pode registrar uma justificativa opcional. Depois clique em Salvar frequência.",
+          "Na lista de aulas liberadas, cada card mostra quantos presentes de quantos alunos (X de Y) e se a frequência já foi concluída ou não. Ao abrir a aula, o resumo em destaque repete os totais sem contar um a um. Marque cada aluno, use justificativa opcional para ausências e salve.",
       },
       {
         target: "[data-tour=\"pt-tab-duvidas\"]",
@@ -762,7 +787,8 @@ export default function ProfessorTurmaDetailPage() {
             Frequência (aulas liberadas)
           </h2>
           <p className="px-4 py-2 text-xs text-[var(--text-muted)]">
-            Selecione uma sessão com aula liberada para marcar presença (alunos em ordem alfabética). Se a sessão de hoje não aparecer, a aula ainda não foi liberada para ela.
+            Em cada aula liberada você vê de imediato <strong className="text-[var(--text-secondary)]">quantos presentes</strong> de quantos alunos (X de Y) e se a frequência já foi salva no sistema. Ao abrir a aula, o quadro
+            abaixo repete o total sem precisar contar aluno por aluno.
           </p>
           <div className="flex flex-wrap gap-2 p-4">
             {sessionsWithLesson.length === 0 ? (
@@ -770,24 +796,140 @@ export default function ProfessorTurmaDetailPage() {
                 Nenhuma sessão com aula liberada ainda.
               </p>
             ) : (
-              sessionsWithLesson.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setSelectedSessionId(s.id)}
-                  className={`rounded-lg border px-3 py-2 text-sm ${
-                    selectedSessionId === s.id
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                >
-                  {formatDate(s.sessionDate)} — {s.lessonTitle ?? "Aula"}
-                </button>
-              ))
+              sessionsWithLesson.map((s) => {
+                const sum = s.attendanceSummary;
+                const total = sum?.enrollmentTotal ?? 0;
+                const present = sum?.presentCount ?? 0;
+                const saved = sum?.hasAttendanceSaved;
+                const complete = sum?.isAttendanceComplete;
+                const isSelected = selectedSessionId === s.id;
+                const muted = isSelected ? "text-white/85" : "text-[var(--text-muted)]";
+                const strong = isSelected ? "text-white" : "text-[var(--text-primary)]";
+
+                let statusEl: ReactNode;
+                if (!sum || total === 0) {
+                  statusEl = (
+                    <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${isSelected ? "bg-white/20 text-white" : "bg-[var(--igh-surface)] text-[var(--text-muted)]"}`}>
+                      Sem matrículas ativas
+                    </span>
+                  );
+                } else if (complete) {
+                  statusEl = (
+                    <span
+                      className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        isSelected ? "bg-white/25 text-white" : "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                      }`}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      Frequência concluída
+                    </span>
+                  );
+                } else if (saved) {
+                  statusEl = (
+                    <span
+                      className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                        isSelected ? "bg-amber-400/30 text-white" : "bg-amber-500/15 text-amber-900 dark:text-amber-200"
+                      }`}
+                    >
+                      Lançamento parcial
+                    </span>
+                  );
+                } else {
+                  statusEl = (
+                    <span
+                      className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                        isSelected ? "bg-white/20 text-white" : "bg-zinc-500/10 text-[var(--text-muted)]"
+                      }`}
+                    >
+                      Frequência não lançada
+                    </span>
+                  );
+                }
+
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedSessionId(s.id)}
+                    className={`flex max-w-[min(100%,22rem)] flex-col items-start gap-1.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      isSelected
+                        ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] shadow-sm"
+                        : "border-[var(--card-border)] bg-[var(--card-bg)] hover:bg-[var(--igh-surface)]"
+                    }`}
+                  >
+                    <span className={`text-sm font-medium ${strong}`}>
+                      {formatDate(s.sessionDate)} — {s.lessonTitle ?? "Aula"}
+                    </span>
+                    {sum && total > 0 && (
+                      <span
+                        className={`text-lg font-bold tabular-nums leading-tight ${isSelected ? "text-white" : "text-[var(--text-primary)]"}`}
+                        title="Presentes de alunos com matrícula ativa"
+                      >
+                        {present} de {total} presentes
+                      </span>
+                    )}
+                    {sum && total === 0 && (
+                      <span className={`text-sm ${muted}`}>—</span>
+                    )}
+                    {statusEl}
+                  </button>
+                );
+              })
             )}
           </div>
           {selectedSessionId && attendance.length > 0 && (
             <div className="border-t border-[var(--card-border)] p-4">
+              {attendanceListStats && (
+                <div
+                  className="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/50 px-4 py-3"
+                  role="status"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="font-semibold text-[var(--text-primary)]">Resumo desta aula</p>
+                    {selectedAttendanceSummary?.isAttendanceComplete ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        Salva para todos os alunos
+                      </span>
+                    ) : selectedAttendanceSummary?.hasAttendanceSaved ? (
+                      <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-900 dark:text-amber-200">
+                        Frequência iniciada (parcial)
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-zinc-500/10 px-2.5 py-1 text-xs font-medium text-[var(--text-muted)]">
+                        Ainda sem lançamento salvo
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 text-2xl font-bold tabular-nums text-[var(--text-primary)]">
+                    {attendanceListStats.present} de {attendanceListStats.total} presentes
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                    <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                      {attendanceListStats.present} presente{attendanceListStats.present === 1 ? "" : "s"}
+                    </span>
+                    {" · "}
+                    <span className="font-medium text-rose-700 dark:text-rose-400">
+                      {attendanceListStats.absent} ausente{attendanceListStats.absent === 1 ? "" : "s"}
+                    </span>
+                    <span className="text-[var(--text-muted)]">
+                      {" "}
+                      (total de {attendanceListStats.total} aluno{attendanceListStats.total === 1 ? "" : "s"} com matrícula ativa)
+                    </span>
+                  </p>
+                  <p className="mt-2 text-xs text-[var(--text-muted)]">
+                    Os totais em destaque refletem a lista abaixo (inclui alterações que ainda não foram salvas).
+                  </p>
+                  {selectedAttendanceSummary &&
+                    attendanceListStats &&
+                    (selectedAttendanceSummary.presentCount !== attendanceListStats.present ||
+                      selectedAttendanceSummary.enrollmentTotal !== attendanceListStats.total) && (
+                      <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-200">
+                        Você alterou a lista — salve para atualizar o registro no sistema.
+                      </p>
+                    )}
+                </div>
+              )}
               <p className="mb-3 text-sm font-medium text-[var(--text-primary)]">
                 Marque presença (presente / ausente)
               </p>

@@ -73,6 +73,35 @@ const STATUS_TONE: Record<ClassGroup["status"], Parameters<typeof Badge>[0]["ton
   EXTERNO: "blue",
 };
 
+const DAY_ORDER = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"] as const;
+const DAY_LABELS: Record<string, string> = {
+  SEG: "Segunda",
+  TER: "Terça",
+  QUA: "Quarta",
+  QUI: "Quinta",
+  SEX: "Sexta",
+  SAB: "Sábado",
+  DOM: "Domingo",
+};
+
+function formatDaysOfWeek(days: string[]): string {
+  if (!days?.length) return "—";
+  const sorted = [...days].sort(
+    (a, b) => DAY_ORDER.indexOf(a as (typeof DAY_ORDER)[number]) - DAY_ORDER.indexOf(b as (typeof DAY_ORDER)[number]),
+  );
+  return sorted.map((d) => DAY_LABELS[d] ?? d).join(", ");
+}
+
+function formatClassGroupStartDate(d: string | undefined): string {
+  if (!d) return "—";
+  const datePart = String(d).trim().split("T")[0];
+  if (datePart && /^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    const [y, m, day] = datePart.split("-").map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString("pt-BR");
+  }
+  return "—";
+}
+
 export default function ClassGroupsPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -452,8 +481,11 @@ export default function ClassGroupsPage() {
         <TableShell>
           <thead>
             <tr>
-              <Th>Turma</Th>
+              <Th>Curso</Th>
+              <Th>Professor</Th>
+              <Th>Local</Th>
               <Th>Início</Th>
+              <Th>Dias da semana</Th>
               <Th>Horário</Th>
               <Th>Aulas / Horas</Th>
               <Th>Status</Th>
@@ -464,19 +496,23 @@ export default function ClassGroupsPage() {
           <tbody>
             {visibleItems.map((cg) => (
               <tr key={cg.id}>
-                <Td>
-                  <div className="flex flex-col">
-                    <span className="font-medium text-[var(--text-primary)]">{cg.course.name}</span>
-                    <span className="text-xs text-[var(--text-muted)]">
-                      Prof: {cg.teacher.name} · {cg.daysOfWeek.join(", ")} · {cg.location ?? "—"}
-                    </span>
-                  </div>
+                <Td className="max-w-[14rem] whitespace-normal break-words font-medium text-[var(--text-primary)]">
+                  {cg.course.name}
                 </Td>
-                <Td>
-                  {cg.startDate ? String(cg.startDate).slice(0, 10).split("-").reverse().join("/") : "—"}
+                <Td className="max-w-[10rem] whitespace-normal break-words text-[var(--text-secondary)]">
+                  {cg.teacher.name}
                 </Td>
-                <Td>
-                  {cg.startTime} - {cg.endTime}
+                <Td className="max-w-[12rem] whitespace-normal break-words text-[var(--text-secondary)]">
+                  {cg.location?.trim() ? cg.location : "—"}
+                </Td>
+                <Td className="whitespace-nowrap text-[var(--text-secondary)]">
+                  {formatClassGroupStartDate(cg.startDate)}
+                </Td>
+                <Td className="max-w-[14rem] whitespace-normal break-words text-[var(--text-secondary)]">
+                  {formatDaysOfWeek(cg.daysOfWeek)}
+                </Td>
+                <Td className="whitespace-nowrap text-[var(--text-secondary)]">
+                  {cg.startTime} – {cg.endTime}
                 </Td>
                 <Td>
                   <span className="text-[var(--text-secondary)]">
@@ -521,7 +557,7 @@ export default function ClassGroupsPage() {
             ))}
             {visibleItems.length === 0 ? (
               <tr>
-                <Td colSpan={7}>
+                <Td colSpan={10}>
                   <span className="text-[var(--text-secondary)]">
                     {items.length === 0
                       ? "Nenhuma turma cadastrada."
