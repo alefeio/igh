@@ -280,6 +280,9 @@ model Holiday {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   recurring Boolean  @default(false)
+  /** Se preenchidos (HH:mm), é evento: só turmas cujo horário cruza este intervalo são adiadas neste dia. */
+  eventStartTime String?
+  eventEndTime   String?
 }
 
 model AuditLog {

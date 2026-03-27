@@ -8,7 +8,7 @@ import {
   generateSessionsByWorkload,
   parseDateOnly,
   parseDurationHours,
-  expandHolidaysToDateStrings,
+  splitHolidaysForSchedule,
 } from "@/lib/schedule";
 import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
 
@@ -70,7 +70,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole("MASTER");
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createClassGroupSchema.safeParse(body);
@@ -139,9 +139,9 @@ export async function POST(request: Request) {
 
   const holidays = await prisma.holiday.findMany({
     where: { isActive: true },
-    select: { date: true, recurring: true },
+    select: { date: true, recurring: true, eventStartTime: true, eventEndTime: true },
   });
-  const holidayDateStrings = expandHolidaysToDateStrings(holidays, rangeStart, rangeEnd);
+  const { holidayDateStrings, holidayEventBlocks } = splitHolidaysForSchedule(holidays, rangeStart, rangeEnd);
 
   let result: { dates: Date[]; endDate: Date; totalHours: number; totalSessions: number };
   try {
@@ -152,6 +152,7 @@ export async function POST(request: Request) {
       endTime,
       workloadHours,
       holidayDateStrings,
+      holidayEventBlocks,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro ao gerar sessões.";

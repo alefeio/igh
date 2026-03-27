@@ -10,7 +10,7 @@ type Item = {
   masterOnly?: boolean;
   masterOrTeacher?: boolean;
   adminOrMaster?: boolean;
-  /** Rotas só para Admin/Master (API não autoriza coordenador) — oculto para COORDINATOR. */
+  /** Destaque: rotas que antes eram só Admin/Master (campanhas). */
   adminMasterOnly?: boolean;
   studentOnly?: boolean;
   teacherOnly?: boolean;
@@ -61,7 +61,7 @@ const ITEMS: Item[] = [
   { href: "/admin/site/formacoes-pagina", label: "Formações (página)", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/inscreva-pagina", label: "Inscreva-se (página)", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/contato-pagina", label: "Contato (página)", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/menu", label: "Menu", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/menu", label: "Menu do site", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/banners", label: "Banners", adminOrMaster: true, category: "Site" },
   { href: "/admin/tablet/banners", label: "Banners (tablet)", adminOrMaster: true, category: "Site" },
   { href: "/admin/sms", label: "Campanhas SMS", adminOrMaster: true, adminMasterOnly: true, category: "Administração" },
@@ -79,7 +79,7 @@ const ITEMS: Item[] = [
   { href: "/admin/site/faq", label: "FAQ", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/transparencia", label: "Transparência", adminOrMaster: true, category: "Site" },
   { href: "/time-slots", label: "Horários", masterOnly: true, category: "Configurações" },
-  { href: "/holidays", label: "Feriados", masterOnly: true, category: "Configurações" },
+  { href: "/holidays", label: "Eventos e Feriados", masterOnly: true, category: "Configurações" },
   { href: "/backup", label: "Backup do banco", masterOnly: true, category: "Configurações" },
 ];
 
@@ -131,7 +131,7 @@ export function Sidebar({
     }
     if (i.studentOnly) return user.role === "STUDENT";
     if (i.teacherOnly) return user.role === "TEACHER";
-    if (i.masterOnly) return user.role === "MASTER";
+    if (i.masterOnly) return user.role === "MASTER" || user.role === "COORDINATOR";
     if (i.masterOrTeacher)
       return (
         user.role === "MASTER" ||
@@ -140,9 +140,6 @@ export function Sidebar({
         user.role === "COORDINATOR"
       );
     if (i.adminOrMaster) {
-      if (user.role === "COORDINATOR") {
-        if (i.category === "Site" || i.adminMasterOnly) return false;
-      }
       return user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR";
     }
     return user.role !== "STUDENT";
@@ -160,32 +157,39 @@ export function Sidebar({
     href === "/minhas-turmas" ? "sidebar-minhas-turmas" : undefined;
 
   const navContent = (
-    <ul className="flex list-none flex-col gap-4 pl-0">
-      {categoryOrder.filter((cat) => byCategory[cat]?.length).map((cat) => (
-        <li key={cat}>
-          <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            {cat}
+    <ul className="flex list-none flex-col gap-0 pl-0">
+      {categoryOrder.filter((cat) => byCategory[cat]?.length).map((cat, sectionIndex) => (
+        <li key={cat} className="list-none">
+          <div className={`mb-2 ${sectionIndex > 0 ? "mt-5 border-t border-[var(--card-border)] pt-5" : ""}`}>
+            <h3 className="mb-2 px-1">
+              <span className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1.5 shadow-sm">
+                <span className="h-4 w-1 shrink-0 rounded-full bg-[var(--igh-primary)]" aria-hidden />
+                <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                  {cat}
+                </span>
+              </span>
+            </h3>
+            <ul className="flex list-none flex-col gap-0.5 pl-0">
+              {byCategory[cat].map((item) => {
+                const active = pathname === item.href;
+                const tourId = tourIdForHref(item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={`block rounded-md px-3 py-2 text-sm ${
+                        active ? "bg-[var(--igh-primary)] text-white" : "text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                      }`}
+                      onClick={onDrawerClose}
+                      {...(tourId ? { "data-tour": tourId } : {})}
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-          <ul className="flex list-none flex-col gap-0.5 pl-0">
-            {byCategory[cat].map((item) => {
-              const active = pathname === item.href;
-              const tourId = tourIdForHref(item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={`block rounded-md px-3 py-2 text-sm ${
-                      active ? "bg-[var(--igh-primary)] text-white" : "text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
-                    }`}
-                    onClick={onDrawerClose}
-                    {...(tourId ? { "data-tour": tourId } : {})}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
         </li>
       ))}
     </ul>

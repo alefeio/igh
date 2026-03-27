@@ -1426,7 +1426,7 @@ export default async function DashboardPage() {
         <DashboardAdmin
           data={data}
           userName={user.name}
-          readOnly={data.role === "COORDINATOR"}
+          readOnly={false}
         />
       ) : data.role === "TEACHER" ? (
         <DashboardTeacher data={data} userName={user.name} />

@@ -5,13 +5,13 @@ import { createPendingSiteChange } from "@/lib/pending-site-change";
 import { siteBannerSchema, reorderSchema } from "@/lib/validators/site";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const items = await prisma.siteBanner.findMany({ orderBy: [{ order: "asc" }] });
   return jsonOk({ items });
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = siteBannerSchema.safeParse(body);
   if (!parsed.success) {
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = reorderSchema.safeParse(body);
   if (!parsed.success) {

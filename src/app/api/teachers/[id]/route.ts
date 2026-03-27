@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole, hashPassword } from "@/lib/auth";
+import { requireStaffWrite, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateTeacherSchema } from "@/lib/validators/teachers";
 import { createAuditLog } from "@/lib/audit";
@@ -8,7 +8,7 @@ import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateProfessorWelcome, templateAddedAsProfessor } from "@/lib/email/templates";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
@@ -138,7 +138,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 }
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const existing = await prisma.teacher.findUnique({ where: { id } });

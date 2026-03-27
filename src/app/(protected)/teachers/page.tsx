@@ -44,7 +44,7 @@ type StatusFilter = "active" | "inactive" | "all";
 export default function TeachersPage() {
   const toast = useToast();
   const user = useUser();
-  const readOnly = user.role === "COORDINATOR";
+  const readOnly = false;
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Teacher[]>([]);
   const [open, setOpen] = useState(false);

@@ -6,7 +6,7 @@ import { updateSmsTemplateSchema } from "@/lib/validators/sms";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const template = await getSmsTemplate(id);
   if (!template) return jsonErr("NOT_FOUND", "Template não encontrado.", 404);
@@ -14,7 +14,7 @@ export async function GET(_request: Request, ctx: Ctx) {
 }
 
 export async function PUT(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = updateSmsTemplateSchema.safeParse(body);

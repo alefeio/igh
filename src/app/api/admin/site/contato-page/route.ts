@@ -5,13 +5,13 @@ import { createPendingSiteChange } from "@/lib/pending-site-change";
 import { siteContatoPageSchema } from "@/lib/validators/site";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const row = await prisma.siteContatoPage.findFirst({ orderBy: { updatedAt: "desc" } });
   return jsonOk({ item: row });
 }
 
 export async function PATCH(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = siteContatoPageSchema.safeParse(body);
   if (!parsed.success) {

@@ -6,7 +6,7 @@ export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
+  const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
   const { id } = await context.params;
   const pending = await getPendingSiteChange(id);
   if (!pending) {

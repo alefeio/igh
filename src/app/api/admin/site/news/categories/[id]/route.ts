@@ -1,50 +1,75 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { siteNewsCategorySchema } from "@/lib/validators/site";
+import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { siteMenuItemSchema, reorderSchema } from "@/lib/validators/site";
 
-type Ctx = { params: Promise<{ id: string }> };
+export async function GET() {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
 
-function slug(s: string) {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-export async function PATCH(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
-  const { id } = await ctx.params;
-  const body = await request.json().catch(() => null);
-  const parsed = siteNewsCategorySchema.safeParse(body);
-  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
-  const existing = await prisma.siteNewsCategory.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Categoria não encontrada.", 404);
-  const slugVal = parsed.data.slug || slug(parsed.data.name);
-  if (slugVal !== existing.slug) {
-    const dup = await prisma.siteNewsCategory.findUnique({ where: { slug: slugVal } });
-    if (dup) return jsonErr("DUPLICATE_SLUG", "Slug em uso.", 409);
-  }
-  const item = await prisma.siteNewsCategory.update({
-    where: { id },
-    data: {
-      name: parsed.data.name,
-      slug: slugVal,
-      order: parsed.data.order ?? undefined,
-      isActive: parsed.data.isActive ?? undefined,
+  const items = await prisma.siteMenuItem.findMany({
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    include: {
+      children: { orderBy: [{ order: "asc" }] },
     },
   });
-  return jsonOk({ item });
+  const roots = items.filter((i) => !i.parentId);
+  const withChildren = roots.map((r) => ({
+    ...r,
+    children: items.filter((c) => c.parentId === r.id),
+  }));
+  return jsonOk({ items: withChildren, flat: items });
 }
 
-export async function DELETE(_r: Request, ctx: Ctx) {
-  await requireRole("MASTER");
-  const { id } = await ctx.params;
-  const existing = await prisma.siteNewsCategory.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Categoria não encontrada.", 404);
-  await prisma.siteNewsCategory.delete({ where: { id } });
-  return jsonOk({ deleted: true });
+export async function POST(request: Request) {
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+
+  const body = await request.json().catch(() => null);
+  const parsed = siteMenuItemSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+  }
+
+  const { label, href, order, parentId, isExternal, isVisible } = parsed.data;
+  const maxOrder = await prisma.siteMenuItem.aggregate({
+    _max: { order: true },
+    where: { parentId: parentId ?? null },
+  });
+  const payload = {
+    label,
+    href,
+    order: order ?? (maxOrder._max.order ?? -1) + 1,
+    parentId: parentId ?? null,
+    isExternal: isExternal ?? false,
+    isVisible: isVisible ?? true,
+  };
+  if (user.role === "ADMIN") {
+    await createPendingSiteChange(user.id, "site_menu_item", "create", null, payload);
+    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." }, { status: 201 });
+  }
+  const item = await prisma.siteMenuItem.create({
+    data: { ...payload, parentId: payload.parentId ?? undefined },
+  });
+  return jsonOk({ item }, { status: 201 });
+}
+
+export async function PATCH(request: Request) {
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+
+  const body = await request.json().catch(() => null);
+  const parsed = reorderSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+  }
+  if (user.role === "ADMIN") {
+    await createPendingSiteChange(user.id, "site_menu", "update", null, { ids: parsed.data.ids });
+    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." });
+  }
+  await prisma.$transaction(
+    parsed.data.ids.map((id, index) =>
+      prisma.siteMenuItem.update({ where: { id }, data: { order: index } })
+    )
+  );
+  const items = await prisma.siteMenuItem.findMany({ orderBy: [{ order: "asc" }] });
+  return jsonOk({ items });
 }

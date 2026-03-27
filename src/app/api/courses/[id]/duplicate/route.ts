@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAuditLog } from "@/lib/audit";
 
@@ -39,12 +39,12 @@ async function ensureUniqueCourseName(sourceName: string): Promise<string> {
   }
 }
 
-/** Duplica um curso com todos os módulos, aulas, exercícios e opções. Apenas MASTER. */
+/** Duplica um curso com todos os módulos, aulas, exercícios e opções. */
 export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id: sourceCourseId } = await context.params;
 
   const source = await prisma.course.findUnique({

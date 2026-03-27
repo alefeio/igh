@@ -6,7 +6,7 @@ import { tabletBannerSchema } from "@/lib/validators/site";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = tabletBannerSchema.safeParse(body);
@@ -29,7 +29,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_request: Request, ctx: Ctx) {
-  await requireRole("MASTER");
+  await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
   const { id } = await ctx.params;
   const existing = await prisma.tabletBanner.findUnique({ where: { id } });
   if (!existing) {

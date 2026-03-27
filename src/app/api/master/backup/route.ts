@@ -19,9 +19,9 @@ function getConnectionString(): string {
  */
 export async function GET() {
   try {
-    await requireRole("MASTER");
+    await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
   } catch {
-    return jsonErr("FORBIDDEN", "Apenas o perfil Master pode fazer backup.", 403);
+    return jsonErr("FORBIDDEN", "Apenas perfis autorizados podem fazer backup.", 403);
   }
 
   const connectionString = getConnectionString();

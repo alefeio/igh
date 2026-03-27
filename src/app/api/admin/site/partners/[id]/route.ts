@@ -1,36 +1,41 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { sitePartnerSchema } from "@/lib/validators/site";
+import { siteNewsPostSchema } from "@/lib/validators/site";
 
-type Ctx = { params: Promise<{ id: string }> };
-
-export async function PATCH(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
-  const { id } = await ctx.params;
-  const body = await request.json().catch(() => null);
-  const parsed = sitePartnerSchema.safeParse(body);
-  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados invalidos", 400);
-  const existing = await prisma.sitePartner.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Parceiro nao encontrado.", 404);
-  const item = await prisma.sitePartner.update({
-    where: { id },
-    data: {
-      name: parsed.data.name,
-      logoUrl: parsed.data.logoUrl === "" ? null : (parsed.data.logoUrl ?? undefined),
-      websiteUrl: parsed.data.websiteUrl === "" ? null : (parsed.data.websiteUrl ?? undefined),
-      order: parsed.data.order ?? undefined,
-      isActive: parsed.data.isActive ?? undefined,
-    },
+export async function GET(request: Request) {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const { searchParams } = new URL(request.url);
+  const categoryId = searchParams.get("categoryId") || undefined;
+  const items = await prisma.siteNewsPost.findMany({
+    where: categoryId ? { categoryId } : undefined,
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    include: { category: true },
   });
-  return jsonOk({ item });
+  return jsonOk({ items });
 }
 
-export async function DELETE(_r: Request, ctx: Ctx) {
-  await requireRole("MASTER");
-  const { id } = await ctx.params;
-  const existing = await prisma.sitePartner.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Parceiro nao encontrado.", 404);
-  await prisma.sitePartner.delete({ where: { id } });
-  return jsonOk({ deleted: true });
+export async function POST(request: Request) {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const body = await request.json().catch(() => null);
+  const parsed = siteNewsPostSchema.safeParse(body);
+  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
+  const slugVal = parsed.data.slug || parsed.data.title.toLowerCase().replace(/\s+/g, "-");
+  if (await prisma.siteNewsPost.findUnique({ where: { slug: slugVal } }))
+    return jsonErr("DUPLICATE_SLUG", "Slug em uso.", 409);
+  const item = await prisma.siteNewsPost.create({
+    data: {
+      title: parsed.data.title,
+      slug: slugVal,
+      excerpt: parsed.data.excerpt ?? null,
+      content: parsed.data.content ?? null,
+      coverImageUrl: parsed.data.coverImageUrl || null,
+      imageUrls: parsed.data.imageUrls ?? [],
+      categoryId: parsed.data.categoryId ?? null,
+      publishedAt: parsed.data.publishedAt ? new Date(parsed.data.publishedAt) : null,
+      isPublished: parsed.data.isPublished ?? false,
+    },
+    include: { category: true },
+  });
+  return jsonOk({ item }, { status: 201 });
 }

@@ -8,7 +8,7 @@ import {
 } from "@/lib/validators/email-campaigns";
 
 export async function GET(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { searchParams } = new URL(request.url);
   const page = searchParams.get("page");
   const pageSize = searchParams.get("pageSize");
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = createEmailCampaignSchema.safeParse(body);
   if (!parsed.success) {

@@ -2,40 +2,40 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createPendingSiteChange } from "@/lib/pending-site-change";
-import { siteBannerSchema } from "@/lib/validators/site";
+import { siteAboutPageSchema } from "@/lib/validators/site";
 
-type Ctx = { params: Promise<{ id: string }> };
-
-export async function PATCH(request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
-  const { id } = await ctx.params;
-  const body = await request.json().catch(() => null);
-  const parsed = siteBannerSchema.safeParse(body);
-  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
-  const existing = await prisma.siteBanner.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Banner não encontrado.", 404);
-  const payload = {
-    title: parsed.data.title ?? undefined,
-    subtitle: parsed.data.subtitle ?? undefined,
-    ctaLabel: parsed.data.ctaLabel ?? undefined,
-    ctaHref: parsed.data.ctaHref ?? undefined,
-    imageUrl: parsed.data.imageUrl === "" ? null : (parsed.data.imageUrl ?? undefined),
-    order: parsed.data.order ?? undefined,
-    isActive: parsed.data.isActive ?? undefined,
-  };
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_banner", "update", id, payload);
-    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." });
-  }
-  const item = await prisma.siteBanner.update({ where: { id }, data: payload });
-  return jsonOk({ item });
+export async function GET() {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const row = await prisma.siteAboutPage.findFirst({ orderBy: { updatedAt: "desc" } });
+  return jsonOk({ item: row });
 }
 
-export async function DELETE(_request: Request, ctx: Ctx) {
-  await requireRole("MASTER");
-  const { id } = await ctx.params;
-  const existing = await prisma.siteBanner.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Banner não encontrado.", 404);
-  await prisma.siteBanner.delete({ where: { id } });
-  return jsonOk({ deleted: true });
+export async function PATCH(request: Request) {
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const body = await request.json().catch(() => null);
+  const parsed = siteAboutPageSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+  }
+  const payload = {
+    title: parsed.data.title ?? null,
+    subtitle: parsed.data.subtitle ?? null,
+    content: parsed.data.content ?? null,
+    imageUrl: parsed.data.imageUrl?.trim() ? parsed.data.imageUrl.trim() : null,
+  };
+  if (user.role === "ADMIN") {
+    await createPendingSiteChange(user.id, "site_about", "update", null, payload);
+    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." });
+  }
+  const existing = await prisma.siteAboutPage.findFirst({ orderBy: { updatedAt: "desc" } });
+  const data = {
+    title: payload.title ?? undefined,
+    subtitle: payload.subtitle ?? undefined,
+    content: payload.content ?? undefined,
+    imageUrl: payload.imageUrl ?? undefined,
+  };
+  const item = existing
+    ? await prisma.siteAboutPage.update({ where: { id: existing.id }, data })
+    : await prisma.siteAboutPage.create({ data: payload });
+  return jsonOk({ item });
 }

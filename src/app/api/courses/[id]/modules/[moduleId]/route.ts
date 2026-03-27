@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/auth";
+import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { prisma } from "@/lib/prisma";
@@ -7,7 +7,7 @@ import { courseModuleSchema } from "@/lib/validators/courses";
 type Ctx = { params: Promise<{ id: string; moduleId: string }> };
 
 export async function PATCH(request: Request, context: Ctx) {
-  await requireRole(["MASTER", "ADMIN"]);
+  await requireStaffWrite();
   const { id: courseId, moduleId } = await context.params;
 
   const existing = await prisma.courseModule.findFirst({
@@ -36,7 +36,7 @@ export async function PATCH(request: Request, context: Ctx) {
 }
 
 export async function DELETE(_request: Request, context: Ctx) {
-  await requireRole(["MASTER", "ADMIN"]);
+  await requireStaffWrite();
   const { id: courseId, moduleId } = await context.params;
 
   const existing = await prisma.courseModule.findFirst({

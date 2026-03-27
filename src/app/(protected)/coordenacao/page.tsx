@@ -32,7 +32,11 @@ export default function CoordenacaoPage() {
   const [showClosed, setShowClosed] = useState(false);
 
   const isCoordinator = user.role === "COORDINATOR";
-  const canCreate = user.role === "TEACHER" || user.role === "ADMIN" || user.role === "MASTER";
+  const canCreate =
+    user.role === "TEACHER" ||
+    user.role === "ADMIN" ||
+    user.role === "MASTER" ||
+    user.role === "COORDINATOR";
 
   useEffect(() => {
     if (user.role === "STUDENT") {

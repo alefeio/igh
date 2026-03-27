@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonOk } from "@/lib/http";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const items = await prisma.pendingTestimonial.findMany({
     where: { status: "pending" },
     orderBy: { createdAt: "desc" },

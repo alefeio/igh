@@ -1,38 +1,42 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
-import { jsonErr, jsonOk } from "@/lib/http";
-import { siteTransparencyDocumentSchema } from "@/lib/validators/site";
+import { jsonOk, jsonErr } from "@/lib/http";
+import { siteTransparencyCategorySchema, reorderSchema } from "@/lib/validators/site";
 
-type Ctx = { params: Promise<{ id: string }> };
-
-export async function PATCH(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
-  const { id } = await ctx.params;
-  const body = await request.json().catch(() => null);
-  const parsed = siteTransparencyDocumentSchema.safeParse(body);
-  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
-  const existing = await prisma.siteTransparencyDocument.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Documento nao encontrado.", 404);
-  const item = await prisma.siteTransparencyDocument.update({
-    where: { id },
-    data: {
-      categoryId: parsed.data.categoryId ?? undefined,
-      title: parsed.data.title,
-      description: parsed.data.description ?? undefined,
-      date: parsed.data.date ? new Date(parsed.data.date) : undefined,
-      fileUrl: parsed.data.fileUrl === "" ? null : (parsed.data.fileUrl ?? undefined),
-      isActive: parsed.data.isActive ?? undefined,
-    },
-    include: { category: true },
-  });
-  return jsonOk({ item });
+export async function GET() {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const items = await prisma.siteTransparencyCategory.findMany({ orderBy: [{ order: "asc" }] });
+  return jsonOk({ items });
 }
 
-export async function DELETE(_r: Request, ctx: Ctx) {
-  await requireRole("MASTER");
-  const { id } = await ctx.params;
-  const existing = await prisma.siteTransparencyDocument.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Documento nao encontrado.", 404);
-  await prisma.siteTransparencyDocument.delete({ where: { id } });
-  return jsonOk({ deleted: true });
+export async function POST(request: Request) {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const body = await request.json().catch(() => null);
+  const parsed = siteTransparencyCategorySchema.safeParse(body);
+  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
+  const slugVal = parsed.data.slug || parsed.data.name.toLowerCase().replace(/\s+/g, "-");
+  const exists = await prisma.siteTransparencyCategory.findUnique({ where: { slug: slugVal } });
+  if (exists) return jsonErr("DUPLICATE_SLUG", "Slug em uso.", 409);
+  const max = await prisma.siteTransparencyCategory.aggregate({ _max: { order: true } });
+  const item = await prisma.siteTransparencyCategory.create({
+    data: {
+      name: parsed.data.name,
+      slug: slugVal,
+      order: parsed.data.order ?? (max._max.order ?? -1) + 1,
+      isActive: parsed.data.isActive ?? true,
+    },
+  });
+  return jsonOk({ item }, { status: 201 });
+}
+
+export async function PATCH(request: Request) {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const body = await request.json().catch(() => null);
+  const parsed = reorderSchema.safeParse(body);
+  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
+  await prisma.$transaction(
+    parsed.data.ids.map((id, i) => prisma.siteTransparencyCategory.update({ where: { id }, data: { order: i } }))
+  );
+  const items = await prisma.siteTransparencyCategory.findMany({ orderBy: [{ order: "asc" }] });
+  return jsonOk({ items });
 }

@@ -5,7 +5,7 @@ import { createPendingSiteChange } from "@/lib/pending-site-change";
 import { siteSettingsSchema } from "@/lib/validators/site";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   try {
     let settings = await prisma.siteSettings.findFirst();
     if (!settings) {
@@ -18,7 +18,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   try {
     const body = await request.json().catch(() => null);
     const parsed = siteSettingsSchema.safeParse(body);

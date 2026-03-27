@@ -30,34 +30,39 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Rotas apenas MASTER
-  if (["/users", "/teachers", "/class-groups", "/approvacoes", "/backup"].some((p) => pathname.startsWith(p))) {
-    if (role !== "MASTER") {
-      const dashboardUrl = new URL("/dashboard", request.url);
+  const dashboardUrl = new URL("/dashboard", request.url);
+
+  // Usuários, aprovações e backup: Master, Admin ou Coordenador (operações sensíveis no próprio handler)
+  if (["/users", "/approvacoes", "/backup"].some((p) => pathname.startsWith(p))) {
+    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Cursos: MASTER ou TEACHER (professor vê apenas os cursos que leciona)
+  // Professores e turmas (cadastro): Master, Admin ou Coordenador
+  if (pathname.startsWith("/teachers") || pathname.startsWith("/class-groups")) {
+    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Cursos: Master, Admin, Coordenador ou Professor (professor vê apenas os cursos que leciona na UI/API)
   if (pathname.startsWith("/courses")) {
-    if (role !== "MASTER" && role !== "TEACHER") {
-      const dashboardUrl = new URL("/dashboard", request.url);
+    if (!["MASTER", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Matrículas: MASTER, ADMIN ou TEACHER (professor vê apenas as turmas que leciona)
+  // Matrículas: Master, Admin, Coordenador ou Professor
   if (pathname.startsWith("/enrollments")) {
-    if (role !== "MASTER" && role !== "ADMIN" && role !== "TEACHER") {
-      const dashboardUrl = new URL("/dashboard", request.url);
+    if (!["MASTER", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Alunos: MASTER, ADMIN ou TEACHER (professor vê apenas seus alunos)
+  // Alunos: Master, Admin, Coordenador ou Professor
   if (pathname.startsWith("/students")) {
-    if (role !== "MASTER" && role !== "ADMIN" && role !== "TEACHER") {
-      const dashboardUrl = new URL("/dashboard", request.url);
+    if (!["MASTER", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
@@ -65,23 +70,18 @@ export async function proxy(request: NextRequest) {
   // Rotas apenas STUDENT (minhas turmas)
   if (pathname.startsWith("/minhas-turmas")) {
     if (role !== "STUDENT") {
-      const dashboardUrl = new URL("/dashboard", request.url);
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Rotas CMS Site (apenas ADMIN e MASTER)
-  if (pathname.startsWith("/admin/site")) {
-    if (role !== "MASTER" && role !== "ADMIN") {
-      const dashboardUrl = new URL("/dashboard", request.url);
-      return NextResponse.redirect(dashboardUrl);
-    }
-  }
-
-  // Campanhas SMS (apenas ADMIN e MASTER)
-  if (pathname.startsWith("/admin/sms")) {
-    if (role !== "MASTER" && role !== "ADMIN") {
-      const dashboardUrl = new URL("/dashboard", request.url);
+  // CMS Site, campanhas e tablet: Master, Admin ou Coordenador
+  if (
+    pathname.startsWith("/admin/site") ||
+    pathname.startsWith("/admin/sms") ||
+    pathname.startsWith("/admin/email") ||
+    pathname.startsWith("/admin/tablet")
+  ) {
+    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
@@ -110,5 +110,13 @@ export const config = {
     "/professor/:path*",
     "/suporte/:path*",
     "/admin/sms/:path*",
+    "/admin/email/:path*",
+    "/admin/tablet/:path*",
+    "/coordenacao/:path*",
+    "/horarios/:path*",
+    "/admin/forum/:path*",
+    "/admin/frequencia/:path*",
+    "/admin/avaliacoes-experiencia/:path*",
+    "/gamificacao/:path*",
   ],
 };

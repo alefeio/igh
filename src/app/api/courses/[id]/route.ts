@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateCourseSchema } from "@/lib/validators/courses";
 import { createAuditLog } from "@/lib/audit";
@@ -49,7 +49,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole("MASTER");
+  const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
@@ -97,7 +97,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const existing = await prisma.course.findUnique({

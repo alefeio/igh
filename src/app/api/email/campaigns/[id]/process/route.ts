@@ -5,7 +5,7 @@ import { processEmailCampaignBatch } from "@/lib/email-campaigns";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const batchSize = 25;
   const result = await processEmailCampaignBatch(id, batchSize);

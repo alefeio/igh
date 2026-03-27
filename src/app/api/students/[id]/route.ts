@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole, hashPassword } from "@/lib/auth";
+import { requireRole, requireStaffWrite, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateStudentSchema } from "@/lib/validators/students";
 import { createAuditLog } from "@/lib/audit";
@@ -27,7 +27,7 @@ export async function GET(
     return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
   }
 
-  // Professor só pode ver aluno se estiver em alguma turma que ele leciona
+  // Professor s├│ pode ver aluno se estiver em alguma turma que ele leciona
   if (user.role === "TEACHER") {
     const teacher = await prisma.teacher.findFirst({
       where: { userId: user.id, deletedAt: null },
@@ -71,11 +71,11 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
-  if (body?.reactivate === true && user.role === "MASTER") {
+  if (body?.reactivate === true) {
     const existing = await prisma.student.findUnique({ where: { id } });
     if (!existing) {
       return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
@@ -141,7 +141,7 @@ export async function PATCH(
         select: { id: true },
       });
       if (otherStudent) {
-        return jsonErr("EMAIL_IN_USE", "Já existe um aluno com este e-mail.", 409);
+        return jsonErr("EMAIL_IN_USE", "J├í existe um aluno com este e-mail.", 409);
       }
       linkToUserId = existingUserByEmail.id;
     }
@@ -308,7 +308,6 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
   const { id } = await context.params;
 
   const existing = await prisma.student.findUnique({ where: { id } });
@@ -316,6 +315,7 @@ export async function DELETE(
     return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
   }
   if (existing.deletedAt) {
+    const user = await requireStaffWrite();
     const userIdToDelete = existing.userId;
     await prisma.student.delete({ where: { id } });
     if (userIdToDelete) {
@@ -330,6 +330,8 @@ export async function DELETE(
     });
     return jsonOk({ deleted: true });
   }
+
+  const user = await requireStaffWrite();
 
   const updated = await prisma.student.update({
     where: { id },

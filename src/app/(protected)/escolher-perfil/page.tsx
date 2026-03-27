@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
+import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
@@ -18,7 +19,9 @@ type RolesResponse = {
 export default function EscolherPerfilPage() {
   useUser();
   const router = useRouter();
+  const toast = useToast();
   const [roles, setRoles] = useState<RolesResponse | null>(null);
+  const [submittingRole, setSubmittingRole] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,13 +69,29 @@ export default function EscolherPerfilPage() {
   }
 
   async function enterAs(role: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR") {
-    const res = await fetch("/api/auth/choose-role", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
-    });
-    if (!res.ok) return;
-    router.replace("/dashboard");
+    if (submittingRole) return;
+    setSubmittingRole(role);
+    try {
+      const res = await fetch("/api/auth/choose-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ role }),
+      });
+      const json = (await res.json().catch(() => null)) as ApiResponse<{ role?: string }> | null;
+      if (!res.ok || !json?.ok) {
+        const msg =
+          json && "error" in json && json.error?.message
+            ? json.error.message
+            : "Não foi possível definir o perfil. Tente novamente.";
+        toast.push("error", msg);
+        return;
+      }
+      /** Recarrega o documento para o layout ler o novo JWT (evita cache do App Router / UserProvider com papel antigo). */
+      window.location.assign("/dashboard");
+    } finally {
+      setSubmittingRole(null);
+    }
   }
 
   return (
@@ -85,28 +104,53 @@ export default function EscolherPerfilPage() {
       <SectionCard title="Perfis disponíveis" variant="elevated">
         <div className="flex flex-col gap-3">
           {canStudent && (
-            <Button variant="primary" className="w-full" onClick={() => enterAs("STUDENT")}>
-              Entrar como Aluno
+            <Button
+              variant="primary"
+              className="w-full"
+              disabled={!!submittingRole}
+              onClick={() => enterAs("STUDENT")}
+            >
+              {submittingRole === "STUDENT" ? "Entrando…" : "Entrar como Aluno"}
             </Button>
           )}
           {canTeacher && (
-            <Button variant="primary" className="w-full" onClick={() => enterAs("TEACHER")}>
-              Entrar como Professor
+            <Button
+              variant="primary"
+              className="w-full"
+              disabled={!!submittingRole}
+              onClick={() => enterAs("TEACHER")}
+            >
+              {submittingRole === "TEACHER" ? "Entrando…" : "Entrar como Professor"}
             </Button>
           )}
           {canMaster && (
-            <Button variant="primary" className="w-full" onClick={() => enterAs("MASTER")}>
-              Entrar como Administrador Master
+            <Button
+              variant="primary"
+              className="w-full"
+              disabled={!!submittingRole}
+              onClick={() => enterAs("MASTER")}
+            >
+              {submittingRole === "MASTER" ? "Entrando…" : "Entrar como Administrador Master"}
             </Button>
           )}
           {canAdmin && !canMaster && (
-            <Button variant="secondary" className="w-full" onClick={() => enterAs("ADMIN")}>
-              Entrar como Admin
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={!!submittingRole}
+              onClick={() => enterAs("ADMIN")}
+            >
+              {submittingRole === "ADMIN" ? "Entrando…" : "Entrar como Admin"}
             </Button>
           )}
           {canCoordinator && !canMaster && (
-            <Button variant="secondary" className="w-full" onClick={() => enterAs("COORDINATOR")}>
-              Entrar como Coordenador
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={!!submittingRole}
+              onClick={() => enterAs("COORDINATOR")}
+            >
+              {submittingRole === "COORDINATOR" ? "Entrando…" : "Entrar como Coordenador"}
             </Button>
           )}
         </div>

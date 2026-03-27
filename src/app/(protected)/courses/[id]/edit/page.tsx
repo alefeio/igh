@@ -36,10 +36,6 @@ export default function CourseEditPage() {
   const user = useUser();
   const isTeacher = user.role === "TEACHER";
 
-  useEffect(() => {
-    if (user.role === "COORDINATOR") router.replace("/courses");
-  }, [user.role, router]);
-
   const [loading, setLoading] = useState(true);
   const [course, setCourse] = useState<Course | null>(null);
   const [name, setName] = useState("");

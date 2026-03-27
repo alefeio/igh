@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole, requireStaffRead } from "@/lib/auth";
+import { requireStaffRead, requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateEnrollmentSchema } from "@/lib/validators/enrollments";
 import { formatDateOnly } from "@/lib/format";
@@ -49,12 +49,12 @@ export async function GET(
   });
 }
 
-/** Atualiza matrícula (confirmar pré-matrícula, editar status/certificado). Apenas MASTER. */
+/** Atualiza matrícula (confirmar pré-matrícula, editar status/certificado). Admin, Master ou Coordenador. */
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const existing = await prisma.enrollment.findUnique({
@@ -94,14 +94,14 @@ export async function PATCH(
     if (!newClassGroup) {
       return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
     }
-    const isMaster = user.role === "MASTER";
-    const statusesPermitidos = isMaster
+    const canOverrideEnrollmentRules = user.role === "MASTER" || user.role === "COORDINATOR";
+    const statusesPermitidos = canOverrideEnrollmentRules
       ? ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "INTERNO"]
       : ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"];
     if (!statusesPermitidos.includes(newClassGroup.status)) {
       return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
     }
-    if (!isMaster) {
+    if (!canOverrideEnrollmentRules) {
       const activeInNew = await prisma.enrollment.count({
         where: { classGroupId: newClassGroupId, status: "ACTIVE" },
       });
@@ -217,12 +217,12 @@ export async function PATCH(
   });
 }
 
-/** Exclui uma matrícula. Apenas MASTER. */
+/** Exclui uma matrícula. Master ou Coordenador (Admin conforme política da instituição). */
 export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const enrollment = await prisma.enrollment.findUnique({

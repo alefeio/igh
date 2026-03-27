@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { prisma } from "@/lib/prisma";
@@ -19,7 +19,7 @@ async function teacherCanAccessCourse(userId: string, courseId: string): Promise
 }
 
 export async function GET(_request: Request, context: Ctx) {
-  const user = await requireRole(["MASTER", "ADMIN", "TEACHER"]);
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER", "COORDINATOR"]);
   const { id: courseId } = await context.params;
 
   const course = await prisma.course.findUnique({
@@ -42,7 +42,7 @@ export async function GET(_request: Request, context: Ctx) {
 }
 
 export async function POST(request: Request, context: Ctx) {
-  await requireRole(["MASTER", "ADMIN"]);
+  await requireStaffWrite();
   const { id: courseId } = await context.params;
 
   const course = await prisma.course.findUnique({

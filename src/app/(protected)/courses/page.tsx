@@ -29,8 +29,6 @@ export default function CoursesPage() {
   const user = useUser();
   const isTeacher = user.role === "TEACHER";
   const isMaster = user.role === "MASTER";
-  const isCoordinator = user.role === "COORDINATOR";
-
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Course[]>([]);
   const [showInactive, setShowInactive] = useState(false);
@@ -114,14 +112,12 @@ export default function CoursesPage() {
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
       <DashboardHero
-        eyebrow={isTeacher ? "Área do professor" : isCoordinator ? "Coordenação" : "Conteúdo"}
+        eyebrow={isTeacher ? "Área do professor" : "Conteúdo"}
         title="Cursos"
         description={
-          isCoordinator
-            ? "Catálogo de cursos e carga horária (somente leitura)."
-            : isTeacher
-              ? "Cursos aos quais você tem acesso para edição."
-              : "Cadastre cursos, módulos e aulas. Por padrão só aparecem ativos. «Não listado» não entra no site."
+          isTeacher
+            ? "Cursos aos quais você tem acesso para edição."
+            : "Cadastre cursos, módulos e aulas. Por padrão só aparecem ativos. «Não listado» não entra no site."
         }
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
@@ -133,7 +129,7 @@ export default function CoursesPage() {
             >
               {showInactive ? "Ocultar inativos e não listados" : "Exibir inativos e não listados"}
             </Button>
-            {!isCoordinator && (
+            {!isTeacher && (
               <Button onClick={() => router.push("/courses/new")} className="w-full sm:w-auto">
                 Novo curso
               </Button>
@@ -169,7 +165,7 @@ export default function CoursesPage() {
                     ? "Nenhum curso encontrado."
                     : "Nenhum curso ativo cadastrado. Clique em «Novo curso» para começar."}
                 </p>
-                {!showInactive && !isCoordinator && (
+                {!showInactive && !isTeacher && (
                   <Button
                     type="button"
                     variant="primary"
@@ -221,12 +217,10 @@ export default function CoursesPage() {
                       <Td>{c.workloadHours ?? "—"}</Td>
                       <Td>
                         <div className="flex justify-end gap-2">
-                          {(!isCoordinator || isTeacher) && (
-                            <Button variant="secondary" size="sm" onClick={() => router.push(`/courses/${c.id}/edit`)}>
-                              Editar
-                            </Button>
-                          )}
-                          {isMaster && (
+                          <Button variant="secondary" size="sm" onClick={() => router.push(`/courses/${c.id}/edit`)}>
+                            Editar
+                          </Button>
+                          {!isTeacher && (
                             <Button
                               variant="secondary"
                               size="sm"
@@ -236,7 +230,7 @@ export default function CoursesPage() {
                               {duplicatingId === c.id ? "Duplicando…" : "Duplicar"}
                             </Button>
                           )}
-                          {!isTeacher && !isCoordinator && (
+                          {!isTeacher && (
                             <>
                               {c.status === "ACTIVE" && (
                                 <>

@@ -9,7 +9,7 @@ import { updateSmsCampaignSchema } from "@/lib/validators/sms";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const campaign = await getSmsCampaignDetails(id);
   if (!campaign) return jsonErr("NOT_FOUND", "Campanha não encontrada.", 404);
@@ -17,7 +17,7 @@ export async function GET(_request: Request, ctx: Ctx) {
 }
 
 export async function PUT(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = updateSmsCampaignSchema.safeParse(body);

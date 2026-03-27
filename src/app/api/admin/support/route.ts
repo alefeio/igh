@@ -2,13 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
-/** Lista todos os chamados (apenas admin/master). */
+/** Lista todos os chamados (admin, master ou coordenador). */
 export async function GET() {
   const user = await getSessionUserFromCookie();
   if (!user) {
     return jsonErr("UNAUTHORIZED", "Não autorizado.", 401);
   }
-  if (user.role !== "MASTER" && user.role !== "ADMIN") {
+  if (user.role !== "MASTER" && user.role !== "ADMIN" && user.role !== "COORDINATOR") {
     return jsonErr("FORBIDDEN", "Acesso negado.", 403);
   }
 

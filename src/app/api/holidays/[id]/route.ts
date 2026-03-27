@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { updateHolidaySchema } from "@/lib/validators/holidays";
+import {
+  normalizeHolidayTimeHm,
+  updateHolidaySchema,
+  validateHolidayEventTimesPair,
+} from "@/lib/validators/holidays";
 import { createAuditLog } from "@/lib/audit";
 import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-sessions-holiday-resync";
 import { SENTINEL_YEAR_RECURRING } from "@/lib/schedule";
@@ -10,7 +14,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  await requireRole("MASTER");
+  await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
   const { id } = await context.params;
 
   const holiday = await prisma.holiday.findUnique({ where: { id } });
@@ -23,7 +27,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
@@ -42,17 +46,45 @@ export async function PATCH(
     dateValue = recurring
       ? new Date(Date.UTC(SENTINEL_YEAR_RECURRING, parsedDate.getUTCMonth(), parsedDate.getUTCDate()))
       : parsedDate;
-    const duplicate = await prisma.holiday.findFirst({
-      where: { date: dateValue, recurring, id: { not: id } },
-      select: { id: true },
-    });
-    if (duplicate) {
-      return jsonErr(
-        "DUPLICATE_DATE",
-        recurring ? "Já existe um feriado recorrente para este dia e mês." : "Já existe um feriado para esta data.",
-        409
-      );
-    }
+  }
+
+  const mergedStart =
+    parsed.data.eventStartTime !== undefined
+      ? parsed.data.eventStartTime?.trim() || null
+      : existing.eventStartTime;
+  const mergedEnd =
+    parsed.data.eventEndTime !== undefined ? parsed.data.eventEndTime?.trim() || null : existing.eventEndTime;
+
+  const pairErr = validateHolidayEventTimesPair(mergedStart, mergedEnd);
+  if (pairErr) {
+    return jsonErr("VALIDATION_ERROR", pairErr, 400);
+  }
+
+  const isEvent = !!(mergedStart && mergedEnd);
+  const eventStartTime = isEvent ? normalizeHolidayTimeHm(mergedStart!) : null;
+  const eventEndTime = isEvent ? normalizeHolidayTimeHm(mergedEnd!) : null;
+
+  const effectiveDate = dateValue ?? existing.date;
+  const duplicate = await prisma.holiday.findFirst({
+    where: {
+      date: effectiveDate,
+      recurring,
+      eventStartTime,
+      eventEndTime,
+      id: { not: id },
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    return jsonErr(
+      "DUPLICATE_DATE",
+      isEvent
+        ? "Já existe um evento com esta data e horário."
+        : recurring
+          ? "Já existe um feriado recorrente para este dia e mês."
+          : "Já existe um feriado para esta data.",
+      409
+    );
   }
 
   const updated = await prisma.holiday.update({
@@ -62,6 +94,9 @@ export async function PATCH(
       ...(parsed.data.recurring !== undefined && { recurring: parsed.data.recurring }),
       name: parsed.data.name !== undefined ? (parsed.data.name || null) : undefined,
       isActive: parsed.data.isActive ?? undefined,
+      ...(parsed.data.eventStartTime !== undefined || parsed.data.eventEndTime !== undefined
+        ? { eventStartTime, eventEndTime }
+        : {}),
     },
   });
 
@@ -82,7 +117,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const existing = await prisma.holiday.findUnique({ where: { id } });

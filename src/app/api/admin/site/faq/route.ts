@@ -4,13 +4,13 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { siteFaqItemSchema, reorderSchema } from "@/lib/validators/site";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const items = await prisma.siteFaqItem.findMany({ orderBy: [{ order: "asc" }] });
   return jsonOk({ items });
 }
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = siteFaqItemSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = reorderSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);

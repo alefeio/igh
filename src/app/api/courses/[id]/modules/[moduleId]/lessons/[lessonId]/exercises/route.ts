@@ -1,15 +1,15 @@
 import { jsonErr, jsonOk } from "@/lib/http";
-import { requireCourseEditAccess } from "@/lib/course-edit-access";
+import { requireCourseEditAccess, requireCourseReadAccess } from "@/lib/course-edit-access";
 import { prisma } from "@/lib/prisma";
 import { courseLessonExerciseSchema } from "@/lib/validators/courses";
 
 type Ctx = { params: Promise<{ id: string; moduleId: string; lessonId: string }> };
 
-/** Lista exercícios da aula para edição (professor/MASTER/ADMIN). Sem restrição de status da aula. */
+/** Lista exercícios da aula (leitura: coordenador; edição via POST). */
 export async function GET(_request: Request, context: Ctx) {
   const { id: courseId, moduleId, lessonId } = await context.params;
 
-  const access = await requireCourseEditAccess(courseId);
+  const access = await requireCourseReadAccess(courseId);
   if ("err" in access) return access.err;
 
   const lesson = await prisma.courseLesson.findFirst({

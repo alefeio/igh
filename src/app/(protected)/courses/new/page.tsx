@@ -1,10 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
-import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
@@ -24,15 +23,10 @@ type Course = {
 export default function NewCoursePage() {
   const router = useRouter();
   const toast = useToast();
-  const user = useUser();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
   const canSubmit = name.trim().length >= 2;
-
-  useEffect(() => {
-    if (user.role === "COORDINATOR") router.replace("/courses");
-  }, [user.role, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

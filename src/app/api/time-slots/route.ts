@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createTimeSlotSchema } from "@/lib/validators/time-slots";
 import { createAuditLog } from "@/lib/audit";
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
 
   const body = await request.json().catch(() => null);
   const parsed = createTimeSlotSchema.safeParse(body);

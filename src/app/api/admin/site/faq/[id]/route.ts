@@ -1,35 +1,39 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { siteFaqItemSchema } from "@/lib/validators/site";
+import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { siteContatoPageSchema } from "@/lib/validators/site";
 
-type Ctx = { params: Promise<{ id: string }> };
-
-export async function PATCH(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
-  const { id } = await ctx.params;
-  const body = await request.json().catch(() => null);
-  const parsed = siteFaqItemSchema.safeParse(body);
-  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
-  const existing = await prisma.siteFaqItem.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Item nao encontrado.", 404);
-  const item = await prisma.siteFaqItem.update({
-    where: { id },
-    data: {
-      question: parsed.data.question,
-      answer: parsed.data.answer,
-      order: parsed.data.order ?? undefined,
-      isActive: parsed.data.isActive ?? undefined,
-    },
-  });
-  return jsonOk({ item });
+export async function GET() {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const row = await prisma.siteContatoPage.findFirst({ orderBy: { updatedAt: "desc" } });
+  return jsonOk({ item: row });
 }
 
-export async function DELETE(_r: Request, ctx: Ctx) {
-  await requireRole("MASTER");
-  const { id } = await ctx.params;
-  const existing = await prisma.siteFaqItem.findUnique({ where: { id } });
-  if (!existing) return jsonErr("NOT_FOUND", "Item nao encontrado.", 404);
-  await prisma.siteFaqItem.delete({ where: { id } });
-  return jsonOk({ deleted: true });
+export async function PATCH(request: Request) {
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const body = await request.json().catch(() => null);
+  const parsed = siteContatoPageSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+  }
+  const payload = {
+    title: parsed.data.title ?? null,
+    subtitle: parsed.data.subtitle ?? null,
+    headerImageUrl: parsed.data.headerImageUrl?.trim() ? parsed.data.headerImageUrl.trim() : null,
+  };
+  if (user.role === "ADMIN") {
+    await createPendingSiteChange(user.id, "site_contato_page", "update", null, payload);
+    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." });
+  }
+  const existing = await prisma.siteContatoPage.findFirst({ orderBy: { updatedAt: "desc" } });
+  const data = {
+    title: payload.title ?? undefined,
+    subtitle: payload.subtitle ?? undefined,
+    headerImageUrl: payload.headerImageUrl ?? undefined,
+  };
+  const item = existing
+    ? await prisma.siteContatoPage.update({ where: { id: existing.id }, data })
+    : await prisma.siteContatoPage.create({ data: payload });
+  return jsonOk({ item });
 }

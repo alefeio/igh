@@ -13,7 +13,7 @@ function slugify(s: string): string {
 }
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const items = await prisma.siteFormation.findMany({
     orderBy: [{ order: "asc" }],
     include: { courses: { include: { course: true }, orderBy: [{ order: "asc" }] } },
@@ -22,7 +22,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = siteFormationSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados invalidos", 400);
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = reorderSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados invalidos", 400);

@@ -22,7 +22,11 @@ export default function CoordenacaoNovoPage() {
   const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const allowed = user.role === "TEACHER" || user.role === "ADMIN" || user.role === "MASTER";
+  const allowed =
+    user.role === "TEACHER" ||
+    user.role === "ADMIN" ||
+    user.role === "MASTER" ||
+    user.role === "COORDINATOR";
 
   useEffect(() => {
     if (!allowed) {

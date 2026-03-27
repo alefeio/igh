@@ -43,6 +43,7 @@ export function TopBar({
   const isSupport =
     user.role === "MASTER" ||
     user.role === "ADMIN" ||
+    user.role === "COORDINATOR" ||
     user.baseRole === "MASTER" ||
     user.baseRole === "ADMIN" ||
     user.isAdmin;
@@ -224,9 +225,15 @@ export function TopBar({
       const res = await fetch("/api/auth/choose-role", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ role: newRole }),
       });
-      if (res.ok) router.refresh();
+      const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+      if (res.ok && json?.ok) {
+        /** Garante que o JWT novo seja lido pelo layout (evita papel antigo no UserProvider). */
+        window.location.reload();
+        return;
+      }
     } finally {
       setSwitchingRole(false);
     }

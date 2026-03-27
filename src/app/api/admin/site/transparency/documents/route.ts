@@ -4,7 +4,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { siteTransparencyDocumentSchema } from "@/lib/validators/site";
 
 export async function GET(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { searchParams } = new URL(request.url);
   const categoryId = searchParams.get("categoryId") || undefined;
   const items = await prisma.siteTransparencyDocument.findMany({
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = siteTransparencyDocumentSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);

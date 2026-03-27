@@ -8,13 +8,13 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireRole("MASTER");
+    await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
   } catch (e) {
     if (e instanceof Error && e.message === "UNAUTHENTICATED") {
       return jsonErr("UNAUTHENTICATED", "Sessão não encontrada.", 401);
     }
     if (e instanceof Error && e.message === "FORBIDDEN") {
-      return jsonErr("FORBIDDEN", "Apenas o usuário Master pode excluir avaliações.", 403);
+      return jsonErr("FORBIDDEN", "Apenas perfis autorizados podem excluir avaliações.", 403);
     }
     throw e;
   }

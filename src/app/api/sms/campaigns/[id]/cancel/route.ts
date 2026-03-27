@@ -5,7 +5,7 @@ import { cancelSmsCampaign } from "@/lib/sms";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(_request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const campaign = await cancelSmsCampaign(id, user.id);
   if (!campaign) {

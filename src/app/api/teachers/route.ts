@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole, hashPassword } from "@/lib/auth";
+import { requireRole, requireStaffWrite, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createTeacherSchema } from "@/lib/validators/teachers";
 import { createAuditLog } from "@/lib/audit";
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["MASTER", "ADMIN"]);
+  const user = await requireStaffWrite();
 
   const body = await request.json().catch(() => null);
   const parsed = createTeacherSchema.safeParse(body);

@@ -1,34 +1,31 @@
-import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createAuditLog } from "@/lib/audit";
+import { listSmsTemplates, createSmsTemplate } from "@/lib/sms";
+import { createSmsTemplateSchema } from "@/lib/validators/sms";
 
-export async function DELETE(
-  _request: Request,
-  context: { params: Promise<{ id: string; attachmentId: string }> }
-) {
-  const user = await requireRole("MASTER");
-  const { id: studentId, attachmentId } = await context.params;
+export async function GET(request: Request) {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const { searchParams } = new URL(request.url);
+  const activeOnly = searchParams.get("activeOnly") === "true";
+  const items = await listSmsTemplates(activeOnly);
+  return jsonOk({ items });
+}
 
-  const attachment = await prisma.studentAttachment.findFirst({
-    where: { id: attachmentId, studentId, deletedAt: null },
-  });
-  if (!attachment) {
-    return jsonErr("NOT_FOUND", "Anexo não encontrado.", 404);
+export async function POST(request: Request) {
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const body = await request.json().catch(() => null);
+  const parsed = createSmsTemplateSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
-
-  const updated = await prisma.studentAttachment.update({
-    where: { id: attachmentId },
-    data: { deletedAt: new Date() },
+  const data = parsed.data;
+  const template = await createSmsTemplate({
+    name: data.name,
+    description: data.description ?? undefined,
+    categoryHint: data.categoryHint ?? undefined,
+    content: data.content,
+    active: data.active ?? true,
+    createdById: user.id,
   });
-
-  await createAuditLog({
-    entityType: "StudentAttachment",
-    entityId: attachmentId,
-    action: "STUDENT_ATTACHMENT_REMOVE",
-    diff: { studentId, attachmentId, type: attachment.type, publicId: attachment.publicId },
-    performedByUserId: user.id,
-  });
-
-  return jsonOk({ attachment: updated });
+  return jsonOk({ template });
 }

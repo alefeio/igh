@@ -13,7 +13,9 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";
-  const includeDeleted = searchParams.get("includeDeleted") === "true" && user.role === "MASTER";
+  const includeDeleted =
+    searchParams.get("includeDeleted") === "true" &&
+    (user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR");
 
   const where: {
     deletedAt?: Date | null;
@@ -80,7 +82,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createStudentSchema.safeParse(body);

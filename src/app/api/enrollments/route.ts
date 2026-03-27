@@ -90,7 +90,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createEnrollmentSchema.safeParse(body);
@@ -116,15 +116,15 @@ export async function POST(request: Request) {
     return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
   }
 
-  const isMaster = user.role === "MASTER";
-  if (classGroup.status === "INTERNO" && !isMaster) {
-    return jsonErr("FORBIDDEN", "Apenas o usuário Master pode matricular alunos em turmas com status Interno.", 403);
+  const canOverrideEnrollmentRules = user.role === "MASTER" || user.role === "COORDINATOR";
+  if (classGroup.status === "INTERNO" && !canOverrideEnrollmentRules) {
+    return jsonErr("FORBIDDEN", "Apenas Master ou Coordenador podem matricular alunos em turmas com status Interno.", 403);
   }
   // Em turmas EXTERNO: Admin e Master podem matricular (não é inscrição pública).
-  if (!isMaster && !["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "EXTERNO"].includes(classGroup.status)) {
+  if (!canOverrideEnrollmentRules && !["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "EXTERNO"].includes(classGroup.status)) {
     return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
   }
-  if (!isMaster) {
+  if (!canOverrideEnrollmentRules) {
     const activeCount = await prisma.enrollment.count({
       where: { classGroupId, status: "ACTIVE" },
     });

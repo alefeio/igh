@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateTimeSlotSchema } from "@/lib/validators/time-slots";
 import { createAuditLog } from "@/lib/audit";
@@ -8,7 +8,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
@@ -45,7 +45,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const existing = await prisma.timeSlot.findUnique({ where: { id } });

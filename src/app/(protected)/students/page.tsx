@@ -120,9 +120,8 @@ function documentationAlert(s: Student): "yellow" | "red" | null {
 export default function StudentsPage() {
   const toast = useToast();
   const user = useUser();
-  const isMaster = user.role === "MASTER";
   const isTeacher = user.role === "TEACHER";
-  const isCoordinator = user.role === "COORDINATOR";
+  const staffFullAccess = user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR";
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Student[]>([]);
@@ -137,14 +136,15 @@ export default function StudentsPage() {
   const [q, setQ] = useState("");
   const [includeDeleted, setIncludeDeleted] = useState(false);
 
-  const canChangePassword = (user.role === "ADMIN" || user.role === "MASTER") && !isTeacher;
+  const canChangePassword =
+    (user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR") && !isTeacher;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
-      if (isMaster && includeDeleted) params.set("includeDeleted", "true");
+      if (staffFullAccess && includeDeleted) params.set("includeDeleted", "true");
       const res = await fetch(`/api/students?${params.toString()}`);
       const json = (await res.json()) as ApiResponse<{ students: Student[] }>;
       if (!res.ok || !json.ok) {
@@ -155,7 +155,7 @@ export default function StudentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [q, isMaster, includeDeleted, toast]);
+  }, [q, staffFullAccess, includeDeleted, toast]);
 
   useEffect(() => {
     void load();
@@ -274,7 +274,7 @@ export default function StudentsPage() {
             : "Cadastro base do aluno. Use a busca por nome ou CPF."
         }
         rightSlot={
-          !isTeacher && !isCoordinator ? (
+          !isTeacher ? (
             <Button onClick={openCreate} className="w-full sm:w-auto">
               Novo aluno
             </Button>
@@ -294,7 +294,7 @@ export default function StudentsPage() {
             onChange={(e) => setQ(e.target.value)}
             className="max-w-xs"
           />
-          {isMaster && !isCoordinator && (
+          {staffFullAccess && (
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -367,14 +367,14 @@ export default function StudentsPage() {
                     <Button variant="secondary" onClick={() => openView(s)}>
                       Visualizar
                     </Button>
-                    {!isTeacher && !isCoordinator && (
+                    {!isTeacher && (
                       <>
                         {!s.deletedAt && (
                           <Button variant="secondary" onClick={() => openEdit(s)}>
                             Editar
                           </Button>
                         )}
-                        {isMaster && (
+                        {staffFullAccess && (
                           s.deletedAt ? (
                             <>
                               <Button variant="secondary" onClick={() => reactivate(s)}>
@@ -436,7 +436,7 @@ export default function StudentsPage() {
             setOpen(false);
             setEditing(null);
           }}
-          isMaster={isMaster}
+          isMaster={staffFullAccess}
         />
       </Modal>
 

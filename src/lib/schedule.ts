@@ -26,38 +26,93 @@ export function dateToDateString(d: Date): string {
 
 const SENTINEL_YEAR_RECURRING = 2000;
 
-/**
- * Expande lista de feriados (recorrentes e específicos) para um conjunto de
- * strings YYYY-MM-DD no intervalo [rangeStart, rangeEnd].
- * - recurring: repete o mesmo mês/dia em cada ano do intervalo.
- * - !recurring: inclui a data exata se estiver no intervalo.
- */
-export function expandHolidaysToDateStrings(
-  holidays: { date: Date; recurring: boolean }[],
-  rangeStart: Date,
-  rangeEnd: Date
+/** Datas (YYYY-MM-DD) em que um evento com horário bloqueia aulas que cruzem o intervalo. */
+export type HolidayEventBlock = { dateStr: string; startTime: string; endTime: string };
+
+function expandOneHolidayDateStrings(
+  h: { date: Date; recurring: boolean },
+  rangeStartStr: string,
+  rangeEndStr: string,
+  startYear: number,
+  endYear: number,
 ): string[] {
-  const set = new Set<string>();
-  const startYear = rangeStart.getUTCFullYear();
-  const endYear = rangeEnd.getUTCFullYear();
+  const out: string[] = [];
+  if (h.recurring) {
+    const month = h.date.getUTCMonth();
+    const day = h.date.getUTCDate();
+    for (let y = startYear; y <= endYear; y++) {
+      const d = new Date(Date.UTC(y, month, day));
+      const str = dateToDateString(d);
+      if (str >= rangeStartStr && str <= rangeEndStr) out.push(str);
+    }
+  } else {
+    const str = dateToDateString(h.date);
+    if (str >= rangeStartStr && str <= rangeEndStr) out.push(str);
+  }
+  return out;
+}
+
+/**
+ * Separa feriados de dia inteiro e eventos com horário, no intervalo [rangeStart, rangeEnd].
+ * - Dia inteiro: sem eventStartTime/eventEndTime preenchidos → lista em holidayDateStrings.
+ * - Evento: com início e fim → holidayEventBlocks (só turmas cujo horário cruza o intervalo são afetadas).
+ */
+export function splitHolidaysForSchedule(
+  holidays: { date: Date; recurring: boolean; eventStartTime?: string | null; eventEndTime?: string | null }[],
+  rangeStart: Date,
+  rangeEnd: Date,
+): { holidayDateStrings: string[]; holidayEventBlocks: HolidayEventBlock[] } {
+  const fullDaySet = new Set<string>();
+  const blocks: HolidayEventBlock[] = [];
   const rangeStartStr = dateToDateString(rangeStart);
   const rangeEndStr = dateToDateString(rangeEnd);
+  const startYear = rangeStart.getUTCFullYear();
+  const endYear = rangeEnd.getUTCFullYear();
 
   for (const h of holidays) {
-    if (h.recurring) {
-      const month = h.date.getUTCMonth();
-      const day = h.date.getUTCDate();
-      for (let y = startYear; y <= endYear; y++) {
-        const d = new Date(Date.UTC(y, month, day));
-        const str = dateToDateString(d);
-        if (str >= rangeStartStr && str <= rangeEndStr) set.add(str);
+    const est = String(h.eventStartTime ?? "").trim();
+    const eet = String(h.eventEndTime ?? "").trim();
+    const isTimedEvent = est.length > 0 && eet.length > 0;
+    const dateStrs = expandOneHolidayDateStrings(h, rangeStartStr, rangeEndStr, startYear, endYear);
+    if (isTimedEvent) {
+      for (const dateStr of dateStrs) {
+        blocks.push({ dateStr, startTime: est, endTime: eet });
       }
     } else {
-      const str = dateToDateString(h.date);
-      if (str >= rangeStartStr && str <= rangeEndStr) set.add(str);
+      for (const s of dateStrs) fullDaySet.add(s);
     }
   }
-  return [...set];
+  return { holidayDateStrings: [...fullDaySet], holidayEventBlocks: blocks };
+}
+
+/**
+ * Apenas datas de feriado de dia inteiro (sem horário de evento).
+ * @deprecated Prefira splitHolidaysForSchedule quando for gerar turmas (inclui eventos por horário).
+ */
+export function expandHolidaysToDateStrings(
+  holidays: { date: Date; recurring: boolean; eventStartTime?: string | null; eventEndTime?: string | null }[],
+  rangeStart: Date,
+  rangeEnd: Date,
+): string[] {
+  return splitHolidaysForSchedule(holidays, rangeStart, rangeEnd).holidayDateStrings;
+}
+
+/** Dois intervalos de horário no mesmo dia se sobrepõem (ex.: aula 08:00–10:00 e evento 08:00–11:00). */
+export function intervalsOverlapSameDay(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
+  const toM = (t: string) => {
+    const parts = t.trim().split(":");
+    const h = parseInt(parts[0] ?? "0", 10);
+    const m = parseInt(parts[1] ?? "0", 10);
+    if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+    return h * 60 + m;
+  };
+  let as = toM(aStart);
+  let ae = toM(aEnd);
+  let bs = toM(bStart);
+  let be = toM(bEnd);
+  if (ae <= as) ae += 24 * 60;
+  if (be <= bs) be += 24 * 60;
+  return Math.max(as, bs) < Math.min(ae, be);
 }
 
 /** Ano sentinela usado ao salvar feriado recorrente (só mês/dia importam). */
@@ -99,8 +154,10 @@ export interface GenerateSessionsByWorkloadInput {
   endTime: string;
   /** Carga horária total do curso em horas. Geração para quando total >= workloadHours. */
   workloadHours: number;
-  /** Datas de feriados a pular (YYYY-MM-DD). */
+  /** Datas de feriados de dia inteiro a pular (YYYY-MM-DD). */
   holidayDateStrings: string[];
+  /** Eventos com horário: só pula o dia se o horário da turma cruzar o intervalo do evento. */
+  holidayEventBlocks?: HolidayEventBlock[];
 }
 
 export interface GenerateSessionsByWorkloadResult {
@@ -112,13 +169,22 @@ export interface GenerateSessionsByWorkloadResult {
 
 /**
  * Gera datas de aula a partir de startDate, nos dias da semana, até atingir workloadHours.
- * Não gera aula em datas que estejam em holidayDateStrings.
+ * Não gera aula em datas de feriado de dia inteiro; em eventos com horário, só pula se o horário
+ * da turma (startTime–endTime) cruzar o intervalo do evento nesse dia.
  * Se a última aula ultrapassar levemente a carga, ainda assim é incluída (para não ficar abaixo).
  */
 export function generateSessionsByWorkload(
   input: GenerateSessionsByWorkloadInput,
 ): GenerateSessionsByWorkloadResult {
-  const { startDate, daysOfWeek, startTime, endTime, workloadHours, holidayDateStrings } = input;
+  const {
+    startDate,
+    daysOfWeek,
+    startTime,
+    endTime,
+    workloadHours,
+    holidayDateStrings,
+    holidayEventBlocks = [],
+  } = input;
 
   const dayNumbers = new Set(
     daysOfWeek
@@ -142,13 +208,22 @@ export function generateSessionsByWorkload(
   let current = new Date(startDate.getTime());
   let endDate = new Date(startDate.getTime());
 
+  function sessionBlockedOnDate(dateStr: string): boolean {
+    if (holidaySet.has(dateStr)) return true;
+    for (const b of holidayEventBlocks) {
+      if (b.dateStr !== dateStr) continue;
+      if (intervalsOverlapSameDay(startTime, endTime, b.startTime, b.endTime)) return true;
+    }
+    return false;
+  }
+
   for (let i = 0; i < maxDays; i++) {
     if (totalHours >= workloadHours) break;
 
     const dayOfWeek = current.getUTCDay();
     const dateStr = dateToDateString(current);
 
-    if (dayNumbers.has(dayOfWeek) && !holidaySet.has(dateStr)) {
+    if (dayNumbers.has(dayOfWeek) && !sessionBlockedOnDate(dateStr)) {
       dates.push(new Date(current.getTime()));
       totalHours += hoursPerSession;
       endDate = new Date(current.getTime());

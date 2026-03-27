@@ -1,85 +1,31 @@
-import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createAttachmentSchema } from "@/lib/validators/attachments";
-import { createAuditLog } from "@/lib/audit";
+import { listSmsTemplates, createSmsTemplate } from "@/lib/sms";
+import { createSmsTemplateSchema } from "@/lib/validators/sms";
 
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
-  await requireRole(["ADMIN", "MASTER"]);
-  const { id: studentId } = await context.params;
-
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    select: { id: true },
-  });
-  if (!student) {
-    return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
-  }
-
-  const attachments = await prisma.studentAttachment.findMany({
-    where: { studentId, deletedAt: null },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return jsonOk({ attachments });
+export async function GET(request: Request) {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const { searchParams } = new URL(request.url);
+  const activeOnly = searchParams.get("activeOnly") === "true";
+  const items = await listSmsTemplates(activeOnly);
+  return jsonOk({ items });
 }
 
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
-  const { id: studentId } = await context.params;
-
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    select: { id: true },
-  });
-  if (!student) {
-    return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
-  }
-
+export async function POST(request: Request) {
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
-  const parsed = createAttachmentSchema.safeParse(body);
+  const parsed = createSmsTemplateSchema.safeParse(body);
   if (!parsed.success) {
-    return jsonErr(
-      "VALIDATION_ERROR",
-      parsed.error.issues[0]?.message ?? "Dados inválidos",
-      400
-    );
+    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
-
-  const { type, publicId, url, fileName, mimeType, sizeBytes } = parsed.data;
-
-  const attachment = await prisma.$transaction(async (tx) => {
-    await tx.studentAttachment.updateMany({
-      where: { studentId, type, deletedAt: null },
-      data: { deletedAt: new Date() },
-    });
-    const created = await tx.studentAttachment.create({
-      data: {
-        studentId,
-        type,
-        publicId,
-        url,
-        fileName: fileName ?? null,
-        mimeType: mimeType ?? null,
-        sizeBytes: sizeBytes ?? null,
-        uploadedByUserId: user.id,
-      },
-    });
-    await createAuditLog({
-      entityType: "StudentAttachment",
-      entityId: created.id,
-      action: "STUDENT_ATTACHMENT_ADD",
-      diff: { studentId, attachmentId: created.id, type, publicId },
-      performedByUserId: user.id,
-    });
-    return created;
+  const data = parsed.data;
+  const template = await createSmsTemplate({
+    name: data.name,
+    description: data.description ?? undefined,
+    categoryHint: data.categoryHint ?? undefined,
+    content: data.content,
+    active: data.active ?? true,
+    createdById: user.id,
   });
-
-  return jsonOk({ attachment }, { status: 201 });
+  return jsonOk({ template });
 }

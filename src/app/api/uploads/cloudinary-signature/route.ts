@@ -18,7 +18,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);

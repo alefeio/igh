@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
+import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateClassGroupSchema } from "@/lib/validators/class-groups";
 import { createAuditLog } from "@/lib/audit";
@@ -8,11 +8,11 @@ import {
   generateSessionsByWorkload,
   parseDateOnly,
   parseDurationHours,
-  expandHolidaysToDateStrings,
+  splitHolidaysForSchedule,
 } from "@/lib/schedule";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
@@ -110,9 +110,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     const holidays = await prisma.holiday.findMany({
       where: { isActive: true },
-      select: { date: true, recurring: true },
+      select: { date: true, recurring: true, eventStartTime: true, eventEndTime: true },
     });
-    const holidayDateStrings = expandHolidaysToDateStrings(holidays, rangeStart, rangeEnd);
+    const { holidayDateStrings, holidayEventBlocks } = splitHolidaysForSchedule(
+      holidays,
+      rangeStart,
+      rangeEnd,
+    );
 
     try {
       result = generateSessionsByWorkload({
@@ -122,6 +126,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         endTime: endTimeForGeneration,
         workloadHours,
         holidayDateStrings,
+        holidayEventBlocks,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro ao gerar sessões.";
@@ -234,7 +239,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole("MASTER");
+  const user = await requireStaffWrite();
   const { id } = await context.params;
 
   const existing = await prisma.classGroup.findUnique({ where: { id } });

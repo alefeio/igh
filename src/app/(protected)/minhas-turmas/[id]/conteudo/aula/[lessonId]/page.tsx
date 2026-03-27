@@ -1183,6 +1183,8 @@ export default function AulaConteudoPage() {
   const currentIndex = orderedLessons.findIndex((l) => l.id === lessonId);
   const prevLesson = currentIndex > 0 ? orderedLessons[currentIndex - 1] : null;
   const nextLesson = currentIndex >= 0 && currentIndex < orderedLessons.length - 1 ? orderedLessons[currentIndex + 1] : null;
+  /** Próxima aula só pode ser aberta quando o cronograma/turma já a liberou (ex.: data da sessão). */
+  const nextLessonIsUnlocked = nextLesson?.isLiberada === true;
 
   const hasExercises = exercises.length > 0;
   const allExercisesAnswered =
@@ -1638,6 +1640,21 @@ export default function AulaConteudoPage() {
                   openSectionPanel("exercicios");
                 }}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm text-[var(--text-muted)] transition hover:border-[var(--igh-primary)]/25 hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
+              >
+                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="hidden sm:inline">Próxima aula</span>
+              </button>
+            ) : !nextLessonIsUnlocked ? (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.push(
+                    "error",
+                    "A próxima aula ainda não está liberada pelo cronograma da turma. Volte em breve ou consulte a lista de aulas."
+                  );
+                }}
+                className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2"
+                aria-label="Próxima aula ainda não liberada"
               >
                 <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="hidden sm:inline">Próxima aula</span>

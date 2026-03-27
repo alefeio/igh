@@ -8,7 +8,7 @@ import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateAdminWelcome, templateCoordinatorWelcome } from "@/lib/email/templates";
 
 export async function GET() {
-  await requireRole("MASTER");
+  await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
 
   const users = await prisma.user.findMany({
     where: { OR: [{ role: "ADMIN" }, { role: "COORDINATOR" }, { isAdmin: true }] },

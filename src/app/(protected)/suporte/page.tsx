@@ -26,7 +26,8 @@ export default function SuportePage() {
   const [loading, setLoading] = useState(true);
   const [showClosed, setShowClosed] = useState(false);
 
-  const isSupport = user.role === "MASTER" || user.role === "ADMIN";
+  const isSupport =
+    user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR";
   const apiUrl = isSupport ? "/api/admin/support" : "/api/me/support";
 
   useEffect(() => {

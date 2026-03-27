@@ -3,10 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
-import {
-  expandHolidaysToDateStrings,
-  generateSessionsByWorkload,
-} from "@/lib/schedule";
+import { generateSessionsByWorkload, splitHolidaysForSchedule } from "@/lib/schedule";
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
 
 async function syncLiberadaStatusesForClassGroup(
@@ -33,8 +30,15 @@ async function syncLiberadaStatusesForClassGroup(
 }
 
 /**
- * Recalcula datas (e aulas vinculadas) de todas as turmas não encerradas, usando a lista atual de feriados ativos
+ * Recalcula datas (e aulas vinculadas) de todas as turmas não encerradas, usando a lista atual de feriados/eventos ativos
  * e a mesma lógica de `generateSessionsByWorkload` da criação/edição de turma.
+ *
+ * Comportamento (alinhado a {@link generateSessionsByWorkload}):
+ * - **Feriado de dia inteiro**: não há aula nessa data; a carga é cumprida avançando para as próximas datas
+ *   válidas da turma (dias da semana cadastrados), como se o dia não existisse no calendário.
+ * - **Evento com horário**: só “pula” o dia para turmas cujo intervalo de aula **cruza** o intervalo do evento;
+ *   turmas em outro horário no mesmo dia mantêm a sessão.
+ *
  * Preserva IDs das sessões quando a quantidade coincide (mantém frequência); caso contrário recria as sessões.
  */
 export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Promise<{
@@ -43,7 +47,7 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
 }> {
   const holidays = await prisma.holiday.findMany({
     where: { isActive: true },
-    select: { date: true, recurring: true },
+    select: { date: true, recurring: true, eventStartTime: true, eventEndTime: true },
   });
 
   const groups = await prisma.classGroup.findMany({
@@ -71,7 +75,11 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
       const rangeEnd = new Date(rangeStart);
       rangeEnd.setUTCFullYear(rangeEnd.getUTCFullYear() + 2);
 
-      const holidayDateStrings = expandHolidaysToDateStrings(holidays, rangeStart, rangeEnd);
+      const { holidayDateStrings, holidayEventBlocks } = splitHolidaysForSchedule(
+        holidays,
+        rangeStart,
+        rangeEnd,
+      );
 
       let result: ReturnType<typeof generateSessionsByWorkload>;
       try {
@@ -82,6 +90,7 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
           endTime: cg.endTime,
           workloadHours,
           holidayDateStrings,
+          holidayEventBlocks,
         });
       } catch {
         return false;

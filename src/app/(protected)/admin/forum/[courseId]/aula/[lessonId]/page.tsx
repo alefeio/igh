@@ -52,7 +52,7 @@ export default function AdminForumLessonPage() {
             courseId={courseId}
             lessonId={lessonId}
             staffRole="admin"
-            readOnly={user.role === "COORDINATOR"}
+            readOnly={false}
           />
         ) : (
           <p className="text-sm text-[var(--text-muted)]">Parâmetros inválidos.</p>

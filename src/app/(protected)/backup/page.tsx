@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 
 export default function BackupPage() {
+  const user = useUser();
+  const isMaster = user.role === "MASTER";
   const toast = useToast();
   const [backupLoading, setBackupLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
@@ -106,20 +109,29 @@ export default function BackupPage() {
           description="Substitui todo o conteúdo do banco. Irreversível."
           variant="elevated"
         >
-          <p className="text-xs text-[var(--text-muted)]">
-            Requer <strong>psql</strong> instalado no servidor. Use apenas arquivos .sql gerados por este backup.
-          </p>
-          <form onSubmit={handleRestore} className="mt-4 flex flex-col gap-3">
-            <input
-              type="file"
-              accept=".sql"
-              className="w-full text-sm text-[var(--text-primary)] file:mr-2 file:rounded file:border file:border-[var(--card-border)] file:bg-[var(--igh-surface)] file:px-3 file:py-1.5 file:text-sm"
-              onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
-            />
-            <Button type="submit" variant="secondary" disabled={restoreLoading || !restoreFile}>
-              {restoreLoading ? "Restaurando..." : "Restaurar banco"}
-            </Button>
-          </form>
+          {isMaster ? (
+            <>
+              <p className="text-xs text-[var(--text-muted)]">
+                Requer <strong>psql</strong> instalado no servidor. Use apenas arquivos .sql gerados por este backup.
+              </p>
+              <form onSubmit={handleRestore} className="mt-4 flex flex-col gap-3">
+                <input
+                  type="file"
+                  accept=".sql"
+                  className="w-full text-sm text-[var(--text-primary)] file:mr-2 file:rounded file:border file:border-[var(--card-border)] file:bg-[var(--igh-surface)] file:px-3 file:py-1.5 file:text-sm"
+                  onChange={(e) => setRestoreFile(e.target.files?.[0] ?? null)}
+                />
+                <Button type="submit" variant="secondary" disabled={restoreLoading || !restoreFile}>
+                  {restoreLoading ? "Restaurando..." : "Restaurar banco"}
+                </Button>
+              </form>
+            </>
+          ) : (
+            <p className="text-sm text-[var(--text-secondary)]">
+              Apenas o usuário <strong>Master</strong> pode enviar um arquivo e restaurar o banco. O download de backup
+              permanece disponível conforme sua permissão.
+            </p>
+          )}
         </SectionCard>
       </div>
     </div>

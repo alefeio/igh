@@ -12,6 +12,32 @@ export async function isTeacherOfCourse(teacherId: string, courseId: string): Pr
 }
 
 /**
+ * Leitura da estrutura do curso (lista de exercícios, etc.). Inclui COORDINATOR.
+ * TEACHER: apenas se leciona alguma turma do curso.
+ */
+export async function requireCourseReadAccess(courseId: string): Promise<
+  | { user: SessionUser; teacherId?: string }
+  | { err: Response }
+> {
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER", "COORDINATOR"]);
+  if (user.role === "TEACHER") {
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!teacher) {
+      return { err: jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403) };
+    }
+    const ok = await isTeacherOfCourse(teacher.id, courseId);
+    if (!ok) {
+      return { err: jsonErr("FORBIDDEN", "Você não é professor deste curso.", 403) };
+    }
+    return { user, teacherId: teacher.id };
+  }
+  return { user };
+}
+
+/**
  * Exige MASTER, ADMIN ou TEACHER. Se TEACHER, verifica se leciona o curso (é professor de alguma turma desse curso).
  * Permite que o professor edite conteúdo das aulas dos cursos que leciona. Todas as alterações são registradas
  * em CourseLesson (lastEditedByUserId, lastEditedAt) e em AuditLog para o master auditar quem alterou cada aula.
@@ -21,7 +47,7 @@ export async function requireCourseEditAccess(courseId: string): Promise<
   | { user: SessionUser; teacherId?: string }
   | { err: Response }
 > {
-  const user = await requireRole(["MASTER", "ADMIN", "TEACHER"]);
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER", "COORDINATOR"]);
   if (user.role === "TEACHER") {
     const teacher = await prisma.teacher.findFirst({
       where: { userId: user.id, deletedAt: null },

@@ -93,6 +93,7 @@ export default function EnrollmentsPage() {
   const user = useUser();
   const toast = useToast();
   const isMaster = user.role === "MASTER";
+  const canOverrideEnrollment = isMaster || user.role === "COORDINATOR";
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Enrollment[]>([]);
   const [open, setOpen] = useState(false);
@@ -593,7 +594,7 @@ export default function EnrollmentsPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!studentId || !classGroupId || submitting) return;
-    if (!isMaster) {
+    if (!canOverrideEnrollment) {
       const cg = classGroups.find((c) => c.id === classGroupId);
       const count = cg?.enrollmentsCount ?? activeCountByClassGroup.get(classGroupId) ?? 0;
       const cap = cg?.capacity ?? 0;
@@ -714,7 +715,7 @@ export default function EnrollmentsPage() {
                 {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
               </Button>
             </div>
-            {(user.role === "ADMIN" || user.role === "MASTER") && (
+            {(user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR") && (
               <Button onClick={openCreate} className="w-full sm:w-auto">
                 Nova matrícula
               </Button>
@@ -1542,9 +1543,11 @@ export default function EnrollmentsPage() {
                     cg.status === "EM_ANDAMENTO";
                   const isInterno = cg.status === "INTERNO";
                   const isExterno = cg.status === "EXTERNO";
-                  const canSeeExterno = user?.role === "ADMIN" || isMaster;
+                  const canSeeExterno = user?.role === "ADMIN" || isMaster || user?.role === "COORDINATOR";
                   const permitidaParaMatricula =
-                    permiteMatriculaPadrao || (isMaster && isInterno) || (canSeeExterno && isExterno);
+                    permiteMatriculaPadrao ||
+                    (canOverrideEnrollment && isInterno) ||
+                    (canSeeExterno && isExterno);
                   if (!permitidaParaMatricula) return false;
                   return true;
                 })
@@ -1552,7 +1555,7 @@ export default function EnrollmentsPage() {
                   const cap = cg.capacity ?? 0;
                   const count = cg.enrollmentsCount ?? 0;
                   const isFull = cap > 0 && count >= cap;
-                  const disabled = !isMaster && isFull;
+                  const disabled = !canOverrideEnrollment && isFull;
                   const label = [
                     cg.course.name,
                     `Início ${formatDateOnly(cg.startDate)}`,
@@ -1570,7 +1573,7 @@ export default function EnrollmentsPage() {
                 })}
             </select>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Inscritos / capacidade. Turmas lotadas só podem receber mais alunos se você for Master.
+              Inscritos / capacidade. Turmas lotadas só podem receber mais alunos se você for Master ou Coordenador.
             </p>
           </div>
           <div>
@@ -1618,10 +1621,10 @@ export default function EnrollmentsPage() {
                       cg.status === "EM_ANDAMENTO";
                     const isInterno = cg.status === "INTERNO";
                     const isExterno = cg.status === "EXTERNO";
-                    const canSeeExterno = user?.role === "ADMIN" || isMaster;
+                    const canSeeExterno = user?.role === "ADMIN" || isMaster || user?.role === "COORDINATOR";
                     return (
                       permiteMatriculaPadrao ||
-                      (isMaster && isInterno) ||
+                      (canOverrideEnrollment && isInterno) ||
                       (canSeeExterno && isExterno) ||
                       isCurrent
                     );
@@ -1631,7 +1634,7 @@ export default function EnrollmentsPage() {
                     const cap = cg.capacity ?? 0;
                     const count = cg.enrollmentsCount ?? 0;
                     const isFull = cap > 0 && count >= cap;
-                    const disabled = !isMaster && !isCurrent && isFull;
+                    const disabled = !canOverrideEnrollment && !isCurrent && isFull;
                     const label = [
                       cg.course.name,
                       `Início ${formatDateOnly(cg.startDate)}`,
@@ -1649,7 +1652,7 @@ export default function EnrollmentsPage() {
                   })}
               </select>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Inscritos / capacidade. Só Master pode transferir para turma lotada.
+                Inscritos / capacidade. Master e Coordenador podem transferir para turma lotada.
               </p>
             </div>
             <div>
