@@ -3,7 +3,6 @@ import Link from "next/link";
 import {
   Award,
   BookOpen,
-  CalendarDays,
   ChevronRight,
   ClipboardList,
   Clock,
@@ -24,14 +23,15 @@ import {
   Users2,
 } from "lucide-react";
 
+import { AdminSessionsCalendar } from "@/components/dashboard/AdminSessionsCalendar";
 import { DashboardForumActivityRail } from "@/components/dashboard/DashboardForumActivityRail";
+import { DashboardStudentRanking } from "@/components/dashboard/DashboardStudentRanking";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import {
   DashboardHero,
   QuickActionGrid,
   SectionCard,
   StatTile,
-  StatusBars,
   TableShell,
 } from "@/components/dashboard/DashboardUI";
 import { StudentPlatformExperienceModal } from "@/components/student/StudentPlatformExperienceModal";
@@ -44,6 +44,7 @@ import {
   type PlatformExperienceDashboardSummary,
   type StudentEnrollmentSummary,
 } from "@/lib/dashboard-data";
+import { formatDaysShortPtBr } from "@/lib/platform-experience-turma";
 import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
 import { EXERCISES_TARGET_PER_LESSON, GAMIFICATION_POINTS } from "@/lib/teacher-gamification";
 
@@ -125,19 +126,16 @@ const ADMIN_TUTORIAL_STEPS: TutorialStep[] = [
     content: "Cards com totais de Alunos, Professores, Cursos, Turmas e Matrículas. Clique em cada um para ir à página correspondente.",
   },
   {
-    target: "[data-tour=\"admin-dashboard-turmas-status\"]",
-    title: "Turmas por status",
-    content: "Quantidade de turmas em cada status: Aberta, Em andamento, Planejada, Encerrada, Cancelada e Interno.",
+    target: "[data-tour=\"admin-dashboard-rankings\"]",
+    title: "Rankings",
+    content:
+      "Ao lado, o ranking de gamificação dos professores e dos alunos. Use os links para ver o quadro completo.",
   },
   {
-    target: "[data-tour=\"admin-dashboard-matriculas-30\"]",
-    title: "Matrículas (últimos 30 dias)",
-    content: "Total de matrículas nos últimos 30 dias. Use o link para ver todas as matrículas.",
-  },
-  {
-    target: "[data-tour=\"admin-dashboard-turmas-abertas\"]",
-    title: "Turmas abertas ou em andamento",
-    content: "Tabela com as turmas que estão abertas ou em andamento. Acesse turmas e matrículas por curso a partir daqui.",
+    target: "[data-tour=\"admin-dashboard-calendario\"]",
+    title: "Calendário de aulas",
+    content:
+      "Veja quantas sessões existem em cada dia e clique no dia para listar curso, professor e horário. Acesse matrículas da turma pelo link.",
   },
   {
     target: "[data-tour=\"admin-dashboard-atalhos\"]",
@@ -166,7 +164,8 @@ const TEACHER_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: "[data-tour=\"teacher-dashboard-turmas\"]",
     title: "Suas turmas",
-    content: "Tabela com as turmas que você leciona. Clique no curso para ver as matrículas ou use \"Ver turma\" para acessar sessões, presenças e conteúdo da turma.",
+    content:
+      "Coluna Turma com curso, local, dias da semana e horário. Use Matrículas ou Painel para acessar matrículas, sessões, presenças e conteúdo.",
   },
   {
     target: "[data-tour=\"teacher-dashboard-atalhos\"]",
@@ -218,27 +217,29 @@ function formatDate(d: Date) {
   return `${day} ${month} ${year}`;
 }
 
-function ClassGroupRow({ cg }: { cg: ClassGroupSummary }) {
-  const vacancy = cg.capacity - cg.enrollmentsCount;
+function TeacherTurmaCell({ cg }: { cg: ClassGroupSummary }) {
+  const days = formatDaysShortPtBr(cg.daysOfWeek);
+  const time =
+    cg.startTime && cg.endTime ? `${cg.startTime}–${cg.endTime}` : "—";
   return (
-    <tr className="transition hover:bg-[var(--igh-surface)]/40">
-      <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-primary)]">
-        <Link href={`/enrollments?turma=${cg.id}`} className="font-semibold hover:text-[var(--igh-primary)] hover:underline">
-          {cg.courseName}
-        </Link>
-      </td>
-      <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">{cg.teacherName}</td>
-      <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">
-        {STATUS_LABELS[cg.status] ?? cg.status}
-      </td>
-      <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">
-        {formatDate(cg.startDate)}
-      </td>
-      <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">
-        {cg.enrollmentsCount} / {cg.capacity}
-        {vacancy > 0 && <span className="ml-1 text-[var(--text-muted)]">({vacancy} vagas)</span>}
-      </td>
-    </tr>
+    <div className="min-w-0 max-w-md">
+      <Link
+        href={`/enrollments?turma=${cg.id}`}
+        className="font-semibold text-[var(--text-primary)] hover:text-[var(--igh-primary)] hover:underline"
+      >
+        {cg.courseName}
+      </Link>
+      {cg.location?.trim() ? (
+        <p className="mt-1 text-xs text-[var(--text-secondary)]">
+          <span className="text-[var(--text-muted)]">Local:</span> {cg.location.trim()}
+        </p>
+      ) : null}
+      <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+        <span className="text-[var(--text-muted)]">Dias:</span> {days}
+        <span className="mx-1 text-[var(--text-muted)]">·</span>
+        <span className="text-[var(--text-muted)]">Horário:</span> {time}
+      </p>
+    </div>
   );
 }
 
@@ -357,11 +358,15 @@ function PlatformExperienceSummarySection({
   href,
   title,
   description,
+  className = "",
+  contentClassName = "",
 }: {
   summary: PlatformExperienceDashboardSummary;
   href: string;
   title: string;
   description: string;
+  className?: string;
+  contentClassName?: string;
 }) {
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(1));
   return (
@@ -370,6 +375,8 @@ function PlatformExperienceSummarySection({
       description={description}
       id="platform-exp-summary-heading"
       variant="elevated"
+      className={className}
+      contentClassName={contentClassName}
       action={
         <Link
           href={href}
@@ -379,7 +386,7 @@ function PlatformExperienceSummarySection({
         </Link>
       }
     >
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/50 p-3 sm:p-4">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Respostas</p>
           <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--text-primary)]">{summary.totalCount}</p>
@@ -422,169 +429,77 @@ function DashboardAdmin({
 }) {
   const {
     stats,
-    recentEnrollmentsCount,
-    openClassGroups,
     roleLabel,
     teachersGamificationRanking,
     platformExperienceSummary,
     forumLessonsWithActivity,
+    studentRankingTop,
+    sessionsCalendar,
   } = data;
-  const statusOrder = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "ENCERRADA", "CANCELADA", "INTERNO", "EXTERNO"] as const;
   const firstName = userName?.split(/\s+/)[0] ?? "Admin";
-  const maxStatus = Math.max(1, ...statusOrder.map((s) => stats.classGroupsByStatus[s] ?? 0));
-  const statusRows = statusOrder.map((status) => ({
-    label: STATUS_LABELS[status],
-    value: stats.classGroupsByStatus[status] ?? 0,
-    tone:
-      status === "ABERTA" || status === "EM_ANDAMENTO"
-        ? ("success" as const)
-        : status === "PLANEJADA"
-          ? ("warning" as const)
-          : status === "ENCERRADA" || status === "CANCELADA"
-            ? ("muted" as const)
-            : ("default" as const),
-  }));
+  const rankingCardClass =
+    "ring-2 ring-violet-500/40 shadow-xl dark:ring-violet-400/30 h-full min-h-0 flex flex-col";
 
   return (
-    <div className="min-w-0">
-        <DashboardHero
-          dataTour="admin-dashboard-welcome"
-          eyebrow={readOnly ? "Coordenação" : "Painel administrativo"}
-          title={`Olá, ${firstName}`}
-          description={
-            <>
-              {readOnly
-                ? "Acompanhamento do sistema em modo somente leitura — indicadores e atalhos para consulta."
-                : "Visão executiva do sistema — pessoas, turmas, matrículas e engajamento em um só lugar."}
-              <span className="mt-2 block text-xs font-medium text-[var(--text-muted)]">
-                Perfil: <span className="text-[var(--text-primary)]">{roleLabel}</span>
-              </span>
-            </>
-          }
-        />
+    <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      <DashboardHero
+        dataTour="admin-dashboard-welcome"
+        eyebrow={readOnly ? "Coordenação" : "Painel administrativo"}
+        title={`Olá, ${firstName}`}
+        description={
+          <>
+            {readOnly
+              ? "Acompanhamento do sistema em modo somente leitura — indicadores e atalhos para consulta."
+              : "Visão executiva do sistema — pessoas, turmas, matrículas e engajamento em um só lugar."}
+            <span className="mt-2 block text-xs font-medium text-[var(--text-muted)]">
+              Perfil: <span className="text-[var(--text-primary)]">{roleLabel}</span>
+            </span>
+          </>
+        }
+      />
 
-        <section className="mt-2" data-tour="admin-dashboard-resumo" aria-label="Resumo geral">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <StatTile label="Alunos" icon={GraduationCap} value={stats.students} href="/students" accent="violet" />
-            <StatTile label="Professores" icon={Users2} value={stats.teachers} href="/teachers" accent="sky" />
-            <StatTile label="Cursos" icon={BookOpen} value={stats.courses} href="/courses" accent="emerald" />
-            <StatTile label="Turmas" icon={School} value={stats.classGroups} href="/class-groups" accent="amber" />
-            <StatTile
-              label="Matrículas"
-              icon={UserPlus}
-              value={stats.enrollments}
-              href="/enrollments"
-              accent="rose"
-              sublabel={
-                stats.preEnrollments > 0
-                  ? `${stats.preEnrollments} pré-matrículas · ${stats.confirmedEnrollments} confirmadas`
-                  : `${stats.confirmedEnrollments} confirmadas`
-              }
-            />
-          </div>
-        </section>
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <SectionCard
-            title="Turmas por status"
-            description="Distribuição do seu portfólio de turmas — identifique gargalos e oportunidades."
-            id="admin-turmas-status-heading"
-            dataTour="admin-dashboard-turmas-status"
-          >
-            <StatusBars rows={statusRows} max={maxStatus} />
-          </SectionCard>
-          <SectionCard
-            title="Matrículas — últimos 30 dias"
-            description="Novas entradas no período. Ideal para acompanhar campanhas e sazonalidade."
-            id="admin-mat-30-heading"
-            dataTour="admin-dashboard-matriculas-30"
-            variant="elevated"
-            action={
-              <Link
-                href="/enrollments"
-                className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
-              >
-                Ver todas →
-              </Link>
+      <section data-tour="admin-dashboard-resumo" aria-label="Resumo geral">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <StatTile label="Alunos" icon={GraduationCap} value={stats.students} href="/students" accent="violet" />
+          <StatTile label="Professores" icon={Users2} value={stats.teachers} href="/teachers" accent="sky" />
+          <StatTile label="Cursos" icon={BookOpen} value={stats.courses} href="/courses" accent="emerald" />
+          <StatTile label="Turmas" icon={School} value={stats.classGroups} href="/class-groups" accent="amber" />
+          <StatTile
+            label="Matrículas"
+            icon={UserPlus}
+            value={stats.enrollments}
+            href="/enrollments"
+            accent="rose"
+            sublabel={
+              stats.preEnrollments > 0
+                ? `${stats.preEnrollments} pré-matrículas · ${stats.confirmedEnrollments} confirmadas`
+                : `${stats.confirmedEnrollments} confirmadas`
             }
-          >
-            <div className="flex flex-wrap items-end gap-4">
-              <p className="text-5xl font-bold tabular-nums tracking-tight text-[var(--text-primary)]">
-                {recentEnrollmentsCount}
-              </p>
-              <div className="flex items-center gap-2 rounded-full bg-[var(--igh-primary)]/10 px-3 py-1 text-xs font-semibold text-[var(--igh-primary)]">
-                <CalendarDays className="h-3.5 w-3.5" aria-hidden />
-                Janela móvel de 30 dias
-              </div>
-            </div>
-          </SectionCard>
-        </div>
-
-        <div className="mt-8">
-          <PlatformExperienceSummarySection
-            summary={platformExperienceSummary}
-            href="/admin/avaliacoes-experiencia"
-            title="Avaliações dos alunos"
-            description="Médias de 1 a 10 (plataforma, aulas, professor) em todas as respostas registradas."
           />
         </div>
+      </section>
 
-        <div className="mt-8">
-          <DashboardForumActivityRail variant="admin" items={forumLessonsWithActivity} />
-        </div>
-
-        {openClassGroups.length > 0 && (
-          <section className="mt-8" data-tour="admin-dashboard-turmas-abertas">
-            <SectionCard
-              title="Turmas no ar"
-              description="Abertas ou em andamento — acesso rápido a matrículas e vagas."
-              id="admin-turmas-abertas-heading"
-              action={
-                <Link
-                  href="/class-groups"
-                  className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
-                >
-                  Ver todas →
-                </Link>
-              }
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch" data-tour="admin-dashboard-rankings">
+        <SectionCard
+          title="Ranking dos professores"
+          description="Top 10 por pontuação total: conteúdo, exercícios, frequência, fórum, horas assistidas e exercícios dos alunos."
+          id="admin-ranking-professores-heading"
+          variant="elevated"
+          className={rankingCardClass}
+          contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
+          action={
+            <Link
+              href="/gamificacao"
+              className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
             >
-              <TableShell>
-                <thead>
-                  <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]/90 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Curso</th>
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Professor</th>
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Status</th>
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Início</th>
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Vagas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {openClassGroups.map((cg) => (
-                    <ClassGroupRow key={cg.id} cg={cg} />
-                  ))}
-                </tbody>
-              </TableShell>
-            </SectionCard>
-          </section>
-        )}
-
-        <section className="mt-8" aria-labelledby="admin-gamificacao-heading">
-          <SectionCard
-            title="Gamificação — professores"
-            description="Ranking por pontuação total: conteúdo, exercícios, frequência, fórum, horas assistidas e exercícios realizados pelos alunos."
-            id="admin-gamificacao-heading"
-            action={
-              <Link
-                href="/gamificacao"
-                className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
-              >
-                Quadro completo →
-              </Link>
-            }
-          >
-            {teachersGamificationRanking.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">Nenhum professor ativo.</p>
-            ) : (
+              Quadro completo →
+            </Link>
+          }
+        >
+          {teachersGamificationRanking.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Nenhum professor ativo.</p>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
               <TableShell>
                 <thead>
                   <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]/90 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
@@ -594,7 +509,7 @@ function DashboardAdmin({
                   </tr>
                 </thead>
                 <tbody>
-                  {teachersGamificationRanking.slice(0, 8).map((r, i) => (
+                  {teachersGamificationRanking.slice(0, 10).map((r, i) => (
                     <tr key={r.teacherId} className="border-b border-[var(--card-border)] transition hover:bg-[var(--igh-surface)]/40">
                       <td className="px-4 py-3 text-[var(--text-secondary)]">{i + 1}</td>
                       <td className="px-4 py-3 font-semibold text-[var(--text-primary)]">{r.teacherName}</td>
@@ -605,11 +520,35 @@ function DashboardAdmin({
                   ))}
                 </tbody>
               </TableShell>
-            )}
-          </SectionCard>
-        </section>
+            </div>
+          )}
+        </SectionCard>
 
-        <section className="mt-10" data-tour="admin-dashboard-atalhos">
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <DashboardStudentRanking
+            entries={studentRankingTop}
+            prominent
+            title="Ranking dos alunos"
+            description="Os 10 primeiros no ranking geral de gamificação da plataforma."
+            footerHint="Abre a lista completa com filtros e posições."
+          />
+        </div>
+      </div>
+
+      <PlatformExperienceSummarySection
+        summary={platformExperienceSummary}
+        href="/admin/avaliacoes-experiencia"
+        title="Avaliações dos alunos"
+        description="Médias de 1 a 10 (plataforma, aulas, professor) em todas as respostas registradas."
+        className="flex h-full min-h-0 flex-col"
+        contentClassName="flex flex-1 flex-col"
+      />
+
+      <DashboardForumActivityRail variant="admin" items={forumLessonsWithActivity} />
+
+      <AdminSessionsCalendar sessions={sessionsCalendar} />
+
+      <section data-tour="admin-dashboard-atalhos">
           <h2 className="mb-4 text-lg font-bold text-[var(--text-primary)]">O que você precisa agora?</h2>
           <p className="mb-4 max-w-2xl text-sm text-[var(--text-muted)]">
             Atalhos para as tarefas mais comuns — comunicação, pessoas e operação acadêmica.
@@ -734,6 +673,7 @@ function DashboardTeacher({
     gamification,
     platformExperienceSummary,
     forumLessonsWithActivity,
+    studentRankingTop,
   } = data;
   const totalVagasDisponiveis = classGroups.reduce(
     (acc, cg) => acc + Math.max(0, (cg.capacity ?? 0) - (cg.enrollmentsCount ?? 0)),
@@ -742,74 +682,43 @@ function DashboardTeacher({
   const firstName = userName?.split(/\s+/)[0] ?? "Professor";
 
   return (
-    <div className="min-w-0">
-        <DashboardHero
-          dataTour="teacher-dashboard-welcome"
-          eyebrow="Área do professor"
-          title={`Bem-vindo, ${firstName}`}
-          description={
-            <>
-              Turmas, alunos e engajamento em um painel pensado para o seu dia a dia em sala (virtual ou presencial).
-              <span className="mt-2 block text-xs font-medium text-[var(--text-muted)]">
-                Perfil: <span className="text-[var(--text-primary)]">{roleLabel}</span>
-              </span>
-            </>
-          }
-        />
+    <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      <DashboardHero
+        dataTour="teacher-dashboard-welcome"
+        eyebrow="Área do professor"
+        title={`Bem-vindo, ${firstName}`}
+        description={
+          <>
+            Turmas, alunos e engajamento em um painel pensado para o seu dia a dia em sala (virtual ou presencial).
+            <span className="mt-2 block text-xs font-medium text-[var(--text-muted)]">
+              Perfil: <span className="text-[var(--text-primary)]">{roleLabel}</span>
+            </span>
+          </>
+        }
+      />
 
-        <section className="mt-2" data-tour="teacher-dashboard-resumo" aria-label="Seu resumo">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatTile
-              label="Turmas ativas"
-              icon={School}
-              value={myClassGroupsCount}
-              href="/professor/turmas"
-              accent="amber"
-              sublabel="Abertas ou em andamento"
-            />
-            <StatTile
-              label="Alunos matriculados"
-              icon={Users}
-              value={myEnrollmentsCount}
-              href="/enrollments"
-              accent="emerald"
-              sublabel="Nas suas turmas"
-            />
-            <StatTile
-              label="Vagas disponíveis"
-              icon={UserPlus}
-              value={totalVagasDisponiveis}
-              accent="sky"
-              sublabel="Capacidade ainda não preenchida"
-            />
-          </div>
-        </section>
+      {gamification ? (
+        <TeacherGamificationPanel g={gamification} />
+      ) : (
+        <SectionCard
+          title="Gamificação"
+          description="Pontuação por turmas, conteúdo e engajamento."
+          variant="elevated"
+        >
+          <p className="text-sm text-[var(--text-muted)]">
+            Quando houver dados de turmas, sua pontuação aparecerá aqui e na página de gamificação.
+          </p>
+        </SectionCard>
+      )}
 
-        <div className="mt-8">
-          <PlatformExperienceSummarySection
-            summary={platformExperienceSummary}
-            href="/professor/avaliacoes-experiencia"
-            title="Avaliações dos meus alunos"
-            description="Apenas alunos com matrícula ativa em turmas suas. Inclui notas e comentários quando enviados."
-          />
-        </div>
-
-        <div className="mt-8">
-          <DashboardForumActivityRail variant="teacher" items={forumLessonsWithActivity} />
-        </div>
-
-        {gamification ? (
-          <div className="mt-8">
-            <TeacherGamificationPanel g={gamification} />
-          </div>
-        ) : null}
-
-        {classGroups.length > 0 && (
-          <section className="mt-8" data-tour="teacher-dashboard-turmas">
+      <div className="flex flex-col gap-6">
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+          <section data-tour="teacher-dashboard-turmas" className="flex min-h-0 min-w-0 flex-col">
             <SectionCard
               title="Suas turmas no ar"
               description="Abertas ou em andamento — presenças, sessões e conteúdo a um clique."
               id="teacher-turmas-heading"
+              className="min-h-0 flex-1"
               action={
                 <Link
                   href="/professor/turmas"
@@ -819,61 +728,111 @@ function DashboardTeacher({
                 </Link>
               }
             >
-              <TableShell>
-                <thead>
-                  <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]/90 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Curso</th>
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Status</th>
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Início</th>
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Vagas</th>
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classGroups.map((cg) => (
-                    <tr key={cg.id} className="transition hover:bg-[var(--igh-surface)]/40">
-                      <td className="border-b border-[var(--card-border)] px-4 py-3">
-                        <Link
-                          href={`/enrollments?turma=${cg.id}`}
-                          className="font-semibold text-[var(--text-primary)] hover:text-[var(--igh-primary)] hover:underline"
-                        >
-                          {cg.courseName}
-                        </Link>
-                      </td>
-                      <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">
-                        {STATUS_LABELS[cg.status] ?? cg.status}
-                      </td>
-                      <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">
-                        {formatDate(cg.startDate)}
-                      </td>
-                      <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">
-                        {cg.enrollmentsCount} / {cg.capacity}
-                      </td>
-                      <td className="border-b border-[var(--card-border)] px-4 py-3">
-                        <span className="flex flex-wrap items-center gap-2">
-                          <Link
-                            href={`/professor/turmas/${cg.id}`}
-                            className="rounded-md bg-[var(--igh-primary)]/10 px-2 py-1 text-xs font-bold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/20"
-                          >
-                            Turma
-                          </Link>
-                          <Link
-                            href={`/enrollments?turma=${cg.id}`}
-                            className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--igh-primary)] hover:underline"
-                          >
-                            Matrículas
-                          </Link>
-                        </span>
-                      </td>
+              {classGroups.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">Nenhuma turma aberta ou em andamento no momento.</p>
+              ) : (
+                <TableShell>
+                  <thead>
+                    <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]/90 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Turma</th>
+                      <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Vagas</th>
+                      <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </TableShell>
+                  </thead>
+                  <tbody>
+                    {classGroups.map((cg) => (
+                      <tr key={cg.id} className="transition hover:bg-[var(--igh-surface)]/40">
+                        <td className="border-b border-[var(--card-border)] px-4 py-3 align-top">
+                          <TeacherTurmaCell cg={cg} />
+                        </td>
+                        <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">
+                          {cg.enrollmentsCount} / {cg.capacity}
+                        </td>
+                        <td className="border-b border-[var(--card-border)] px-4 py-3 align-top">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <Link
+                              href={`/professor/turmas/${cg.id}`}
+                              className="rounded-md bg-[var(--igh-primary)]/10 px-2 py-1 text-xs font-bold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/20"
+                            >
+                              Painel
+                            </Link>
+                            <Link
+                              href={`/enrollments?turma=${cg.id}`}
+                              className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--igh-primary)] hover:underline"
+                            >
+                              Matrículas
+                            </Link>
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </TableShell>
+              )}
             </SectionCard>
           </section>
-        )}
 
-        <section className="mt-10" data-tour="teacher-dashboard-atalhos">
+          <div className="flex min-h-0 min-w-0 flex-col">
+            <DashboardStudentRanking
+              entries={studentRankingTop}
+              prominent
+              title="Ranking dos meus alunos"
+              description="Os 10 melhores entre os alunos das suas turmas; a posição exibida é a colocação no ranking geral da plataforma."
+              footerHint="Abre o ranking geral de todos os alunos da plataforma."
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+          <PlatformExperienceSummarySection
+            summary={platformExperienceSummary}
+            href="/professor/avaliacoes-experiencia"
+            title="Avaliações dos meus alunos"
+            description="Apenas alunos com matrícula ativa em turmas suas. Inclui notas e comentários quando enviados."
+            className="flex h-full min-h-0 flex-col"
+            contentClassName="flex flex-1 flex-col"
+          />
+          <SectionCard
+            title="Turmas e alunos"
+            description="Números das suas turmas abertas ou em andamento."
+            id="teacher-resumo-heading"
+            dataTour="teacher-dashboard-resumo"
+            variant="elevated"
+            className="flex h-full min-h-0 flex-col"
+            contentClassName="flex flex-1 flex-col justify-center"
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <StatTile
+                label="Turmas ativas"
+                icon={School}
+                value={myClassGroupsCount}
+                href="/professor/turmas"
+                accent="amber"
+                sublabel="Abertas ou em andamento"
+              />
+              <StatTile
+                label="Alunos matriculados"
+                icon={Users}
+                value={myEnrollmentsCount}
+                href="/enrollments"
+                accent="emerald"
+                sublabel="Nas suas turmas"
+              />
+              <StatTile
+                label="Vagas disponíveis"
+                icon={UserPlus}
+                value={totalVagasDisponiveis}
+                accent="sky"
+                sublabel="Capacidade ainda não preenchida"
+              />
+            </div>
+          </SectionCard>
+        </div>
+      </div>
+
+      <DashboardForumActivityRail variant="teacher" items={forumLessonsWithActivity} />
+
+      <section data-tour="teacher-dashboard-atalhos">
           <h2 className="mb-4 text-lg font-bold text-[var(--text-primary)]">Atalhos do professor</h2>
           <QuickActionGrid
             items={[
@@ -1042,6 +1001,9 @@ function DashboardStudent({
     totalForumQuestions,
     totalForumReplies,
     forumLessonsWithActivity,
+    studentRankingTop,
+    myStudentRank,
+    myStudentPoints,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
   const pointsContent = totalLessonsCompleted * POINTS_PER_LESSON;
@@ -1085,26 +1047,194 @@ function DashboardStudent({
   const globalPercent =
     totalLessonsTotal > 0 ? Math.round((totalLessonsCompleted / totalLessonsTotal) * 100) : 0;
 
+  const evolucaoCard = (
+    <SectionCard
+      title="Sua evolução"
+      description="Pontos, nível e conquistas — acompanhe sua jornada no IGH."
+      id="gamificacao-heading"
+      dataTour="dashboard-sua-evolucao"
+      variant="elevated"
+      className="border border-amber-200/80 bg-gradient-to-br from-amber-50/90 via-[var(--card-bg)] to-violet-50/30 ring-2 ring-amber-400/30 shadow-xl dark:border-amber-900/40 dark:from-amber-950/40 dark:via-[var(--card-bg)] dark:to-violet-950/20 dark:ring-amber-500/25"
+      action={
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40" aria-hidden>
+          <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+        </span>
+      }
+    >
+      <div className="flex flex-wrap gap-8">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+            <Flame className="h-7 w-7 text-amber-700 dark:text-amber-300" aria-hidden />
+          </div>
+          <div>
+            <p className="text-3xl font-bold tabular-nums text-[var(--text-primary)]">{points}</p>
+            <p className="mt-0.5 text-sm font-medium text-[var(--text-secondary)]">pontos</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Conteúdo {pointsContent} · Exercícios {pointsExercises} · Frequência {pointsFrequency} · Fórum {pointsForum}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--igh-primary)]/15">
+            <Award className="h-7 w-7 text-[var(--igh-primary)]" aria-hidden />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-[var(--text-primary)]">{levelInfo.name}</p>
+            <p className="mt-0.5 text-sm font-medium text-[var(--text-secondary)]">nível atual</p>
+          </div>
+        </div>
+      </div>
+      {levelInfo.next && (
+        <div className="mt-5">
+          <p className="text-sm font-medium text-[var(--text-secondary)]">
+            Próximo: {levelInfo.next.name} ({levelInfo.next.min} pts)
+          </p>
+          <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[var(--igh-surface)]">
+            <div
+              className="h-full rounded-full bg-[var(--igh-primary)] transition-all"
+              style={{ width: `${Math.round(levelInfo.progressInLevel * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+      <div className="mt-6">
+        <p className="text-base font-semibold text-[var(--text-primary)]">Conquistas</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {BADGES.map((badge) => {
+            const unlocked = badgesUnlocked.some((b) => b.id === badge.id);
+            return (
+              <span
+                key={badge.id}
+                title={badge.label}
+                className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium ${
+                  unlocked
+                    ? "bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100"
+                    : "bg-[var(--igh-surface)] text-[var(--text-muted)]"
+                }`}
+              >
+                {unlocked ? (
+                  <Star className="h-4 w-4 shrink-0 fill-amber-600 dark:fill-amber-400" aria-hidden />
+                ) : (
+                  <Star className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden />
+                )}
+                {badge.label}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </SectionCard>
+  );
+
+  const continueBlock =
+    enrollments.length > 0 && continueLink && continueLabel ? (
+      <section aria-labelledby="continuar-heading">
+        <h2 id="continuar-heading" className="sr-only">
+          Continuar de onde parou
+        </h2>
+        <Link
+          href={continueLink}
+          className="group relative flex min-h-[100px] flex-wrap items-center gap-4 overflow-hidden rounded-2xl border-2 border-[var(--igh-primary)]/35 bg-gradient-to-br from-[var(--igh-primary)]/12 via-[var(--card-bg)] to-violet-500/10 p-4 shadow-md shadow-[var(--igh-primary)]/10 transition hover:border-[var(--igh-primary)]/55 hover:shadow-lg focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:p-5"
+        >
+          <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-[var(--igh-primary)]/20 blur-3xl" aria-hidden />
+          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--igh-primary)] text-white shadow-md shadow-[var(--igh-primary)]/30">
+            <PlayCircle className="h-6 w-6" aria-hidden />
+          </div>
+          <div className="relative min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--igh-primary)]">Continuar de onde parou</p>
+            <p className="mt-0.5 text-base font-bold text-[var(--text-primary)] group-hover:text-[var(--igh-primary)] sm:text-lg">
+              {continueLabel}
+            </p>
+            {continueSublabel && (
+              <p className="mt-0.5 text-xs text-[var(--text-muted)] sm:text-sm">{continueSublabel}</p>
+            )}
+          </div>
+          <ChevronRight className="relative h-5 w-5 shrink-0 text-[var(--igh-primary)] transition group-hover:translate-x-1" aria-hidden />
+        </Link>
+      </section>
+    ) : (
+      <div className="rounded-2xl border border-dashed border-[var(--igh-border)] bg-[var(--igh-surface)]/50 p-4 text-sm text-[var(--text-muted)] sm:p-5">
+        {enrollments.length === 0 ? (
+          <>
+            Matricule-se em um curso para ver o atalho <strong className="text-[var(--text-primary)]">Continuar de onde parou</strong> aqui.
+          </>
+        ) : (
+          <>
+            Abra uma aula em <strong className="text-[var(--text-primary)]">Minhas turmas</strong> para ver o atalho aqui.
+          </>
+        )}
+      </div>
+    );
+
+  const desempenhoCard = (
+    <SectionCard
+      title="Desempenho nos exercícios"
+      description="Acertos e revisão por tópico — use para reforçar o que ainda precisa de atenção."
+      id="exercicios-heading"
+      dataTour="dashboard-desempenho-exercicios"
+      variant="elevated"
+    >
+      {totalExerciseAttempts > 0 ? (
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-3xl font-bold tabular-nums text-[var(--text-primary)] sm:text-4xl">{totalExerciseCorrect}</p>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
+              acertos em {totalExerciseAttempts} {totalExerciseAttempts === 1 ? "tentativa" : "tentativas"}
+              <span className="ml-2 font-bold text-[var(--igh-primary)]">
+                {Math.round((totalExerciseCorrect / totalExerciseAttempts) * 100)}%
+              </span>
+            </p>
+          </div>
+          <Link
+            href="/minhas-turmas"
+            className="inline-flex items-center gap-1 text-sm font-bold text-[var(--igh-primary)] hover:underline"
+          >
+            Ver por curso e tópicos
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Link>
+        </div>
+      ) : (
+        <p className="text-sm leading-relaxed text-[var(--text-muted)]">
+          Responda às questões ao final das aulas para ver aqui seu desempenho e quais tópicos merecem uma segunda leitura.
+        </p>
+      )}
+    </SectionCard>
+  );
+
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
-        <DashboardHero
-          dataTour="dashboard-welcome"
-          eyebrow="Sua jornada de aprendizado"
-          title={`Olá, ${firstName}!`}
-          description="Progresso, exercícios, conquistas e acesso rápido ao que importa para você evoluir."
-          rightSlot={
-            <StudentPlatformExperienceModal
-              autoPromptOnce={enrollments.length > 0}
-              className="w-full sm:w-auto"
-            />
-          }
-        />
+      <DashboardHero
+        dataTour="dashboard-welcome"
+        eyebrow="Sua jornada de aprendizado"
+        title={`Olá, ${firstName}!`}
+        description="Progresso, exercícios, conquistas e acesso rápido ao que importa para você evoluir."
+        rightSlot={
+          <StudentPlatformExperienceModal
+            autoPromptOnce={enrollments.length > 0}
+            className="w-full sm:w-auto"
+          />
+        }
+      />
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+        <div className="flex min-h-0 flex-col gap-4">
+          {evolucaoCard}
+          {continueBlock}
+          {desempenhoCard}
+        </div>
+        <div className="flex min-h-0 flex-col">
+          <DashboardStudentRanking
+            entries={studentRankingTop}
+            myRank={myStudentRank}
+            myPoints={myStudentPoints}
+            showMotivation={activeEnrollmentsCount > 0}
+            prominent
+          />
+        </div>
+      </div>
 
       {enrollments.length > 0 ? (
         <>
-          <div
-            className={`grid gap-6 ${totalLessonsTotal > 0 ? "lg:grid-cols-5" : ""}`}
-          >
           {totalLessonsTotal > 0 && (
             <SectionCard
               title="Seu progresso"
@@ -1112,7 +1242,6 @@ function DashboardStudent({
               id="resumo-progresso-heading"
               dataTour="dashboard-progresso-geral"
               variant="elevated"
-              className="lg:col-span-3"
             >
               <div className="flex flex-wrap items-center gap-6">
                 <div className="flex flex-col">
@@ -1147,148 +1276,7 @@ function DashboardStudent({
             </SectionCard>
           )}
 
-          <SectionCard
-            title="Desempenho nos exercícios"
-            description="Acertos e revisão por tópico — use para reforçar o que ainda precisa de atenção."
-            id="exercicios-heading"
-            dataTour="dashboard-desempenho-exercicios"
-            variant={totalLessonsTotal > 0 ? "default" : "elevated"}
-            className={totalLessonsTotal > 0 ? "lg:col-span-2" : ""}
-          >
-            {totalExerciseAttempts > 0 ? (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <p className="text-4xl font-bold tabular-nums text-[var(--text-primary)]">{totalExerciseCorrect}</p>
-                  <p className="mt-1 text-sm text-[var(--text-muted)]">
-                    acertos em {totalExerciseAttempts} {totalExerciseAttempts === 1 ? "tentativa" : "tentativas"}
-                    <span className="ml-2 font-bold text-[var(--igh-primary)]">
-                      {Math.round((totalExerciseCorrect / totalExerciseAttempts) * 100)}%
-                    </span>
-                  </p>
-                </div>
-                <Link
-                  href="/minhas-turmas"
-                  className="inline-flex items-center gap-1 text-sm font-bold text-[var(--igh-primary)] hover:underline"
-                >
-                  Ver por curso e tópicos
-                  <ChevronRight className="h-4 w-4" aria-hidden />
-                </Link>
-              </div>
-            ) : (
-              <p className="text-sm leading-relaxed text-[var(--text-muted)]">
-                Responda às questões ao final das aulas para ver aqui seu desempenho e quais tópicos merecem uma segunda leitura.
-              </p>
-            )}
-          </SectionCard>
-          </div>
-
-          <DashboardForumActivityRail variant="student" items={forumLessonsWithActivity} />
-
-          {continueLink && continueLabel && (
-            <section aria-labelledby="continuar-heading">
-              <h2 id="continuar-heading" className="sr-only">
-                Continuar de onde parou
-              </h2>
-              <Link
-                href={continueLink}
-                className="group relative flex flex-wrap items-center gap-5 overflow-hidden rounded-2xl border-2 border-[var(--igh-primary)]/35 bg-gradient-to-br from-[var(--igh-primary)]/12 via-[var(--card-bg)] to-violet-500/10 p-5 shadow-lg shadow-[var(--igh-primary)]/10 transition hover:border-[var(--igh-primary)]/55 hover:shadow-xl focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:p-6"
-              >
-                <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[var(--igh-primary)]/20 blur-3xl" aria-hidden />
-                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--igh-primary)] text-white shadow-lg shadow-[var(--igh-primary)]/30">
-                  <PlayCircle className="h-7 w-7" aria-hidden />
-                </div>
-                <div className="relative min-w-0 flex-1">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--igh-primary)]">
-                    Continuar de onde parou
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-[var(--text-primary)] group-hover:text-[var(--igh-primary)]">
-                    {continueLabel}
-                  </p>
-                  {continueSublabel && (
-                    <p className="mt-1 text-sm text-[var(--text-muted)]">
-                      {continueSublabel}
-                    </p>
-                  )}
-                </div>
-                <ChevronRight className="relative h-6 w-6 shrink-0 text-[var(--igh-primary)] transition group-hover:translate-x-1" aria-hidden />
-              </Link>
-            </section>
-          )}
-
-          <section
-            className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/90 via-[var(--card-bg)] to-violet-50/30 p-5 shadow-md dark:border-amber-900/40 dark:from-amber-950/40 dark:via-[var(--card-bg)] dark:to-violet-950/20 sm:p-7"
-            aria-labelledby="gamificacao-heading"
-            data-tour="dashboard-sua-evolucao"
-          >
-            <h2 id="gamificacao-heading" className="flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]">
-              <Trophy className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
-              Sua evolução
-            </h2>
-            <div className="mt-5 flex flex-wrap gap-8">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
-                  <Flame className="h-7 w-7 text-amber-700 dark:text-amber-300" aria-hidden />
-                </div>
-                <div>
-                  <p className="text-3xl font-bold tabular-nums text-[var(--text-primary)]">{points}</p>
-                  <p className="mt-0.5 text-sm font-medium text-[var(--text-secondary)]">pontos</p>
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">
-                    Conteúdo {pointsContent} · Exercícios {pointsExercises} · Frequência {pointsFrequency} · Fórum {pointsForum}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--igh-primary)]/15">
-                  <Award className="h-7 w-7 text-[var(--igh-primary)]" aria-hidden />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-[var(--text-primary)]">{levelInfo.name}</p>
-                  <p className="mt-0.5 text-sm font-medium text-[var(--text-secondary)]">nível atual</p>
-                </div>
-              </div>
-            </div>
-            {levelInfo.next && (
-              <div className="mt-5">
-                <p className="text-sm font-medium text-[var(--text-secondary)]">
-                  Próximo: {levelInfo.next.name} ({levelInfo.next.min} pts)
-                </p>
-                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[var(--igh-surface)]">
-                  <div
-                    className="h-full rounded-full bg-[var(--igh-primary)] transition-all"
-                    style={{ width: `${Math.round(levelInfo.progressInLevel * 100)}%` }}
-                  />
-                </div>
-              </div>
-            )}
-            <div className="mt-6">
-              <p className="text-base font-semibold text-[var(--text-primary)]">Conquistas</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {BADGES.map((badge) => {
-                  const unlocked = badgesUnlocked.some((b) => b.id === badge.id);
-                  return (
-                    <span
-                      key={badge.id}
-                      title={badge.label}
-                      className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium ${
-                        unlocked
-                          ? "bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100"
-                          : "bg-[var(--igh-surface)] text-[var(--text-muted)]"
-                      }`}
-                    >
-                      {unlocked ? (
-                        <Star className="h-4 w-4 shrink-0 fill-amber-600 dark:fill-amber-400" aria-hidden />
-                      ) : (
-                        <Star className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden />
-                      )}
-                      {badge.label}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-
-          <section aria-labelledby="cursos-heading" className="mt-2">
+          <section aria-labelledby="cursos-heading">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h2 id="cursos-heading" className="text-xl font-bold text-[var(--text-primary)]">
@@ -1319,6 +1307,8 @@ function DashboardStudent({
               </Link>
             </div>
           </section>
+
+          <DashboardForumActivityRail variant="student" items={forumLessonsWithActivity} />
         </>
       ) : (
         <section

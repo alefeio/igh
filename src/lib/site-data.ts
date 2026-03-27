@@ -1,6 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
+import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
+import {
+  computeStudentGamificationRanking,
+  type StudentRankEntry,
+} from "@/lib/student-gamification-ranking";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
 
 export type { MenuItemPublic, SiteSettingsPublic };
@@ -215,6 +220,84 @@ export async function getTestimonials(): Promise<TestimonialPublic[]> {
     }));
   } catch {
     return [];
+  }
+}
+
+/** Top do ranking de alunos (gamificação) para a home — nomes discretos. */
+export async function getPublicStudentRanking(limit = 12): Promise<StudentRankEntry[]> {
+  try {
+    return await computeStudentGamificationRanking({ limit, nameMode: "public" });
+  } catch {
+    return [];
+  }
+}
+
+export type PlatformExperiencePublicSnippet = {
+  id: string;
+  author: string;
+  text: string;
+  /** Média simples 1–10 das três notas deste registro (para estrelinhas). */
+  avgRow: number;
+};
+
+export type PlatformExperiencePublicBlock = {
+  totalCount: number;
+  avgPlatform: number | null;
+  avgLessons: number | null;
+  avgTeacher: number | null;
+  snippets: PlatformExperiencePublicSnippet[];
+};
+
+/** Médias e trechos de avaliações da experiência na plataforma (home institucional). */
+export async function getPublicPlatformExperienceBlock(): Promise<PlatformExperiencePublicBlock> {
+  try {
+    const [agg, rows] = await Promise.all([
+      prisma.platformExperienceFeedback.aggregate({
+        _avg: { ratingPlatform: true, ratingLessons: true, ratingTeacher: true },
+        _count: { id: true },
+      }),
+      prisma.platformExperienceFeedback.findMany({
+        take: 40,
+        orderBy: { createdAt: "desc" },
+        include: { user: { select: { name: true } } },
+      }),
+    ]);
+
+    const snippets: PlatformExperiencePublicSnippet[] = [];
+    const firstName = (full: string) => {
+      const p = full.trim().split(/\s+/).filter(Boolean);
+      return p[0] ?? "Aluno";
+    };
+    for (const r of rows) {
+      const text = [r.commentPlatform, r.commentLessons, r.commentTeacher].find(
+        (t) => t && t.trim().length >= 12
+      );
+      if (!text) continue;
+      const avgRow = (r.ratingPlatform + r.ratingLessons + r.ratingTeacher) / 3;
+      snippets.push({
+        id: r.id,
+        author: firstName(r.user.name),
+        text: text.trim().slice(0, 280),
+        avgRow,
+      });
+      if (snippets.length >= 8) break;
+    }
+
+    return {
+      totalCount: agg._count.id,
+      avgPlatform: formatExperienceAvg(agg._avg.ratingPlatform),
+      avgLessons: formatExperienceAvg(agg._avg.ratingLessons),
+      avgTeacher: formatExperienceAvg(agg._avg.ratingTeacher),
+      snippets,
+    };
+  } catch {
+    return {
+      totalCount: 0,
+      avgPlatform: null,
+      avgLessons: null,
+      avgTeacher: null,
+      snippets: [],
+    };
   }
 }
 

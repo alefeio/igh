@@ -10,6 +10,8 @@ import {
   BlogCard,
   FormacoesSection,
   HeroBannerCarousel,
+  StudentRankingShowcase,
+  PlatformExperienceHomeSection,
 } from "@/components/site";
 import { statsImpact } from "@/content";
 import {
@@ -20,6 +22,8 @@ import {
   getFaqItems,
   getTestimonials,
   getNewsPostsForSite,
+  getPublicStudentRanking,
+  getPublicPlatformExperienceBlock,
 } from "@/lib/site-data";
 
 export const metadata = {
@@ -38,16 +42,27 @@ type Props = { searchParams: Promise<{ formacao?: string }> };
 export default async function HomePage({ searchParams }: Props) {
   const { formacao: formacaoSlug } = await searchParams;
 
-  const [formations, coursesFull, banners, partners, faqItemsFromDb, testimonialsFromDb, newsPosts] =
-    await Promise.all([
-      getFormationsForFilter(),
-      getCoursesForSite(formacaoSlug),
-      getBanners(),
-      getPartners(),
-      getFaqItems(),
-      getTestimonials(),
-      getNewsPostsForSite(),
-    ]);
+  const [
+    formations,
+    coursesFull,
+    banners,
+    partners,
+    faqItemsFromDb,
+    testimonialsFromDb,
+    newsPosts,
+    studentRanking,
+    platformExperienceBlock,
+  ] = await Promise.all([
+    getFormationsForFilter(),
+    getCoursesForSite(formacaoSlug),
+    getBanners(),
+    getPartners(),
+    getFaqItems(),
+    getTestimonials(),
+    getNewsPostsForSite(),
+    getPublicStudentRanking(12),
+    getPublicPlatformExperienceBlock(),
+  ]);
 
   const recentPosts = newsPosts.slice(0, 4).map((p) => {
     let date = "";
@@ -126,6 +141,10 @@ export default async function HomePage({ searchParams }: Props) {
           </Button>
         </div>
       </Section>
+
+      {studentRanking.length > 0 && <StudentRankingShowcase items={studentRanking} />}
+
+      <PlatformExperienceHomeSection block={platformExperienceBlock} />
 
       {/* Projetos e sustentabilidade */}
       <Section

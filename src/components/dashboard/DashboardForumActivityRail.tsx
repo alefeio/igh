@@ -24,12 +24,12 @@ const COPY: Record<
 > = {
   student: {
     description:
-      "Sua última aula estudada aparece primeiro (mesmo sem tópicos). Depois, aulas com discussão — da mais antiga à mais recente; à direita, a interação mais recente.",
+      "Todas as aulas em que você já entrou ou avançou aparecem aqui (a mais recente primeiro). Abra o fórum de cada aula para ver ou criar tópicos.",
     linkLabel: "Ver todos os meus cursos",
   },
   teacher: {
     description:
-      "Todas as aulas da plataforma com discussão ativa, de todos os cursos — útil para acompanhar engajamento cruzado e conectar com o projeto integrador.",
+      "Aulas já ministradas nas suas turmas (atalho ao fórum de cada aula) e aulas com discussão em toda a plataforma — role a faixa para ver mais.",
     linkLabel: "Explorar fóruns por curso",
   },
   admin: {
@@ -93,11 +93,14 @@ export function DashboardForumActivityRail({
           style={{ WebkitOverflowScrolling: "touch" }}
         >
           {items.map((item) => (
-            <li key={`${item.lessonId}-${item.isLastStudiedLesson ? "study" : "act"}`} className="min-w-[min(100%,260px)] max-w-[280px] shrink-0 snap-start sm:min-w-[240px]">
+            <li
+              key={`${item.lessonId}-${item.isLastStudiedLesson ? "study" : item.isLastTaughtLesson ? "last-taught" : "act"}`}
+              className="min-w-[min(100%,260px)] max-w-[280px] shrink-0 snap-start sm:min-w-[240px]"
+            >
               <Link
                 href={lessonHref(item.courseId, item.lessonId)}
                 className={`flex h-full flex-col rounded-xl border p-4 transition hover:border-[var(--igh-primary)]/40 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                  item.isLastStudiedLesson
+                  item.isLastStudiedLesson || (variant === "teacher" && item.isLastTaughtLesson)
                     ? "border-[var(--igh-primary)]/50 bg-[var(--igh-primary)]/5 hover:bg-[var(--igh-primary)]/10"
                     : "border-[var(--card-border)] bg-[var(--igh-surface)]/40 hover:bg-[var(--igh-primary)]/5"
                 }`}
@@ -105,6 +108,15 @@ export function DashboardForumActivityRail({
                 {item.isLastStudiedLesson ? (
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--igh-primary)]">
                     Sua última aula
+                  </p>
+                ) : null}
+                {variant === "teacher" && item.isLastTaughtLesson ? (
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--igh-primary)]">
+                    Última aula lecionada
+                  </p>
+                ) : variant === "teacher" && item.isTaughtLesson ? (
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                    Aula já ministrada
                   </p>
                 ) : null}
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] line-clamp-1">

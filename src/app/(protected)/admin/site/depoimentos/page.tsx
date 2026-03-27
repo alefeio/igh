@@ -123,12 +123,19 @@ export default function DepoimentosPage() {
         isActive,
       }),
     });
-    const json = (await res.json()) as ApiResponse<{ item: Testimonial }>;
+    const json = (await res.json()) as ApiResponse<{
+      item: Testimonial;
+      pending?: boolean;
+      message?: string;
+    }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
       return;
     }
-    toast.push("success", editing ? "Depoimento atualizado." : "Depoimento criado.");
+    const successMsg =
+      json.data.message ??
+      (editing ? "Depoimento atualizado." : "Depoimento criado.");
+    toast.push("success", successMsg);
     setOpen(false);
     resetForm();
     void load();

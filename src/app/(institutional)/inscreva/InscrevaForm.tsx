@@ -579,7 +579,7 @@ export function InscrevaForm() {
           </div>
         </dl>
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Button as="link" href="/minhas-turmas" variant="primary" size="lg">
+          <Button as="link" href="/dashboard" variant="primary" size="lg">
             Acessar área do aluno
           </Button>
           <span className="text-xs text-[var(--text-muted)]">

@@ -114,7 +114,7 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
                 {sessionUser.name}
               </span>
               <Link
-                href={sessionUser.role === "STUDENT" ? "/minhas-turmas" : "/dashboard"}
+                href="/dashboard"
                 className={sessionUser.role === "STUDENT"
                   ? "rounded-md bg-[var(--igh-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[var(--igh-primary-hover)]"
                   : "flex h-8 w-8 items-center justify-center rounded-md bg-[var(--igh-primary)] text-white hover:bg-[var(--igh-primary-hover)]"}
@@ -155,7 +155,7 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
             {sessionUser ? (
               <>
                 <span className="truncate text-xs text-[var(--text-muted)]" title={sessionUser.email}>{sessionUser.name}</span>
-                <Link href={sessionUser.role === "STUDENT" ? "/minhas-turmas" : "/dashboard"} className="inline-flex items-center gap-2 rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white" onClick={() => setOpen(false)}>
+                <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white" onClick={() => setOpen(false)}>
                   {sessionUser.role === "STUDENT" ? "Área do aluno" : (
                     <>
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>

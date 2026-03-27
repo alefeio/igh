@@ -145,6 +145,7 @@ export function SectionCard({
   action,
   children,
   className = "",
+  contentClassName = "",
   variant = "default",
 }: {
   title: string;
@@ -154,6 +155,8 @@ export function SectionCard({
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Classes no wrapper do conteúdo abaixo do título (ex.: `flex flex-1 flex-col min-h-0`). */
+  contentClassName?: string;
   variant?: "default" | "elevated";
 }) {
   const base =
@@ -176,7 +179,7 @@ export function SectionCard({
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
-      <div className="mt-5">{children}</div>
+      <div className={`mt-5 ${contentClassName}`.trim()}>{children}</div>
     </section>
   );
 }

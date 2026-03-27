@@ -118,5 +118,6 @@ export const config = {
     "/admin/frequencia/:path*",
     "/admin/avaliacoes-experiencia/:path*",
     "/gamificacao/:path*",
+    "/ranking-alunos/:path*",
   ],
 };

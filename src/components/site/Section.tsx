@@ -5,6 +5,8 @@ type SectionProps = {
   children: ReactNode;
   title?: string;
   subtitle?: string;
+  /** Classes do `<header>` (título + subtítulo). Por padrão há margem inferior ampla antes do conteúdo. */
+  headerClassName?: string;
   id?: string;
   className?: string;
   containerClassName?: string;
@@ -17,6 +19,7 @@ export function Section({
   children,
   title,
   subtitle,
+  headerClassName = "mb-8 text-center sm:mb-10",
   id,
   className = "",
   containerClassName = "",
@@ -37,7 +40,7 @@ export function Section({
       )}
       <Container className={`relative ${hasBgImage ? "z-10" : ""} ${containerClassName}`}>
         {(title || subtitle) && (
-          <header className="mb-8 text-center sm:mb-10">
+          <header className={headerClassName}>
             {title && (
               <h2
                 className={`text-2xl font-bold tracking-tight sm:text-3xl ${

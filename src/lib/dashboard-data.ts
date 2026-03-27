@@ -5,14 +5,36 @@ import type { SessionUser } from "@/lib/auth";
 import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
 import {
   attachForumLastMessagePreviews,
-  buildStudentForumDashboardRail,
-  getForumLessonsWithActivityForCourses,
+  getForumLessonsFromTaughtSessions,
   getForumLessonsWithActivityGlobal,
+  mergeTeacherForumGlobalAndTaught,
+  getLastTaughtLessonIdForTeacher,
+  putLastTaughtLessonFirstForTeacher,
+  getStudentAttendedLessonsForumActivities,
   type DashboardForumLessonActivity,
 } from "@/lib/dashboard-forum-activity";
 import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
+import type { StudentRankEntry } from "@/lib/student-gamification-ranking";
+import { computeStudentGamificationRanking } from "@/lib/student-gamification-ranking";
+import type { DashboardSessionCalendarItem } from "@/lib/dashboard-admin-calendar";
 import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
 import { computeAllTeachersGamification, computeTeacherGamification } from "@/lib/teacher-gamification";
+
+export type { DashboardSessionCalendarItem } from "@/lib/dashboard-admin-calendar";
+
+/**
+ * Top 9 fixos + linha 10: o 10º colocado, ou o próprio aluno (destacado) se estiver fora do top 9.
+ */
+function buildStudentDashboardRankingTop(
+  full: StudentRankEntry[],
+  viewerStudentId: string,
+): StudentRankEntry[] {
+  const myRow = full.find((r) => r.studentId === viewerStudentId);
+  if (myRow == null) return full.slice(0, 10);
+  if (myRow.rank <= 9) return full.slice(0, 10);
+  const top9 = full.slice(0, 9);
+  return [...top9, { ...myRow, isViewerOutOfTop9: true }];
+}
 
 const ROLE_LABELS: Record<string, string> = {
   MASTER: "Administrador Master",
@@ -44,6 +66,7 @@ export type ClassGroupSummary = {
   capacity: number;
   enrollmentsCount: number;
   daysOfWeek: string[];
+  location: string | null;
 };
 
 /** Resumo das avaliações de experiência (plataforma, aulas, professor). */
@@ -58,13 +81,15 @@ export type DashboardDataAdmin = {
   role: "ADMIN" | "MASTER" | "COORDINATOR";
   roleLabel: string;
   stats: DashboardStats;
-  recentEnrollmentsCount: number;
-  openClassGroups: ClassGroupSummary[];
   /** Ranking completo de gamificação (professores); a UI pode exibir só os primeiros. */
   teachersGamificationRanking: TeacherGamificationResult[];
   platformExperienceSummary: PlatformExperienceDashboardSummary;
   /** Fóruns com atividade em toda a plataforma (atalho para integração entre cursos). */
   forumLessonsWithActivity: DashboardForumLessonActivity[];
+  /** Top alunos por pontos de gamificação (mesma regra do painel do aluno). */
+  studentRankingTop: StudentRankEntry[];
+  /** Sessões agendadas no período (calendário do painel). */
+  sessionsCalendar: DashboardSessionCalendarItem[];
 };
 
 export type DashboardDataTeacher = {
@@ -77,8 +102,9 @@ export type DashboardDataTeacher = {
   gamification: TeacherGamificationResult | null;
   /** Médias apenas de alunos com matrícula ativa em turmas deste professor. */
   platformExperienceSummary: PlatformExperienceDashboardSummary;
-  /** Aulas com fórum ativo nos cursos que leciona (≥1 tópico de qualquer pessoa) */
+  /** Trilho de fóruns: atividade global na plataforma + aulas já ministradas nas suas turmas (com link ao fórum). */
   forumLessonsWithActivity: DashboardForumLessonActivity[];
+  studentRankingTop: StudentRankEntry[];
 };
 
 export type StudentEnrollmentSummary = {
@@ -129,6 +155,11 @@ export type DashboardDataStudent = {
   totalForumReplies: number;
   /** Aulas com fórum ativo no curso (≥1 tópico de qualquer pessoa), para atalhos no painel */
   forumLessonsWithActivity: DashboardForumLessonActivity[];
+  studentRankingTop: StudentRankEntry[];
+  /** Posição no ranking geral (null se sem matrícula ativa ou fora da lista). */
+  myStudentRank: number | null;
+  /** Pontos totais no ranking (null se não aplicável). */
+  myStudentPoints: number | null;
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -136,6 +167,9 @@ export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | Dashboar
 export async function getDashboardData(user: SessionUser): Promise<DashboardData> {
   await applyClassGroupAutomaticStatusUpdates();
   const roleLabel = ROLE_LABELS[user.role] ?? user.role;
+
+  const studentRankingFull = await computeStudentGamificationRanking({ nameMode: "full" });
+  const studentRankingTop = studentRankingFull.slice(0, 10);
 
   if (user.role === "STUDENT") {
     const student = await prisma.student.findFirst({
@@ -158,6 +192,9 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         totalForumQuestions: 0,
         totalForumReplies: 0,
         forumLessonsWithActivity: [],
+        studentRankingTop,
+        myStudentRank: null,
+        myStudentPoints: null,
       };
     }
     const enrollmentsRaw = await prisma.enrollment.findMany({
@@ -189,7 +226,6 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       attendancePresentCount,
       forumQuestionsCount,
       forumRepliesCount,
-      forumActivityRaw,
     ] = await Promise.all([
       prisma.courseModule.findMany({
         where: { courseId: { in: courseIds } },
@@ -225,9 +261,6 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
             where: { enrollmentId: { in: enrollmentIds } },
           })
         : Promise.resolve(0),
-      courseIds.length > 0
-        ? getForumLessonsWithActivityForCourses(courseIds, 72)
-        : Promise.resolve([]),
     ]);
     const lessonsByCourseId = new Map<string, number>();
     for (const m of modulesWithCount) {
@@ -309,19 +342,11 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         : null;
 
     const forumLessonsWithActivity = await attachForumLastMessagePreviews(
-      buildStudentForumDashboardRail(
-        forumActivityRaw,
-        lastViewedLesson
-          ? {
-              courseId: lastViewedLesson.courseId,
-              lessonId: lastViewedLesson.lessonId,
-              lessonTitle: lastViewedLesson.lessonTitle,
-              courseName: lastViewedLesson.courseName,
-              moduleTitle: lastViewedLesson.moduleTitle,
-            }
-          : null
-      )
+      await getStudentAttendedLessonsForumActivities(enrollmentIds, 96)
     );
+
+    const myRow = studentRankingFull.find((r) => r.studentId === student.id);
+    const studentRankingTopForViewer = buildStudentDashboardRankingTop(studentRankingFull, student.id);
 
     return {
       role: "STUDENT",
@@ -338,6 +363,9 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       totalForumQuestions: forumQuestionsCount,
       totalForumReplies: forumRepliesCount,
       forumLessonsWithActivity,
+      studentRankingTop: studentRankingTopForViewer,
+      myStudentRank: myRow?.rank ?? null,
+      myStudentPoints: myRow != null ? myRow.points : null,
     };
   }
 
@@ -361,6 +389,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
           avgTeacher: null,
         },
         forumLessonsWithActivity: [],
+        studentRankingTop: [],
       };
     }
     const classGroups = await prisma.classGroup.findMany({
@@ -381,19 +410,32 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         status: "ACTIVE",
       },
     });
-    const [gamification, enrollmentsForFeedback, forumRaw] = await Promise.all([
-      computeTeacherGamification(teacher.id),
-      prisma.enrollment.findMany({
-        where: {
-          status: "ACTIVE",
-          classGroup: { teacherId: teacher.id },
-          student: { userId: { not: null }, deletedAt: null },
-        },
-        select: { student: { select: { userId: true } } },
-      }),
-      getForumLessonsWithActivityGlobal(),
-    ]);
-    const forumLessonsWithActivity = await attachForumLastMessagePreviews(forumRaw);
+    const globalRankByStudent = new Map(studentRankingFull.map((r) => [r.studentId, r.rank]));
+
+    const [gamification, enrollmentsForFeedback, forumGlobal, forumTaught, studentRankingTeacherRaw] =
+      await Promise.all([
+        computeTeacherGamification(teacher.id),
+        prisma.enrollment.findMany({
+          where: {
+            status: "ACTIVE",
+            classGroup: { teacherId: teacher.id },
+            student: { userId: { not: null }, deletedAt: null },
+          },
+          select: { student: { select: { userId: true } } },
+        }),
+        getForumLessonsWithActivityGlobal(),
+        getForumLessonsFromTaughtSessions(teacher.id),
+        computeStudentGamificationRanking({ nameMode: "full", teacherId: teacher.id, limit: 10 }),
+      ]);
+
+    const studentRankingTop: StudentRankEntry[] = studentRankingTeacherRaw.map((r) => ({
+      ...r,
+      globalRank: globalRankByStudent.get(r.studentId) ?? r.rank,
+    }));
+    const forumMerged = mergeTeacherForumGlobalAndTaught(forumGlobal, forumTaught);
+    const lastTaughtLessonId = await getLastTaughtLessonIdForTeacher(teacher.id);
+    const forumOrdered = putLastTaughtLessonFirstForTeacher(forumMerged, lastTaughtLessonId);
+    const forumLessonsWithActivity = await attachForumLastMessagePreviews(forumOrdered);
 
     const studentUserIdsForFeedback = [
       ...new Set(
@@ -439,14 +481,20 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         capacity: cg.capacity,
         enrollmentsCount: cg._count.enrollments,
         daysOfWeek: cg.daysOfWeek,
+        location: cg.location ?? null,
       })),
       gamification,
       platformExperienceSummary,
       forumLessonsWithActivity,
+      studentRankingTop,
     };
   }
 
   // ADMIN ou MASTER
+  const now = new Date();
+  const calendarRangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const calendarRangeEnd = new Date(now.getFullYear(), now.getMonth() + 7, 0);
+
   const [
     students,
     teachers,
@@ -456,8 +504,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     preEnrollments,
     confirmedEnrollments,
     classGroupsByStatusRows,
-    recentEnrollmentsCount,
-    openClassGroupsRaw,
+    sessionsCalendarRaw,
     platformExperienceAgg,
     forumRawGlobal,
   ] = await Promise.all([
@@ -472,20 +519,26 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       by: ["status"],
       _count: { id: true },
     }),
-    prisma.enrollment.count({
+    prisma.classSession.findMany({
       where: {
-        enrolledAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        sessionDate: { gte: calendarRangeStart, lte: calendarRangeEnd },
+        classGroup: { status: { in: ["ABERTA", "EM_ANDAMENTO"] } },
       },
-    }),
-    prisma.classGroup.findMany({
-      where: { status: { in: ["ABERTA", "EM_ANDAMENTO"] } },
-      include: {
-        course: { select: { name: true } },
-        teacher: { select: { name: true } },
-        _count: { select: { enrollments: true } },
+      select: {
+        id: true,
+        sessionDate: true,
+        startTime: true,
+        endTime: true,
+        lesson: { select: { title: true } },
+        classGroup: {
+          select: {
+            id: true,
+            course: { select: { name: true } },
+            teacher: { select: { name: true } },
+          },
+        },
       },
-      orderBy: { startDate: "asc" },
-      take: 8,
+      orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
     }),
     prisma.platformExperienceFeedback.aggregate({
       _avg: { ratingPlatform: true, ratingLessons: true, ratingTeacher: true },
@@ -520,18 +573,22 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     classGroupsByStatus,
   };
 
-  const openClassGroups: ClassGroupSummary[] = openClassGroupsRaw.map((cg) => ({
-    id: cg.id,
-    courseName: cg.course.name,
-    teacherName: cg.teacher.name,
-    status: cg.status,
-    startDate: cg.startDate,
-    startTime: cg.startTime,
-    endTime: cg.endTime,
-    capacity: cg.capacity,
-    enrollmentsCount: cg._count.enrollments,
-    daysOfWeek: cg.daysOfWeek,
-  }));
+  const sessionsCalendar: DashboardSessionCalendarItem[] = sessionsCalendarRaw.map((s) => {
+    const d = s.sessionDate;
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return {
+      sessionId: s.id,
+      sessionDate: `${y}-${m}-${day}`,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      classGroupId: s.classGroup.id,
+      courseName: s.classGroup.course.name,
+      teacherName: s.classGroup.teacher.name,
+      lessonTitle: s.lesson?.title ?? null,
+    };
+  });
 
   const teachersGamificationRanking = await computeAllTeachersGamification();
 
@@ -546,10 +603,10 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     role: user.role as "ADMIN" | "MASTER" | "COORDINATOR",
     roleLabel,
     stats,
-    recentEnrollmentsCount,
-    openClassGroups,
     teachersGamificationRanking,
     platformExperienceSummary,
     forumLessonsWithActivity,
+    studentRankingTop,
+    sessionsCalendar,
   };
 }

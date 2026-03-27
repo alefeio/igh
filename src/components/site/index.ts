@@ -11,6 +11,8 @@ export { Footer } from "./Footer";
 export { CTASection } from "./CTASection";
 export { Stats } from "./Stats";
 export { Testimonials } from "./Testimonials";
+export { StudentRankingShowcase } from "./StudentRankingShowcase";
+export { PlatformExperienceHomeSection } from "./PlatformExperienceHomeSection";
 export { FAQ } from "./FAQ";
 export { BlogCard } from "./BlogCard";
 export { NoticiasList } from "./NoticiasList";
