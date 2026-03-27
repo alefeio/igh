@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
 export type SiteUploadKind =
   | "logo"
@@ -51,16 +51,13 @@ export function ApimagesImageUpload({
       });
       const signJson = await signRes.json();
       if (!signRes.ok || !signJson.ok) return null;
-      const { uploadUrl, apiKey, folder, use_filename } = signJson.data;
+      const { uploadUrl, apiKey } = signJson.data as { uploadUrl: string; apiKey: string };
 
-      const formData = buildApimagesFormData(
-        file,
-        { apiKey, folder, use_filename },
-        { resourceType: "image" },
-      );
+      const formData = buildApimagesUploadFormData(file);
 
       const uploadRes = await fetch(uploadUrl, {
         method: "POST",
+        headers: apimagesUploadHeaders(apiKey),
         body: formData,
       });
       const uploadJson = await uploadRes.json();

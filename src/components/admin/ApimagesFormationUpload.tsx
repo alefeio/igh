@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
 const FORMATIONS_ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -11,12 +11,12 @@ type Props = {
   label?: string;
   accept?: string;
   multiple?: boolean;
-  /** Pasta no Apimages (formations = aulas; onboarding = guia do sistema). */
+  /** Tipo para RBAC no backend (formations = aulas; onboarding = guia). O upload vai para APIMG_UPLOAD_URL. */
   siteKind?: "formations" | "onboarding";
 };
 
 /**
- * Upload para pasta "formations": imagens e demais arquivos (PDF, Office) no mesmo endpoint Apimages.
+ * Imagens e arquivos (PDF, Office) no endpoint Apimages (POST multipart só com `file`, header X-API-Key).
  */
 export function ApimagesFormationUpload({
   onUploaded,
@@ -36,12 +36,15 @@ export function ApimagesFormationUpload({
     });
     const signJson = await signRes.json();
     if (!signRes.ok || !signJson.ok) return null;
-    const { uploadUrl, apiKey, folder } = signJson.data;
+    const { uploadUrl, apiKey } = signJson.data as { uploadUrl: string; apiKey: string };
 
-    const isImage = file.type.startsWith("image/");
-    const formData = buildApimagesFormData(file, { apiKey, folder }, { resourceType: isImage ? "image" : "raw" });
+    const formData = buildApimagesUploadFormData(file);
 
-    const uploadRes = await fetch(uploadUrl, { method: "POST", body: formData });
+    const uploadRes = await fetch(uploadUrl, {
+      method: "POST",
+      headers: apimagesUploadHeaders(apiKey),
+      body: formData,
+    });
     const uploadJson = await uploadRes.json();
     const parsed = parseApimagesUploadJson(uploadJson);
     if (!uploadRes.ok || parsed.errorMessage || !parsed.url) return null;

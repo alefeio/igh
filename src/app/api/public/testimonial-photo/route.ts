@@ -1,5 +1,5 @@
-import { getApimagesConfig, getSiteUploadFolder } from "@/lib/apimages";
-import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { getApimagesConfig } from "@/lib/apimages";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
@@ -28,12 +28,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const folder = getSiteUploadFolder("testimonials");
     const { uploadUrl, apiKey } = getApimagesConfig();
-    const uploadFd = buildApimagesFormData(file, { apiKey, folder }, { resourceType: "image" });
+    const uploadFd = buildApimagesUploadFormData(file);
 
     const uploadRes = await fetch(uploadUrl, {
       method: "POST",
+      headers: apimagesUploadHeaders(apiKey),
       body: uploadFd,
     });
 

@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
-import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
 const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Ativa",
@@ -555,16 +555,16 @@ export default function EnrollmentsPage() {
     const signJson = (await signRes.json()) as ApiResponse<{
       uploadUrl: string;
       apiKey: string;
-      folder: string;
     }>;
     if (!signRes.ok || !signJson.ok) {
       toast.push("error", "Falha ao obter permissão de upload.");
       return null;
     }
-    const { uploadUrl, apiKey, folder } = signJson.data;
-    const formData = buildApimagesFormData(file, { apiKey, folder }, { resourceType: "auto" });
+    const { uploadUrl, apiKey } = signJson.data;
+    const formData = buildApimagesUploadFormData(file);
     const uploadRes = await fetch(uploadUrl, {
       method: "POST",
+      headers: apimagesUploadHeaders(apiKey),
       body: formData,
     });
     const cloudResult = parseApimagesUploadJson(await uploadRes.json());

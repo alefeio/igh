@@ -1,5 +1,6 @@
 import "server-only";
 
+/** Prefixo lógico no nosso sistema (matrículas, anexos, etc.) — não é enviado à API Apimages. */
 const UPLOAD_FOLDER = process.env.APIMG_UPLOAD_FOLDER?.trim() || "igh/students";
 
 export function getApimagesConfig() {
@@ -12,7 +13,7 @@ export function getApimagesConfig() {
 }
 
 /**
- * Pasta para anexos do aluno: uploadFolder/studentId
+ * Segmento de caminho interno (organização no app): uploadFolder/studentId — não é campo da API Apimages.
  */
 export function getStudentUploadFolder(studentId: string): string {
   const { uploadFolder } = getApimagesConfig();
@@ -27,6 +28,7 @@ export function getEnrollmentCertificateFolder(enrollmentId: string): string {
   return `${uploadFolder}/enrollments/${enrollmentId}`.replace(/\/+/g, "/");
 }
 
+/** Prefixos para documentação/organização no projeto (não enviados ao POST /v1/upload). */
 const SITE_UPLOAD_PREFIX = "igh/site";
 
 export function getSiteUploadFolder(

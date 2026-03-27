@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { getApimagesConfig, getStudentUploadFolder, getEnrollmentCertificateFolder } from "@/lib/apimages";
+import { getApimagesConfig } from "@/lib/apimages";
 import { z } from "zod";
 
 const bodySchema = z
@@ -35,8 +35,7 @@ export async function POST(request: Request) {
     }
     try {
       const { apiKey, uploadUrl } = getApimagesConfig();
-      const folder = getEnrollmentCertificateFolder(enrollmentId);
-      return jsonOk({ uploadUrl, apiKey, folder });
+      return jsonOk({ uploadUrl, apiKey });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Erro ao preparar upload.";
       return jsonErr("CONFIG_ERROR", message, 500);
@@ -53,8 +52,7 @@ export async function POST(request: Request) {
 
   try {
     const { apiKey, uploadUrl } = getApimagesConfig();
-    const folder = getStudentUploadFolder(studentId!);
-    return jsonOk({ uploadUrl, apiKey, folder });
+    return jsonOk({ uploadUrl, apiKey });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao preparar upload.";
     return jsonErr("CONFIG_ERROR", message, 500);

@@ -5,7 +5,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
-import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
 
@@ -205,16 +205,16 @@ export function MeusDadosForm() {
       const signJson = (await signRes.json()) as ApiResponse<{
         uploadUrl: string;
         apiKey: string;
-        folder: string;
       }>;
       if (!signRes.ok || !signJson?.ok) {
         toast.push("error", "Falha ao obter permissão de upload.");
         return false;
       }
-      const { uploadUrl, apiKey, folder } = signJson.data;
-      const formData = buildApimagesFormData(file, { apiKey, folder }, { resourceType: "auto" });
+      const { uploadUrl, apiKey } = signJson.data;
+      const formData = buildApimagesUploadFormData(file);
       const uploadRes = await fetch(uploadUrl, {
         method: "POST",
+        headers: apimagesUploadHeaders(apiKey),
         body: formData,
       });
       const cloudResult = parseApimagesUploadJson(await uploadRes.json());

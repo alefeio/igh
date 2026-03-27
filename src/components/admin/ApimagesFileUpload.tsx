@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { hostedRawUrlForDownload } from "@/lib/hosted-file-url";
-import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
 export type SiteFileUploadKind = "transparency";
 
@@ -43,12 +43,13 @@ export function ApimagesFileUpload({
           setError(signJson.error?.message ?? "Falha ao obter permissão de upload.");
           return;
         }
-        const { uploadUrl, apiKey, folder, use_filename } = signJson.data;
+        const { uploadUrl, apiKey } = signJson.data as { uploadUrl: string; apiKey: string };
 
-        const formData = buildApimagesFormData(file, { apiKey, folder, use_filename }, { resourceType: "raw" });
+        const formData = buildApimagesUploadFormData(file);
 
         const uploadRes = await fetch(uploadUrl, {
           method: "POST",
+          headers: apimagesUploadHeaders(apiKey),
           body: formData,
         });
         const uploadJson = await uploadRes.json();

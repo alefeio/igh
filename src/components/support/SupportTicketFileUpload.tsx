@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
 const ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -31,12 +31,15 @@ export function SupportTicketFileUpload({
     });
     const signJson = await signRes.json();
     if (!signRes.ok || !signJson?.ok) return false;
-    const { uploadUrl, apiKey, folder } = signJson.data;
+    const { uploadUrl, apiKey } = signJson.data as { uploadUrl: string; apiKey: string };
 
-    const isImage = file.type.startsWith("image/");
-    const formData = buildApimagesFormData(file, { apiKey, folder }, { resourceType: isImage ? "image" : "raw" });
+    const formData = buildApimagesUploadFormData(file);
 
-    const uploadRes = await fetch(uploadUrl, { method: "POST", body: formData });
+    const uploadRes = await fetch(uploadUrl, {
+      method: "POST",
+      headers: apimagesUploadHeaders(apiKey),
+      body: formData,
+    });
     const uploadJson = await uploadRes.json();
     const parsed = parseApimagesUploadJson(uploadJson);
     if (!uploadRes.ok || parsed.errorMessage) return false;

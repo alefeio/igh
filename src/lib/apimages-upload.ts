@@ -1,5 +1,8 @@
 /**
- * Cliente e servidor: parse da resposta de upload (compatível com formato estilo Cloudinary: secure_url, public_id, etc.).
+ * Cliente e servidor: upload para a API Apimages (https://apimg.com.br — OpenAPI /v1/upload).
+ * Corpo: multipart apenas com o campo `file`. Autenticação: cabeçalho `X-API-Key` (equivalente ao uso da API Key no fluxo Cloudinary, sem expor o segredo de assinatura no cliente).
+ *
+ * Resposta típica: { url, public_id, format, bytes } (UploadResponse).
  */
 
 export function publicIdFallbackFromUrl(url: string): string {
@@ -10,6 +13,18 @@ export function publicIdFallbackFromUrl(url: string): string {
   } catch {
     return url.slice(-200);
   }
+}
+
+/** Cabeçalhos para POST em APIMG_UPLOAD_URL (mesmo papel prático do envio da api_key no Cloudinary). */
+export function apimagesUploadHeaders(apiKey: string): HeadersInit {
+  return { "X-API-Key": apiKey };
+}
+
+/** Corpo multipart conforme OpenAPI Apimages: somente `file`. */
+export function buildApimagesUploadFormData(file: File | Blob): FormData {
+  const fd = new FormData();
+  fd.append("file", file as File);
+  return fd;
 }
 
 export function parseApimagesUploadJson(json: unknown): {
@@ -24,13 +39,21 @@ export function parseApimagesUploadJson(json: unknown): {
   }
   const o = json as Record<string, unknown>;
 
+  // FastAPI 422
+  if (Array.isArray(o.detail)) {
+    const first = o.detail[0] as { msg?: string } | undefined;
+    const msg = typeof first?.msg === "string" ? first.msg : "Erro de validação na API de upload.";
+    return { url: null, publicId: "", errorMessage: msg };
+  }
+
   const nestedErr =
     o.error && typeof o.error === "object"
       ? (o.error as Record<string, unknown>).message
       : undefined;
   const errMsg =
     (typeof nestedErr === "string" && nestedErr) ||
-    (typeof o.message === "string" ? o.message : undefined);
+    (typeof o.message === "string" ? o.message : undefined) ||
+    (typeof o.detail === "string" ? o.detail : undefined);
   if (errMsg) {
     return { url: null, publicId: "", errorMessage: errMsg };
   }
@@ -57,19 +80,4 @@ export function parseApimagesUploadJson(json: unknown): {
     originalFilename: typeof o.original_filename === "string" ? o.original_filename : undefined,
     bytes: typeof o.bytes === "number" ? o.bytes : undefined,
   };
-}
-
-export function buildApimagesFormData(
-  file: File | Blob,
-  fields: { apiKey: string; folder: string; use_filename?: boolean },
-  opts?: { resourceType?: "image" | "raw" | "auto" },
-): FormData {
-  const fd = new FormData();
-  fd.append("file", file as File);
-  fd.append("api_key", fields.apiKey);
-  fd.append("folder", fields.folder);
-  if (fields.use_filename) fd.append("use_filename", "true");
-  const rt = opts?.resourceType;
-  if (rt && rt !== "auto") fd.append("resource_type", rt);
-  return fd;
 }

@@ -1,6 +1,6 @@
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { getApimagesConfig, getSupportUploadFolder } from "@/lib/apimages";
+import { getApimagesConfig } from "@/lib/apimages";
 
 /** Permissão de upload Apimages para anexos ao chamado de suporte (aluno). */
 export async function POST() {
@@ -11,8 +11,7 @@ export async function POST() {
 
   try {
     const { apiKey, uploadUrl } = getApimagesConfig();
-    const folder = getSupportUploadFolder(user.id);
-    return jsonOk({ uploadUrl, apiKey, folder });
+    return jsonOk({ uploadUrl, apiKey });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao preparar upload.";
     return jsonErr("CONFIG_ERROR", message, 500);

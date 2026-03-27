@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { getApimagesConfig, getSiteUploadFolder, getSiteUploadFolderWithId } from "@/lib/apimages";
+import { getApimagesConfig } from "@/lib/apimages";
 import { z } from "zod";
 
 const bodySchema = z
@@ -31,6 +31,7 @@ const bodySchema = z
     { message: "id só é permitido para banners, projects, news ou transparency." },
   );
 
+/** Devolve URL e chave da API Apimages (fluxo análogo ao “assinado” Cloudinary: cliente envia só o arquivo para APIMG_UPLOAD_URL). */
 export async function POST(request: Request) {
   const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "TEACHER"]);
 
@@ -50,22 +51,10 @@ export async function POST(request: Request) {
   if (user.role === "TEACHER" && id) {
     return jsonErr("FORBIDDEN", "Uso não permitido.", 403);
   }
-  let folder: string;
-  if (id && ["banners", "projects", "news", "transparency"].includes(kind)) {
-    folder = getSiteUploadFolderWithId(kind as "banners" | "projects" | "news" | "transparency", id);
-  } else {
-    folder = getSiteUploadFolder(kind);
-  }
 
   try {
     const { apiKey, uploadUrl } = getApimagesConfig();
-    const isTransparency = kind === "transparency";
-    return jsonOk({
-      uploadUrl,
-      apiKey,
-      folder,
-      ...(isTransparency && { use_filename: true }),
-    });
+    return jsonOk({ uploadUrl, apiKey });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao preparar upload.";
     return jsonErr("CONFIG_ERROR", message, 500);
