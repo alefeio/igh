@@ -6,6 +6,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
+import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
 const GENDER_LABELS: Record<string, string> = {
   MALE: "Masculino",
@@ -74,8 +75,6 @@ type StudentAttachment = {
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-const CLOUDINARY_UPLOAD_URL = "https://api.cloudinary.com/v1_1";
-
 function onlyDigits(v: string, maxLength?: number): string {
   const d = v.replace(/\D/g, "");
   return maxLength != null ? d.slice(0, maxLength) : d;
@@ -253,25 +252,26 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
 
   useEffect(() => {
     if (editing) {
-      setName(editing.name);
-      setBirthDate(editing.birthDate.slice(0, 10));
-      setCpf(formatCpf(editing.cpf));
-      setRg(editing.rg);
+      setName(editing.name ?? "");
+      const bd = editing.birthDate;
+      setBirthDate(typeof bd === "string" && bd.length >= 10 ? bd.slice(0, 10) : "");
+      setCpf(formatCpf(editing.cpf ?? ""));
+      setRg(editing.rg ?? "");
       setEmail(editing.email ?? "");
-      setPhone(formatPhone(editing.phone));
+      setPhone(formatPhone(editing.phone ?? ""));
       setCep(editing.cep ? formatCep(editing.cep) : "");
-      setStreet(editing.street);
-      setNumber(editing.number);
+      setStreet(editing.street ?? "");
+      setNumber(editing.number ?? "");
       setComplement(editing.complement ?? "");
-      setNeighborhood(editing.neighborhood);
-      setCity(editing.city);
-      setState(editing.state);
-      setGender(editing.gender);
-      setHasDisability(editing.hasDisability);
+      setNeighborhood(editing.neighborhood ?? "");
+      setCity(editing.city ?? "Belém");
+      setState(editing.state ?? "PA");
+      setGender(editing.gender ?? "MALE");
+      setHasDisability(Boolean(editing.hasDisability));
       setDisabilityDescription(editing.disabilityDescription ?? "");
-      setEducationLevel(editing.educationLevel);
-      setIsStudying(editing.isStudying);
-      setStudyShift(editing.studyShift);
+      setEducationLevel(editing.educationLevel ?? "NONE");
+      setIsStudying(Boolean(editing.isStudying));
+      setStudyShift(editing.studyShift ?? null);
       setGuardianName(editing.guardianName ?? "");
       setGuardianCpf(editing.guardianCpf ? formatCpf(editing.guardianCpf) : "");
       setGuardianRg(editing.guardianRg ?? "");
@@ -284,7 +284,11 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
         try {
           const res = await fetch(`/api/students/${studentId}/attachments`);
           const json = (await res.json()) as ApiResponse<{ attachments: StudentAttachment[] }>;
-          if (res.ok && json.ok) setAttachments(json.data.attachments);
+          if (res.ok && json.ok && json.data?.attachments) {
+            setAttachments(json.data.attachments);
+          } else {
+            setAttachments([]);
+          }
         } catch {
           setAttachments([]);
         }
@@ -337,42 +341,29 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
       toast.push("error", "Arquivo deve ter no máximo 5MB.");
       return false;
     }
-    const signRes = await fetch("/api/uploads/cloudinary-signature", {
+    const signRes = await fetch("/api/uploads/apimages-signature", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ studentId, attachmentType: type }),
     });
     const signJson = (await signRes.json()) as ApiResponse<{
-      timestamp: number;
-      signature: string;
+      uploadUrl: string;
       apiKey: string;
-      cloudName: string;
       folder: string;
     }>;
     if (!signRes.ok || !signJson.ok) {
       toast.push("error", (signJson as { error?: { message?: string } }).error?.message ?? "Falha ao obter permissão de upload.");
       return false;
     }
-    const { timestamp, signature, apiKey, cloudName, folder } = signJson.data;
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("api_key", apiKey);
-    formData.append("timestamp", String(timestamp));
-    formData.append("signature", signature);
-    formData.append("folder", folder);
-    const uploadRes = await fetch(`${CLOUDINARY_UPLOAD_URL}/${cloudName}/auto/upload`, {
+    const { uploadUrl, apiKey, folder } = signJson.data;
+    const formData = buildApimagesFormData(file, { apiKey, folder }, { resourceType: "auto" });
+    const uploadRes = await fetch(uploadUrl, {
       method: "POST",
       body: formData,
     });
-    const cloudResult = (await uploadRes.json()) as {
-      secure_url?: string;
-      public_id?: string;
-      bytes?: number;
-      original_filename?: string;
-      error?: { message?: string };
-    };
-    if (!uploadRes.ok || !cloudResult.secure_url || !cloudResult.public_id) {
-      toast.push("error", cloudResult?.error?.message ?? "Falha no upload.");
+    const cloudResult = parseApimagesUploadJson(await uploadRes.json());
+    if (!uploadRes.ok || !cloudResult.url || !cloudResult.publicId) {
+      toast.push("error", cloudResult.errorMessage ?? "Falha no upload.");
       return false;
     }
     const metaRes = await fetch(`/api/students/${studentId}/attachments`, {
@@ -380,9 +371,9 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type,
-        publicId: cloudResult.public_id,
-        url: cloudResult.secure_url,
-        fileName: cloudResult.original_filename ?? file.name,
+        publicId: cloudResult.publicId,
+        url: cloudResult.url,
+        fileName: cloudResult.originalFilename ?? file.name,
         mimeType: file.type,
         sizeBytes: cloudResult.bytes ?? file.size,
       }),
@@ -485,7 +476,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
         toast.push("success", "Documento anexado.");
         const res = await fetch(`/api/students/${editing.id}/attachments`);
         const json = (await res.json()) as ApiResponse<{ attachments: StudentAttachment[] }>;
-        if (res.ok && json.ok) setAttachments(json.data.attachments);
+        if (res.ok && json.ok && json.data?.attachments) setAttachments(json.data.attachments);
       }
     } finally {
       setUploadingType(null);
@@ -511,7 +502,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
     if (!editing || !isMaster) return;
     if (!confirm("Remover este anexo? (apenas MASTER pode remover.)")) return;
     const res = await fetch(`/api/students/${editing.id}/attachments/${attachmentId}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ attachment: StudentAttachment }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean }>;
     if (!res.ok || !json.ok) {
       toast.push("error", (json as { error?: { message?: string } }).error?.message ?? "Falha ao remover.");
       return;
@@ -519,7 +510,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
     toast.push("success", "Anexo removido.");
     const attRes = await fetch(`/api/students/${editing.id}/attachments`);
     const attJson = (await attRes.json()) as ApiResponse<{ attachments: StudentAttachment[] }>;
-    if (attRes.ok && attJson.ok) setAttachments(attJson.data.attachments);
+    if (attRes.ok && attJson.ok && attJson.data?.attachments) setAttachments(attJson.data.attachments);
   }
 
   const attachmentByIdDoc = attachments.find((a) => a.type === "ID_DOCUMENT");

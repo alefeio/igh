@@ -1,31 +1,45 @@
+import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import type { SessionUser } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { listSmsTemplates, createSmsTemplate } from "@/lib/sms";
-import { createSmsTemplateSchema } from "@/lib/validators/sms";
 
-export async function GET(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
-  const { searchParams } = new URL(request.url);
-  const activeOnly = searchParams.get("activeOnly") === "true";
-  const items = await listSmsTemplates(activeOnly);
-  return jsonOk({ items });
+async function canAccessStudent(user: SessionUser, studentId: string): Promise<boolean> {
+  if (user.role === "TEACHER") {
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!teacher) return false;
+    const enrollment = await prisma.enrollment.findFirst({
+      where: { studentId, classGroup: { teacherId: teacher.id } },
+      select: { id: true },
+    });
+    return !!enrollment;
+  }
+  return user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR";
 }
 
-export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
-  const body = await request.json().catch(() => null);
-  const parsed = createSmsTemplateSchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+/** Remoção lógica de anexo (Master, Admin ou Coordenador). */
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string; attachmentId: string }> }) {
+  const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+  const { id: studentId, attachmentId } = await context.params;
+
+  if (!(await canAccessStudent(user, studentId))) {
+    return jsonErr("FORBIDDEN", "Acesso negado.", 403);
   }
-  const data = parsed.data;
-  const template = await createSmsTemplate({
-    name: data.name,
-    description: data.description ?? undefined,
-    categoryHint: data.categoryHint ?? undefined,
-    content: data.content,
-    active: data.active ?? true,
-    createdById: user.id,
+
+  const att = await prisma.studentAttachment.findFirst({
+    where: { id: attachmentId, studentId, deletedAt: null },
+    select: { id: true },
   });
-  return jsonOk({ template });
+  if (!att) {
+    return jsonErr("NOT_FOUND", "Anexo não encontrado.", 404);
+  }
+
+  await prisma.studentAttachment.update({
+    where: { id: attachmentId },
+    data: { deletedAt: new Date() },
+  });
+
+  return jsonOk({ deleted: true });
 }

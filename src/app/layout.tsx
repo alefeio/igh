@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/feedback/ToastProvider";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
@@ -63,6 +64,7 @@ export default function RootLayout({
         <ThemeProvider>
           <ToastProvider>{children}</ToastProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );

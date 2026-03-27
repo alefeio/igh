@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import { SortableTableRows, SortableTableDndWrapper } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -315,7 +315,7 @@ export default function DepoimentosPage() {
           <div>
             <label className="text-sm font-medium">URL da foto</label>
             <Input className="mt-1" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://..." />
-            <CloudinaryImageUpload kind="testimonials" currentUrl={photoUrl || undefined} onUploaded={setPhotoUrl} label="Ou envie uma imagem" />
+            <ApimagesImageUpload kind="testimonials" currentUrl={photoUrl || undefined} onUploaded={setPhotoUrl} label="Ou envie uma imagem" />
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="depActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />

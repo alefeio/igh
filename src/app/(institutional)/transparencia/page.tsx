@@ -1,5 +1,5 @@
 import { PageHeader, Section, Card } from "@/components/site";
-import { cloudinaryRawUrlForDownload } from "@/lib/cloudinary-url";
+import { hostedRawUrlForDownload } from "@/lib/hosted-file-url";
 import { getTransparencyForSite } from "@/lib/site-data";
 
 export const metadata = {
@@ -46,7 +46,7 @@ export default async function TransparenciaPage() {
                       </div>
                       {doc.fileUrl && (
                         <a
-                          href={cloudinaryRawUrlForDownload(doc.fileUrl)}
+                          href={hostedRawUrlForDownload(doc.fileUrl)}
                           download
                           target="_blank"
                           rel="noopener noreferrer"

@@ -44,6 +44,33 @@ model User {
   lessonQuestionStaffReplies  LessonQuestionTeacherReply[] @relation("LessonQuestionStaffReply")
   coordinatorReportsFrom     CoordinatorReport[]        @relation("CoordinatorReportFrom")
   coordinatorReportMessages  CoordinatorReportMessage[] @relation("CoordinatorReportMessageAuthor")
+  onboardingGuidesUpdated    OnboardingGuide[]          @relation("OnboardingGuideUpdatedBy")
+  onboardingVisits           OnboardingUserVisit[]
+}
+
+/** Conteúdo de onboarding por perfil (rich text), editável por Master/Admin. */
+model OnboardingGuide {
+  id          String   @id @default(uuid())
+  role        UserRole @unique
+  title       String   @default("")
+  contentRich String   @db.Text
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation("OnboardingGuideUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
+
+/** Registro de acesso à página de onboarding (feedback para administradores). */
+model OnboardingUserVisit {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        UserRole
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  viewCount   Int      @default(1)
+
+  @@unique([userId])
+  @@index([lastSeenAt])
 }
 
 /** Avaliação da experiência do aluno (plataforma, aulas, professor, comentário e indicação). */

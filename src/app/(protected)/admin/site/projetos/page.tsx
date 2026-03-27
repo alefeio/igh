@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import { SortableTableRows, SortableTableDndWrapper } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -236,7 +236,7 @@ export default function ProjetosPage() {
             <label className="text-sm font-medium">URL da imagem de capa</label>
             <p className="text-xs text-[var(--text-muted)] mt-0.5">Usada como fundo do título e subtítulo na página do projeto.</p>
             <Input className="mt-1" value={coverImageUrl} onChange={(e) => setCoverImageUrl(e.target.value)} placeholder="https://..." />
-            <CloudinaryImageUpload kind="projects" currentUrl={coverImageUrl || undefined} onUploaded={setCoverImageUrl} label="Ou envie uma imagem" />
+            <ApimagesImageUpload kind="projects" currentUrl={coverImageUrl || undefined} onUploaded={setCoverImageUrl} label="Ou envie uma imagem" />
           </div>
           <div>
             <label className="text-sm font-medium">Galeria de fotos</label>
@@ -254,7 +254,7 @@ export default function ProjetosPage() {
                     }}
                     placeholder="https://..."
                   />
-                  <CloudinaryImageUpload
+                  <ApimagesImageUpload
                     kind="projects"
                     currentUrl={url || undefined}
                     onUploaded={(u) => {

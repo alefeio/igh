@@ -17,11 +17,14 @@ type Item = {
   /** Professor, admin, master ou coordenador — reportes à coordenação. */
   coordinatorAccess?: boolean;
   alwaysShow?: boolean;
+  /** Apenas Master ou Admin (ex.: edição do onboarding). */
+  masterOrAdminOnly?: boolean;
   category?: string;
 };
 
 const ITEMS: Item[] = [
   { href: "/dashboard", label: "Dashboard", alwaysShow: true, category: "Início" },
+  { href: "/onboarding", label: "Como usar o sistema", alwaysShow: true, category: "Início" },
   { href: "/meus-dados", label: "Meus dados", alwaysShow: true, category: "Início" },
   {
     href: "/coordenacao",
@@ -36,6 +39,12 @@ const ITEMS: Item[] = [
   { href: "/gamificacao", label: "Gamificação (professores)", teacherOnly: true, category: "Professor" },
   { href: "/professor/frequencia", label: "Frequência (turmas)", teacherOnly: true, category: "Professor" },
   { href: "/professor/avaliacoes-experiencia", label: "Avaliações dos alunos", teacherOnly: true, category: "Professor" },
+  {
+    href: "/admin/onboarding",
+    label: "Guia do sistema (edição)",
+    masterOrAdminOnly: true,
+    category: "Administração",
+  },
   { href: "/users", label: "Usuários (Admin)", masterOnly: true, category: "Administração" },
   { href: "/approvacoes", label: "Aprovações (Site)", masterOnly: true, category: "Administração" },
   { href: "/teachers", label: "Professores", adminOrMaster: true, category: "Administração" },
@@ -121,6 +130,7 @@ export function Sidebar({
 
   const filteredItems = ITEMS.filter((i) => {
     if (i.alwaysShow) return true;
+    if (i.masterOrAdminOnly) return user.role === "MASTER" || user.role === "ADMIN";
     if (i.coordinatorAccess) {
       return (
         user.role === "TEACHER" ||

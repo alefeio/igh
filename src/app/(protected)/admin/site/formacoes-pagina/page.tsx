@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
 type FormacoesPageItem = {
@@ -119,7 +119,7 @@ export default function FormacoesPaginaPage() {
             placeholder="https://..."
           />
           <div className="mt-1">
-            <CloudinaryImageUpload
+            <ApimagesImageUpload
               kind="formations"
               currentUrl={headerImageUrl || undefined}
               onUploaded={setHeaderImageUrl}

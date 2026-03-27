@@ -1,31 +1,41 @@
-import { requireRole } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { hashPassword, requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { listSmsTemplates, createSmsTemplate } from "@/lib/sms";
-import { createSmsTemplateSchema } from "@/lib/validators/sms";
+import { z } from "zod";
 
-export async function GET(request: Request) {
+const bodySchema = z.object({
+  newPassword: z.string().min(8, "A nova senha deve ter no mínimo 8 caracteres."),
+});
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
-  const { searchParams } = new URL(request.url);
-  const activeOnly = searchParams.get("activeOnly") === "true";
-  const items = await listSmsTemplates(activeOnly);
-  return jsonOk({ items });
-}
+  const { id: studentId } = await context.params;
 
-export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
-  const parsed = createSmsTemplateSchema.safeParse(body);
+  const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
-  const data = parsed.data;
-  const template = await createSmsTemplate({
-    name: data.name,
-    description: data.description ?? undefined,
-    categoryHint: data.categoryHint ?? undefined,
-    content: data.content,
-    active: data.active ?? true,
-    createdById: user.id,
+
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { id: true, userId: true, deletedAt: true },
   });
-  return jsonOk({ template });
+  if (!student) {
+    return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
+  }
+  if (student.deletedAt) {
+    return jsonErr("INVALID_STATE", "Aluno inativo.", 400);
+  }
+  if (!student.userId) {
+    return jsonErr("NO_USER", "Este aluno não possui conta de login.", 400);
+  }
+
+  const passwordHash = await hashPassword(parsed.data.newPassword);
+  await prisma.user.update({
+    where: { id: student.userId },
+    data: { passwordHash, mustChangePassword: false },
+  });
+
+  return jsonOk({ message: "Senha alterada." });
 }

@@ -3,7 +3,7 @@
 import { useRouter, useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useUser } from "@/components/layout/UserProvider";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -266,7 +266,7 @@ export default function CourseEditPage() {
               <label className="text-sm font-medium text-[var(--text-primary)]">URL da foto (opcional)</label>
               <div className="mt-1">
                 <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." disabled={isTeacher} />
-                {!isTeacher && <CloudinaryImageUpload kind="formations" currentUrl={imageUrl || undefined} onUploaded={setImageUrl} label="Ou envie uma imagem" />}
+                {!isTeacher && <ApimagesImageUpload kind="formations" currentUrl={imageUrl || undefined} onUploaded={setImageUrl} label="Ou envie uma imagem" />}
               </div>
               {imageUrl && <img src={imageUrl} alt="Preview" className="mt-2 h-20 rounded object-cover" />}
             </div>

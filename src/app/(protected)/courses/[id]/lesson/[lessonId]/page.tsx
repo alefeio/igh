@@ -4,7 +4,7 @@ import { ArrowUp } from "lucide-react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CloudinaryFormationUpload } from "@/components/admin/CloudinaryFormationUpload";
+import { ApimagesFormationUpload } from "@/components/admin/ApimagesFormationUpload";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
@@ -360,7 +360,7 @@ export default function LessonEditPage() {
               <label className="text-sm font-medium text-[var(--text-primary)]">Arquivos da aula</label>
               <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens e arquivos. Para inserir uma imagem no Conteúdo (rich text), copie o arquivo aqui (botão &quot;Copiar arquivo&quot;) e cole (Ctrl+V) no editor abaixo.</p>
               <div className="mt-1">
-                <CloudinaryFormationUpload
+                <ApimagesFormationUpload
                   onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
                   label="Adicionar arquivo"
                   multiple

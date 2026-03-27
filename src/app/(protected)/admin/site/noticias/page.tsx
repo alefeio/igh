@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import { SortableTableRows, SortableTableDndWrapper } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -460,7 +460,7 @@ export default function NoticiasPage() {
           <div>
             <label className="text-sm font-medium">URL da imagem de capa</label>
             <Input className="mt-1" value={postCoverUrl} onChange={(e) => setPostCoverUrl(e.target.value)} placeholder="https://..." />
-            <CloudinaryImageUpload kind="news" currentUrl={postCoverUrl || undefined} onUploaded={setPostCoverUrl} label="Ou envie uma imagem" />
+            <ApimagesImageUpload kind="news" currentUrl={postCoverUrl || undefined} onUploaded={setPostCoverUrl} label="Ou envie uma imagem" />
           </div>
           <div>
             <label className="text-sm font-medium">Imagens adicionais (galeria / carrossel)</label>
@@ -475,7 +475,7 @@ export default function NoticiasPage() {
               ))}
             </ul>
             <div className="mt-2">
-              <CloudinaryImageUpload kind="news" currentUrl={undefined} onUploaded={(url) => setPostImageUrls((prev) => [...prev, url])} label="Adicionar imagem" />
+              <ApimagesImageUpload kind="news" currentUrl={undefined} onUploaded={(url) => setPostImageUrls((prev) => [...prev, url])} label="Adicionar imagem" />
             </div>
           </div>
           <div>

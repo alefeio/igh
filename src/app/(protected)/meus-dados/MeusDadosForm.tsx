@@ -5,8 +5,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
-
-const CLOUDINARY_UPLOAD_URL = "https://api.cloudinary.com/v1_1";
+import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
 
@@ -202,38 +201,25 @@ export function MeusDadosForm() {
     }
     setUploadingType(type);
     try {
-      const signRes = await fetch("/api/me/uploads/cloudinary-signature", { method: "POST" });
+      const signRes = await fetch("/api/me/uploads/apimages-signature", { method: "POST" });
       const signJson = (await signRes.json()) as ApiResponse<{
-        timestamp: number;
-        signature: string;
+        uploadUrl: string;
         apiKey: string;
-        cloudName: string;
         folder: string;
       }>;
       if (!signRes.ok || !signJson?.ok) {
         toast.push("error", "Falha ao obter permissão de upload.");
         return false;
       }
-      const { timestamp, signature, apiKey, cloudName, folder } = signJson.data;
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("api_key", apiKey);
-      formData.append("timestamp", String(timestamp));
-      formData.append("signature", signature);
-      formData.append("folder", folder);
-      const uploadRes = await fetch(`${CLOUDINARY_UPLOAD_URL}/${cloudName}/auto/upload`, {
+      const { uploadUrl, apiKey, folder } = signJson.data;
+      const formData = buildApimagesFormData(file, { apiKey, folder }, { resourceType: "auto" });
+      const uploadRes = await fetch(uploadUrl, {
         method: "POST",
         body: formData,
       });
-      const cloudResult = (await uploadRes.json()) as {
-        secure_url?: string;
-        public_id?: string;
-        bytes?: number;
-        original_filename?: string;
-        error?: { message?: string };
-      };
-      if (!uploadRes.ok || !cloudResult.secure_url || !cloudResult.public_id) {
-        toast.push("error", cloudResult?.error?.message ?? "Falha no upload.");
+      const cloudResult = parseApimagesUploadJson(await uploadRes.json());
+      if (!uploadRes.ok || !cloudResult.url || !cloudResult.publicId) {
+        toast.push("error", cloudResult.errorMessage ?? "Falha no upload.");
         return false;
       }
       const metaRes = await fetch("/api/me/student/attachments", {
@@ -241,9 +227,9 @@ export function MeusDadosForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          publicId: cloudResult.public_id,
-          url: cloudResult.secure_url,
-          fileName: cloudResult.original_filename ?? file.name,
+          publicId: cloudResult.publicId,
+          url: cloudResult.url,
+          fileName: cloudResult.originalFilename ?? file.name,
           mimeType: file.type,
           sizeBytes: cloudResult.bytes ?? file.size,
         }),

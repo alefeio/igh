@@ -8,7 +8,7 @@ Análise do projeto com sugestões priorizadas. Itens já aplicados ou de maior 
 
 ### 1.1 `.env.example` sem segredos reais ✅ (aplicado)
 - **Problema:** O arquivo continha valores que pareciam reais (URL do banco, API keys, `AUTH_SECRET`).
-- **Ação:** `.env.example` foi substituído por um modelo só com placeholders. **Importante:** troque todas as credenciais reais que já tenham sido commitadas (banco, Cloudinary, Resend, AUTH_SECRET) e nunca commite `.env` com segredos.
+- **Ação:** `.env.example` foi substituído por um modelo só com placeholders. **Importante:** troque todas as credenciais reais que já tenham sido commitadas (banco, Apimages, Resend, AUTH_SECRET) e nunca commite `.env` com segredos.
 
 ### 1.2 Exigir `AUTH_SECRET` em produção
 - Em `src/lib/auth.ts` e `src/middleware.ts` hoje há fallback `process.env.AUTH_SECRET || "dev-secret-change-me"`.
@@ -99,7 +99,7 @@ Análise do projeto com sugestões priorizadas. Itens já aplicados ou de maior 
 - **Sugestão:** Adicionar scripts como `build:check` (só compilar, sem gerar artefato de produção) e `db:push` / `db:migrate` para uso em CI ou documentação.
 
 ### 7.2 Variáveis de ambiente em produção
-- Garantir que em produção estejam definidos: `AUTH_SECRET`, `POSTGRES_URL`, `RESEND_API_KEY`, `APP_URL`, `EMAIL_FROM` e, se usar upload, todas as variáveis do Cloudinary.
+- Garantir que em produção estejam definidos: `AUTH_SECRET`, `POSTGRES_URL`, `RESEND_API_KEY`, `APP_URL`, `EMAIL_FROM` e, se usar upload, `APIMG_UPLOAD_URL` e `APIMG_API_KEY` (upload de mídia).
 
 ---
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
@@ -354,7 +354,7 @@ export default function TeachersPage() {
               onChange={(e) => setPhotoUrl(e.target.value)}
               placeholder="https://..."
             />
-            <CloudinaryImageUpload
+            <ApimagesImageUpload
               kind="teachers"
               currentUrl={photoUrl.trim() || undefined}
               onUploaded={(url) => setPhotoUrl(url)}

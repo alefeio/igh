@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import { SortableTableRows, SortableTableDndWrapper } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -204,7 +204,7 @@ export default function BannersPage() {
           <div>
             <label className="text-sm font-medium">URL da imagem</label>
             <Input className="mt-1" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..." />
-            <CloudinaryImageUpload
+            <ApimagesImageUpload
               kind="banners"
               id={editing?.id}
               currentUrl={imageUrl || undefined}

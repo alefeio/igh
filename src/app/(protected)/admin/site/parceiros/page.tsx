@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CloudinaryImageUpload } from "@/components/admin/CloudinaryImageUpload";
+import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import { SortableTableRows, SortableTableDndWrapper } from "@/components/admin/SortableTableRows";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -193,7 +193,7 @@ export default function ParceirosPage() {
           <div>
             <label className="text-sm font-medium">URL do logo</label>
             <Input className="mt-1" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." />
-            <CloudinaryImageUpload kind="partners" currentUrl={logoUrl || undefined} onUploaded={setLogoUrl} label="Ou envie uma imagem" />
+            <ApimagesImageUpload kind="partners" currentUrl={logoUrl || undefined} onUploaded={setLogoUrl} label="Ou envie uma imagem" />
           </div>
           <div>
             <label className="text-sm font-medium">URL do site</label>

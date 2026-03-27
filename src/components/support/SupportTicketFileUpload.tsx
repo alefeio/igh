@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
 const ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -30,24 +31,16 @@ export function SupportTicketFileUpload({
     });
     const signJson = await signRes.json();
     if (!signRes.ok || !signJson?.ok) return false;
-    const { timestamp, signature, apiKey, cloudName, folder } = signJson.data;
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("api_key", apiKey);
-    formData.append("timestamp", String(timestamp));
-    formData.append("signature", signature);
-    formData.append("folder", folder);
+    const { uploadUrl, apiKey, folder } = signJson.data;
 
     const isImage = file.type.startsWith("image/");
-    const endpoint = isImage
-      ? `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`
-      : `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`;
+    const formData = buildApimagesFormData(file, { apiKey, folder }, { resourceType: isImage ? "image" : "raw" });
 
-    const uploadRes = await fetch(endpoint, { method: "POST", body: formData });
-    const uploadJson = (await uploadRes.json()) as { secure_url?: string; error?: { message?: string } };
-    if (!uploadRes.ok || uploadJson.error) return false;
-    const url = uploadJson.secure_url;
+    const uploadRes = await fetch(uploadUrl, { method: "POST", body: formData });
+    const uploadJson = await uploadRes.json();
+    const parsed = parseApimagesUploadJson(uploadJson);
+    if (!uploadRes.ok || parsed.errorMessage) return false;
+    const url = parsed.url;
     if (url) {
       onUploaded(url, file.name);
       return true;

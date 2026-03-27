@@ -86,6 +86,13 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Edição do onboarding: apenas Master e Admin
+  if (pathname.startsWith("/admin/onboarding")) {
+    if (!["MASTER", "ADMIN"].includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
   return NextResponse.next();
 }
 
@@ -119,5 +126,7 @@ export const config = {
     "/admin/avaliacoes-experiencia/:path*",
     "/gamificacao/:path*",
     "/ranking-alunos/:path*",
+    "/onboarding/:path*",
+    "/admin/onboarding/:path*",
   ],
 };

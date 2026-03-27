@@ -1,4 +1,5 @@
-import { generateUploadSignature, getCloudinaryConfig, getSiteUploadFolder } from "@/lib/cloudinary";
+import { getApimagesConfig, getSiteUploadFolder } from "@/lib/apimages";
+import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
@@ -28,35 +29,26 @@ export async function POST(request: Request) {
 
   try {
     const folder = getSiteUploadFolder("testimonials");
-    const { signature, timestamp } = generateUploadSignature({ folder });
-    const { apiKey, cloudName } = getCloudinaryConfig();
+    const { uploadUrl, apiKey } = getApimagesConfig();
+    const uploadFd = buildApimagesFormData(file, { apiKey, folder }, { resourceType: "image" });
 
-    const uploadFd = new FormData();
-    uploadFd.append("file", file);
-    uploadFd.append("api_key", apiKey);
-    uploadFd.append("timestamp", String(timestamp));
-    uploadFd.append("signature", signature);
-    uploadFd.append("folder", folder);
-
-    const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    const uploadRes = await fetch(uploadUrl, {
       method: "POST",
       body: uploadFd,
     });
 
-    const uploadJson = (await uploadRes.json()) as {
-      secure_url?: string;
-      error?: { message?: string };
-    };
+    const uploadJson = await uploadRes.json();
+    const parsed = parseApimagesUploadJson(uploadJson);
 
-    if (!uploadRes.ok || uploadJson.error) {
+    if (!uploadRes.ok || parsed.errorMessage) {
       return jsonErr(
         "UPLOAD_FAILED",
-        uploadJson.error?.message ?? "Falha ao enviar imagem. Tente novamente.",
-        502
+        parsed.errorMessage ?? "Falha ao enviar imagem. Tente novamente.",
+        502,
       );
     }
 
-    const url = uploadJson.secure_url;
+    const url = parsed.url;
     if (!url) {
       return jsonErr("UPLOAD_FAILED", "Resposta do serviço de imagem inválida.", 502);
     }
@@ -64,7 +56,7 @@ export async function POST(request: Request) {
     return jsonOk({ url }, { status: 201 });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao processar upload.";
-    if (message.includes("CLOUDINARY")) {
+    if (message.includes("APIMG")) {
       return jsonErr("CONFIG_ERROR", "Upload de imagens não configurado no servidor.", 503);
     }
     return jsonErr("SERVER_ERROR", message, 500);

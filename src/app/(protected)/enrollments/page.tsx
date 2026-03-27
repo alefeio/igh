@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import { buildApimagesFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
 const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Ativa",
@@ -29,7 +30,6 @@ const ENROLLMENT_STATUS_TONE: Record<string, "zinc" | "green" | "red" | "blue" |
   COMPLETED: "blue",
 };
 
-const CLOUDINARY_UPLOAD_URL = "https://api.cloudinary.com/v1_1";
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_CERT_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
 
@@ -547,47 +547,35 @@ export default function EnrollmentsPage() {
       toast.push("error", "Use PDF ou imagem (JPEG, PNG).");
       return null;
     }
-    const signRes = await fetch("/api/uploads/cloudinary-signature", {
+    const signRes = await fetch("/api/uploads/apimages-signature", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enrollmentId }),
     });
     const signJson = (await signRes.json()) as ApiResponse<{
-      timestamp: number;
-      signature: string;
+      uploadUrl: string;
       apiKey: string;
-      cloudName: string;
       folder: string;
     }>;
     if (!signRes.ok || !signJson.ok) {
       toast.push("error", "Falha ao obter permissão de upload.");
       return null;
     }
-    const { timestamp, signature, apiKey, cloudName, folder } = signJson.data;
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("api_key", apiKey);
-    formData.append("timestamp", String(timestamp));
-    formData.append("signature", signature);
-    formData.append("folder", folder);
-    const uploadRes = await fetch(`${CLOUDINARY_UPLOAD_URL}/${cloudName}/auto/upload`, {
+    const { uploadUrl, apiKey, folder } = signJson.data;
+    const formData = buildApimagesFormData(file, { apiKey, folder }, { resourceType: "auto" });
+    const uploadRes = await fetch(uploadUrl, {
       method: "POST",
       body: formData,
     });
-    const cloudResult = (await uploadRes.json()) as {
-      secure_url?: string;
-      public_id?: string;
-      original_filename?: string;
-      error?: { message?: string };
-    };
-    if (!uploadRes.ok || !cloudResult.secure_url || !cloudResult.public_id) {
-      toast.push("error", cloudResult?.error?.message ?? "Falha no upload.");
+    const cloudResult = parseApimagesUploadJson(await uploadRes.json());
+    if (!uploadRes.ok || !cloudResult.url || !cloudResult.publicId) {
+      toast.push("error", cloudResult.errorMessage ?? "Falha no upload.");
       return null;
     }
     return {
-      url: cloudResult.secure_url,
-      publicId: cloudResult.public_id,
-      fileName: cloudResult.original_filename ?? file.name,
+      url: cloudResult.url,
+      publicId: cloudResult.publicId,
+      fileName: cloudResult.originalFilename ?? file.name,
     };
   }
 
