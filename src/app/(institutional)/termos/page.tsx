@@ -1,0 +1,33 @@
+import { Container } from "@/components/site/Container";
+import { RichTextViewer } from "@/components/ui/RichTextViewer";
+import { getPublishedLegalVersion } from "@/lib/legal-documents";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "Termos de uso",
+};
+
+export default async function TermosPage() {
+  const doc = await getPublishedLegalVersion("TERMS");
+  if (!doc) {
+    return (
+      <Container className="py-12">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Termos de uso</h1>
+        <p className="mt-4 text-[var(--text-muted)]">Nenhuma versão publicada no momento.</p>
+      </Container>
+    );
+  }
+
+  return (
+    <Container className="py-12">
+      <h1 className="text-2xl font-bold text-[var(--text-primary)]">{doc.title.trim() || "Termos de uso"}</h1>
+      <p className="mt-2 text-sm text-[var(--text-muted)]">
+        Versão {doc.versionLabel} · Publicado em {new Date(doc.publishedAt).toLocaleDateString("pt-BR")}
+      </p>
+      <div className="prose prose-zinc mt-8 max-w-none dark:prose-invert">
+        <RichTextViewer content={doc.contentRich} className="text-[var(--text-primary)]" />
+      </div>
+    </Container>
+  );
+}

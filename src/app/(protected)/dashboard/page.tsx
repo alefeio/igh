@@ -512,7 +512,7 @@ function DashboardAdmin({
                   {teachersGamificationRanking.slice(0, 10).map((r, i) => (
                     <tr key={r.teacherId} className="border-b border-[var(--card-border)] transition hover:bg-[var(--igh-surface)]/40">
                       <td className="px-4 py-3 text-[var(--text-secondary)]">{i + 1}</td>
-                      <td className="px-4 py-3 font-semibold text-[var(--text-primary)]">{r.teacherName}</td>
+                      <td className="px-4 py-3 text-sm font-normal text-[var(--text-muted)]">{r.teacherName}</td>
                       <td className="px-4 py-3 text-right text-lg font-bold tabular-nums text-[var(--igh-primary)]">
                         {r.points.total}
                       </td>
@@ -908,7 +908,7 @@ function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
               <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-[var(--igh-primary)]">
                 {enrollment.courseName}
               </h3>
-              <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+              <p className="mt-1 text-xs font-normal text-[var(--text-muted)]/85">
                 Prof. {enrollment.teacherName}
               </p>
             </div>

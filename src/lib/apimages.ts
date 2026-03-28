@@ -46,7 +46,8 @@ export function getSiteUploadFolder(
     | "inscreva"
     | "contato"
     | "teachers"
-    | "onboarding",
+    | "onboarding"
+    | "legal",
 ): string {
   return `${SITE_UPLOAD_PREFIX}/${kind}`.replace(/\/+/g, "/");
 }

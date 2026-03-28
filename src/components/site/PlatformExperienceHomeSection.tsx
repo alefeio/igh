@@ -62,7 +62,7 @@ export function PlatformExperienceHomeSection({ block }: { block: PlatformExperi
         {snippets.length > 0 && (
           <div className={`mx-auto max-w-5xl ${hasAvg && totalCount > 0 ? "mt-12" : "mt-2"}`}>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {snippets.map((s) => (
+              {snippets.slice(0, 6).map((s) => (
                 <figure
                   key={s.id}
                   className="group flex h-full flex-col rounded-2xl border border-[var(--igh-border)] bg-[var(--card-bg)] p-5 shadow-sm transition hover:border-[var(--igh-primary)]/35 hover:shadow-md"

@@ -22,7 +22,12 @@ type Item = {
   category?: string;
 };
 
+/**
+ * Ordem do array = ordem no menu dentro de cada categoria.
+ * Categorias: Início → Área do aluno/professor → Administração (cadastros e operação) → Comunicação → Site público → Configurações do sistema.
+ */
 const ITEMS: Item[] = [
+  /* —— Início (todos) —— */
   { href: "/dashboard", label: "Dashboard", alwaysShow: true, category: "Início" },
   { href: "/onboarding", label: "Como usar o sistema", alwaysShow: true, category: "Início" },
   { href: "/meus-dados", label: "Meus dados", alwaysShow: true, category: "Início" },
@@ -32,63 +37,76 @@ const ITEMS: Item[] = [
     coordinatorAccess: true,
     category: "Início",
   },
+
+  /* —— Aluno —— */
   { href: "/minhas-turmas", label: "Minhas turmas", studentOnly: true, category: "Aluno" },
   { href: "/minhas-turmas/forum", label: "Fórum dos cursos", studentOnly: true, category: "Aluno" },
+
+  /* —— Professor —— */
   { href: "/professor/turmas", label: "Turmas que leciono", teacherOnly: true, category: "Professor" },
   { href: "/professor/forum", label: "Fórum dos cursos", teacherOnly: true, category: "Professor" },
-  { href: "/gamificacao", label: "Gamificação (professores)", teacherOnly: true, category: "Professor" },
-  { href: "/professor/frequencia", label: "Frequência (turmas)", teacherOnly: true, category: "Professor" },
-  { href: "/professor/avaliacoes-experiencia", label: "Avaliações dos alunos", teacherOnly: true, category: "Professor" },
+  { href: "/professor/frequencia", label: "Frequência", teacherOnly: true, category: "Professor" },
+  { href: "/gamificacao", label: "Gamificação", teacherOnly: true, category: "Professor" },
+  { href: "/professor/avaliacoes-experiencia", label: "Avaliações de experiência", teacherOnly: true, category: "Professor" },
+
+  /* —— Administração (equipa: governança → pessoas → oferta → acompanhamento) —— */
   {
     href: "/admin/onboarding",
     label: "Guia do sistema (edição)",
     masterOrAdminOnly: true,
     category: "Administração",
   },
-  { href: "/users", label: "Usuários (Admin)", masterOnly: true, category: "Administração" },
-  { href: "/approvacoes", label: "Aprovações (Site)", masterOnly: true, category: "Administração" },
+  { href: "/users", label: "Usuários", masterOnly: true, category: "Administração" },
+  { href: "/approvacoes", label: "Aprovações do site", masterOnly: true, category: "Administração" },
   { href: "/teachers", label: "Professores", adminOrMaster: true, category: "Administração" },
+  { href: "/students", label: "Alunos", category: "Administração" },
+  { href: "/courses", label: "Cursos", masterOrTeacher: true, category: "Administração" },
+  { href: "/class-groups", label: "Turmas", adminOrMaster: true, category: "Administração" },
+  { href: "/enrollments", label: "Matrículas", adminOrMaster: true, category: "Administração" },
+  { href: "/horarios", label: "Quadro de horários", adminOrMaster: true, category: "Administração" },
   {
     href: "/admin/site/formacoes",
-    label: "Formações",
+    label: "Formações (catálogo)",
     adminOrMaster: true,
     adminMasterOnly: true,
     category: "Administração",
   },
-  { href: "/courses", label: "Cursos", masterOrTeacher: true, category: "Administração" },
-  { href: "/class-groups", label: "Turmas", adminOrMaster: true, category: "Administração" },
-  { href: "/horarios", label: "Quadro de horários", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/forum", label: "Fóruns (todos os cursos)", adminOrMaster: true, category: "Administração" },
-  { href: "/gamificacao", label: "Gamificação (professores)", adminOrMaster: true, category: "Administração" },
-  { href: "/enrollments", label: "Matrículas", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/frequencia", label: "Frequência (todas as turmas)", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/avaliacoes-experiencia", label: "Avaliações (alunos)", adminOrMaster: true, category: "Administração" },
-  { href: "/students", label: "Alunos", category: "Administração" },
-  { href: "/admin/site/configuracoes", label: "Configurações", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/sobre", label: "Sobre", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/formacoes-pagina", label: "Formações (página)", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/inscreva-pagina", label: "Inscreva-se (página)", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/contato-pagina", label: "Contato (página)", adminOrMaster: true, category: "Site" },
+  { href: "/admin/forum", label: "Fóruns — todos os cursos", adminOrMaster: true, category: "Administração" },
+  { href: "/admin/frequencia", label: "Frequência — todas as turmas", adminOrMaster: true, category: "Administração" },
+  { href: "/admin/avaliacoes-experiencia", label: "Avaliações de experiência", adminOrMaster: true, category: "Administração" },
+  { href: "/gamificacao", label: "Gamificação", adminOrMaster: true, category: "Administração" },
+
+  /* —— Comunicação (campanhas) —— */
+  { href: "/admin/sms", label: "Campanhas SMS", adminOrMaster: true, adminMasterOnly: true, category: "Comunicação" },
+  {
+    href: "/admin/email",
+    label: "Campanhas de e-mail",
+    adminOrMaster: true,
+    adminMasterOnly: true,
+    category: "Comunicação",
+  },
+
+  /* —— Site (CMS: geral → navegação → conteúdos → institucional) —— */
+  { href: "/admin/site/configuracoes", label: "Configurações gerais", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/menu", label: "Menu do site", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/banners", label: "Banners", adminOrMaster: true, category: "Site" },
   { href: "/admin/tablet/banners", label: "Banners (tablet)", adminOrMaster: true, category: "Site" },
-  { href: "/admin/sms", label: "Campanhas SMS", adminOrMaster: true, adminMasterOnly: true, category: "Administração" },
-  {
-    href: "/admin/email",
-    label: "Campanhas de E-mail",
-    adminOrMaster: true,
-    adminMasterOnly: true,
-    category: "Administração",
-  },
+  { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/contato-pagina", label: "Página de contato", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/sobre", label: "Página Sobre", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/formacoes-pagina", label: "Página de formações", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/inscreva-pagina", label: "Página Inscreva-se", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/projetos", label: "Projetos", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/noticias", label: "Notícias", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/depoimentos", label: "Depoimentos", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/parceiros", label: "Parceiros", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/noticias", label: "Notícias", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/faq", label: "FAQ", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/legal", label: "Termos e privacidade", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/transparencia", label: "Transparência", adminOrMaster: true, category: "Site" },
-  { href: "/time-slots", label: "Horários", masterOnly: true, category: "Configurações" },
-  { href: "/holidays", label: "Eventos e Feriados", masterOnly: true, category: "Configurações" },
+
+  /* —— Configurações (sistema / infra) —— */
+  { href: "/time-slots", label: "Horários (cadastro)", masterOnly: true, category: "Configurações" },
+  { href: "/holidays", label: "Eventos e feriados", masterOnly: true, category: "Configurações" },
   { href: "/backup", label: "Backup do banco", masterOnly: true, category: "Configurações" },
 ];
 
@@ -161,7 +179,16 @@ export function Sidebar({
     acc[cat].push(item);
     return acc;
   }, {});
-  const categoryOrder = ["Início", "Aluno", "Professor", "Administração", "Site", "Configurações", "Menu"];
+  const categoryOrder = [
+    "Início",
+    "Aluno",
+    "Professor",
+    "Administração",
+    "Comunicação",
+    "Site",
+    "Configurações",
+    "Menu",
+  ];
 
   const tourIdForHref = (href: string) =>
     href === "/minhas-turmas" ? "sidebar-minhas-turmas" : undefined;

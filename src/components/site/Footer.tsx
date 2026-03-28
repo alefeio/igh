@@ -192,8 +192,21 @@ export function Footer({ menuItems, settings }: FooterProps) {
           </div>
           ) : null}
         </div>
-        <div className="mt-10 border-t border-white/20 pt-8 text-center text-sm text-white/70">
-          <p>© {new Date().getFullYear()} {siteName}. Todos os direitos reservados.</p>
+        <div className="mt-10 border-t border-white/20 pt-8">
+          <nav aria-label="Documentos legais" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-white/80">
+            <Link href="/termos" className="hover:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-white/50 rounded">
+              Termos de uso
+            </Link>
+            <Link href="/privacidade" className="hover:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-white/50 rounded">
+              Privacidade
+            </Link>
+            <Link href="/politica-de-cookies" className="hover:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-white/50 rounded">
+              Cookies
+            </Link>
+          </nav>
+          <p className="mt-6 text-center text-sm text-white/70">
+            © {new Date().getFullYear()} {siteName}. Todos os direitos reservados.
+          </p>
         </div>
       </Container>
     </footer>

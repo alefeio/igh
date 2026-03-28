@@ -14,7 +14,11 @@ function PodiumCard({
   tall: "tall" | "mid" | "short";
 }) {
   const h =
-    tall === "tall" ? "min-h-[200px]" : tall === "mid" ? "min-h-[168px]" : "min-h-[140px]";
+    tall === "tall"
+      ? "min-h-[200px] lg:min-h-[228px]"
+      : tall === "mid"
+        ? "min-h-[168px] lg:min-h-[196px]"
+        : "min-h-[140px] lg:min-h-[168px]";
   /**
    * Coluna (mobile): 1º → 2º → 3º (order 1,2,3).
    * Linha (sm+): pódio 2º | 1º | 3º — ordens explícitas (não depender só do DOM).
@@ -34,12 +38,9 @@ function PodiumCard({
 
   return (
     <div
-      className={`relative flex w-full max-w-[200px] flex-col items-center sm:flex-1 ${order} ${h} justify-end sm:max-w-none`}
+      className={`relative flex w-full max-w-[200px] flex-col items-center sm:max-w-none sm:flex-1 ${order} ${h} justify-end`}
     >
-      <div
-        className="mb-2 text-4xl drop-shadow-sm"
-        aria-hidden
-      >
+      <div className="mb-2 text-4xl drop-shadow-sm" aria-hidden>
         {MEDALS[place - 1]}
       </div>
       <div
@@ -78,7 +79,7 @@ export function StudentRankingShowcase({
     >
       <Container>
         {showPodium && first && second && third && (
-          <div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-center gap-4 sm:flex-row sm:items-end sm:gap-3">
+          <div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-center gap-4 sm:flex-row sm:items-end sm:gap-3 lg:gap-4">
             <PodiumCard entry={second} place={2} tall="mid" />
             <PodiumCard entry={first} place={1} tall="tall" />
             <PodiumCard entry={third} place={3} tall="short" />

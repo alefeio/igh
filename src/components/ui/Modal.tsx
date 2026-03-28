@@ -8,6 +8,7 @@ export function Modal({
   children,
   onClose,
   size = "default",
+  overlayClassName = "z-50",
 }: {
   open: boolean;
   title: string;
@@ -15,6 +16,8 @@ export function Modal({
   onClose: () => void;
   /** "default" e "large" usam max-w-4xl (igual ao modal de edição da aula). "small" usa max-w-lg. */
   size?: "default" | "large" | "small";
+  /** Classe z-index do overlay (ex.: z-[110] quando o banner legal usa z-[100]). */
+  overlayClassName?: string;
 }) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -31,7 +34,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-2 sm:p-4"
+      className={`fixed inset-0 overflow-y-auto bg-black/40 p-2 sm:p-4 ${overlayClassName}`}
       onClick={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
       aria-modal="true"

@@ -20,6 +20,7 @@ const bodySchema = z
       "contato",
       "teachers",
       "onboarding",
+      "legal",
     ]),
     id: z.string().uuid().optional(),
   })
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
   }
   if (kind === "onboarding" && user.role !== "MASTER" && user.role !== "ADMIN") {
     return jsonErr("FORBIDDEN", "Apenas Master ou Admin podem enviar imagens do onboarding.", 403);
+  }
+  if (kind === "legal" && !["MASTER", "ADMIN", "COORDINATOR"].includes(user.role)) {
+    return jsonErr("FORBIDDEN", "Apenas equipe autorizada pode enviar imagens dos documentos legais.", 403);
   }
   if (user.role === "TEACHER" && id) {
     return jsonErr("FORBIDDEN", "Uso não permitido.", 403);

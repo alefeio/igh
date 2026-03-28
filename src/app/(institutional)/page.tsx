@@ -60,7 +60,7 @@ export default async function HomePage({ searchParams }: Props) {
     getFaqItems(),
     getTestimonials(),
     getNewsPostsForSite(),
-    getPublicStudentRanking(12),
+    getPublicStudentRanking(15),
     getPublicPlatformExperienceBlock(),
   ]);
 
@@ -179,11 +179,39 @@ export default async function HomePage({ searchParams }: Props) {
         </div>
       </Section>
 
+      {/* Blog / Notícias — antes de “O que dizem nossos alunos” */}
+      <Section title="Notícias" subtitle="Acompanhe as novidades do IGH.">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {recentPosts.map((post) => (
+            <BlogCard key={post.slug} post={post} />
+          ))}
+        </div>
+        <div className="mt-8 text-center">
+          <Button as="link" href="/noticias" variant="outline" size="lg">
+            Ver todas as notícias
+          </Button>
+        </div>
+      </Section>
+
       {/* Depoimentos */}
       <Testimonials
         items={depoimentos}
         courses={courses.map((c) => ({ id: c.id, name: c.name }))}
       />
+
+      {/* CTA — antes de Perguntas frequentes e Parceiros */}
+      <CTASection
+        title="Pronto para começar?"
+        subtitle="Inscreva-se em uma formação, fale com a gente ou doe equipamentos."
+        primaryCTA={{ label: "Quero me inscrever", href: "/inscreva" }}
+        secondaryCTAs={[
+          { label: "Fale com o IGH", href: "/contato" },
+          { label: "Doe equipamentos", href: "/projetos/doacoes-recebidas" },
+        ]}
+      />
+
+      {/* FAQ */}
+      {faqItems.length > 0 && <FAQ items={faqItems} />}
 
       {/* Parceiros */}
       <Section title="Parceiros e apoio" background="muted">
@@ -216,34 +244,6 @@ export default async function HomePage({ searchParams }: Props) {
           )}
         </div>
       </Section>
-
-      {/* Blog / Notícias */}
-      <Section title="Notícias" subtitle="Acompanhe as novidades do IGH.">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {recentPosts.map((post) => (
-            <BlogCard key={post.slug} post={post} />
-          ))}
-        </div>
-        <div className="mt-8 text-center">
-          <Button as="link" href="/noticias" variant="outline" size="lg">
-            Ver todas as notícias
-          </Button>
-        </div>
-      </Section>
-
-      {/* FAQ */}
-      {faqItems.length > 0 && <FAQ items={faqItems} />}
-
-      {/* CTA final */}
-      <CTASection
-        title="Pronto para começar?"
-        subtitle="Inscreva-se em uma formação, fale com a gente ou doe equipamentos."
-        primaryCTA={{ label: "Quero me inscrever", href: "/inscreva" }}
-        secondaryCTAs={[
-          { label: "Fale com o IGH", href: "/contato" },
-          { label: "Doe equipamentos", href: "/projetos/doacoes-recebidas" },
-        ]}
-      />
     </>
   );
 }

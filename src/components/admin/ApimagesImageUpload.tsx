@@ -17,7 +17,8 @@ export type SiteUploadKind =
   | "inscreva"
   | "contato"
   | "teachers"
-  | "onboarding";
+  | "onboarding"
+  | "legal";
 
 type Props = {
   kind: SiteUploadKind;

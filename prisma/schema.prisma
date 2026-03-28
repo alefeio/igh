@@ -46,6 +46,57 @@ model User {
   coordinatorReportMessages  CoordinatorReportMessage[] @relation("CoordinatorReportMessageAuthor")
   onboardingGuidesUpdated    OnboardingGuide[]          @relation("OnboardingGuideUpdatedBy")
   onboardingVisits           OnboardingUserVisit[]
+  legalDocumentVersionsCreated LegalDocumentVersion[]     @relation("LegalDocumentVersionCreatedBy")
+  legalAcceptance            UserLegalAcceptance?
+}
+
+/** Termos de uso, política de privacidade ou política de cookies (LGPD / ePrivacy). */
+enum LegalDocumentKind {
+  TERMS
+  PRIVACY
+  COOKIE_POLICY
+}
+
+enum LegalDocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model LegalDocumentVersion {
+  id              String               @id @default(uuid())
+  kind            LegalDocumentKind
+  /** Rótulo de versão exibido ao usuário (ex.: 1.0, 2025-03). Único por tipo de documento. */
+  versionLabel    String
+  title           String               @default("")
+  contentRich     String               @db.Text
+  status          LegalDocumentStatus  @default(DRAFT)
+  publishedAt     DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  createdByUserId String?
+  createdBy       User?                @relation("LegalDocumentVersionCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  termsAcceptances   UserLegalAcceptance[] @relation("AcceptanceTerms")
+  privacyAcceptances UserLegalAcceptance[] @relation("AcceptancePrivacy")
+  cookieAcceptances  UserLegalAcceptance[] @relation("AcceptanceCookie")
+
+  @@unique([kind, versionLabel])
+  @@index([kind, status])
+}
+
+/** Registro por usuário logado das versões publicadas aceitas (para não reexibir o banner). */
+model UserLegalAcceptance {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  termsVersionId   String?
+  termsVersion     LegalDocumentVersion? @relation("AcceptanceTerms", fields: [termsVersionId], references: [id], onDelete: SetNull)
+  privacyVersionId String?
+  privacyVersion   LegalDocumentVersion? @relation("AcceptancePrivacy", fields: [privacyVersionId], references: [id], onDelete: SetNull)
+  cookieVersionId  String?
+  cookieVersion    LegalDocumentVersion? @relation("AcceptanceCookie", fields: [cookieVersionId], references: [id], onDelete: SetNull)
+  acceptedAt       DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 /** Conteúdo de onboarding por perfil (rich text), editável por Master/Admin. */

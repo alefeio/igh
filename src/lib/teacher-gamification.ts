@@ -71,11 +71,12 @@ export function getGamificationRankingTableColumns(): readonly GamificationRanki
       label: "Fórum",
       align: "right",
       description:
-        `Conta participação no fórum nas dúvidas do escopo: ` +
-        `1) Respostas do professor em LessonQuestionTeacherReply; ` +
-        `2) Respostas dos alunos em EnrollmentLessonQuestionReply. ` +
-        `Considera apenas dúvidas cuja question.lessonId pertence às aulas dos cursos das turmas do professor (e, para as respostas dos alunos, apenas as respostas vinculadas aos enrollmentIds dessas turmas). ` +
-        `Cada resposta vale ${p.forumPerReply} pontos e NÃO existe teto: mais respostas geram mais pontos.`,
+        `Conta interações no fórum por aula, pelo vínculo da matrícula com a turma do professor: ` +
+        `1) Tópicos criados por alunos das turmas deste professor (matrícula ativa); ` +
+        `2) Respostas entre alunos nesses tópicos (EnrollmentLessonQuestionReply); ` +
+        `3) Respostas deste professor em dúvidas do curso em que leciona (outras turmas do mesmo curso contam); ` +
+        `4) Respostas da equipe (admin/master) em tópicos de alunos das turmas deste professor. ` +
+        `Cada interação vale ${p.forumPerReply} pontos.`,
     },
     {
       label: "Horas assist.",
@@ -124,6 +125,10 @@ export type TeacherGamificationTotals = {
   pastSessionsTotal: number;
   pastSessionsAttendanceComplete: number;
   teacherRepliesInScope: number;
+  /** Respostas da equipe (staff) em tópicos de alunos das turmas deste professor. */
+  staffRepliesInScope: number;
+  /** Tópicos/dúvidas iniciados por alunos (EnrollmentLessonQuestion) no escopo. */
+  studentTopicsInScope: number;
   studentRepliesInScope: number;
   /** Soma dos minutos estudados (alunos, aulas no escopo). */
   studentTotalMinutesStudied: number;
@@ -177,6 +182,8 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
       pastSessionsTotal: 0,
       pastSessionsAttendanceComplete: 0,
       teacherRepliesInScope: 0,
+      staffRepliesInScope: 0,
+      studentTopicsInScope: 0,
       studentRepliesInScope: 0,
       studentTotalMinutesStudied: 0,
       studentWatchHours: 0,
@@ -276,31 +283,62 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
     presentStudentsMaxTotal += need;
   }
 
-  const teacherRepliesInScope =
-    lessonIds.length === 0
-      ? 0
-      : await prisma.lessonQuestionTeacherReply.count({
-          where: {
-            teacherId,
-            question: { lessonId: { in: lessonIds } },
-          },
-        });
-
   const enrollments = await prisma.enrollment.findMany({
     where: { classGroupId: { in: classGroupIds }, status: "ACTIVE" },
     select: { id: true, classGroup: { select: { courseId: true } } },
   });
   const enrollmentIds = enrollments.map((e) => e.id);
 
-  const studentRepliesInScope =
-    enrollmentIds.length === 0 || lessonIds.length === 0
-      ? 0
-      : await prisma.enrollmentLessonQuestionReply.count({
-          where: {
-            enrollmentId: { in: enrollmentIds },
-            question: { lessonId: { in: lessonIds } },
-          },
-        });
+  /** Fórum: não filtrar por lista de lessonIds (EnrollmentLessonQuestion.lessonId não tem FK; o filtro por aula falhava silenciosamente). Usa matrícula → turma → professor/curso. */
+  const [teacherRepliesInScope, staffRepliesInScope, studentTopicsInScope, studentRepliesInScope] =
+    await Promise.all([
+      courseIds.length === 0
+        ? Promise.resolve(0)
+        : prisma.lessonQuestionTeacherReply.count({
+            where: {
+              teacherId,
+              question: {
+                enrollment: {
+                  status: "ACTIVE",
+                  classGroup: { courseId: { in: courseIds } },
+                },
+              },
+            },
+          }),
+      classGroupIds.length === 0
+        ? Promise.resolve(0)
+        : prisma.lessonQuestionTeacherReply.count({
+            where: {
+              staffUserId: { not: null },
+              question: {
+                enrollment: {
+                  status: "ACTIVE",
+                  classGroup: { teacherId },
+                },
+              },
+            },
+          }),
+      classGroupIds.length === 0
+        ? Promise.resolve(0)
+        : prisma.enrollmentLessonQuestion.count({
+            where: {
+              enrollment: {
+                status: "ACTIVE",
+                classGroup: { teacherId },
+              },
+            },
+          }),
+      classGroupIds.length === 0
+        ? Promise.resolve(0)
+        : prisma.enrollmentLessonQuestionReply.count({
+            where: {
+              enrollment: {
+                status: "ACTIVE",
+                classGroup: { teacherId },
+              },
+            },
+          }),
+    ]);
 
   let studentTotalMinutesStudied = 0;
   let studentWatchHours = 0;
@@ -338,7 +376,11 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
     pastSessionsAttendanceComplete * GAMIFICATION_POINTS.attendancePerSession +
     presentStudentsTotal * GAMIFICATION_POINTS.attendancePerPresentStudent;
   const rawForum =
-    (teacherRepliesInScope + studentRepliesInScope) * GAMIFICATION_POINTS.forumPerReply;
+    (teacherRepliesInScope +
+      staffRepliesInScope +
+      studentTopicsInScope +
+      studentRepliesInScope) *
+    GAMIFICATION_POINTS.forumPerReply;
   const pointsForum = rawForum;
 
   const points: TeacherGamificationPoints = {
@@ -378,6 +420,8 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
       pastSessionsTotal: pastSessions.length,
       pastSessionsAttendanceComplete,
       teacherRepliesInScope,
+      staffRepliesInScope,
+      studentTopicsInScope,
       studentRepliesInScope,
       studentTotalMinutesStudied,
       studentWatchHours,

@@ -36,6 +36,25 @@ function buildStudentDashboardRankingTop(
   return [...top9, { ...myRow, isViewerOutOfTop9: true }];
 }
 
+/**
+ * Os N alunos do professor com melhor colocação no ranking geral.
+ * (O ranking só por turmas do professor usa pontos parciais e pode colocar na frente quem só estuda com ele,
+ * em detrimento de alunos com colocação global melhor que somam pontos em outros cursos.)
+ */
+function buildTeacherDashboardStudentRankingTop(
+  full: StudentRankEntry[],
+  teacherStudentIds: ReadonlySet<string>,
+  limit: number,
+): StudentRankEntry[] {
+  const out: StudentRankEntry[] = [];
+  for (const r of full) {
+    if (!teacherStudentIds.has(r.studentId)) continue;
+    out.push({ ...r, globalRank: r.rank });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 const ROLE_LABELS: Record<string, string> = {
   MASTER: "Administrador Master",
   ADMIN: "Administrador",
@@ -410,9 +429,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         status: "ACTIVE",
       },
     });
-    const globalRankByStudent = new Map(studentRankingFull.map((r) => [r.studentId, r.rank]));
-
-    const [gamification, enrollmentsForFeedback, forumGlobal, forumTaught, studentRankingTeacherRaw] =
+    const [gamification, enrollmentsForFeedback, enrollmentsForTeacherRanking, forumGlobal, forumTaught] =
       await Promise.all([
         computeTeacherGamification(teacher.id),
         prisma.enrollment.findMany({
@@ -423,15 +440,24 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
           },
           select: { student: { select: { userId: true } } },
         }),
+        prisma.enrollment.findMany({
+          where: {
+            status: "ACTIVE",
+            classGroup: { teacherId: teacher.id },
+            student: { deletedAt: null },
+          },
+          select: { studentId: true },
+        }),
         getForumLessonsWithActivityGlobal(),
         getForumLessonsFromTaughtSessions(teacher.id),
-        computeStudentGamificationRanking({ nameMode: "full", teacherId: teacher.id, limit: 10 }),
       ]);
 
-    const studentRankingTop: StudentRankEntry[] = studentRankingTeacherRaw.map((r) => ({
-      ...r,
-      globalRank: globalRankByStudent.get(r.studentId) ?? r.rank,
-    }));
+    const teacherStudentIds = new Set(enrollmentsForTeacherRanking.map((e) => e.studentId));
+    const studentRankingTop = buildTeacherDashboardStudentRankingTop(
+      studentRankingFull,
+      teacherStudentIds,
+      10,
+    );
     const forumMerged = mergeTeacherForumGlobalAndTaught(forumGlobal, forumTaught);
     const lastTaughtLessonId = await getLastTaughtLessonIdForTeacher(teacher.id);
     const forumOrdered = putLastTaughtLessonFirstForTeacher(forumMerged, lastTaughtLessonId);

@@ -118,10 +118,10 @@ export default async function GamificacaoProfessoresPage() {
                   }`}
                 >
                   <td className="px-3 py-2 font-medium text-[var(--text-secondary)]">{i + 1}</td>
-                  <td className="px-3 py-2 font-medium text-[var(--text-primary)]">
-                    {r.teacherName}
+                  <td className="px-3 py-2">
+                    <span className="text-sm font-normal text-[var(--text-muted)]">{r.teacherName}</span>
                     {r.teacherId === myTeacherId && (
-                      <span className="ml-2 text-xs font-normal text-[var(--igh-primary)]">(você)</span>
+                      <span className="ml-2 text-xs font-semibold text-[var(--igh-primary)]">(você)</span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right font-semibold tabular-nums text-[var(--text-primary)]">

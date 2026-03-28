@@ -13,6 +13,7 @@ export { Stats } from "./Stats";
 export { Testimonials } from "./Testimonials";
 export { StudentRankingShowcase } from "./StudentRankingShowcase";
 export { PlatformExperienceHomeSection } from "./PlatformExperienceHomeSection";
+export { CookieConsentBanner } from "./CookieConsentBanner";
 export { FAQ } from "./FAQ";
 export { BlogCard } from "./BlogCard";
 export { NoticiasList } from "./NoticiasList";

@@ -12,7 +12,9 @@
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "postinstall": "prisma generate",
-    "seed": "prisma db seed"
+    "seed": "prisma db seed",
+    "seed:onboarding": "tsx prisma/seed-onboarding-all.ts",
+    "seed:legal": "tsx prisma/seed-legal.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -51,6 +53,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.3.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^10.1.8",

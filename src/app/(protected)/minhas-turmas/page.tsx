@@ -160,7 +160,7 @@ export default function MinhasTurmasPage() {
                             .toUpperCase() || "?"}
                         </span>
                       )}
-                      <span>{e.teacherName}</span>
+                      <span className="text-sm font-normal text-[var(--text-muted)]">{e.teacherName}</span>
                     </div>
                   </Td>
                   <Td>{formatDate(e.startDate)}</Td>

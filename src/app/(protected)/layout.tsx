@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { ToastProvider } from "@/components/feedback/ToastProvider";
+import { LegalConsentBanner } from "@/components/site/LegalConsentBanner";
 import { RequireChangePassword } from "@/components/layout/RequireChangePassword";
 import { ResponsiveShell } from "@/components/layout/ResponsiveShell";
 import { UserProvider } from "@/components/layout/UserProvider";
@@ -40,6 +41,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       <UserProvider user={sessionUser}>
         <RequireChangePassword>
           <ResponsiveShell user={shellUser} logoUrl={settings?.logoUrl ?? null}>{children}</ResponsiveShell>
+          <LegalConsentBanner />
         </RequireChangePassword>
       </UserProvider>
     </ToastProvider>
