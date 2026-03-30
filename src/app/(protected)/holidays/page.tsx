@@ -25,6 +25,7 @@ type Holiday = {
 type ScheduleRecalculation = {
   classGroupsProcessed: number;
   classGroupsUpdated: number;
+  classGroupIdsWithScheduleChange?: string[];
 };
 
 function successMessageWithSchedule(
@@ -32,7 +33,10 @@ function successMessageWithSchedule(
   schedule?: ScheduleRecalculation | null
 ): string {
   if (!schedule || schedule.classGroupsUpdated <= 0) return base;
-  return `${base} Calendário de aulas recalculado para ${schedule.classGroupsUpdated} turma(s) não encerradas.`;
+  let msg = `${base} Calendário de aulas recalculado para ${schedule.classGroupsUpdated} turma(s) não encerradas.`;
+  msg +=
+    " Alunos com conta nas turmas em que o calendário mudou receberam notificação no sino do portal.";
+  return msg;
 }
 
 function formatDate(iso: string) {
@@ -56,6 +60,16 @@ function formatHm(isoOrHm: string | null | undefined): string {
   return s.length >= 5 ? s.slice(0, 5) : s;
 }
 
+async function parseApiJson<T>(res: Response): Promise<ApiResponse<T> | null> {
+  const text = await res.text();
+  if (!text.trim()) return null;
+  try {
+    return JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    return null;
+  }
+}
+
 export default function HolidaysPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -72,6 +86,8 @@ export default function HolidaysPage() {
   const [eventStartTime, setEventStartTime] = useState("08:00");
   const [eventEndTime, setEventEndTime] = useState("11:00");
   const [saving, setSaving] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const [sendingNotify, setSendingNotify] = useState(false);
 
   const canSubmit = useMemo(() => {
     if (date.trim().length < 10) return false;
@@ -116,9 +132,9 @@ export default function HolidaysPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/holidays");
-      const json = (await res.json()) as ApiResponse<{ holidays: Holiday[] }>;
-      if (!res.ok || !json.ok) {
-        toast.push("error", !json.ok ? json.error.message : "Falha ao carregar registros.");
+      const json = await parseApiJson<{ holidays: Holiday[] }>(res);
+      if (!res.ok || !json || !json.ok) {
+        toast.push("error", json && !json.ok ? json.error.message : "Falha ao carregar registros.");
         return;
       }
       setItems(json.data.holidays);
@@ -131,6 +147,87 @@ export default function HolidaysPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Reexecuta só o recálculo (feriado já existe no banco; primeiro POST pode ter falhado depois do INSERT). */
+  async function recalculateScheduleOnly() {
+    if (recalculating) return;
+    setRecalculating(true);
+    try {
+      const res = await fetch("/api/holidays/recalculate-schedule", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const json = await parseApiJson<{ scheduleRecalculation: ScheduleRecalculation }>(res);
+      if (!res.ok || !json || !json.ok) {
+        const fallback =
+          res.status === 401
+            ? "Sessão expirada. Entre novamente."
+            : res.status === 403
+              ? "Sem permissão para recalcular o calendário."
+              : "Falha ao recalcular o calendário das turmas.";
+        toast.push("error", json && !json.ok ? json.error.message : fallback);
+        return;
+      }
+      const sch = json.data.scheduleRecalculation;
+      if (sch.classGroupsUpdated <= 0) {
+        toast.push(
+          "success",
+          "Nenhuma turma precisou de alteração (calendário já estava alinhado com os feriados/eventos ativos)."
+        );
+        return;
+      }
+      toast.push("success", successMessageWithSchedule("Recálculo concluído.", sch));
+    } finally {
+      setRecalculating(false);
+    }
+  }
+
+  /** Reenvia notificação no sino (calendário já pode estar certo; útil se o aviso não chegou antes). */
+  async function notifyStudentsScheduleBroadcast() {
+    if (
+      !confirm(
+        "Enviar o aviso no sino só para alunos com conta que ainda não receberam a notificação de alteração de calendário (feriado/evento) nesta matrícula? Quem já tiver o aviso não recebe de novo."
+      )
+    ) {
+      return;
+    }
+    if (sendingNotify) return;
+    setSendingNotify(true);
+    try {
+      const res = await fetch("/api/holidays/notify-students-schedule", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ allTurmas: true }),
+      });
+      const json = await parseApiJson<{
+        classGroupsNotified: number;
+        notificationsSent: number;
+        notificationsSkipped: number;
+      }>(res);
+      if (!res.ok || !json || !json.ok) {
+        toast.push(
+          "error",
+          json && !json.ok ? json.error.message : "Falha ao enviar notificações."
+        );
+        return;
+      }
+      const { notificationsSent, notificationsSkipped, classGroupsNotified } = json.data;
+      if (notificationsSent === 0) {
+        toast.push(
+          "success",
+          `Nenhum aviso novo: todos os elegíveis já tinham recebido ou não há matrícula ativa com conta (${notificationsSkipped} ignorados; ${classGroupsNotified} turma(s) abertas).`
+        );
+        return;
+      }
+      toast.push(
+        "success",
+        `Aviso enviado no sino para ${notificationsSent} matrícula(s). Ignorados (já tinham aviso ou sem conta): ${notificationsSkipped}. Turmas abertas consideradas: ${classGroupsNotified}.`
+      );
+    } finally {
+      setSendingNotify(false);
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -158,12 +255,12 @@ export default function HolidaysPage() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const json = (await res.json()) as ApiResponse<{
+        const json = await parseApiJson<{
           holiday: Holiday;
           scheduleRecalculation?: ScheduleRecalculation;
-        }>;
-        if (!res.ok || !json.ok) {
-          toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar.");
+        }>(res);
+        if (!res.ok || !json || !json.ok) {
+          toast.push("error", json && !json.ok ? json.error.message : "Falha ao atualizar.");
           return;
         }
         toast.push(
@@ -176,12 +273,12 @@ export default function HolidaysPage() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const json = (await res.json()) as ApiResponse<{
+        const json = await parseApiJson<{
           holiday: Holiday;
           scheduleRecalculation?: ScheduleRecalculation | null;
-        }>;
-        if (!res.ok || !json.ok) {
-          toast.push("error", !json.ok ? json.error.message : "Falha ao criar.");
+        }>(res);
+        if (!res.ok || !json || !json.ok) {
+          toast.push("error", json && !json.ok ? json.error.message : "Falha ao criar.");
           return;
         }
         toast.push(
@@ -203,12 +300,12 @@ export default function HolidaysPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ isActive: false }),
     });
-    const json = (await res.json()) as ApiResponse<{
+    const json = await parseApiJson<{
       holiday: Holiday;
       scheduleRecalculation?: ScheduleRecalculation;
-    }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao inativar.");
+    }>(res);
+    if (!res.ok || !json || !json.ok) {
+      toast.push("error", json && !json.ok ? json.error.message : "Falha ao inativar.");
       return;
     }
     toast.push(
@@ -224,12 +321,12 @@ export default function HolidaysPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ isActive: true }),
     });
-    const json = (await res.json()) as ApiResponse<{
+    const json = await parseApiJson<{
       holiday: Holiday;
       scheduleRecalculation?: ScheduleRecalculation;
-    }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao reativar.");
+    }>(res);
+    if (!res.ok || !json || !json.ok) {
+      toast.push("error", json && !json.ok ? json.error.message : "Falha ao reativar.");
       return;
     }
     toast.push(
@@ -242,12 +339,12 @@ export default function HolidaysPage() {
   async function deleteHoliday(h: Holiday) {
     if (!confirm(`Excluir "${h.name || formatDateDisplay(h.date, h.recurring)}"?`)) return;
     const res = await fetch(`/api/holidays/${h.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{
+    const json = await parseApiJson<{
       deleted: boolean;
       scheduleRecalculation?: ScheduleRecalculation;
-    }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
+    }>(res);
+    if (!res.ok || !json || !json.ok) {
+      toast.push("error", json && !json.ok ? json.error.message : "Falha ao excluir.");
       return;
     }
     toast.push(
@@ -264,9 +361,27 @@ export default function HolidaysPage() {
       <DashboardHero
         eyebrow="Cadastros"
         title="Eventos e Feriados"
-        description="Feriados de dia inteiro não geram aula nesse dia; as aulas são remarcadas para os próximos dias de aula da turma. Eventos com horário só afetam turmas cujo horário cruza o intervalo. Ao salvar, o sistema recalcula automaticamente as sessões das turmas não encerradas."
+        description="Feriados de dia inteiro não geram aula nesse dia; as aulas são remarcadas para os próximos dias de aula da turma. Eventos com horário só afetam turmas cujo horário cruza o intervalo. Ao salvar, o sistema recalcula automaticamente as sessões das turmas não encerradas. Se o cadastro falhou depois de avisar duplicata, o registro já existe: use Recalcular ou edite e salve o evento na lista."
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full sm:w-auto"
+              disabled={recalculating}
+              onClick={() => void recalculateScheduleOnly()}
+            >
+              {recalculating ? "Recalculando…" : "Recalcular calendário das turmas"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full sm:w-auto"
+              disabled={sendingNotify}
+              onClick={() => void notifyStudentsScheduleBroadcast()}
+            >
+              {sendingNotify ? "Enviando…" : "Aviso no sino (quem ainda não recebeu)"}
+            </Button>
             <Button
               type="button"
               variant="secondary"
@@ -306,6 +421,17 @@ export default function HolidaysPage() {
           <li>
             Ao criar, editar, inativar ou excluir um registro ativo, o calendário das turmas não encerradas é
             recalculado automaticamente.
+          </li>
+          <li>
+            Se aparecer que já existe evento na mesma data e hora mas o primeiro envio deu erro, o registro pode
+            ter sido salvo mesmo assim: use <strong>Recalcular calendário das turmas</strong> acima ou abra o
+            evento na lista e clique em <strong>Salvar</strong> de novo.
+          </li>
+          <li>
+            Depois de cada turma ter o calendário atualizado, o sistema tenta enviar o aviso no sino na hora. Se
+            algo falhar só nessa etapa, as datas podem mudar sem notificação — use{" "}
+            <strong>Aviso no sino (quem ainda não recebeu)</strong>: só envia para alunos com conta que ainda não
+            tinham o aviso de alteração de calendário por feriado/evento naquela matrícula.
           </li>
         </ul>
       </SectionCard>

@@ -78,7 +78,11 @@ export async function POST(request: Request) {
     performedByUserId: user.id,
   });
 
-  let scheduleRecalculation: { classGroupsProcessed: number; classGroupsUpdated: number } | null = null;
+  let scheduleRecalculation: {
+    classGroupsProcessed: number;
+    classGroupsUpdated: number;
+    classGroupIdsWithScheduleChange: string[];
+  } | null = null;
   if (holiday.isActive) {
     scheduleRecalculation = await recalculateAllClassGroupSessionsAfterHolidayChange();
   }

@@ -203,45 +203,43 @@ export default function MasterAccessLogsPage() {
             <p className="text-sm text-[var(--text-muted)]">Nenhum login registado ainda.</p>
           ) : (
             <>
-              <TableShell>
-                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-[var(--card-border)]">
-                      <Th>Data/hora (UTC)</Th>
-                      <Th>Usuário</Th>
-                      <Th>Papel (conta)</Th>
-                      <Th>Login</Th>
-                      <Th>IP</Th>
-                      <Th>Navegador</Th>
+              <TableShell className="w-full min-w-[720px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--card-border)]">
+                    <Th>Data/hora (UTC)</Th>
+                    <Th>Usuário</Th>
+                    <Th>Papel (conta)</Th>
+                    <Th>Login</Th>
+                    <Th>IP</Th>
+                    <Th>Navegador</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loginItems.map((row) => (
+                    <tr key={row.id} className="border-b border-[var(--card-border)]/80">
+                      <Td className="whitespace-nowrap">{formatDateTime(row.createdAt)}</Td>
+                      <Td>
+                        <span className="font-medium text-[var(--text-primary)]">{row.user.name}</span>
+                        <br />
+                        <span className="text-xs text-[var(--text-muted)]">{row.user.email}</span>
+                        {!row.user.isActive && (
+                          <span className="ml-1 text-xs text-amber-600">(inativo)</span>
+                        )}
+                      </Td>
+                      <Td>{roleLabel(row.user.role)}</Td>
+                      <Td>{row.loginKind === "CPF" ? "CPF" : "E-mail"}</Td>
+                      <Td className="max-w-[140px] truncate font-mono text-xs" title={row.ipAddress ?? ""}>
+                        {row.ipAddress ?? "—"}
+                      </Td>
+                      <Td
+                        className="max-w-[280px] truncate text-xs text-[var(--text-secondary)]"
+                        title={row.userAgent ?? ""}
+                      >
+                        {row.userAgent ?? "—"}
+                      </Td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {loginItems.map((row) => (
-                      <tr key={row.id} className="border-b border-[var(--card-border)]/80">
-                        <Td className="whitespace-nowrap">{formatDateTime(row.createdAt)}</Td>
-                        <Td>
-                          <span className="font-medium text-[var(--text-primary)]">{row.user.name}</span>
-                          <br />
-                          <span className="text-xs text-[var(--text-muted)]">{row.user.email}</span>
-                          {!row.user.isActive && (
-                            <span className="ml-1 text-xs text-amber-600">(inativo)</span>
-                          )}
-                        </Td>
-                        <Td>{roleLabel(row.user.role)}</Td>
-                        <Td>{row.loginKind === "CPF" ? "CPF" : "E-mail"}</Td>
-                        <Td className="max-w-[140px] truncate font-mono text-xs" title={row.ipAddress ?? ""}>
-                          {row.ipAddress ?? "—"}
-                        </Td>
-                        <Td
-                          className="max-w-[280px] truncate text-xs text-[var(--text-secondary)]"
-                          title={row.userAgent ?? ""}
-                        >
-                          {row.userAgent ?? "—"}
-                        </Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  ))}
+                </tbody>
               </TableShell>
               {loginTotalPages > 1 && (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -311,33 +309,31 @@ export default function MasterAccessLogsPage() {
             </p>
           ) : (
             <>
-              <TableShell>
-                <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-[var(--card-border)]">
-                      <Th>Data/hora (UTC)</Th>
-                      <Th>Usuário</Th>
-                      <Th>Papel</Th>
-                      <Th>Rota (página)</Th>
+              <TableShell className="w-full min-w-[640px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--card-border)]">
+                    <Th>Data/hora (UTC)</Th>
+                    <Th>Usuário</Th>
+                    <Th>Papel</Th>
+                    <Th>Rota (página)</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visitItems.map((row) => (
+                    <tr key={row.id} className="border-b border-[var(--card-border)]/80">
+                      <Td className="whitespace-nowrap">{formatDateTime(row.createdAt)}</Td>
+                      <Td>
+                        <span className="font-medium text-[var(--text-primary)]">{row.user.name}</span>
+                        <br />
+                        <span className="text-xs text-[var(--text-muted)]">{row.user.email}</span>
+                      </Td>
+                      <Td>{roleLabel(row.user.role)}</Td>
+                      <Td className="max-w-[min(100vw-4rem,480px)] break-all font-mono text-xs">
+                        {row.path}
+                      </Td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {visitItems.map((row) => (
-                      <tr key={row.id} className="border-b border-[var(--card-border)]/80">
-                        <Td className="whitespace-nowrap">{formatDateTime(row.createdAt)}</Td>
-                        <Td>
-                          <span className="font-medium text-[var(--text-primary)]">{row.user.name}</span>
-                          <br />
-                          <span className="text-xs text-[var(--text-muted)]">{row.user.email}</span>
-                        </Td>
-                        <Td>{roleLabel(row.user.role)}</Td>
-                        <Td className="max-w-[min(100vw-4rem,480px)] break-all font-mono text-xs">
-                          {row.path}
-                        </Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  ))}
+                </tbody>
               </TableShell>
               {visitTotalPages > 1 && (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2">

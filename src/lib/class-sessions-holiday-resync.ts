@@ -3,8 +3,18 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
+import { notifyStudentsAfterHolidayScheduleResync } from "@/lib/holiday-schedule-notifications";
 import { generateSessionsByWorkload, splitHolidaysForSchedule } from "@/lib/schedule";
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
+
+/** Transações com muitas sessões podem ultrapassar o padrão do Prisma (5s). */
+const HOLIDAY_RESYNC_TX_MS = 300_000;
+
+/** Datas sentinela (uma por índice) para liberar @@unique([classGroupId, sessionDate]) antes de aplicar as datas finais. */
+function stagingSessionDate(index: number): Date {
+  const base = Date.UTC(2099, 0, 1);
+  return new Date(base + index * 86_400_000);
+}
 
 async function syncLiberadaStatusesForClassGroup(
   tx: Prisma.TransactionClient,
@@ -29,6 +39,34 @@ async function syncLiberadaStatusesForClassGroup(
   });
 }
 
+function hasDuplicateSessionDates(dates: Date[]): boolean {
+  const seen = new Set<number>();
+  for (const d of dates) {
+    const t = d.getTime();
+    if (seen.has(t)) return true;
+    seen.add(t);
+  }
+  return false;
+}
+
+function scheduleDiffersFromComputed(
+  cg: { endDate: Date | null; sessions: { sessionDate: Date; lessonId: string | null }[] },
+  result: { dates: Date[]; endDate: Date },
+  lessonIds: string[],
+): boolean {
+  const endA = cg.endDate?.getTime() ?? 0;
+  const endB = result.endDate.getTime();
+  if (endA !== endB) return true;
+  if (cg.sessions.length !== result.dates.length) return true;
+  for (let i = 0; i < result.dates.length; i++) {
+    if (cg.sessions[i]!.sessionDate.getTime() !== result.dates[i]!.getTime()) return true;
+    const want = lessonIds[i] ?? null;
+    const have = cg.sessions[i]!.lessonId ?? null;
+    if (want !== have) return true;
+  }
+  return false;
+}
+
 /**
  * Recalcula datas (e aulas vinculadas) de todas as turmas não encerradas, usando a lista atual de feriados/eventos ativos
  * e a mesma lógica de `generateSessionsByWorkload` da criação/edição de turma.
@@ -44,6 +82,7 @@ async function syncLiberadaStatusesForClassGroup(
 export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Promise<{
   classGroupsProcessed: number;
   classGroupsUpdated: number;
+  classGroupIdsWithScheduleChange: string[];
 }> {
   const holidays = await prisma.holiday.findMany({
     where: { isActive: true },
@@ -56,77 +95,122 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
   });
 
   let classGroupsUpdated = 0;
+  const classGroupIdsWithScheduleChange: string[] = [];
 
   for (const { id: classGroupId } of groups) {
-    const done = await prisma.$transaction(async (tx) => {
-      const cg = await tx.classGroup.findUnique({
-        where: { id: classGroupId },
-        include: {
-          course: { select: { id: true, workloadHours: true } },
-          sessions: { orderBy: { sessionDate: "asc" } },
-        },
+    const cg = await prisma.classGroup.findUnique({
+      where: { id: classGroupId },
+      include: {
+        course: { select: { id: true, workloadHours: true } },
+        sessions: { orderBy: { sessionDate: "asc" } },
+      },
+    });
+    if (!cg) continue;
+
+    const workloadHours = cg.course.workloadHours ?? 0;
+    if (workloadHours <= 0) continue;
+
+    const rangeStart = cg.startDate;
+    const rangeEnd = new Date(rangeStart);
+    rangeEnd.setUTCFullYear(rangeEnd.getUTCFullYear() + 2);
+
+    const { holidayDateStrings, holidayEventBlocks } = splitHolidaysForSchedule(
+      holidays,
+      rangeStart,
+      rangeEnd,
+    );
+
+    let result: ReturnType<typeof generateSessionsByWorkload>;
+    try {
+      result = generateSessionsByWorkload({
+        startDate: rangeStart,
+        daysOfWeek: cg.daysOfWeek,
+        startTime: cg.startTime,
+        endTime: cg.endTime,
+        workloadHours,
+        holidayDateStrings,
+        holidayEventBlocks,
       });
-      if (!cg) return false;
+    } catch {
+      continue;
+    }
 
-      const workloadHours = cg.course.workloadHours ?? 0;
-      if (workloadHours <= 0) return false;
+    const lessonIds = await getCourseLessonIdsInOrder(cg.courseId);
+    if (!scheduleDiffersFromComputed(cg, result, lessonIds)) {
+      continue;
+    }
 
-      const rangeStart = cg.startDate;
-      const rangeEnd = new Date(rangeStart);
-      rangeEnd.setUTCFullYear(rangeEnd.getUTCFullYear() + 2);
+    const existing = cg.sessions;
 
-      const { holidayDateStrings, holidayEventBlocks } = splitHolidaysForSchedule(
-        holidays,
-        rangeStart,
-        rangeEnd,
-      );
+    let done = false;
+    try {
+      done = await prisma.$transaction(
+      async (tx) => {
+        const canInPlaceUpdate =
+          result.dates.length === existing.length &&
+          existing.length > 0 &&
+          !hasDuplicateSessionDates(result.dates);
 
-      let result: ReturnType<typeof generateSessionsByWorkload>;
-      try {
-        result = generateSessionsByWorkload({
-          startDate: rangeStart,
-          daysOfWeek: cg.daysOfWeek,
-          startTime: cg.startTime,
-          endTime: cg.endTime,
-          workloadHours,
-          holidayDateStrings,
-          holidayEventBlocks,
-        });
-      } catch {
-        return false;
-      }
+        if (canInPlaceUpdate) {
+          const rows = existing.map((s, i) => ({
+            id: s.id,
+            newDate: result.dates[i]!,
+            lessonId: lessonIds[i] ?? null,
+            wasCanceled: s.status === "CANCELED",
+          }));
 
-      const lessonIds = await getCourseLessonIdsInOrder(cg.courseId);
-      const existing = cg.sessions;
-
-      if (result.dates.length === existing.length && existing.length > 0) {
-        const rows = existing.map((s, i) => ({
-          id: s.id,
-          newDate: result.dates[i]!,
-          lessonId: lessonIds[i] ?? null,
-          wasCanceled: s.status === "CANCELED",
-        }));
-        rows.sort((a, b) => b.newDate.getTime() - a.newDate.getTime());
-
-        for (const r of rows) {
-          await tx.classSession.update({
-            where: { id: r.id },
-            data: {
-              sessionDate: r.newDate,
-              lessonId: r.lessonId,
-              startTime: cg.startTime,
-              endTime: cg.endTime,
-            },
-          });
-        }
-
-        for (const r of rows) {
-          if (r.wasCanceled) {
+          // Duas fases: permutar datas quebra @@unique(classGroupId, sessionDate) se atualizarmos uma sessão
+          // para uma data que outra sessão ainda ocupa. Primeiro cada linha vai para uma data sentinela única.
+          for (let i = 0; i < rows.length; i++) {
             await tx.classSession.update({
-              where: { id: r.id },
-              data: { status: "CANCELED" },
+              where: { id: rows[i]!.id },
+              data: { sessionDate: stagingSessionDate(i) },
             });
           }
+
+          for (const r of rows) {
+            await tx.classSession.update({
+              where: { id: r.id },
+              data: {
+                sessionDate: r.newDate,
+                lessonId: r.lessonId,
+                startTime: cg.startTime,
+                endTime: cg.endTime,
+              },
+            });
+          }
+
+          for (const r of rows) {
+            if (r.wasCanceled) {
+              await tx.classSession.update({
+                where: { id: r.id },
+                data: { status: "CANCELED" },
+              });
+            }
+          }
+
+          await syncLiberadaStatusesForClassGroup(tx, classGroupId);
+
+          await tx.classGroup.update({
+            where: { id: classGroupId },
+            data: { endDate: result.endDate },
+          });
+          return true;
+        }
+
+        await tx.classSession.deleteMany({ where: { classGroupId } });
+
+        if (result.dates.length > 0) {
+          await tx.classSession.createMany({
+            data: result.dates.map((d, i) => ({
+              classGroupId,
+              sessionDate: d,
+              startTime: cg.startTime,
+              endTime: cg.endTime,
+              status: "SCHEDULED",
+              lessonId: lessonIds[i] ?? null,
+            })),
+          });
         }
 
         await syncLiberadaStatusesForClassGroup(tx, classGroupId);
@@ -136,35 +220,30 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
           data: { endDate: result.endDate },
         });
         return true;
+      },
+      { timeout: HOLIDAY_RESYNC_TX_MS, maxWait: 60_000 },
+    );
+    } catch (e) {
+      console.error(`[holiday-resync] classGroup ${classGroupId} transaction failed`, e);
+      continue;
+    }
+
+    if (done) {
+      classGroupsUpdated += 1;
+      classGroupIdsWithScheduleChange.push(classGroupId);
+      // Notificar logo após esta turma: se o lote final falhasse ou o processo parasse, as datas já estariam
+      // gravadas sem aviso aos alunos.
+      try {
+        await notifyStudentsAfterHolidayScheduleResync([classGroupId]);
+      } catch (e) {
+        console.error("[holiday-resync] notify failed for classGroup", classGroupId, e);
       }
-
-      // Quantidade diferente ou sem sessões: recria (pode perder frequência se houvesse sessões antigas)
-      await tx.classSession.deleteMany({ where: { classGroupId } });
-
-      if (result.dates.length > 0) {
-        await tx.classSession.createMany({
-          data: result.dates.map((d, i) => ({
-            classGroupId,
-            sessionDate: d,
-            startTime: cg.startTime,
-            endTime: cg.endTime,
-            status: "SCHEDULED",
-            lessonId: lessonIds[i] ?? null,
-          })),
-        });
-      }
-
-      await syncLiberadaStatusesForClassGroup(tx, classGroupId);
-
-      await tx.classGroup.update({
-        where: { id: classGroupId },
-        data: { endDate: result.endDate },
-      });
-      return true;
-    });
-
-    if (done) classGroupsUpdated += 1;
+    }
   }
 
-  return { classGroupsProcessed: groups.length, classGroupsUpdated };
+  return {
+    classGroupsProcessed: groups.length,
+    classGroupsUpdated,
+    classGroupIdsWithScheduleChange,
+  };
 }

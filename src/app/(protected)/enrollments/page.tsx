@@ -16,6 +16,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { formatClassGroupTurmaLine } from "@/lib/turma-display";
 
 const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Ativa",
@@ -325,10 +326,17 @@ export default function EnrollmentsPage() {
     const opts: { id: string; label: string }[] = [];
     for (const [, { courseName, turmas }] of dashboard.courses) {
       for (const { classGroup: cg } of turmas) {
-        const start = formatDateOnly(cg.startDate).slice(0, 5);
+        const start = formatDateOnly(cg.startDate);
+        const line = formatClassGroupTurmaLine({
+          course: { name: courseName },
+          location: cg.location ?? null,
+          daysOfWeek: cg.daysOfWeek,
+          startTime: cg.startTime,
+          endTime: cg.endTime,
+        });
         opts.push({
           id: cg.id,
-          label: `${courseName} — ${start} ${cg.startTime}-${cg.endTime}`,
+          label: `${line} · início ${start}`,
         });
       }
     }
@@ -1245,7 +1253,7 @@ export default function EnrollmentsPage() {
                   </select>
                 </div>
                 {turmaOptions.length > 0 && (
-                  <div className="min-w-[200px]">
+                  <div className="min-w-[min(100%,420px)] max-w-full">
                     <label htmlFor="enrollments-turma-filter" className="sr-only">
                       Turma
                     </label>

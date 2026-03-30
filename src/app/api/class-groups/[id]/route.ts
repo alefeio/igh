@@ -6,6 +6,11 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { updateClassGroupSchema } from "@/lib/validators/class-groups";
 import { createAuditLog } from "@/lib/audit";
 import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
+import {
+  bodyClassGroupScheduleChange,
+  enrollmentSchedulePageUrl,
+  titleScheduleChange,
+} from "@/lib/class-schedule-notification-text";
 import { createUserNotificationIfNew } from "@/lib/user-notifications";
 import {
   generateSessionsByWorkload,
@@ -27,7 +32,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const existing = await prisma.classGroup.findUnique({
     where: { id },
     include: {
-      course: { select: { workloadHours: true } },
+      course: { select: { workloadHours: true, name: true } },
       sessions: { orderBy: { sessionDate: "asc" } },
     },
   });
@@ -211,14 +216,23 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       where: { classGroupId: id, status: "ACTIVE" },
       select: { id: true, student: { select: { userId: true } } },
     });
+    const courseName =
+      updated.courseId === existing.courseId
+        ? existing.course.name
+        : (
+            await prisma.course.findUnique({
+              where: { id: updated.courseId },
+              select: { name: true },
+            })
+          )?.name;
     for (const e of enrollments) {
       if (!e.student.userId) continue;
       await createUserNotificationIfNew({
         userId: e.student.userId,
         kind: "CLASS_SCHEDULE_CHANGED",
-        title: "Alteração na turma",
-        body: "Atualização de horário, dias e/ou local da sua turma. Confira em Minhas turmas.",
-        linkUrl: `/minhas-turmas/${e.id}/conteudo`,
+        title: titleScheduleChange(courseName),
+        body: bodyClassGroupScheduleChange(courseName),
+        linkUrl: enrollmentSchedulePageUrl(e.id),
         dedupeKey: `class_change:${e.id}:${batchId}`,
       });
     }

@@ -12,7 +12,8 @@ type ThemeContextValue = {
   toggleTheme: () => void;
 };
 
-const ThemeContext = createContext<ThemeContextValue | null>(null);
+/** Exportado para ThemeToggle poder usar fallback quando o contexto ainda não está disponível (ex.: SSR). */
+export const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getInitialTheme(): Theme {
   if (typeof window === "undefined") return "light";

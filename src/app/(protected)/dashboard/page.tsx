@@ -44,7 +44,7 @@ import {
   type PlatformExperienceDashboardSummary,
   type StudentEnrollmentSummary,
 } from "@/lib/dashboard-data";
-import { formatDaysShortPtBr } from "@/lib/platform-experience-turma";
+import { formatDaysShortPtBr } from "@/lib/turma-display";
 import {
   getAllUnlockedBadges,
   getLevel,
