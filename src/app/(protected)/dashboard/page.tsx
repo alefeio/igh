@@ -45,6 +45,13 @@ import {
   type StudentEnrollmentSummary,
 } from "@/lib/dashboard-data";
 import { formatDaysShortPtBr } from "@/lib/platform-experience-turma";
+import {
+  getAllUnlockedBadges,
+  getLevel,
+  getNextBadgePerTrack,
+  POINTS_PER_LESSON,
+  type StudentBadgeContext,
+} from "@/lib/student-badge-definitions";
 import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
 import { EXERCISES_TARGET_PER_LESSON, GAMIFICATION_POINTS } from "@/lib/teacher-gamification";
 
@@ -177,35 +184,6 @@ const TEACHER_TUTORIAL_STEPS: TutorialStep[] = [
     title: "Tudo pronto!",
     content: "Use o menu ao lado para acessar suas turmas, alunos e o que precisar. Bom trabalho!",
   },
-];
-
-const POINTS_PER_LESSON = 10;
-const LEVELS = [
-  { min: 0, name: "Iniciante", max: 49 },
-  { min: 50, name: "Explorador", max: 149 },
-  { min: 150, name: "Dedicado", max: 299 },
-  { min: 300, name: "Expert", max: 499 },
-  { min: 500, name: "Mestre", max: Infinity },
-] as const;
-
-function getLevel(points: number) {
-  const level = LEVELS.find((l) => points >= l.min && points <= l.max) ?? LEVELS[0];
-  const next = LEVELS[LEVELS.indexOf(level) + 1];
-  const progressInLevel = next
-    ? (points - level.min) / (next.min - level.min)
-    : 1;
-  return { ...level, progressInLevel, next };
-}
-
-type BadgeId = "primeira-aula" | "5-aulas" | "10-aulas" | "25-aulas" | "50-aulas" | "curso-concluido" | "multiplos-cursos";
-const BADGES: { id: BadgeId; label: string; condition: (data: { total: number; completed: number; enrollments: { lessonsTotal: number; lessonsCompleted: number }[] }) => boolean }[] = [
-  { id: "primeira-aula", label: "Primeira aula", condition: (d) => d.completed >= 1 },
-  { id: "5-aulas", label: "5 aulas concluídas", condition: (d) => d.completed >= 5 },
-  { id: "10-aulas", label: "10 aulas concluídas", condition: (d) => d.completed >= 10 },
-  { id: "25-aulas", label: "25 aulas concluídas", condition: (d) => d.completed >= 25 },
-  { id: "50-aulas", label: "50 aulas concluídas", condition: (d) => d.completed >= 50 },
-  { id: "curso-concluido", label: "Curso concluído", condition: (d) => d.enrollments.some((e) => e.lessonsTotal > 0 && e.lessonsCompleted >= e.lessonsTotal) },
-  { id: "multiplos-cursos", label: "Múltiplos cursos", condition: (d) => d.enrollments.length >= 2 },
 ];
 
 function formatDate(d: Date) {
@@ -1013,13 +991,16 @@ function DashboardStudent({
   const pointsForum = (totalForumQuestions + totalForumReplies) * GAMIFICATION_POINTS.forumPerReply;
   const points = pointsContent + pointsExercises + pointsFrequency + pointsForum;
   const levelInfo = getLevel(points);
-  const badgesUnlocked = BADGES.filter((b) =>
-    b.condition({
-      total: totalLessonsTotal,
-      completed: totalLessonsCompleted,
-      enrollments,
-    })
-  );
+  const badgeContext: StudentBadgeContext = {
+    total: totalLessonsTotal,
+    completed: totalLessonsCompleted,
+    enrollments,
+    exerciseAttempts: totalExerciseAttempts,
+    attendancePresent: totalAttendancePresent,
+    forumInteractions: totalForumQuestions + totalForumReplies,
+  };
+  const conquistasRealizadas = getAllUnlockedBadges(badgeContext);
+  const proximasMetasPorCategoria = getNextBadgePerTrack(badgeContext);
   const recommendedEnrollment = recommendedEnrollmentId
     ? enrollments.find((e) => e.id === recommendedEnrollmentId)
     : null;
@@ -1099,29 +1080,44 @@ function DashboardStudent({
       )}
       <div className="mt-6">
         <p className="text-base font-semibold text-[var(--text-primary)]">Conquistas</p>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          Conquistas desbloqueadas e, em seguida, a próxima meta de cada categoria (borda tracejada).
+        </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {BADGES.map((badge) => {
-            const unlocked = badgesUnlocked.some((b) => b.id === badge.id);
-            return (
-              <span
-                key={badge.id}
-                title={badge.label}
-                className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium ${
-                  unlocked
-                    ? "bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100"
-                    : "bg-[var(--igh-surface)] text-[var(--text-muted)]"
-                }`}
-              >
-                {unlocked ? (
+          {conquistasRealizadas.length === 0 && proximasMetasPorCategoria.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">
+              Nenhuma conquista ainda. Conclua aulas, responda exercícios, participe das turmas e do fórum.
+            </p>
+          ) : (
+            <>
+              {conquistasRealizadas.map((badge) => (
+                <span
+                  key={badge.id}
+                  title={`Conquista: ${badge.label}`}
+                  className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100"
+                >
                   <Star className="h-4 w-4 shrink-0 fill-amber-600 dark:fill-amber-400" aria-hidden />
-                ) : (
+                  {badge.label}
+                </span>
+              ))}
+              {proximasMetasPorCategoria.map((badge) => (
+                <span
+                  key={`proximo-${badge.id}`}
+                  title={`Próxima meta: ${badge.label}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3.5 py-2 text-sm font-medium text-[var(--text-secondary)]"
+                >
                   <Star className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden />
-                )}
-                {badge.label}
-              </span>
-            );
-          })}
+                  {badge.label}
+                </span>
+              ))}
+            </>
+          )}
         </div>
+        {conquistasRealizadas.length > 0 && proximasMetasPorCategoria.length === 0 ? (
+          <p className="mt-3 text-xs text-[var(--text-muted)]">
+            Todas as metas desta lista foram atingidas nas categorias em que você participa.
+          </p>
+        ) : null}
       </div>
     </SectionCard>
   );

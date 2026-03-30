@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getLiberadaLessonIdsForEnrollment } from "@/lib/course-forum";
+import { notifyParticipantsAfterStudentForumReply } from "@/lib/forum-user-notifications";
+import { captureMilestoneSnapshot, notifyMilestoneDiff } from "@/lib/student-milestone-notifications";
 
 /** Resposta de um aluno a um tópico do fórum da aula. */
 export async function POST(
@@ -58,6 +60,8 @@ export async function POST(
   const content = typeof body.content === "string" ? body.content.trim() : "";
   if (!content) return jsonErr("BAD_REQUEST", "Digite sua resposta.", 400);
 
+  const milestoneBefore = await captureMilestoneSnapshot(student.id);
+
   const reply = await prisma.enrollmentLessonQuestionReply.create({
     data: {
       questionId: question.id,
@@ -68,6 +72,9 @@ export async function POST(
       enrollment: { select: { student: { select: { name: true } } } },
     },
   });
+
+  await notifyParticipantsAfterStudentForumReply(question.id, reply.id, enrollmentId);
+  await notifyMilestoneDiff(student.id, milestoneBefore);
 
   return jsonOk({
     id: reply.id,

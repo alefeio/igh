@@ -3,8 +3,12 @@
 import { useState } from "react";
 
 import { TableShell } from "@/components/dashboard/DashboardUI";
+import {
+  StudentRankingPointsBreakdownModal,
+  StudentRankingPointsHelpModal,
+} from "@/components/dashboard/StudentRankingPointsBreakdownModal";
 import { Button } from "@/components/ui/Button";
-import type { StudentRankEntry } from "@/lib/student-gamification-ranking";
+import type { StudentRankEntry } from "@/lib/student-ranking-shared";
 
 export type RankingPlacementInfo =
   | { kind: "in_rank"; position: number; total: number; points: number }
@@ -58,6 +62,8 @@ export function RankingAlunosFullTable({
   teacherHighlightStudentIds?: readonly string[] | null;
 }) {
   const [visible, setVisible] = useState(PAGE_SIZE);
+  const [detailEntry, setDetailEntry] = useState<StudentRankEntry | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const shown = rows.slice(0, visible);
   const hasMore = visible < rows.length;
 
@@ -69,6 +75,18 @@ export function RankingAlunosFullTable({
   return (
     <>
       <PlacementBanner placement={placement} />
+
+      {rows.length > 0 ? (
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="text-sm font-semibold text-[var(--igh-primary)] underline decoration-dotted underline-offset-2 hover:no-underline"
+          >
+            Como a pontuação é calculada
+          </button>
+        </div>
+      ) : null}
 
       {rows.length === 0 ? (
         <p className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-8 text-center text-sm text-[var(--text-muted)]">
@@ -83,6 +101,7 @@ export function RankingAlunosFullTable({
                 <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Aluno</th>
                 <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Nível</th>
                 <th className="px-4 py-3 text-right font-semibold text-[var(--text-primary)]">Pontos</th>
+                <th className="px-4 py-3 text-right font-semibold text-[var(--text-primary)]">Detalhes</th>
               </tr>
             </thead>
             <tbody>
@@ -116,6 +135,15 @@ export function RankingAlunosFullTable({
                     <td className="px-4 py-3 text-right text-lg font-bold tabular-nums text-[var(--igh-primary)]">
                       {r.points}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setDetailEntry(r)}
+                        className="text-sm font-semibold text-[var(--igh-primary)] underline underline-offset-2 hover:text-[var(--igh-primary)]/90"
+                      >
+                        Ver detalhes da pontuação
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -131,6 +159,13 @@ export function RankingAlunosFullTable({
           ) : null}
         </>
       )}
+
+      <StudentRankingPointsBreakdownModal
+        entry={detailEntry}
+        open={detailEntry != null}
+        onClose={() => setDetailEntry(null)}
+      />
+      <StudentRankingPointsHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );
 }

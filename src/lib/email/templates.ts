@@ -82,7 +82,7 @@ export function templateCoordinatorWelcome(params: {
   const { name, email, tempPassword } = params;
   const loginUrl = getAppUrl("/login");
   const body = `
-<h2>Acesso liberado — Coordenação</h2>
+<h2>Acesso liberado - Coordenação</h2>
 <p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
 <p>Seu cadastro como <strong>Coordenador</strong> foi realizado. Você poderá acompanhar alunos, turmas, frequência e indicadores em modo <strong>somente leitura</strong>. Use os dados abaixo para acessar:</p>
 <ul>
@@ -93,7 +93,49 @@ export function templateCoordinatorWelcome(params: {
 <p><strong>Importante:</strong> Por segurança, você deverá trocar a senha no primeiro acesso.</p>
 <p>Guarde esta mensagem em local seguro até alterar sua senha. Não compartilhe sua senha com ninguém.</p>
 `;
-  return { subject: "Acesso liberado — Coordenação", html: wrapHtml(body) };
+  return { subject: "Acesso liberado - Coordenação", html: wrapHtml(body) };
+}
+
+/** Após alteração Admin → Coordenador (mesmo login e senha). */
+export function templateCoordinatorRoleAssigned(params: {
+  name: string;
+  email: string;
+}): { subject: string; html: string } {
+  const { name, email } = params;
+  const loginUrl = getAppUrl("/login");
+  const body = `
+<h2>Perfil atualizado - Coordenação</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Seu tipo de acesso foi alterado para <strong>Coordenador</strong>. Você poderá acompanhar alunos, turmas, frequência e indicadores em modo <strong>somente leitura</strong>.</p>
+<p>Continue usando o mesmo e-mail e senha de sempre:</p>
+<ul>
+  <li><strong>Link de acesso:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
+  <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
+</ul>
+<p>Se tiver dúvidas, fale com a equipe administrativa.</p>
+`;
+  return { subject: "Seu acesso foi atualizado - Coordenação", html: wrapHtml(body) };
+}
+
+/** Após alteração Coordenador → Administrador (mesmo login e senha). */
+export function templateAdminRoleAssigned(params: {
+  name: string;
+  email: string;
+}): { subject: string; html: string } {
+  const { name, email } = params;
+  const loginUrl = getAppUrl("/login");
+  const body = `
+<h2>Perfil atualizado - Área administrativa</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Seu tipo de acesso foi alterado para <strong>Administrador</strong>, com permissão para alterar cadastros conforme as regras da plataforma.</p>
+<p>Continue usando o mesmo e-mail e senha de sempre:</p>
+<ul>
+  <li><strong>Link de acesso:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
+  <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
+</ul>
+<p>Se tiver dúvidas, fale com a equipe administrativa.</p>
+`;
+  return { subject: "Seu acesso foi atualizado - Administrador", html: wrapHtml(body) };
 }
 
 export function templateProfessorWelcome(params: {

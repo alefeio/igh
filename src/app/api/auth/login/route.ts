@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth";
 import type { UserRole } from "@/generated/prisma/client";
 import { jsonErr } from "@/lib/http";
+import { getRequestClientMeta } from "@/lib/request-client-meta";
 import { loginSchema } from "@/lib/validators/auth";
 import {
   birthDateToStudentPasswordLegacyLocal,
@@ -130,6 +131,20 @@ export async function POST(request: Request) {
     };
 
     const token = await buildAuthSessionToken(sessionUser);
+    const { ipAddress, userAgent } = getRequestClientMeta(request);
+    try {
+      await prisma.userAccessLog.create({
+        data: {
+          userId: user.id,
+          ipAddress,
+          userAgent,
+          loginKind: kind === "email" ? "EMAIL" : "CPF",
+        },
+      });
+    } catch (logErr) {
+      console.error("[auth/login] UserAccessLog", logErr);
+    }
+
     const res = NextResponse.json({
       ok: true as const,
       data: {

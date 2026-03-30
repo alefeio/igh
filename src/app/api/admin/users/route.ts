@@ -129,7 +129,11 @@ export async function POST(request: Request) {
     entityType: "User",
     entityId: created.id,
     action: "EMAIL_SENT",
-    diff: { type: "welcome_admin", success: emailResult.success, messageId: emailResult.messageId },
+    diff: {
+      type: created.role === "COORDINATOR" ? "welcome_coordinator" : "welcome_admin",
+      success: emailResult.success,
+      messageId: emailResult.messageId,
+    },
     performedByUserId: master.id,
   });
 

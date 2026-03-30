@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { PageVisitTracker } from "@/components/activity/PageVisitTracker";
 import { ToastProvider } from "@/components/feedback/ToastProvider";
 import { LegalConsentBanner } from "@/components/site/LegalConsentBanner";
 import { RequireChangePassword } from "@/components/layout/RequireChangePassword";
@@ -39,6 +40,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   return (
     <ToastProvider>
       <UserProvider user={sessionUser}>
+        <PageVisitTracker />
         <RequireChangePassword>
           <ResponsiveShell user={shellUser} logoUrl={settings?.logoUrl ?? null}>{children}</ResponsiveShell>
           <LegalConsentBanner />

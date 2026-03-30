@@ -14,9 +14,23 @@ export function Th({ children, className, title }: { children?: React.ReactNode;
   );
 }
 
-export function Td({ children, colSpan, className }: { children?: React.ReactNode; colSpan?: number; className?: string }) {
+export function Td({
+  children,
+  colSpan,
+  className,
+  title,
+}: {
+  children?: React.ReactNode;
+  colSpan?: number;
+  className?: string;
+  title?: string;
+}) {
   return (
-    <td colSpan={colSpan} className={`border-b border-[var(--card-border)] px-2 py-2 align-top sm:px-3 ${className ?? ""}`}>
+    <td
+      title={title}
+      colSpan={colSpan}
+      className={`border-b border-[var(--card-border)] px-2 py-2 align-top sm:px-3 ${className ?? ""}`}
+    >
       {children}
     </td>
   );

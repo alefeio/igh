@@ -75,6 +75,15 @@ export function TopBar({
       .catch(() => {});
   }, [hasCoordinatorReportAccess]);
 
+  const fetchNotificationBadge = useCallback(() => {
+    fetch("/api/me/notifications/badge", { credentials: "include", cache: "no-store" })
+      .then((r) => r.json() as Promise<ApiResponse<{ hasUnread?: boolean }>>)
+      .then((json) => {
+        if (json?.ok && json.data) setNotificationBadge(json.data);
+      })
+      .catch(() => {});
+  }, []);
+
   const isSupportRef = useRef(isSupport);
   isSupportRef.current = isSupport;
   const userIdRef = useRef(user.id);
@@ -183,13 +192,24 @@ export function TopBar({
   }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadge]);
 
   useEffect(() => {
-    fetch("/api/me/notifications/badge", { credentials: "include" })
-      .then((r) => r.json() as Promise<ApiResponse<{ hasUnread?: boolean }>>)
-      .then((json) => {
-        if (json?.ok && json.data) setNotificationBadge(json.data);
-      })
-      .catch(() => {});
-  }, []);
+    fetchNotificationBadge();
+  }, [fetchNotificationBadge]);
+
+  useEffect(() => {
+    const onRefetch = () => fetchNotificationBadge();
+    window.addEventListener("notifications-badge-refetch", onRefetch);
+    return () => window.removeEventListener("notifications-badge-refetch", onRefetch);
+  }, [fetchNotificationBadge]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchNotificationBadge();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchNotificationBadge]);
 
   const r = user.availableRoles;
   const canMaster = r?.canMaster ?? (user.baseRole === "MASTER");

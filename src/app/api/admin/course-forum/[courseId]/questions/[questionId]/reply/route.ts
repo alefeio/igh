@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { notifyParticipantsAfterTeacherForumReply } from "@/lib/forum-user-notifications";
 
 /** Resposta no fórum como admin/master (visível para todo o curso, como resposta de professor). */
 export async function POST(
@@ -42,6 +43,8 @@ export async function POST(
     },
     select: { id: true, content: true, createdAt: true },
   });
+
+  await notifyParticipantsAfterTeacherForumReply(question.id, reply.id);
 
   return jsonOk({
     id: reply.id,

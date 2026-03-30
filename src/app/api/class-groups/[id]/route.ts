@@ -1,9 +1,12 @@
+import { randomUUID } from "node:crypto";
+
 import { prisma } from "@/lib/prisma";
 import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateClassGroupSchema } from "@/lib/validators/class-groups";
 import { createAuditLog } from "@/lib/audit";
 import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
+import { createUserNotificationIfNew } from "@/lib/user-notifications";
 import {
   generateSessionsByWorkload,
   parseDateOnly,
@@ -192,6 +195,34 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       totalHours: result?.totalHours ?? 0,
     };
   });
+
+  const normDays = (d: string[]) => [...d].sort().join(",");
+  const scheduleOrPlaceChanged =
+    normDays(existing.daysOfWeek) !== normDays(updated.daysOfWeek) ||
+    existing.startTime !== updated.startTime ||
+    existing.endTime !== updated.endTime ||
+    (existing.location ?? "").trim() !== (updated.location ?? "").trim() ||
+    existing.startDate.getTime() !== updated.startDate.getTime() ||
+    (existing.endDate?.getTime() ?? 0) !== (updated.endDate?.getTime() ?? 0);
+
+  if (scheduleOrPlaceChanged) {
+    const batchId = randomUUID();
+    const enrollments = await prisma.enrollment.findMany({
+      where: { classGroupId: id, status: "ACTIVE" },
+      select: { id: true, student: { select: { userId: true } } },
+    });
+    for (const e of enrollments) {
+      if (!e.student.userId) continue;
+      await createUserNotificationIfNew({
+        userId: e.student.userId,
+        kind: "CLASS_SCHEDULE_CHANGED",
+        title: "Alteração na turma",
+        body: "Atualização de horário, dias e/ou local da sua turma. Confira em Minhas turmas.",
+        linkUrl: `/minhas-turmas/${e.id}/conteudo`,
+        dedupeKey: `class_change:${e.id}:${batchId}`,
+      });
+    }
+  }
 
   await createAuditLog({
     entityType: "ClassGroup",

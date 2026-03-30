@@ -2,6 +2,7 @@ import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { captureMilestoneSnapshot, notifyMilestoneDiff } from "@/lib/student-milestone-notifications";
 
 /** Submete resposta do aluno e retorna se acertou e qual a opção correta. */
 export async function POST(
@@ -75,6 +76,8 @@ export async function POST(
 
   const correct = option.isCorrect;
 
+  const milestoneBefore = await captureMilestoneSnapshot(student.id);
+
   /** Sempre cria novo registro: mantém histórico de todas as tentativas (erradas e certas) mesmo ao refazer. */
   await prisma.enrollmentLessonExerciseAnswer.create({
     data: {
@@ -84,6 +87,8 @@ export async function POST(
       correct,
     },
   });
+
+  await notifyMilestoneDiff(student.id, milestoneBefore);
 
   return jsonOk({
     correct,

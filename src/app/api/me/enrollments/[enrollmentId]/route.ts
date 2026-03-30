@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
+import { ensureLessonReleasedNotifications } from "@/lib/lesson-release-notifications";
 
 function getTodayUtcDate(): Date {
   const now = new Date();
@@ -27,6 +28,7 @@ export async function GET(
   const enrollment = await prisma.enrollment.findFirst({
     where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
     include: {
+      student: { select: { userId: true } },
       classGroup: {
         include: {
           course: true,
@@ -52,6 +54,8 @@ export async function GET(
     },
     data: { status: "LIBERADA" },
   });
+
+  await ensureLessonReleasedNotifications(g.id, enrollmentId, enrollment.student.userId ?? null, today);
 
   const enrollmentWithUpdatedSessions = await prisma.enrollment.findFirst({
     where: { id: enrollmentId },

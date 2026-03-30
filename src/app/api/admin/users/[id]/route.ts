@@ -3,6 +3,8 @@ import { hashPassword, requireRole, requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateAdminSchema } from "@/lib/validators/users";
 import { createAuditLog } from "@/lib/audit";
+import { sendEmailAndRecord } from "@/lib/email/send-and-record";
+import { templateAdminRoleAssigned, templateCoordinatorRoleAssigned } from "@/lib/email/templates";
 import { Prisma } from "@/generated/prisma/client";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -110,6 +112,41 @@ export async function PATCH(request: Request, ctx: Ctx) {
     diff: { fields: Object.keys(data), performedBy: actor.id },
     performedByUserId: actor.id,
   });
+
+  if (
+    parsed.data.role !== undefined &&
+    parsed.data.role !== existing.role &&
+    actor.role === "MASTER" &&
+    (parsed.data.role === "ADMIN" || parsed.data.role === "COORDINATOR") &&
+    (existing.role === "ADMIN" || existing.role === "COORDINATOR")
+  ) {
+    const welcome =
+      parsed.data.role === "COORDINATOR" && existing.role === "ADMIN"
+        ? templateCoordinatorRoleAssigned({ name: updated.name, email: updated.email })
+        : templateAdminRoleAssigned({ name: updated.name, email: updated.email });
+    const { subject, html } = welcome;
+    const emailResult = await sendEmailAndRecord({
+      to: updated.email,
+      subject,
+      html,
+      emailType:
+        parsed.data.role === "COORDINATOR" ? "coordinator_role_assigned" : "admin_role_assigned",
+      entityType: "User",
+      entityId: id,
+      performedByUserId: actor.id,
+    });
+    await createAuditLog({
+      entityType: "User",
+      entityId: id,
+      action: "EMAIL_SENT",
+      diff: {
+        type: parsed.data.role === "COORDINATOR" ? "coordinator_role_assigned" : "admin_role_assigned",
+        success: emailResult.success,
+        messageId: emailResult.messageId,
+      },
+      performedByUserId: actor.id,
+    });
+  }
 
   return jsonOk({ user: updated });
 }

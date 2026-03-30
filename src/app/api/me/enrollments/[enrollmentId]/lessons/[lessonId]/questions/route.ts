@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { mapStaffOrTeacherReplyName } from "@/lib/course-forum-reply-display";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { notifyTeacherOfNewForumQuestion } from "@/lib/forum-user-notifications";
+import { captureMilestoneSnapshot, notifyMilestoneDiff } from "@/lib/student-milestone-notifications";
 
 // Modelo de dúvidas por aula (Prisma gera enrollmentLessonQuestion a partir de EnrollmentLessonQuestion)
 const enrollmentLessonQuestion = prisma.enrollmentLessonQuestion;
@@ -182,10 +184,15 @@ export async function POST(
   const content = typeof body.content === "string" ? body.content.trim() : "";
   if (!content) return jsonErr("BAD_REQUEST", "Digite sua dúvida.", 400);
 
+  const milestoneBefore = await captureMilestoneSnapshot(student.id);
+
   const question = await enrollmentLessonQuestion.create({
     data: { enrollmentId, lessonId, content },
     select: { id: true, content: true, createdAt: true },
   });
+
+  await notifyTeacherOfNewForumQuestion(question.id);
+  await notifyMilestoneDiff(student.id, milestoneBefore);
 
   const studentName = await prisma.student.findUnique({
     where: { id: student.id },

@@ -1,10 +1,19 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { GAMIFICATION_POINTS, getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
+import {
+  STUDENT_POINTS_PER_LESSON,
+  STUDENT_RANKING_GAMIFICATION_POINTS,
+  type StudentRankPointsBreakdown,
+  type StudentRankEntry,
+} from "@/lib/student-ranking-shared";
+import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
 
-/** Mesma regra do painel do aluno em `dashboard/page.tsx`. */
-export const STUDENT_POINTS_PER_LESSON = 10;
+export {
+  STUDENT_POINTS_PER_LESSON,
+  type StudentRankPointsBreakdown,
+  type StudentRankEntry,
+} from "@/lib/student-ranking-shared";
 
 const LEVELS = [
   { min: 0, name: "Iniciante", max: 49 },
@@ -29,18 +38,6 @@ export function formatStudentRankingDisplayName(fullName: string, mode: "public"
   const lastInitial = parts[parts.length - 1][0]?.toUpperCase() ?? "";
   return `${first} ${lastInitial}.`;
 }
-
-export type StudentRankEntry = {
-  rank: number;
-  studentId: string;
-  displayName: string;
-  points: number;
-  levelName: string;
-  /** Posição no ranking geral da plataforma (ex.: painel do professor). */
-  globalRank?: number;
-  /** Dashboard do aluno: última linha = você quando está fora do top 9. */
-  isViewerOutOfTop9?: boolean;
-};
 
 type ComputeOpts = {
   /** Após ordenar, manter só os N primeiros (default: todos). */
@@ -176,14 +173,29 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
   for (const [studentId, a] of byStudent) {
     const pointsContent = a.lessonsCompleted * STUDENT_POINTS_PER_LESSON;
     const pointsExercises = a.exerciseAttempts + a.exerciseCorrect;
-    const pointsFrequency = a.attendancePresent * GAMIFICATION_POINTS.attendancePerPresentStudent;
-    const pointsForum = (a.forumQuestions + a.forumReplies) * GAMIFICATION_POINTS.forumPerReply;
+    const pointsFrequency =
+      a.attendancePresent * STUDENT_RANKING_GAMIFICATION_POINTS.attendancePerPresentStudent;
+    const pointsForum =
+      (a.forumQuestions + a.forumReplies) * STUDENT_RANKING_GAMIFICATION_POINTS.forumPerReply;
     const points = pointsContent + pointsExercises + pointsFrequency + pointsForum;
+    const breakdown: StudentRankPointsBreakdown = {
+      pointsContent,
+      pointsExercises,
+      pointsFrequency,
+      pointsForum,
+      lessonsCompleted: a.lessonsCompleted,
+      exerciseAttempts: a.exerciseAttempts,
+      exerciseCorrect: a.exerciseCorrect,
+      attendancePresent: a.attendancePresent,
+      forumQuestions: a.forumQuestions,
+      forumReplies: a.forumReplies,
+    };
     rows.push({
       studentId,
       displayName: formatStudentRankingDisplayName(a.name, nameMode),
       points,
       levelName: studentLevelNameFromPoints(points),
+      breakdown,
     });
   }
 
@@ -198,4 +210,101 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
     return ranked.slice(0, limit);
   }
   return ranked;
+}
+
+/** Pontuação e nível do aluno (mesma fórmula do ranking), para notificações de gamificação. */
+export async function getGamificationSnapshotForStudent(studentId: string): Promise<{
+  userId: string;
+  points: number;
+  levelName: string;
+} | null> {
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, deletedAt: null },
+    select: { id: true, userId: true },
+  });
+  if (!student?.userId) return null;
+
+  const enrollments = await prisma.enrollment.findMany({
+    where: { studentId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (enrollments.length === 0) {
+    return {
+      userId: student.userId,
+      points: 0,
+      levelName: studentLevelNameFromPoints(0),
+    };
+  }
+
+  const enrollmentIds = enrollments.map((e) => e.id);
+  const today = getBrazilTodayDateOnly();
+
+  const [progressCounts, exerciseAnswers, attendanceByEnrollmentRows, forumQRows, forumRRows] =
+    await Promise.all([
+      prisma.enrollmentLessonProgress.groupBy({
+        by: ["enrollmentId"],
+        where: { enrollmentId: { in: enrollmentIds }, completed: true },
+        _count: { id: true },
+      }),
+      prisma.enrollmentLessonExerciseAnswer.findMany({
+        where: { enrollmentId: { in: enrollmentIds } },
+        select: { enrollmentId: true, correct: true },
+      }),
+      prisma.sessionAttendance.groupBy({
+        by: ["enrollmentId"],
+        where: {
+          enrollmentId: { in: enrollmentIds },
+          present: true,
+          classSession: { sessionDate: { lte: today } },
+        },
+        _count: { id: true },
+      }),
+      prisma.enrollmentLessonQuestion.groupBy({
+        by: ["enrollmentId"],
+        where: { enrollmentId: { in: enrollmentIds } },
+        _count: { id: true },
+      }),
+      prisma.enrollmentLessonQuestionReply.groupBy({
+        by: ["enrollmentId"],
+        where: { enrollmentId: { in: enrollmentIds } },
+        _count: { id: true },
+      }),
+    ]);
+
+  let lessonsCompleted = 0;
+  for (const p of progressCounts) {
+    lessonsCompleted += p._count.id;
+  }
+  let exerciseAttempts = 0;
+  let exerciseCorrect = 0;
+  for (const a of exerciseAnswers) {
+    exerciseAttempts += 1;
+    if (a.correct) exerciseCorrect += 1;
+  }
+  let attendancePresent = 0;
+  for (const r of attendanceByEnrollmentRows) {
+    attendancePresent += r._count.id;
+  }
+  let forumQuestions = 0;
+  for (const r of forumQRows) {
+    forumQuestions += r._count.id;
+  }
+  let forumReplies = 0;
+  for (const r of forumRRows) {
+    forumReplies += r._count.id;
+  }
+
+  const pointsContent = lessonsCompleted * STUDENT_POINTS_PER_LESSON;
+  const pointsExercises = exerciseAttempts + exerciseCorrect;
+  const pointsFrequency =
+    attendancePresent * STUDENT_RANKING_GAMIFICATION_POINTS.attendancePerPresentStudent;
+  const pointsForum =
+    (forumQuestions + forumReplies) * STUDENT_RANKING_GAMIFICATION_POINTS.forumPerReply;
+  const points = pointsContent + pointsExercises + pointsFrequency + pointsForum;
+
+  return {
+    userId: student.userId,
+    points,
+    levelName: studentLevelNameFromPoints(points),
+  };
 }

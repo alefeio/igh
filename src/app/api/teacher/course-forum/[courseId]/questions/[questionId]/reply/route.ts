@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { notifyParticipantsAfterTeacherForumReply } from "@/lib/forum-user-notifications";
 
 export async function POST(
   request: Request,
@@ -52,6 +53,8 @@ export async function POST(
     },
     select: { id: true, content: true, createdAt: true },
   });
+
+  await notifyParticipantsAfterTeacherForumReply(question.id, reply.id);
 
   return jsonOk({
     id: reply.id,

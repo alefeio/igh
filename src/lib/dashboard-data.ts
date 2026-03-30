@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ensurePendingDocumentRemindersForStudent } from "@/lib/document-reminder-notifications";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
 import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
@@ -366,6 +367,8 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
 
     const myRow = studentRankingFull.find((r) => r.studentId === student.id);
     const studentRankingTopForViewer = buildStudentDashboardRankingTop(studentRankingFull, student.id);
+
+    await ensurePendingDocumentRemindersForStudent(student.id, user.id);
 
     return {
       role: "STUDENT",

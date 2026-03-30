@@ -19,6 +19,8 @@ type Item = {
   alwaysShow?: boolean;
   /** Apenas Master ou Admin (ex.: edição do onboarding). */
   masterOrAdminOnly?: boolean;
+  /** Apenas quando a sessão está no perfil Master (não inclui Coordenador). */
+  masterExclusive?: boolean;
   category?: string;
 };
 
@@ -57,6 +59,12 @@ const ITEMS: Item[] = [
     category: "Administração",
   },
   { href: "/users", label: "Usuários", masterOnly: true, category: "Administração" },
+  {
+    href: "/master/acessos",
+    label: "Acessos ao sistema",
+    masterExclusive: true,
+    category: "Administração",
+  },
   { href: "/approvacoes", label: "Aprovações do site", masterOnly: true, category: "Administração" },
   { href: "/teachers", label: "Professores", adminOrMaster: true, category: "Administração" },
   { href: "/students", label: "Alunos", category: "Administração" },
@@ -148,6 +156,7 @@ export function Sidebar({
 
   const filteredItems = ITEMS.filter((i) => {
     if (i.alwaysShow) return true;
+    if (i.masterExclusive) return user.role === "MASTER";
     if (i.masterOrAdminOnly) return user.role === "MASTER" || user.role === "ADMIN";
     if (i.coordinatorAccess) {
       return (

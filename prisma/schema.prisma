@@ -48,6 +48,64 @@ model User {
   onboardingVisits           OnboardingUserVisit[]
   legalDocumentVersionsCreated LegalDocumentVersion[]     @relation("LegalDocumentVersionCreatedBy")
   legalAcceptance            UserLegalAcceptance?
+  notifications              UserNotification[]
+  accessLogs                 UserAccessLog[]
+  pageVisits                 UserPageVisit[]
+}
+
+/** Navegação na área logada — rota (pathname) por utilizador, para o Master acompanhar páginas vistas. */
+model UserPageVisit {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** Caminho da rota (ex.: /dashboard), sem query string. */
+  path      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+/** Login com sucesso — histórico para o Master (IP/User-Agent conforme cabeçalhos do proxy). */
+model UserAccessLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  ipAddress String?
+  userAgent String?  @db.Text
+  /** EMAIL ou CPF (mesmo campo `kind` do formulário de login). */
+  loginKind String   @default("EMAIL")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+/** Notificações gerais (sino). Não duplicar suporte nem relatório à coordenação — têm badges próprios. */
+enum UserNotificationKind {
+  LESSON_RELEASED
+  CLASS_SCHEDULE_CHANGED
+  PENDING_DOCUMENT_REMINDER
+  LEVEL_UP
+  ACHIEVEMENT_UNLOCKED
+  FORUM_ACTIVITY
+}
+
+model UserNotification {
+  id          String               @id @default(uuid())
+  userId      String
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        UserNotificationKind
+  title       String
+  body        String?              @db.Text
+  linkUrl     String?
+  readAt      DateTime?
+  /** Chave única para não repetir o mesmo evento (ex.: mesma aula liberada). */
+  dedupeKey   String               @unique
+  createdAt   DateTime             @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 /** Termos de uso, política de privacidade ou política de cookies (LGPD / ePrivacy). */

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { captureMilestoneSnapshot, notifyMilestoneDiff } from "@/lib/student-milestone-notifications";
 
 type Progress = {
   completed: boolean;
@@ -154,6 +155,8 @@ export async function PATCH(
         : Math.max(0, Math.round(Number(body.lastContentPageIndex)))
       : undefined;
 
+  const milestoneBefore = await captureMilestoneSnapshot(student.id);
+
   const progress = await prisma.enrollmentLessonProgress.upsert({
     where: {
       enrollmentId_lessonId: { enrollmentId, lessonId },
@@ -186,6 +189,8 @@ export async function PATCH(
       updatedAt: now,
     },
   });
+
+  await notifyMilestoneDiff(student.id, milestoneBefore);
 
   return jsonOk({
     completed: progress.completed,
