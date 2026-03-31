@@ -11,6 +11,14 @@ import { playNotificationSound } from "@/lib/notification-sound";
 
 type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR"; label: string };
 
+type NotificationPreviewItem = {
+  id: string;
+  title: string;
+  body: string | null;
+  linkUrl: string | null;
+  createdAt: string;
+};
+
 export function TopBar({
   user,
 }: {
@@ -39,6 +47,12 @@ export function TopBar({
   const [supportBadge, setSupportBadge] = useState<{ unreadCount?: number; openCount?: number }>({});
   const [coordinatorReportBadge, setCoordinatorReportBadge] = useState<{ unreadCount?: number }>({});
   const [notificationBadge, setNotificationBadge] = useState<{ hasUnread?: boolean }>({});
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationPreview, setNotificationPreview] = useState<{
+    items: NotificationPreviewItem[];
+    loading: boolean;
+    error: string | null;
+  }>({ items: [], loading: false, error: null });
 
   const isSupport =
     user.role === "MASTER" ||
@@ -83,6 +97,44 @@ export function TopBar({
       })
       .catch(() => {});
   }, []);
+
+  const fetchNotificationPreview = useCallback(() => {
+    setNotificationPreview((p) => ({ ...p, loading: true, error: null }));
+    fetch("/api/me/notifications?unread=1&limit=12", { credentials: "include", cache: "no-store" })
+      .then((r) => r.json() as Promise<ApiResponse<{ items: NotificationPreviewItem[] }>>)
+      .then((json) => {
+        if (json?.ok && json.data?.items) {
+          setNotificationPreview({ items: json.data.items, loading: false, error: null });
+        } else {
+          setNotificationPreview((p) => ({
+            ...p,
+            items: [],
+            loading: false,
+            error: "Não foi possível carregar.",
+          }));
+        }
+      })
+      .catch(() => {
+        setNotificationPreview((p) => ({
+          ...p,
+          items: [],
+          loading: false,
+          error: "Não foi possível carregar.",
+        }));
+      });
+  }, []);
+
+  const markNotificationReadAndRefresh = useCallback(
+    async (id: string) => {
+      await fetch(`/api/me/notifications/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      window.dispatchEvent(new Event("notifications-badge-refetch"));
+      fetchNotificationPreview();
+    },
+    [fetchNotificationPreview],
+  );
 
   const isSupportRef = useRef(isSupport);
   isSupportRef.current = isSupport;
@@ -211,6 +263,18 @@ export function TopBar({
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [fetchNotificationBadge]);
 
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    fetchNotificationPreview();
+  }, [notificationsOpen, fetchNotificationPreview]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    const onRefetch = () => fetchNotificationPreview();
+    window.addEventListener("notifications-badge-refetch", onRefetch);
+    return () => window.removeEventListener("notifications-badge-refetch", onRefetch);
+  }, [notificationsOpen, fetchNotificationPreview]);
+
   const r = user.availableRoles;
   const canMaster = r?.canMaster ?? (user.baseRole === "MASTER");
   const canStudent = r?.canStudent ?? (user.hasStudentProfile === true);
@@ -269,27 +333,137 @@ export function TopBar({
     <div className="flex shrink-0 items-center justify-end gap-2 px-3 py-2">
       <div className="relative flex items-center gap-2">
         <ThemeToggle aria-label="Alternar tema" />
-        {/* Ícone de notificações gerais (sino) */}
-        <span className="relative inline-flex">
-          <Link
-            href="/notificacoes"
+        {/* Ícone de notificações gerais (sino) + painel com não lidas */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              setNotificationsOpen((o) => !o);
+            }}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--text-secondary)] transition hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2"
             title="Notificações"
             aria-label="Notificações"
+            aria-expanded={notificationsOpen}
+            aria-haspopup="dialog"
+            aria-controls="notifications-dropdown-panel"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
-          </Link>
-          {notificationBadge.hasUnread && (
-            <span
-              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-[var(--card-bg)]"
-              aria-hidden
-              title="Novas notificações"
-            />
+            <span className="relative inline-flex">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {notificationBadge.hasUnread && (
+                <span
+                  className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-[var(--card-bg)]"
+                  aria-hidden
+                  title="Novas notificações"
+                />
+              )}
+            </span>
+          </button>
+          {notificationsOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                aria-hidden="true"
+                onClick={() => setNotificationsOpen(false)}
+              />
+              <div
+                id="notifications-dropdown-panel"
+                className="absolute right-0 top-full z-50 mt-1 w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-lg"
+                role="dialog"
+                aria-label="Notificações não lidas"
+              >
+                <div className="border-b border-[var(--card-border)] px-3 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                    Não lidas
+                  </p>
+                </div>
+                <div className="max-h-[min(20rem,50vh)] overflow-y-auto">
+                  {notificationPreview.loading && (
+                    <p className="px-3 py-4 text-sm text-[var(--text-muted)]">Carregando…</p>
+                  )}
+                  {notificationPreview.error && (
+                    <p className="px-3 py-4 text-sm text-red-600">{notificationPreview.error}</p>
+                  )}
+                  {!notificationPreview.loading &&
+                    !notificationPreview.error &&
+                    notificationPreview.items.length === 0 && (
+                      <p className="px-3 py-4 text-sm text-[var(--text-muted)]">
+                        Nenhuma notificação não lida.
+                      </p>
+                    )}
+                  <ul className="list-none space-y-0 p-0">
+                    {!notificationPreview.loading &&
+                      !notificationPreview.error &&
+                      notificationPreview.items.map((n) => (
+                        <li key={n.id} className="border-b border-[var(--card-border)] last:border-b-0">
+                          {n.linkUrl ? (
+                            <Link
+                              href={n.linkUrl}
+                              className="block bg-[var(--igh-surface)]/60 px-3 py-2.5 transition hover:bg-[var(--igh-surface)]"
+                              onClick={() => void markNotificationReadAndRefresh(n.id)}
+                            >
+                              <p className="line-clamp-2 text-sm font-medium text-[var(--text-primary)]">
+                                {n.title}
+                              </p>
+                              {n.body && (
+                                <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-secondary)]">
+                                  {n.body}
+                                </p>
+                              )}
+                              <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                                {new Date(n.createdAt).toLocaleString("pt-BR")}
+                              </p>
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              className="w-full bg-[var(--igh-surface)]/60 px-3 py-2.5 text-left transition hover:bg-[var(--igh-surface)]"
+                              onClick={() => void markNotificationReadAndRefresh(n.id)}
+                            >
+                              <p className="line-clamp-2 text-sm font-medium text-[var(--text-primary)]">
+                                {n.title}
+                              </p>
+                              {n.body && (
+                                <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-secondary)]">
+                                  {n.body}
+                                </p>
+                              )}
+                              <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                                {new Date(n.createdAt).toLocaleString("pt-BR")}
+                              </p>
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+                <div className="border-t border-[var(--card-border)] bg-[var(--igh-surface)]/40 px-2 py-2">
+                  <Link
+                    href="/notificacoes"
+                    className="block rounded-lg px-2 py-2 text-center text-sm font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)]"
+                    onClick={() => setNotificationsOpen(false)}
+                  >
+                    Ver todas as notificações
+                  </Link>
+                </div>
+              </div>
+            </>
           )}
-        </span>
+        </div>
         {/* Ícone de suporte com bolinha verde para respostas/abertos */}
         <span className="relative inline-flex">
           <Link
@@ -346,7 +520,10 @@ export function TopBar({
         <div className="relative">
           <button
             type="button"
-            onClick={() => setMenuOpen((o) => !o)}
+            onClick={() => {
+              setNotificationsOpen(false);
+              setMenuOpen((o) => !o);
+            }}
             className="flex items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2"
             aria-expanded={menuOpen}
             aria-haspopup="true"

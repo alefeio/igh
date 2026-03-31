@@ -2,15 +2,23 @@ import { requireSessionUser } from "@/lib/auth";
 import { jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
-const LIMIT = 50;
+const MAX_LIMIT = 50;
 
-/** Lista notificações do usuário (mais recentes primeiro). */
-export async function GET() {
+/** Lista notificações do usuário (mais recentes primeiro). Query: `unread=1` só não lidas; `limit` (1–50). */
+export async function GET(request: Request) {
   const user = await requireSessionUser();
+  const { searchParams } = new URL(request.url);
+  const unreadOnly =
+    searchParams.get("unread") === "1" || searchParams.get("unreadOnly") === "true";
+  const limitRaw = parseInt(searchParams.get("limit") ?? "", 10);
+  const take = Number.isFinite(limitRaw)
+    ? Math.min(Math.max(limitRaw, 1), MAX_LIMIT)
+    : MAX_LIMIT;
+
   const items = await prisma.userNotification.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, ...(unreadOnly ? { readAt: null } : {}) },
     orderBy: { createdAt: "desc" },
-    take: LIMIT,
+    take,
     select: {
       id: true,
       kind: true,

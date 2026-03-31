@@ -7,6 +7,7 @@ import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-st
 import {
   attachForumLastMessagePreviews,
   getForumLessonsFromTaughtSessions,
+  getForumLessonsWithActivityForCourses,
   getForumLessonsWithActivityGlobal,
   mergeTeacherForumGlobalAndTaught,
   getLastTaughtLessonIdForTeacher,
@@ -432,6 +433,13 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         status: "ACTIVE",
       },
     });
+    const teacherForumCourseIds = await prisma.classGroup
+      .findMany({
+        where: { teacherId: teacher.id },
+        select: { courseId: true },
+      })
+      .then((rows) => [...new Set(rows.map((r) => r.courseId))]);
+
     const [gamification, enrollmentsForFeedback, enrollmentsForTeacherRanking, forumGlobal, forumTaught] =
       await Promise.all([
         computeTeacherGamification(teacher.id),
@@ -451,7 +459,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
           },
           select: { studentId: true },
         }),
-        getForumLessonsWithActivityGlobal(),
+        getForumLessonsWithActivityForCourses(teacherForumCourseIds),
         getForumLessonsFromTaughtSessions(teacher.id),
       ]);
 

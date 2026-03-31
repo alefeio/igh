@@ -83,6 +83,12 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
   classGroupsProcessed: number;
   classGroupsUpdated: number;
   classGroupIdsWithScheduleChange: string[];
+  /** Notificações criadas no sino (soma por turma). */
+  notificationsSent: number;
+  /** Matrículas ignoradas no envio (sem conta, etc.). */
+  notificationsSkipped: number;
+  /** Turmas em que o envio de notificações falhou (erro). */
+  notifyTurmaFailures: number;
 }> {
   const holidays = await prisma.holiday.findMany({
     where: { isActive: true },
@@ -96,6 +102,9 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
 
   let classGroupsUpdated = 0;
   const classGroupIdsWithScheduleChange: string[] = [];
+  let notificationsSent = 0;
+  let notificationsSkipped = 0;
+  let notifyTurmaFailures = 0;
 
   for (const { id: classGroupId } of groups) {
     const cg = await prisma.classGroup.findUnique({
@@ -234,8 +243,11 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
       // Notificar logo após esta turma: se o lote final falhasse ou o processo parasse, as datas já estariam
       // gravadas sem aviso aos alunos.
       try {
-        await notifyStudentsAfterHolidayScheduleResync([classGroupId]);
+        const n = await notifyStudentsAfterHolidayScheduleResync([classGroupId]);
+        notificationsSent += n.sent;
+        notificationsSkipped += n.skipped;
       } catch (e) {
+        notifyTurmaFailures += 1;
         console.error("[holiday-resync] notify failed for classGroup", classGroupId, e);
       }
     }
@@ -245,5 +257,8 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
     classGroupsProcessed: groups.length,
     classGroupsUpdated,
     classGroupIdsWithScheduleChange,
+    notificationsSent,
+    notificationsSkipped,
+    notifyTurmaFailures,
   };
 }

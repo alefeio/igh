@@ -625,6 +625,17 @@ export default function AulaConteudoPage() {
 
   contentPageIndexRef.current = contentPageIndex;
 
+  /** Em tela cheia, volta ao topo do painel ao mudar de slide (?pagina=). */
+  useLayoutEffect(() => {
+    if (!hasMultiplePages) return;
+    const wrap = contentWrapperRef.current;
+    if (!wrap || document.fullscreenElement !== wrap) return;
+    wrap.scrollTop = 0;
+    wrap.querySelectorAll(".overflow-auto").forEach((node) => {
+      (node as HTMLElement).scrollTop = 0;
+    });
+  }, [contentPageIndex, hasMultiplePages]);
+
   /** Persiste o índice do slide no backend (reutilizado nos botões e ao sair/ocultar). */
   const persistSlideIndex = useCallback(
     (index: number, from: string) => {

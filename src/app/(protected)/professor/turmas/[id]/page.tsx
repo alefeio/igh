@@ -8,7 +8,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
-import { AlertCircle, CheckCircle2, Presentation } from "lucide-react";
+import { AlertCircle, Cake, CheckCircle2, Presentation } from "lucide-react";
 
 type ClassGroup = {
   id: string;
@@ -25,8 +25,12 @@ type Enrollment = {
   id: string;
   studentName: string;
   studentEmail: string | null;
+  studentPhone?: string | null;
   /** Data de nascimento no formato YYYY-MM-DD (só data). */
   studentBirthDate?: string | null;
+  /** Presenças em sessões liberadas / total de sessões liberadas. */
+  attendancePresentCount?: number;
+  attendanceTotalSessions?: number;
   enrolledAt: string;
   documentationAlert: "yellow" | "red" | null;
 };
@@ -129,6 +133,23 @@ function formatMinutes(totalMinutes: number): string {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return m > 0 ? `${h}h ${m} min` : `${h}h`;
+}
+
+/** Mês de aniversário coincide com o mês atual (data local do navegador). */
+function isBirthMonthThisMonth(birthDateYyyyMmDd: string): boolean {
+  const datePart = birthDateYyyyMmDd.trim().split("T")[0];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return false;
+  const [, monthStr] = datePart.split("-");
+  const birthMonth = Number(monthStr);
+  if (birthMonth < 1 || birthMonth > 12) return false;
+  return new Date().getMonth() + 1 === birthMonth;
+}
+
+function formatPhoneBr(raw: string): string {
+  const d = raw.replace(/\D/g, "");
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return raw.trim();
 }
 
 export default function ProfessorTurmaDetailPage() {
@@ -574,21 +595,38 @@ export default function ProfessorTurmaDetailPage() {
                         />
                       </span>
                     )}
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium text-[var(--text-primary)]">{e.studentName}</p>
                       {e.studentEmail && (
                         <p className="text-xs text-[var(--text-muted)]">{e.studentEmail}</p>
                       )}
                       {e.studentBirthDate && (
-                        <p className="text-xs text-[var(--text-muted)]">
-                          Nasc.: {formatDate(e.studentBirthDate)}
+                        <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                          {isBirthMonthThisMonth(e.studentBirthDate) && (
+                            <Cake
+                              className="h-3.5 w-3.5 shrink-0 text-pink-500 dark:text-pink-400"
+                              aria-label="Mês de aniversário"
+                              title="Mês de aniversário"
+                            />
+                          )}
+                          <span>Nasc.: {formatDate(e.studentBirthDate)}</span>
+                        </p>
+                      )}
+                      {e.studentPhone && (
+                        <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                          Cel.: {formatPhoneBr(e.studentPhone)}
                         </p>
                       )}
                     </div>
                   </div>
-                  <span className="text-xs text-[var(--text-muted)]">
-                    Matrícula em {formatDate(e.enrolledAt)}
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
+                    <span className="text-xs font-medium tabular-nums text-[var(--text-secondary)]">
+                      Frequência: {e.attendancePresentCount ?? 0}/{e.attendanceTotalSessions ?? 0}
+                    </span>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      Matrícula em {formatDate(e.enrolledAt)}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>

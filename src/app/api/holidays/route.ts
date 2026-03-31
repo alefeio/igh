@@ -82,6 +82,9 @@ export async function POST(request: Request) {
     classGroupsProcessed: number;
     classGroupsUpdated: number;
     classGroupIdsWithScheduleChange: string[];
+    notificationsSent: number;
+    notificationsSkipped: number;
+    notifyTurmaFailures: number;
   } | null = null;
   if (holiday.isActive) {
     scheduleRecalculation = await recalculateAllClassGroupSessionsAfterHolidayChange();

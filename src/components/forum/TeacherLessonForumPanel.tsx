@@ -75,7 +75,12 @@ export function TeacherLessonForumPanel({
       } else {
         setMeta(null);
         setQuestions([]);
-        toast.push("error", json && "error" in json ? json.error.message : "Não foi possível carregar o fórum.");
+        toast.push(
+          "error",
+          json?.ok === false && json.error?.message
+            ? json.error.message
+            : "Não foi possível carregar o fórum.",
+        );
       }
     } catch {
       setMeta(null);

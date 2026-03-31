@@ -29,7 +29,7 @@ const COPY: Record<
   },
   teacher: {
     description:
-      "Aulas já ministradas nas suas turmas (atalho ao fórum de cada aula) e aulas com discussão em toda a plataforma — role a faixa para ver mais.",
+      "Aulas já ministradas nas suas turmas (atalho ao fórum de cada aula) e aulas com discussão nos seus cursos — role a faixa para ver mais.",
     linkLabel: "Explorar fóruns por curso",
   },
   admin: {

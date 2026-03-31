@@ -46,6 +46,30 @@ export async function GET(
     },
   });
 
+  const enrollmentIds = enrollments.map((e) => e.id);
+  const liberadaSessions = await prisma.classSession.findMany({
+    where: { classGroupId, status: "LIBERADA" },
+    select: { id: true },
+  });
+  const liberadaSessionIds = liberadaSessions.map((s) => s.id);
+  const attendanceTotalSessions = liberadaSessionIds.length;
+
+  const presentByEnrollment = new Map<string, number>();
+  if (enrollmentIds.length > 0 && liberadaSessionIds.length > 0) {
+    const grouped = await prisma.sessionAttendance.groupBy({
+      by: ["enrollmentId"],
+      where: {
+        enrollmentId: { in: enrollmentIds },
+        classSessionId: { in: liberadaSessionIds },
+        present: true,
+      },
+      _count: { id: true },
+    });
+    for (const row of grouped) {
+      presentByEnrollment.set(row.enrollmentId, row._count.id);
+    }
+  }
+
   function isDataComplete(st: {
     name: string | null;
     cpf: string | null;
@@ -94,7 +118,11 @@ export async function GET(
         studentId: st.id,
         studentName: st.name,
         studentEmail: st.email,
+        studentPhone: st.phone?.trim() ? st.phone.trim() : null,
         studentBirthDate,
+        /** Presenças em sessões LIBERADA / total de sessões liberadas (frequência). */
+        attendancePresentCount: presentByEnrollment.get(e.id) ?? 0,
+        attendanceTotalSessions,
         documentationAlert: docsMissing ? (dataComplete ? "yellow" : "red") : null,
       };
     }),

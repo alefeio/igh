@@ -26,17 +26,26 @@ type ScheduleRecalculation = {
   classGroupsProcessed: number;
   classGroupsUpdated: number;
   classGroupIdsWithScheduleChange?: string[];
+  notificationsSent?: number;
+  notificationsSkipped?: number;
+  notifyTurmaFailures?: number;
 };
 
-function successMessageWithSchedule(
-  base: string,
-  schedule?: ScheduleRecalculation | null
-): string {
-  if (!schedule || schedule.classGroupsUpdated <= 0) return base;
-  let msg = `${base} Calendário de aulas recalculado para ${schedule.classGroupsUpdated} turma(s) não encerradas.`;
-  msg +=
-    " Alunos com conta nas turmas em que o calendário mudou receberam notificação no sino do portal.";
-  return msg;
+type LastFeedback =
+  | { tag: "schedule"; data: ScheduleRecalculation }
+  | {
+      tag: "notify";
+      notificationsSent: number;
+      notificationsSkipped: number;
+      classGroupsNotified: number;
+    };
+
+/** Toast curto; o detalhe fica no painel abaixo do título. */
+function toastAfterScheduleSave(base: string, sch?: ScheduleRecalculation | null): string {
+  if (sch && sch.classGroupsProcessed !== undefined) {
+    return `${base} Resumo do calendário e notificações no painel abaixo.`;
+  }
+  return base;
 }
 
 function formatDate(iso: string) {
@@ -88,6 +97,8 @@ export default function HolidaysPage() {
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [sendingNotify, setSendingNotify] = useState(false);
+  /** Resumo visível após salvar feriado/evento, recalcular ou aviso em massa. */
+  const [lastFeedback, setLastFeedback] = useState<LastFeedback | null>(null);
 
   const canSubmit = useMemo(() => {
     if (date.trim().length < 10) return false;
@@ -169,14 +180,15 @@ export default function HolidaysPage() {
         return;
       }
       const sch = json.data.scheduleRecalculation;
+      setLastFeedback({ tag: "schedule", data: sch });
       if (sch.classGroupsUpdated <= 0) {
         toast.push(
           "success",
-          "Nenhuma turma precisou de alteração (calendário já estava alinhado com os feriados/eventos ativos)."
+          "Recálculo concluído. Veja o resumo abaixo — nenhuma turma precisou alterar datas."
         );
         return;
       }
-      toast.push("success", successMessageWithSchedule("Recálculo concluído.", sch));
+      toast.push("success", toastAfterScheduleSave("Recálculo concluído.", sch));
     } finally {
       setRecalculating(false);
     }
@@ -213,17 +225,20 @@ export default function HolidaysPage() {
         return;
       }
       const { notificationsSent, notificationsSkipped, classGroupsNotified } = json.data;
+      setLastFeedback({
+        tag: "notify",
+        notificationsSent,
+        notificationsSkipped,
+        classGroupsNotified,
+      });
       if (notificationsSent === 0) {
         toast.push(
           "success",
-          `Nenhum aviso novo: todos os elegíveis já tinham recebido ou não há matrícula ativa com conta (${notificationsSkipped} ignorados; ${classGroupsNotified} turma(s) abertas).`
+          "Nenhum aviso novo. Veja o resumo abaixo."
         );
         return;
       }
-      toast.push(
-        "success",
-        `Aviso enviado no sino para ${notificationsSent} matrícula(s). Ignorados (já tinham aviso ou sem conta): ${notificationsSkipped}. Turmas abertas consideradas: ${classGroupsNotified}.`
-      );
+      toast.push("success", `Enviados ${notificationsSent} aviso(s). Resumo abaixo.`);
     } finally {
       setSendingNotify(false);
     }
@@ -263,10 +278,10 @@ export default function HolidaysPage() {
           toast.push("error", json && !json.ok ? json.error.message : "Falha ao atualizar.");
           return;
         }
-        toast.push(
-          "success",
-          successMessageWithSchedule("Registro atualizado.", json.data.scheduleRecalculation)
-        );
+        const sch = json.data.scheduleRecalculation;
+        if (sch) setLastFeedback({ tag: "schedule", data: sch });
+        else setLastFeedback(null);
+        toast.push("success", toastAfterScheduleSave("Registro atualizado.", sch));
       } else {
         const res = await fetch("/api/holidays", {
           method: "POST",
@@ -281,10 +296,10 @@ export default function HolidaysPage() {
           toast.push("error", json && !json.ok ? json.error.message : "Falha ao criar.");
           return;
         }
-        toast.push(
-          "success",
-          successMessageWithSchedule("Registro criado.", json.data.scheduleRecalculation ?? null)
-        );
+        const sch = json.data.scheduleRecalculation ?? null;
+        if (sch) setLastFeedback({ tag: "schedule", data: sch });
+        else setLastFeedback(null);
+        toast.push("success", toastAfterScheduleSave("Registro criado.", sch));
       }
       setOpen(false);
       resetForm();
@@ -308,10 +323,10 @@ export default function HolidaysPage() {
       toast.push("error", json && !json.ok ? json.error.message : "Falha ao inativar.");
       return;
     }
-    toast.push(
-      "success",
-      successMessageWithSchedule("Registro inativado.", json.data.scheduleRecalculation)
-    );
+    const sch = json.data.scheduleRecalculation;
+    if (sch) setLastFeedback({ tag: "schedule", data: sch });
+    else setLastFeedback(null);
+    toast.push("success", toastAfterScheduleSave("Registro inativado.", sch));
     await load();
   }
 
@@ -329,10 +344,10 @@ export default function HolidaysPage() {
       toast.push("error", json && !json.ok ? json.error.message : "Falha ao reativar.");
       return;
     }
-    toast.push(
-      "success",
-      successMessageWithSchedule("Registro reativado.", json.data.scheduleRecalculation)
-    );
+    const sch = json.data.scheduleRecalculation;
+    if (sch) setLastFeedback({ tag: "schedule", data: sch });
+    else setLastFeedback(null);
+    toast.push("success", toastAfterScheduleSave("Registro reativado.", sch));
     await load();
   }
 
@@ -347,10 +362,10 @@ export default function HolidaysPage() {
       toast.push("error", json && !json.ok ? json.error.message : "Falha ao excluir.");
       return;
     }
-    toast.push(
-      "success",
-      successMessageWithSchedule("Registro excluído.", json.data.scheduleRecalculation)
-    );
+    const sch = json.data.scheduleRecalculation;
+    if (sch) setLastFeedback({ tag: "schedule", data: sch });
+    else setLastFeedback(null);
+    toast.push("success", toastAfterScheduleSave("Registro excluído.", sch));
     await load();
   }
 
@@ -401,6 +416,79 @@ export default function HolidaysPage() {
           </div>
         }
       />
+
+      {lastFeedback ? (
+        <div
+          className={`rounded-xl border px-4 py-3 sm:px-5 ${
+            lastFeedback.tag === "schedule" &&
+            (lastFeedback.data.notifyTurmaFailures ?? 0) > 0
+              ? "border-amber-500/40 bg-amber-500/10"
+              : "border-[var(--igh-primary)]/25 bg-[var(--igh-surface)]"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">
+              {lastFeedback.tag === "schedule"
+                ? "Processamento de calendário e notificações"
+                : "Envio de avisos no sino"}
+            </h2>
+            <Button type="button" variant="secondary" className="shrink-0 text-sm" onClick={() => setLastFeedback(null)}>
+              Fechar
+            </Button>
+          </div>
+          {lastFeedback.tag === "schedule" ? (
+            <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+              <p>
+                <strong className="text-[var(--text-primary)]">Turmas analisadas</strong> (não encerradas):{" "}
+                {lastFeedback.data.classGroupsProcessed}
+              </p>
+              <p>
+                <strong className="text-[var(--text-primary)]">Turmas com datas de aulas alteradas</strong>:{" "}
+                {lastFeedback.data.classGroupsUpdated}
+              </p>
+              <p>
+                <strong className="text-[var(--text-primary)]">Notificações criadas no sino</strong> (alunos com
+                conta): {lastFeedback.data.notificationsSent ?? 0}
+              </p>
+              <p>
+                <strong className="text-[var(--text-primary)]">Matrículas ignoradas no envio</strong> (sem conta
+                ligada ou duplicata interna): {lastFeedback.data.notificationsSkipped ?? 0}
+              </p>
+              {(lastFeedback.data.notifyTurmaFailures ?? 0) > 0 ? (
+                <p className="text-amber-800 dark:text-amber-200">
+                  <strong>Atenção:</strong> falha ao enviar avisos em {lastFeedback.data.notifyTurmaFailures}{" "}
+                  turma(s). As datas podem ter sido atualizadas mesmo assim — use &quot;Aviso no sino&quot; para
+                  quem faltou.
+                </p>
+              ) : null}
+              {lastFeedback.data.classGroupsUpdated === 0 && lastFeedback.data.classGroupsProcessed > 0 ? (
+                <p className="text-[var(--text-muted)]">
+                  Nenhuma turma precisou mudar datas: o feriado/evento pode não afetar o horário de nenhuma turma
+                  aberta (ex.: evento com horário que não cruza com o da turma), ou o calendário já estava
+                  coerente.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+              <p>
+                <strong className="text-[var(--text-primary)]">Avisos enviados</strong>:{" "}
+                {lastFeedback.notificationsSent}
+              </p>
+              <p>
+                <strong className="text-[var(--text-primary)]">Ignorados</strong> (já tinham aviso ou sem conta):{" "}
+                {lastFeedback.notificationsSkipped}
+              </p>
+              <p>
+                <strong className="text-[var(--text-primary)]">Turmas abertas consideradas</strong>:{" "}
+                {lastFeedback.classGroupsNotified}
+              </p>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <SectionCard
         title="Como funciona"
@@ -660,6 +748,13 @@ export default function HolidaysPage() {
               </div>
             </div>
           ) : null}
+          {isActive ? (
+            <p className="text-xs text-[var(--text-muted)]">
+              Ao salvar um registro <strong>ativo</strong>, o sistema recalcula as turmas não encerradas e envia
+              notificações — pode levar alguns minutos. O resumo aparece no painel abaixo do título da página ao
+              concluir.
+            </p>
+          ) : null}
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button
               type="button"
@@ -672,7 +767,7 @@ export default function HolidaysPage() {
               Cancelar
             </Button>
             <Button type="submit" disabled={!canSubmit || saving}>
-              {saving ? "Salvando" : "Salvar"}
+              {saving ? "Processando…" : "Salvar"}
             </Button>
           </div>
         </form>
