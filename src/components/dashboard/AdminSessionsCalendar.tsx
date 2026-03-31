@@ -9,11 +9,29 @@ import type { DashboardSessionCalendarItem } from "@/lib/dashboard-admin-calenda
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
+const DEFAULT_DESCRIPTION =
+  "Sessões de turmas abertas ou em andamento. Clique em um dia para listar as aulas; o período carregado cobre vários meses a partir do mês atual.";
+
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
-export function AdminSessionsCalendar({ sessions }: { sessions: DashboardSessionCalendarItem[] }) {
+export function AdminSessionsCalendar({
+  sessions,
+  description = DEFAULT_DESCRIPTION,
+  footerHref = "/class-groups",
+  footerLabel = "Gerir turmas →",
+  /** Define links do rodapé e do detalhe de cada sessão (matrículas vs área do aluno vs professor). */
+  audience = "admin",
+  dataTour = "admin-dashboard-calendario",
+}: {
+  sessions: DashboardSessionCalendarItem[];
+  description?: string;
+  footerHref?: string;
+  footerLabel?: string;
+  audience?: "admin" | "student" | "teacher";
+  dataTour?: string;
+}) {
   const byDate = useMemo(() => {
     const m = new Map<string, DashboardSessionCalendarItem[]>();
     for (const s of sessions) {
@@ -57,8 +75,8 @@ export function AdminSessionsCalendar({ sessions }: { sessions: DashboardSession
   return (
     <SectionCard
       title="Aulas no calendário"
-      description="Sessões de turmas abertas ou em andamento. Clique em um dia para listar as aulas; o período carregado cobre vários meses a partir do mês atual."
-      dataTour="admin-dashboard-calendario"
+      description={description}
+      dataTour={dataTour}
       variant="elevated"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -90,10 +108,10 @@ export function AdminSessionsCalendar({ sessions }: { sessions: DashboardSession
           </button>
         </div>
         <Link
-          href="/class-groups"
+          href={footerHref}
           className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
         >
-          Gerir turmas →
+          {footerLabel}
         </Link>
       </div>
 
@@ -177,11 +195,21 @@ export function AdminSessionsCalendar({ sessions }: { sessions: DashboardSession
                         {s.startTime} – {s.endTime}
                       </span>
                       <Link
-                        href={`/enrollments?turma=${s.classGroupId}`}
+                        href={
+                          audience === "teacher"
+                            ? `/professor/turmas/${s.classGroupId}`
+                            : audience === "student"
+                              ? `/minhas-turmas/${s.classGroupId}/conteudo`
+                              : `/enrollments?turma=${s.classGroupId}`
+                        }
                         className="inline-flex items-center gap-1 text-xs font-bold text-[var(--igh-primary)] hover:underline"
                       >
                         <MapPin className="h-3.5 w-3.5" aria-hidden />
-                        Turma / matrículas
+                        {audience === "teacher"
+                          ? "Abrir turma"
+                          : audience === "student"
+                            ? "Conteúdo da turma"
+                            : "Turma / matrículas"}
                       </Link>
                     </div>
                   </div>

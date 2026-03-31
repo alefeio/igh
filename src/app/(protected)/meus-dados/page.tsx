@@ -3,6 +3,7 @@ import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { MeusDadosContaForm } from "./MeusDadosContaForm";
 import { MeusDadosForm } from "./MeusDadosForm";
+import { MeusDadosSenhaForm } from "./MeusDadosSenhaForm";
 
 export const metadata = {
   title: "Meus dados",
@@ -37,6 +38,13 @@ export default async function MeusDadosPage() {
         >
           <MeusDadosForm />
         </SectionCard>
+        <SectionCard
+          title="Senha de acesso"
+          description="Altere a senha usada para entrar com e-mail ou CPF."
+          variant="elevated"
+        >
+          <MeusDadosSenhaForm />
+        </SectionCard>
       </div>
     );
   }
@@ -56,6 +64,13 @@ export default async function MeusDadosPage() {
           variant="elevated"
         >
           <MeusDadosContaForm roleLabel={roleLabel} />
+        </SectionCard>
+        <SectionCard
+          title="Senha de acesso"
+          description="Altere a senha usada para entrar na plataforma."
+          variant="elevated"
+        >
+          <MeusDadosSenhaForm />
         </SectionCard>
       </div>
     );

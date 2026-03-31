@@ -32,7 +32,6 @@ const ITEMS: Item[] = [
   /* —— Início (todos) —— */
   { href: "/dashboard", label: "Dashboard", alwaysShow: true, category: "Início" },
   { href: "/onboarding", label: "Como usar o sistema", alwaysShow: true, category: "Início" },
-  { href: "/meus-dados", label: "Meus dados", alwaysShow: true, category: "Início" },
   {
     href: "/coordenacao",
     label: "Coordenação",

@@ -89,6 +89,7 @@ enum UserNotificationKind {
   LEVEL_UP
   ACHIEVEMENT_UNLOCKED
   FORUM_ACTIVITY
+  BIRTHDAY
 }
 
 model UserNotification {

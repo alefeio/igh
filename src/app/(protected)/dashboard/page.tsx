@@ -17,6 +17,7 @@ import {
   School,
   Star,
   Trophy,
+  UserCheck,
   UserCircle,
   UserPlus,
   Users,
@@ -42,7 +43,9 @@ import {
   type DashboardDataAdmin,
   type ClassGroupSummary,
   type PlatformExperienceDashboardSummary,
+  type PlatformEngagementSnapshot,
   type StudentEnrollmentSummary,
+  type TeacherClassGroupEngagement,
 } from "@/lib/dashboard-data";
 import { formatDaysShortPtBr } from "@/lib/turma-display";
 import {
@@ -133,6 +136,12 @@ const ADMIN_TUTORIAL_STEPS: TutorialStep[] = [
     content: "Cards com totais de Alunos, Professores, Cursos, Turmas e Matrículas. Clique em cada um para ir à página correspondente.",
   },
   {
+    target: "[data-tour=\"admin-dashboard-engajamento\"]",
+    title: "Engajamento na plataforma",
+    content:
+      "Indicadores globais de estudo: aulas concluídas, registros de acesso, exercícios, presenças em sessões e participação no fórum — alinhados ao que o aluno vê no painel dele.",
+  },
+  {
     target: "[data-tour=\"admin-dashboard-rankings\"]",
     title: "Rankings",
     content:
@@ -167,6 +176,12 @@ const TEACHER_TUTORIAL_STEPS: TutorialStep[] = [
     target: "[data-tour=\"teacher-dashboard-resumo\"]",
     title: "Seu resumo",
     content: "Turmas ativas (abertas ou em andamento), total de alunos matriculados nas suas turmas e vagas ainda disponíveis.",
+  },
+  {
+    target: "[data-tour=\"teacher-dashboard-por-turma\"]",
+    title: "Engajamento por turma",
+    content:
+      "Para cada turma: soma de aulas concluídas e acessos ao conteúdo, exercícios, frequência e fórum. Use os atalhos para o painel da turma ou o fórum do curso.",
   },
   {
     target: "[data-tour=\"teacher-dashboard-turmas\"]",
@@ -408,6 +423,7 @@ function DashboardAdmin({
   const {
     stats,
     roleLabel,
+    platformEngagement,
     teachersGamificationRanking,
     platformExperienceSummary,
     forumLessonsWithActivity,
@@ -455,6 +471,17 @@ function DashboardAdmin({
             }
           />
         </div>
+      </section>
+
+      <section data-tour="admin-dashboard-engajamento" aria-label="Engajamento na plataforma">
+        <SectionCard
+          title="Engajamento na plataforma"
+          description="Totais de estudo, frequência e fórum — mesma base do painel do aluno (matrículas ativas; presenças em sessões até hoje no fuso Brasil)."
+          id="admin-engajamento-heading"
+          variant="elevated"
+        >
+          <PlatformEngagementDashboardGrid e={platformEngagement} />
+        </SectionCard>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch" data-tour="admin-dashboard-rankings">
@@ -652,6 +679,8 @@ function DashboardTeacher({
     platformExperienceSummary,
     forumLessonsWithActivity,
     studentRankingTop,
+    sessionsCalendar,
+    teacherClassGroupStats,
   } = data;
   const totalVagasDisponiveis = classGroups.reduce(
     (acc, cg) => acc + Math.max(0, (cg.capacity ?? 0) - (cg.enrollmentsCount ?? 0)),
@@ -675,19 +704,72 @@ function DashboardTeacher({
         }
       />
 
-      {gamification ? (
-        <TeacherGamificationPanel g={gamification} />
-      ) : (
+      <section data-tour="teacher-dashboard-resumo" aria-label="Resumo das suas turmas">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StatTile
+            label="Turmas ativas"
+            icon={School}
+            value={myClassGroupsCount}
+            href="/professor/turmas"
+            accent="amber"
+            sublabel="Abertas ou em andamento"
+          />
+          <StatTile
+            label="Alunos matriculados"
+            icon={Users}
+            value={myEnrollmentsCount}
+            href="/enrollments"
+            accent="emerald"
+            sublabel="Nas suas turmas"
+          />
+          <StatTile
+            label="Vagas disponíveis"
+            icon={UserPlus}
+            value={totalVagasDisponiveis}
+            accent="sky"
+            sublabel="Capacidade ainda não preenchida"
+          />
+        </div>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+        <div className="min-w-0">
+          {gamification ? (
+            <TeacherGamificationPanel g={gamification} />
+          ) : (
+            <SectionCard
+              title="Gamificação"
+              description="Pontuação por turmas, conteúdo e engajamento."
+              variant="elevated"
+            >
+              <p className="text-sm text-[var(--text-muted)]">
+                Quando houver dados de turmas, sua pontuação aparecerá aqui e na página de gamificação.
+              </p>
+            </SectionCard>
+          )}
+        </div>
+        <div className="min-w-0">
+          <AdminSessionsCalendar
+            sessions={sessionsCalendar}
+            audience="teacher"
+            footerHref="/professor/turmas"
+            footerLabel="Turmas que leciono →"
+            description="Suas sessões nas turmas em aberto ou em andamento. Clique em um dia para ver curso, horário e abrir a turma."
+            dataTour="dashboard-calendario-aulas-professor"
+          />
+        </div>
+      </div>
+
+      <section data-tour="teacher-dashboard-por-turma" aria-label="Engajamento por turma">
         <SectionCard
-          title="Gamificação"
-          description="Pontuação por turmas, conteúdo e engajamento."
+          title="Engajamento por turma"
+          description="Soma do que os alunos fazem em cada turma: aulas concluídas e acessos, exercícios, frequência e participação no fórum."
+          id="teacher-por-turma-heading"
           variant="elevated"
         >
-          <p className="text-sm text-[var(--text-muted)]">
-            Quando houver dados de turmas, sua pontuação aparecerá aqui e na página de gamificação.
-          </p>
+          <TeacherClassGroupEngagementRows rows={teacherClassGroupStats} />
         </SectionCard>
-      )}
+      </section>
 
       <div className="flex flex-col gap-6">
         <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
@@ -761,51 +843,14 @@ function DashboardTeacher({
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
-          <PlatformExperienceSummarySection
-            summary={platformExperienceSummary}
-            href="/professor/avaliacoes-experiencia"
-            title="Avaliações dos meus alunos"
-            description="Apenas alunos com matrícula ativa em turmas suas. Inclui notas e comentários quando enviados."
-            className="flex h-full min-h-0 flex-col"
-            contentClassName="flex flex-1 flex-col"
-          />
-          <SectionCard
-            title="Turmas e alunos"
-            description="Números das suas turmas abertas ou em andamento."
-            id="teacher-resumo-heading"
-            dataTour="teacher-dashboard-resumo"
-            variant="elevated"
-            className="flex h-full min-h-0 flex-col"
-            contentClassName="flex flex-1 flex-col justify-center"
-          >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <StatTile
-                label="Turmas ativas"
-                icon={School}
-                value={myClassGroupsCount}
-                href="/professor/turmas"
-                accent="amber"
-                sublabel="Abertas ou em andamento"
-              />
-              <StatTile
-                label="Alunos matriculados"
-                icon={Users}
-                value={myEnrollmentsCount}
-                href="/enrollments"
-                accent="emerald"
-                sublabel="Nas suas turmas"
-              />
-              <StatTile
-                label="Vagas disponíveis"
-                icon={UserPlus}
-                value={totalVagasDisponiveis}
-                accent="sky"
-                sublabel="Capacidade ainda não preenchida"
-              />
-            </div>
-          </SectionCard>
-        </div>
+        <PlatformExperienceSummarySection
+          summary={platformExperienceSummary}
+          href="/professor/avaliacoes-experiencia"
+          title="Avaliações dos meus alunos"
+          description="Apenas alunos com matrícula ativa em turmas suas. Inclui notas e comentários quando enviados."
+          className="flex h-full min-h-0 flex-col"
+          contentClassName="flex flex-1 flex-col"
+        />
       </div>
 
       <DashboardForumActivityRail variant="teacher" items={forumLessonsWithActivity} />
@@ -910,21 +955,298 @@ function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
             </div>
           </div>
         )}
-        {enrollment.exerciseTotalAttempts > 0 && (
-          <p className="text-xs text-[var(--text-muted)]">
-            Exercícios: {enrollment.exerciseCorrectAttempts}/{enrollment.exerciseTotalAttempts} acertos
-            {enrollment.exerciseTotalAttempts > 0 && (
-              <span className="font-medium text-[var(--igh-primary)]">
-                {" "}({Math.round((enrollment.exerciseCorrectAttempts / enrollment.exerciseTotalAttempts) * 100)}%)
-              </span>
-            )}
-          </p>
-        )}
-        <p className="mt-auto text-sm text-[var(--text-muted)]">
-          {isComplete ? "Curso concluído" : hasProgress ? "Continuar estudando" : "Acessar conteúdo e desempenho"}
+        <p className="mt-auto text-sm font-medium text-[var(--igh-primary)]">
+          {isComplete ? "Curso concluído" : hasProgress ? "Abrir conteúdo" : "Começar o curso"}
         </p>
       </div>
     </Link>
+  );
+}
+
+function StudentCourseProgressRows({ enrollments }: { enrollments: StudentEnrollmentSummary[] }) {
+  return (
+    <ul className="flex flex-col gap-3" aria-label="Progresso detalhado por curso">
+      {enrollments.map((e) => {
+        const pct = e.lessonsTotal > 0 ? Math.round((e.lessonsCompleted / e.lessonsTotal) * 100) : 0;
+        const exPct =
+          e.exerciseTotalAttempts > 0
+            ? Math.round((e.exerciseCorrectAttempts / e.exerciseTotalAttempts) * 100)
+            : null;
+        return (
+          <li
+            key={e.id}
+            className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/35 p-4 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3 gap-y-2">
+              <div className="min-w-0">
+                <p className="font-semibold leading-snug text-[var(--text-primary)]">{e.courseName}</p>
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">Prof. {e.teacherName}</p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Link
+                  href={`/minhas-turmas/${e.id}/conteudo`}
+                  className="inline-flex items-center gap-1 rounded-lg bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                >
+                  Conteúdo
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+                <Link
+                  href={`/minhas-turmas/forum/${e.courseId}`}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--igh-primary)]/40 hover:text-[var(--igh-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+                  Fórum
+                </Link>
+              </div>
+            </div>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <PlayCircle className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Aulas concluídas
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {e.lessonsCompleted} / {e.lessonsTotal}
+                  {e.lessonsTotal > 0 ? <span className="ml-1.5 text-[var(--igh-primary)]">({pct}%)</span> : null}
+                </dd>
+              </div>
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <BookOpen className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Aulas com acesso
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {e.lessonsAccessedCount}{" "}
+                  <span className="font-normal text-[var(--text-muted)]">
+                    {e.lessonsAccessedCount === 1 ? "aula aberta" : "aulas abertas"}
+                  </span>
+                </dd>
+              </div>
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <ClipboardList className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Exercícios
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {e.exerciseTotalAttempts > 0 ? (
+                    <>
+                      {e.exerciseCorrectAttempts} acertos · {e.exerciseTotalAttempts}{" "}
+                      {e.exerciseTotalAttempts === 1 ? "tentativa" : "tentativas"}
+                      {exPct != null ? (
+                        <span className="ml-1.5 font-bold text-[var(--igh-primary)]">({exPct}%)</span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="font-normal text-[var(--text-muted)]">Nenhuma tentativa ainda</span>
+                  )}
+                </dd>
+              </div>
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <UserCheck className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Frequência
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {e.attendancePresentCount}{" "}
+                  <span className="font-normal text-[var(--text-muted)]">
+                    {e.attendancePresentCount === 1 ? "presença registrada" : "presenças registradas"}
+                  </span>
+                </dd>
+              </div>
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60 sm:col-span-2 xl:col-span-1">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <Users2 className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Participação no fórum
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {e.forumQuestionsCount} {e.forumQuestionsCount === 1 ? "tópico" : "tópicos"} ·{" "}
+                  {e.forumRepliesCount} {e.forumRepliesCount === 1 ? "resposta" : "respostas"}
+                </dd>
+              </div>
+            </dl>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function PlatformEngagementDashboardGrid({ e }: { e: PlatformEngagementSnapshot }) {
+  const exPct =
+    e.exerciseAttemptsTotal > 0
+      ? Math.round((e.exerciseCorrectTotal / e.exerciseAttemptsTotal) * 100)
+      : null;
+  return (
+    <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70">
+        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+          <PlayCircle className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+          Aulas concluídas (total)
+        </dt>
+        <dd className="mt-1 text-lg font-bold tabular-nums text-[var(--text-primary)]">{e.lessonsCompletedTotal}</dd>
+      </div>
+      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70">
+        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+          <BookOpen className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+          Registros de acesso a aulas
+        </dt>
+        <dd className="mt-1 text-lg font-bold tabular-nums text-[var(--text-primary)]">{e.lessonAccessRecordsTotal}</dd>
+        <dd className="mt-0.5 text-[11px] leading-snug text-[var(--text-muted)]">
+          Linhas de progresso (matrícula × aula com interação).
+        </dd>
+      </div>
+      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70">
+        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+          <ClipboardList className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+          Exercícios (alunos)
+        </dt>
+        <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+          {e.exerciseCorrectTotal} acertos · {e.exerciseAttemptsTotal}{" "}
+          {e.exerciseAttemptsTotal === 1 ? "tentativa" : "tentativas"}
+          {exPct != null ? (
+            <span className="ml-1.5 font-bold text-[var(--igh-primary)]">({exPct}%)</span>
+          ) : null}
+        </dd>
+      </div>
+      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70">
+        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+          <UserCheck className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+          Presenças registradas
+        </dt>
+        <dd className="mt-1 text-lg font-bold tabular-nums text-[var(--text-primary)]">{e.attendancePresentTotal}</dd>
+        <dd className="mt-0.5 text-[11px] text-[var(--text-muted)]">Sessões até hoje (fuso Brasil).</dd>
+      </div>
+      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70 sm:col-span-2 xl:col-span-2">
+        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+          <Users2 className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+          Fórum
+        </dt>
+        <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+          {e.forumQuestionsTotal} {e.forumQuestionsTotal === 1 ? "tópico" : "tópicos"} · {e.forumRepliesTotal}{" "}
+          {e.forumRepliesTotal === 1 ? "resposta" : "respostas"}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function TeacherClassGroupEngagementRows({ rows }: { rows: TeacherClassGroupEngagement[] }) {
+  const sorted = [...rows].sort((a, b) =>
+    a.courseName.localeCompare(b.courseName, "pt-BR", { sensitivity: "base" })
+  );
+  if (sorted.length === 0) {
+    return <p className="text-sm text-[var(--text-muted)]">Nenhuma turma ativa no momento.</p>;
+  }
+  return (
+    <ul className="flex flex-col gap-3" aria-label="Engajamento por turma">
+      {sorted.map((r) => {
+        const exPct =
+          r.exerciseAttempts > 0 ? Math.round((r.exerciseCorrect / r.exerciseAttempts) * 100) : null;
+        const cap =
+          r.lessonsInCourse > 0 && r.enrollmentsCount > 0
+            ? Math.round(
+                (r.lessonsCompletedSum / (r.lessonsInCourse * r.enrollmentsCount)) * 100
+              )
+            : null;
+        return (
+          <li
+            key={r.classGroupId}
+            className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/35 p-4 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3 gap-y-2">
+              <div className="min-w-0">
+                <p className="font-semibold leading-snug text-[var(--text-primary)]">{r.courseName}</p>
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                  {r.enrollmentsCount} {r.enrollmentsCount === 1 ? "aluno matriculado" : "alunos matriculados"}
+                  {r.lessonsInCourse > 0 ? ` · ${r.lessonsInCourse} aulas no curso` : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Link
+                  href={`/professor/turmas/${r.classGroupId}`}
+                  className="inline-flex items-center gap-1 rounded-lg bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                >
+                  Painel da turma
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+                <Link
+                  href={`/professor/forum/${r.courseId}`}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--igh-primary)]/40 hover:text-[var(--igh-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+                  Fórum do curso
+                </Link>
+              </div>
+            </div>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <PlayCircle className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Aulas concluídas (soma)
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {r.lessonsCompletedSum}
+                  {cap != null && !Number.isNaN(cap) ? (
+                    <span className="ml-1.5 text-[var(--igh-primary)]">(~{cap}% do máx. teórico)</span>
+                  ) : null}
+                </dd>
+              </div>
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <BookOpen className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Acessos ao conteúdo
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {r.lessonAccessRecords}{" "}
+                  <span className="font-normal text-[var(--text-muted)]">registros de progresso</span>
+                </dd>
+              </div>
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <ClipboardList className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Exercícios
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {r.exerciseAttempts > 0 ? (
+                    <>
+                      {r.exerciseCorrect} acertos · {r.exerciseAttempts}{" "}
+                      {r.exerciseAttempts === 1 ? "tentativa" : "tentativas"}
+                      {exPct != null ? (
+                        <span className="ml-1.5 font-bold text-[var(--igh-primary)]">({exPct}%)</span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="font-normal text-[var(--text-muted)]">Nenhuma tentativa ainda</span>
+                  )}
+                </dd>
+              </div>
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <UserCheck className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Frequência
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {r.attendancePresent}{" "}
+                  <span className="font-normal text-[var(--text-muted)]">
+                    {r.attendancePresent === 1 ? "presença" : "presenças"}
+                  </span>
+                </dd>
+              </div>
+              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60 sm:col-span-2 xl:col-span-1">
+                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <Users2 className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
+                  Fórum (alunos)
+                </dt>
+                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                  {r.forumQuestions} {r.forumQuestions === 1 ? "tópico" : "tópicos"} · {r.forumReplies}{" "}
+                  {r.forumReplies === 1 ? "resposta" : "respostas"}
+                </dd>
+              </div>
+            </dl>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -982,6 +1304,7 @@ function DashboardStudent({
     studentRankingTop,
     myStudentRank,
     myStudentPoints,
+    sessionsCalendar,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
   const pointsContent = totalLessonsCompleted * POINTS_PER_LESSON;
@@ -1027,6 +1350,9 @@ function DashboardStudent({
       : null;
   const globalPercent =
     totalLessonsTotal > 0 ? Math.round((totalLessonsCompleted / totalLessonsTotal) * 100) : 0;
+  const enrollmentsSorted = [...enrollments].sort((a, b) =>
+    a.courseName.localeCompare(b.courseName, "pt-BR", { sensitivity: "base" })
+  );
 
   const evolucaoCard = (
     <SectionCard
@@ -1212,12 +1538,81 @@ function DashboardStudent({
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
-        <div className="flex min-h-0 flex-col gap-4">
-          {evolucaoCard}
-          {continueBlock}
-          {desempenhoCard}
+      <div className="min-w-0">{continueBlock}</div>
+
+      {enrollments.length > 0 && (
+        <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
+          <div className="min-w-0 lg:col-span-2">
+            <SectionCard
+              title="Seu progresso"
+              description="Resumo geral e, abaixo, o detalhe de cada curso — aulas, exercícios, frequência e fórum."
+              id="resumo-progresso-heading"
+              dataTour="dashboard-progresso-geral"
+              variant="elevated"
+            >
+              {totalLessonsTotal > 0 ? (
+                <div className="flex flex-wrap items-center gap-6">
+                  <div className="flex flex-col">
+                    <span className="text-5xl font-bold tabular-nums tracking-tight text-[var(--text-primary)]">
+                      {totalLessonsCompleted}
+                    </span>
+                    <span className="mt-1 text-sm font-medium text-[var(--text-muted)]">
+                      de {totalLessonsTotal} aulas concluídas
+                    </span>
+                  </div>
+                  <div className="min-w-[200px] flex-1">
+                    <div className="flex items-center gap-2">
+                      <PlayCircle className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+                      <div className="h-3 flex-1 overflow-hidden rounded-full bg-[var(--igh-surface)] shadow-inner">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-[var(--igh-primary)] to-violet-500 transition-all duration-500"
+                          style={{ width: `${globalPercent}%` }}
+                        />
+                      </div>
+                      <span
+                        className="inline-flex shrink-0"
+                        title="Chegada — fim do percurso do curso"
+                        role="img"
+                        aria-label="Chegada, linha de chegada do percurso"
+                      >
+                        <FinishLineFlagIcon className="h-5 w-5 text-[var(--igh-primary)]" />
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-[var(--igh-primary)]">{globalPercent}% do percurso total</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm leading-relaxed text-[var(--text-muted)]">
+                  Ainda não há aulas cadastradas nos módulos dos seus cursos. Quando o conteúdo for publicado, seu percurso
+                  e as barras de progresso aparecem aqui.
+                </p>
+              )}
+              <div className="mt-8 border-t border-[var(--card-border)] pt-8">
+                <h3 className="text-base font-bold text-[var(--text-primary)]">Por curso</h3>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">
+                  Aulas assistidas (com acesso), exercícios, presenças nas sessões e participação no fórum de cada matrícula.
+                </p>
+                <div className="mt-5">
+                  <StudentCourseProgressRows enrollments={enrollmentsSorted} />
+                </div>
+              </div>
+            </SectionCard>
+          </div>
+          <div className="min-w-0 lg:col-span-1">
+            <AdminSessionsCalendar
+              sessions={sessionsCalendar}
+              audience="student"
+              footerHref="/minhas-turmas"
+              footerLabel="Minhas turmas →"
+              description="Sessões das suas turmas (abertas ou em andamento). Clique em um dia para ver curso, horário e acessar o conteúdo."
+              dataTour="dashboard-calendario-aulas-aluno"
+            />
+          </div>
         </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+        <div className="flex min-h-0 flex-col">{evolucaoCard}</div>
         <div className="flex min-h-0 flex-col">
           <DashboardStudentRanking
             entries={studentRankingTop}
@@ -1229,49 +1624,10 @@ function DashboardStudent({
         </div>
       </div>
 
+      <div className="min-w-0">{desempenhoCard}</div>
+
       {enrollments.length > 0 ? (
         <>
-          {totalLessonsTotal > 0 && (
-            <SectionCard
-              title="Seu progresso"
-              description="Aulas concluídas em relação ao total — cada passo conta."
-              id="resumo-progresso-heading"
-              dataTour="dashboard-progresso-geral"
-              variant="elevated"
-            >
-              <div className="flex flex-wrap items-center gap-6">
-                <div className="flex flex-col">
-                  <span className="text-5xl font-bold tabular-nums tracking-tight text-[var(--text-primary)]">
-                    {totalLessonsCompleted}
-                  </span>
-                  <span className="mt-1 text-sm font-medium text-[var(--text-muted)]">
-                    de {totalLessonsTotal} aulas concluídas
-                  </span>
-                </div>
-                <div className="min-w-[200px] flex-1">
-                  <div className="flex items-center gap-2">
-                    <PlayCircle className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
-                    <div className="h-3 flex-1 overflow-hidden rounded-full bg-[var(--igh-surface)] shadow-inner">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-[var(--igh-primary)] to-violet-500 transition-all duration-500"
-                        style={{ width: `${globalPercent}%` }}
-                      />
-                    </div>
-                    <span
-                      className="inline-flex shrink-0"
-                      title="Chegada — fim do percurso do curso"
-                      role="img"
-                      aria-label="Chegada, linha de chegada do percurso"
-                    >
-                      <FinishLineFlagIcon className="h-5 w-5 text-[var(--igh-primary)]" />
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm font-semibold text-[var(--igh-primary)]">{globalPercent}% do percurso total</p>
-                </div>
-              </div>
-            </SectionCard>
-          )}
-
           <section aria-labelledby="cursos-heading">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
               <div>

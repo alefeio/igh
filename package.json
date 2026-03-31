@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node --max-old-space-size=8192 server.js",
     "build": "node --max-old-space-size=12288 ./node_modules/next/dist/bin/next build --webpack",
+    "build:clean": "node ./scripts/rm-next.js && node --max-old-space-size=12288 ./node_modules/next/dist/bin/next build --webpack",
     "start": "node --max-old-space-size=4096 server.js",
     "test": "vitest run",
     "test:watch": "vitest",
