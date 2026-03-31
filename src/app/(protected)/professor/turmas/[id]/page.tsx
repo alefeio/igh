@@ -603,11 +603,16 @@ export default function ProfessorTurmaDetailPage() {
                       {e.studentBirthDate && (
                         <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--text-muted)]">
                           {isBirthMonthThisMonth(e.studentBirthDate) && (
-                            <Cake
-                              className="h-3.5 w-3.5 shrink-0 text-pink-500 dark:text-pink-400"
-                              aria-label="Mês de aniversário"
+                            <span
                               title="Mês de aniversário"
-                            />
+                              aria-label="Mês de aniversário"
+                              className="inline-flex shrink-0"
+                            >
+                              <Cake
+                                className="h-3.5 w-3.5 text-pink-500 dark:text-pink-400"
+                                aria-hidden
+                              />
+                            </span>
                           )}
                           <span>Nasc.: {formatDate(e.studentBirthDate)}</span>
                         </p>
