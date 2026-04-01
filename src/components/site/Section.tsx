@@ -4,7 +4,7 @@ import { Container } from "./Container";
 type SectionProps = {
   children: ReactNode;
   title?: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   /** Classes do `<header>` (título + subtítulo). Por padrão há margem inferior ampla antes do conteúdo. */
   headerClassName?: string;
   id?: string;
@@ -50,14 +50,14 @@ export function Section({
                 {title}
               </h2>
             )}
-            {subtitle && (
-              <p
+            {subtitle != null && subtitle !== "" && (
+              <div
                 className={`mx-auto mt-2 max-w-2xl sm:text-lg ${
                   hasBgImage ? "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" : "text-[var(--igh-muted)]"
                 }`}
               >
                 {subtitle}
-              </p>
+              </div>
             )}
           </header>
         )}

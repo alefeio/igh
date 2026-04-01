@@ -13,7 +13,8 @@ export async function generateMetadata() {
   const settings = await getSiteSettings();
   const siteName = settings?.siteName ?? "IGH";
   const defaultTitle = "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital";
-  const defaultDescription = "Formações gratuitas em programação, dados, UX/UI e mais. Inclusão digital e recondicionamento de computadores.";
+  const defaultDescription =
+    "Formações gratuitas em programação, dados, UX/UI e mais, com apoio digital para acompanhar aulas, turma e progresso. Inclusão digital e recondicionamento de computadores.";
   const title = settings?.seoTitleDefault ?? defaultTitle;
   const description = settings?.seoDescriptionDefault ?? defaultDescription;
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";

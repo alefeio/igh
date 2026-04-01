@@ -25,6 +25,7 @@ export function PlatformExperienceHomeSection({ block }: { block: PlatformExperi
 
   return (
     <Section
+      id="avaliacoes-alunos"
       title="O que os alunos avaliam"
       subtitle="Feedback de quem estuda aqui."
     >

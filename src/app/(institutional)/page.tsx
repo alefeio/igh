@@ -9,6 +9,9 @@ import {
   FAQ,
   BlogCard,
   FormacoesSection,
+  HomeAudiencePathsStrip,
+  HomePublicRatingStrip,
+  HomeStudentJourneySection,
   HeroBannerCarousel,
   StudentRankingShowcase,
   PlatformExperienceHomeSection,
@@ -103,14 +106,18 @@ export default async function HomePage({ searchParams }: Props) {
                 Formação em tecnologia que transforma vidas
               </h1>
               <p className="mt-4 text-lg text-[var(--igh-muted)]">
-                Cursos gratuitos em programação, dados, UX/UI e marketing digital. Pré-requisito: Informática Básica.
+                Missão social e inclusão digital com trilhas em tecnologia — e uma experiência de estudo com suporte
+                online: aulas, turma, avisos e ranking num só lugar. Pré-requisito: Informática Básica.
               </p>
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
                 <Button as="link" href="/formacoes" variant="primary" size="lg">
                   Ver formações
                 </Button>
                 <Button as="link" href="/contato#inscreva" variant="secondary" size="lg">
                   Inscrever-se
+                </Button>
+                <Button as="link" href="/login" variant="outline" size="lg">
+                  Área do aluno
                 </Button>
                 <Button as="link" href="/projetos/doacoes-recebidas" variant="accent" size="lg">
                   Doe equipamentos
@@ -120,6 +127,9 @@ export default async function HomePage({ searchParams }: Props) {
           </Container>
         </section>
       )}
+
+      <HomeAudiencePathsStrip />
+      <HomePublicRatingStrip block={platformExperienceBlock} />
 
       {/* Prova de impacto */}
       <Stats items={statsImpact} />
@@ -141,6 +151,8 @@ export default async function HomePage({ searchParams }: Props) {
           </Button>
         </div>
       </Section>
+
+      <HomeStudentJourneySection />
 
       {studentRanking.length > 0 && <StudentRankingShowcase items={studentRanking} />}
 
@@ -195,6 +207,18 @@ export default async function HomePage({ searchParams }: Props) {
 
       {/* Depoimentos */}
       <Testimonials
+        subtitle={
+          <>
+            Histórias de quem passou por aqui. Para médias e comentários sobre a experiência na plataforma, veja{" "}
+            <a
+              href="#avaliacoes-alunos"
+              className="font-semibold text-[var(--igh-primary)] underline decoration-[var(--igh-primary)]/40 underline-offset-2 hover:decoration-[var(--igh-primary)]"
+            >
+              o que os alunos avaliam
+            </a>
+            .
+          </>
+        }
         items={depoimentos}
         courses={courses.map((c) => ({ id: c.id, name: c.name }))}
       />

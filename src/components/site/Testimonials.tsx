@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { Section } from "./Section";
 import { Card } from "./Card";
 import { Button } from "./Button";
@@ -15,10 +16,12 @@ type CourseOption = { id: string; name: string };
 
 export function Testimonials({
   title = "O que dizem nossos alunos",
+  subtitle,
   items,
   courses = [],
 }: {
   title?: string;
+  subtitle?: ReactNode;
   items: readonly Depoimento[];
   courses?: readonly CourseOption[];
 }) {
@@ -109,7 +112,7 @@ export function Testimonials({
   }
 
   return (
-    <Section title={title} background="muted">
+    <Section title={title} subtitle={subtitle} background="muted">
       {items.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((d, i) => (
