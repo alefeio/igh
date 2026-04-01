@@ -18,7 +18,11 @@ import {
 import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
 import type { StudentRankEntry } from "@/lib/student-gamification-ranking";
 import { computeStudentGamificationRanking } from "@/lib/student-gamification-ranking";
-import type { DashboardSessionCalendarItem } from "@/lib/dashboard-admin-calendar";
+import type {
+  DashboardHolidayCalendarItem,
+  DashboardSessionCalendarItem,
+} from "@/lib/dashboard-admin-calendar";
+import { expandHolidayDateStringsInRange } from "@/lib/schedule";
 import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
 import {
   computeAllTeachersGamification,
@@ -26,7 +30,7 @@ import {
   getBrazilTodayDateOnly,
 } from "@/lib/teacher-gamification";
 
-export type { DashboardSessionCalendarItem } from "@/lib/dashboard-admin-calendar";
+export type { DashboardHolidayCalendarItem, DashboardSessionCalendarItem } from "@/lib/dashboard-admin-calendar";
 
 /**
  * Top 9 fixos + linha 10: o 10º colocado, ou o próprio aluno (destacado) se estiver fora do top 9.
@@ -169,6 +173,8 @@ export type DashboardDataAdmin = {
   studentRankingTop: StudentRankEntry[];
   /** Sessões agendadas no período (calendário do painel). */
   sessionsCalendar: DashboardSessionCalendarItem[];
+  /** Feriados e eventos institucionais no mesmo intervalo do calendário. */
+  holidaysCalendar: DashboardHolidayCalendarItem[];
 };
 
 export type DashboardDataTeacher = {
@@ -186,6 +192,7 @@ export type DashboardDataTeacher = {
   studentRankingTop: StudentRankEntry[];
   /** Sessões das turmas do professor (mesmo intervalo do painel admin). */
   sessionsCalendar: DashboardSessionCalendarItem[];
+  holidaysCalendar: DashboardHolidayCalendarItem[];
   /** Engajamento dos alunos por turma ativa (aulas, exercícios, frequência, fórum). */
   teacherClassGroupStats: TeacherClassGroupEngagement[];
 };
@@ -254,6 +261,7 @@ export type DashboardDataStudent = {
   myStudentPoints: number | null;
   /** Sessões das turmas em que o aluno está matriculado (ativas). */
   sessionsCalendar: DashboardSessionCalendarItem[];
+  holidaysCalendar: DashboardHolidayCalendarItem[];
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -263,6 +271,49 @@ function calendarRangeBounds() {
   const calendarRangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const calendarRangeEnd = new Date(now.getFullYear(), now.getMonth() + 7, 0);
   return { calendarRangeStart, calendarRangeEnd };
+}
+
+function mapHolidaysToDashboardCalendarItems(
+  holidays: Array<{
+    id: string;
+    name: string | null;
+    date: Date;
+    recurring: boolean;
+    eventStartTime: string | null;
+    eventEndTime: string | null;
+  }>,
+  rangeStart: Date,
+  rangeEnd: Date,
+): DashboardHolidayCalendarItem[] {
+  const out: DashboardHolidayCalendarItem[] = [];
+  for (const h of holidays) {
+    const est = String(h.eventStartTime ?? "").trim();
+    const eet = String(h.eventEndTime ?? "").trim();
+    const isTimed = est.length > 0 && eet.length > 0;
+    const dateStrs = expandHolidayDateStringsInRange(h, rangeStart, rangeEnd);
+    const label = h.name?.trim() || (isTimed ? "Evento" : "Feriado");
+    for (const dateStr of dateStrs) {
+      if (isTimed) {
+        out.push({
+          id: `${h.id}-${dateStr}-event`,
+          kind: "event",
+          date: dateStr,
+          name: label,
+          startTime: est,
+          endTime: eet,
+        });
+      } else {
+        out.push({
+          id: `${h.id}-${dateStr}-holiday`,
+          kind: "holiday",
+          date: dateStr,
+          name: label,
+        });
+      }
+    }
+  }
+  out.sort((a, b) => a.date.localeCompare(b.date) || a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+  return out;
 }
 
 function mapClassSessionsToCalendarItems(
@@ -342,6 +393,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         myStudentRank: null,
         myStudentPoints: null,
         sessionsCalendar: [],
+        holidaysCalendar: [],
       };
     }
     const enrollmentsRaw = await prisma.enrollment.findMany({
@@ -377,6 +429,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       forumRepliesByEnrollment,
       lessonsAccessedByEnrollment,
       sessionsCalendarRawStudent,
+      holidaysRowsStudent,
     ] = await Promise.all([
       prisma.courseModule.findMany({
         where: { courseId: { in: courseIds } },
@@ -449,6 +502,17 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
             orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
           })
         : Promise.resolve([]),
+      prisma.holiday.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          date: true,
+          recurring: true,
+          eventStartTime: true,
+          eventEndTime: true,
+        },
+      }),
     ]);
     const lessonsByCourseId = new Map<string, number>();
     for (const m of modulesWithCount) {
@@ -551,6 +615,11 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     await ensurePendingDocumentRemindersForStudent(student.id, user.id);
 
     const sessionsCalendar = mapClassSessionsToCalendarItems(sessionsCalendarRawStudent);
+    const holidaysCalendar = mapHolidaysToDashboardCalendarItems(
+      holidaysRowsStudent,
+      calendarRangeStart,
+      calendarRangeEnd,
+    );
 
     return {
       role: "STUDENT",
@@ -571,6 +640,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       myStudentRank: myRow?.rank ?? null,
       myStudentPoints: myRow != null ? myRow.points : null,
       sessionsCalendar,
+      holidaysCalendar,
     };
   }
 
@@ -596,6 +666,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         forumLessonsWithActivity: [],
         studentRankingTop: [],
         sessionsCalendar: [],
+        holidaysCalendar: [],
         teacherClassGroupStats: [],
       };
     }
@@ -685,6 +756,22 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
           })
         : [];
     const sessionsCalendarTeacher = mapClassSessionsToCalendarItems(sessionsCalendarRawTeacher);
+    const holidaysRowsTeacher = await prisma.holiday.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        date: true,
+        recurring: true,
+        eventStartTime: true,
+        eventEndTime: true,
+      },
+    });
+    const holidaysCalendarTeacher = mapHolidaysToDashboardCalendarItems(
+      holidaysRowsTeacher,
+      calStartT,
+      calEndT,
+    );
 
     const studentUserIdsForFeedback = [
       ...new Set(
@@ -870,6 +957,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       forumLessonsWithActivity,
       studentRankingTop,
       sessionsCalendar: sessionsCalendarTeacher,
+      holidaysCalendar: holidaysCalendarTeacher,
       teacherClassGroupStats,
     };
   }
@@ -890,6 +978,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     confirmedEnrollments,
     classGroupsByStatusRows,
     sessionsCalendarRaw,
+    holidaysRowsAdmin,
     platformExperienceAgg,
     forumRawGlobal,
     engagementLessonsCompleted,
@@ -932,6 +1021,17 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         },
       },
       orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
+    }),
+    prisma.holiday.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        date: true,
+        recurring: true,
+        eventStartTime: true,
+        eventEndTime: true,
+      },
     }),
     prisma.platformExperienceFeedback.aggregate({
       _avg: { ratingPlatform: true, ratingLessons: true, ratingTeacher: true },
@@ -992,6 +1092,12 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       lessonTitle: s.lesson?.title ?? null,
     };
   });
+
+  const holidaysCalendar = mapHolidaysToDashboardCalendarItems(
+    holidaysRowsAdmin,
+    calendarRangeStart,
+    calendarRangeEnd,
+  );
 
   const teachersGamificationRanking = await computeAllTeachersGamification();
 
@@ -1060,5 +1166,6 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     forumLessonsWithActivity,
     studentRankingTop: studentRankingFull.slice(0, 7),
     sessionsCalendar,
+    holidaysCalendar,
   };
 }

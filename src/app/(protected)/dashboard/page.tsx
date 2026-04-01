@@ -504,6 +504,7 @@ function DashboardAdmin({
     forumLessonsWithActivity,
     studentRankingTop,
     sessionsCalendar,
+    holidaysCalendar,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Admin";
   const rankingCardClass =
@@ -628,7 +629,7 @@ function DashboardAdmin({
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch" data-tour="admin-dashboard-calendario-acessos">
         <div className="min-w-0">
-          <AdminSessionsCalendar sessions={sessionsCalendar} />
+          <AdminSessionsCalendar sessions={sessionsCalendar} holidays={holidaysCalendar} />
         </div>
         <div className="min-w-0">
           <AdminAccessActivitySummarySection summary={accessActivitySummary} />
@@ -769,6 +770,7 @@ function DashboardTeacher({
     forumLessonsWithActivity,
     studentRankingTop,
     sessionsCalendar,
+    holidaysCalendar,
     teacherClassGroupStats,
   } = data;
   const totalVagasDisponiveis = classGroups.reduce(
@@ -840,10 +842,11 @@ function DashboardTeacher({
         <div className="min-w-0">
           <AdminSessionsCalendar
             sessions={sessionsCalendar}
+            holidays={holidaysCalendar}
             audience="teacher"
             footerHref="/professor/turmas"
             footerLabel="Turmas que leciono →"
-            description="Suas sessões nas turmas em aberto ou em andamento. Clique em um dia para ver curso, horário e abrir a turma."
+            description="Suas sessões nas turmas em aberto ou em andamento, mais feriados e eventos institucionais. Clique em um dia para ver curso, horário ou feriado/evento."
             dataTour="dashboard-calendario-aulas-professor"
           />
         </div>
@@ -1397,6 +1400,7 @@ function DashboardStudent({
     myStudentRank,
     myStudentPoints,
     sessionsCalendar,
+    holidaysCalendar,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
   const pointsContent = totalLessonsCompleted * POINTS_PER_LESSON;
@@ -1693,10 +1697,11 @@ function DashboardStudent({
           <div className="min-w-0 lg:col-span-1">
             <AdminSessionsCalendar
               sessions={sessionsCalendar}
+              holidays={holidaysCalendar}
               audience="student"
               footerHref="/minhas-turmas"
               footerLabel="Minhas turmas →"
-              description="Sessões das suas turmas (abertas ou em andamento). Clique em um dia para ver curso, horário e acessar o conteúdo."
+              description="Sessões das suas turmas (abertas ou em andamento), mais feriados e eventos institucionais. Clique em um dia para ver curso, horário ou feriado/evento."
               dataTour="dashboard-calendario-aulas-aluno"
             />
           </div>

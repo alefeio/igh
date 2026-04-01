@@ -29,6 +29,19 @@ const SENTINEL_YEAR_RECURRING = 2000;
 /** Datas (YYYY-MM-DD) em que um evento com horário bloqueia aulas que cruzem o intervalo. */
 export type HolidayEventBlock = { dateStr: string; startTime: string; endTime: string };
 
+/** Datas (YYYY-MM-DD) em que o feriado/evento cai dentro de [rangeStart, rangeEnd] (mesma regra do agendamento de turmas). */
+export function expandHolidayDateStringsInRange(
+  h: { date: Date; recurring: boolean },
+  rangeStart: Date,
+  rangeEnd: Date,
+): string[] {
+  const rangeStartStr = dateToDateString(rangeStart);
+  const rangeEndStr = dateToDateString(rangeEnd);
+  const startYear = rangeStart.getUTCFullYear();
+  const endYear = rangeEnd.getUTCFullYear();
+  return expandOneHolidayDateStrings(h, rangeStartStr, rangeEndStr, startYear, endYear);
+}
+
 function expandOneHolidayDateStrings(
   h: { date: Date; recurring: boolean },
   rangeStartStr: string,

@@ -10,3 +10,14 @@ export type DashboardSessionCalendarItem = {
   teacherName: string;
   lessonTitle: string | null;
 };
+
+/** Feriado de dia inteiro ou evento com horário (calendário institucional). */
+export type DashboardHolidayCalendarItem = {
+  id: string;
+  kind: "holiday" | "event";
+  /** YYYY-MM-DD */
+  date: string;
+  name: string;
+  startTime?: string;
+  endTime?: string;
+};
