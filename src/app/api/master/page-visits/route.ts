@@ -1,19 +1,33 @@
-import { requireRole } from "@/lib/auth";
+import { requireStaffRead } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 
-/** Histórico de páginas vistas na área logada (apenas Master). */
+/** Histórico de páginas vistas na área logada (Admin, Master e Coordenador). */
 export async function GET(request: Request) {
   try {
-    await requireRole("MASTER");
+    await requireStaffRead();
   } catch {
-    return jsonErr("FORBIDDEN", "Apenas o perfil Master pode consultar este relatório.", 403);
+    return jsonErr("FORBIDDEN", "Sem permissão para consultar este relatório.", 403);
   }
 
   const { searchParams } = new URL(request.url);
+
+  if (searchParams.get("aggregate") === "topPaths") {
+    const limit = Math.min(50, Math.max(5, parseInt(searchParams.get("limit") ?? "20", 10) || 20));
+    const rows = await prisma.userPageVisit.groupBy({
+      by: ["path"],
+      _count: { id: true },
+      orderBy: { _count: { id: "desc" } },
+      take: limit,
+    });
+    return jsonOk({
+      topPaths: rows.map((r) => ({ path: r.path, count: r._count.id })),
+    });
+  }
+
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = Math.min(
     MAX_PAGE_SIZE,

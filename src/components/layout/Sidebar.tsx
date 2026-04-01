@@ -61,7 +61,7 @@ const ITEMS: Item[] = [
   {
     href: "/master/acessos",
     label: "Acessos ao sistema",
-    masterExclusive: true,
+    adminOrMaster: true,
     category: "Administração",
   },
   { href: "/approvacoes", label: "Aprovações do site", masterOnly: true, category: "Administração" },

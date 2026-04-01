@@ -41,12 +41,14 @@ import {
   getDashboardData,
   type DashboardData,
   type DashboardDataAdmin,
+  type DashboardAccessActivitySummary,
   type ClassGroupSummary,
   type PlatformExperienceDashboardSummary,
   type PlatformEngagementSnapshot,
   type StudentEnrollmentSummary,
   type TeacherClassGroupEngagement,
 } from "@/lib/dashboard-data";
+import { formatDateTime } from "@/lib/format";
 import { formatDaysShortPtBr } from "@/lib/turma-display";
 import {
   getAllUnlockedBadges,
@@ -410,6 +412,78 @@ function PlatformExperienceSummarySection({
   );
 }
 
+function AdminAccessActivitySummarySection({ summary }: { summary: DashboardAccessActivitySummary }) {
+  const hasAny = summary.recentLogins.length > 0 || summary.recentPageVisits.length > 0;
+
+  return (
+    <SectionCard
+      title="Atividade e acessos"
+      description="Últimos logins e últimas páginas na área logada. Horários em horário de Brasília. Rotas mais visitadas: relatório completo."
+      id="admin-acessos-resumo-heading"
+      dataTour="admin-dashboard-acessos-resumo"
+      variant="elevated"
+      className="flex h-full min-h-0 flex-col"
+      contentClassName="flex min-h-0 flex-1 flex-col gap-5"
+      action={
+        <Link
+          href="/master/acessos"
+          className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
+        >
+          Relatório completo →
+        </Link>
+      }
+    >
+      {!hasAny ? (
+        <p className="text-sm text-[var(--text-muted)]">
+          Ainda não há logins nem visitas de página registados — ou o histórico começou recentemente.
+        </p>
+      ) : (
+        <>
+          {summary.recentLogins.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">Últimos logins</p>
+              <ul className="mt-2 space-y-2 text-sm">
+                {summary.recentLogins.map((row) => (
+                  <li
+                    key={row.id}
+                    className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-[var(--card-border)]/60 pb-2 last:border-0 last:pb-0"
+                  >
+                    <span className="min-w-0 font-medium text-[var(--text-primary)]">{row.userName}</span>
+                    <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[var(--text-muted)]">
+                      {formatDateTime(row.createdAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {summary.recentPageVisits.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">Últimas páginas</p>
+              <ul className="mt-2 space-y-2 text-sm">
+                {summary.recentPageVisits.map((row) => (
+                  <li
+                    key={row.id}
+                    className="border-b border-[var(--card-border)]/60 pb-2 last:border-0 last:pb-0"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                      <span className="min-w-0 break-all font-mono text-xs text-[var(--text-primary)]">{row.path}</span>
+                      <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[var(--text-muted)]">
+                        {formatDateTime(row.createdAt)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{row.userName}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </SectionCard>
+  );
+}
+
 function DashboardAdmin({
   data,
   userName,
@@ -426,6 +500,7 @@ function DashboardAdmin({
     platformEngagement,
     teachersGamificationRanking,
     platformExperienceSummary,
+    accessActivitySummary,
     forumLessonsWithActivity,
     studentRankingTop,
     sessionsCalendar,
@@ -534,7 +609,7 @@ function DashboardAdmin({
             entries={studentRankingTop}
             prominent
             title="Ranking dos alunos"
-            description="Os 10 primeiros no ranking geral de gamificação da plataforma."
+            description="Os 7 primeiros no ranking geral de gamificação da plataforma."
             footerHint="Abre a lista completa com filtros e posições."
           />
         </div>
@@ -551,7 +626,14 @@ function DashboardAdmin({
 
       <DashboardForumActivityRail variant="admin" items={forumLessonsWithActivity} />
 
-      <AdminSessionsCalendar sessions={sessionsCalendar} />
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch" data-tour="admin-dashboard-calendario-acessos">
+        <div className="min-w-0">
+          <AdminSessionsCalendar sessions={sessionsCalendar} />
+        </div>
+        <div className="min-w-0">
+          <AdminAccessActivitySummarySection summary={accessActivitySummary} />
+        </div>
+      </div>
 
       <section data-tour="admin-dashboard-atalhos">
           <h2 className="mb-4 text-lg font-bold text-[var(--text-primary)]">O que você precisa agora?</h2>
@@ -626,6 +708,13 @@ function DashboardAdmin({
                 description: "Feedback dos alunos sobre a experiência",
                 icon: PieChart,
                 accent: "from-cyan-500 to-emerald-600",
+              },
+              {
+                href: "/master/acessos",
+                label: "Acessos ao sistema",
+                description: "Últimos logins e páginas visitadas (área logada)",
+                icon: ListChecks,
+                accent: "from-slate-600 to-zinc-800",
               },
               ...(readOnly
                 ? []
@@ -1124,6 +1213,9 @@ function PlatformEngagementDashboardGrid({ e }: { e: PlatformEngagementSnapshot 
         <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
           {e.forumQuestionsTotal} {e.forumQuestionsTotal === 1 ? "tópico" : "tópicos"} · {e.forumRepliesTotal}{" "}
           {e.forumRepliesTotal === 1 ? "resposta" : "respostas"}
+        </dd>
+        <dd className="mt-1 text-[11px] leading-snug text-[var(--text-muted)]">
+          Respostas entre alunos e comentários do professor ou da equipe.
         </dd>
       </div>
     </dl>

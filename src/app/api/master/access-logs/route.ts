@@ -1,16 +1,16 @@
-import { requireRole } from "@/lib/auth";
+import { requireStaffRead } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 
-/** Histórico de logins (apenas perfil Master na sessão). */
+/** Histórico de logins (Admin, Master e Coordenador). */
 export async function GET(request: Request) {
   try {
-    await requireRole("MASTER");
+    await requireStaffRead();
   } catch {
-    return jsonErr("FORBIDDEN", "Apenas o perfil Master pode consultar os acessos.", 403);
+    return jsonErr("FORBIDDEN", "Sem permissão para consultar os acessos.", 403);
   }
 
   const { searchParams } = new URL(request.url);

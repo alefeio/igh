@@ -1,11 +1,21 @@
+/** Fuso usado na plataforma para exibir instantes armazenados em UTC no banco. */
+export const BRAZIL_TIMEZONE = "America/Sao_Paulo";
+
 /**
- * Formata data/hora de forma determinística (sem locale) para evitar
- * diferença entre servidor e cliente (hydration mismatch).
+ * Data/hora em horário de Brasília (para timestamps UTC do Prisma/ISO).
+ * `timeZone` fixo evita diferença entre servidor e cliente para o mesmo instante.
  */
 export function formatDateTime(isoOrDate: string | Date): string {
   const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: BRAZIL_TIMEZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
 }
 
 /**

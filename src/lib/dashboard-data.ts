@@ -105,6 +105,7 @@ export type PlatformEngagementSnapshot = {
   /** Presenças marcadas (sessões até hoje, Brasil). */
   attendancePresentTotal: number;
   forumQuestionsTotal: number;
+  /** Respostas entre alunos (`EnrollmentLessonQuestionReply`) + respostas oficiais professor/equipe (`LessonQuestionTeacherReply`). */
   forumRepliesTotal: number;
 };
 
@@ -135,6 +136,22 @@ export type PlatformExperienceDashboardSummary = {
   avgTeacher: number | null;
 };
 
+/** Resumo de logins e navegação para o painel admin (horários em ISO UTC; formatar na UI). */
+export type DashboardAccessActivitySummary = {
+  recentLogins: Array<{
+    id: string;
+    createdAt: string;
+    userName: string;
+    userEmail: string;
+  }>;
+  recentPageVisits: Array<{
+    id: string;
+    path: string;
+    createdAt: string;
+    userName: string;
+  }>;
+};
+
 export type DashboardDataAdmin = {
   role: "ADMIN" | "MASTER" | "COORDINATOR";
   roleLabel: string;
@@ -144,6 +161,8 @@ export type DashboardDataAdmin = {
   /** Ranking completo de gamificação (professores); a UI pode exibir só os primeiros. */
   teachersGamificationRanking: TeacherGamificationResult[];
   platformExperienceSummary: PlatformExperienceDashboardSummary;
+  /** Últimos logins e páginas vistas (rotas mais visitadas: ver /master/acessos). */
+  accessActivitySummary: DashboardAccessActivitySummary;
   /** Fóruns com atividade em toda a plataforma (atalho para integração entre cursos). */
   forumLessonsWithActivity: DashboardForumLessonActivity[];
   /** Top alunos por pontos de gamificação (mesma regra do painel do aluno). */
@@ -879,7 +898,8 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     engagementExerciseCorrect,
     engagementAttendancePresent,
     engagementForumQ,
-    engagementForumR,
+    engagementForumRStudent,
+    engagementForumRTeacher,
   ] = await Promise.all([
     prisma.student.count({ where: { deletedAt: null } }),
     prisma.teacher.count({ where: { deletedAt: null } }),
@@ -927,6 +947,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     }),
     prisma.enrollmentLessonQuestion.count(),
     prisma.enrollmentLessonQuestionReply.count(),
+    prisma.lessonQuestionTeacherReply.count(),
   ]);
 
   const forumLessonsWithActivity = await attachForumLastMessagePreviews(forumRawGlobal);
@@ -988,7 +1009,44 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     exerciseCorrectTotal: engagementExerciseCorrect,
     attendancePresentTotal: engagementAttendancePresent,
     forumQuestionsTotal: engagementForumQ,
-    forumRepliesTotal: engagementForumR,
+    forumRepliesTotal: engagementForumRStudent + engagementForumRTeacher,
+  };
+
+  const [recentLoginsRows, recentPageVisitRows] = await Promise.all([
+    prisma.userAccessLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        createdAt: true,
+        user: { select: { name: true, email: true } },
+      },
+    }),
+    prisma.userPageVisit.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        path: true,
+        createdAt: true,
+        user: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  const accessActivitySummary: DashboardAccessActivitySummary = {
+    recentLogins: recentLoginsRows.map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      userName: r.user.name,
+      userEmail: r.user.email,
+    })),
+    recentPageVisits: recentPageVisitRows.map((r) => ({
+      id: r.id,
+      path: r.path,
+      createdAt: r.createdAt.toISOString(),
+      userName: r.user.name,
+    })),
   };
 
   return {
@@ -998,8 +1056,9 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     platformEngagement,
     teachersGamificationRanking,
     platformExperienceSummary,
+    accessActivitySummary,
     forumLessonsWithActivity,
-    studentRankingTop,
+    studentRankingTop: studentRankingFull.slice(0, 7),
     sessionsCalendar,
   };
 }

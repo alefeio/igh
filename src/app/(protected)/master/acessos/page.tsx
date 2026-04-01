@@ -54,10 +54,12 @@ function roleLabel(role: string): string {
 
 const PAGE_SIZE = 50;
 
+const STAFF_ROLES = new Set(["MASTER", "ADMIN", "COORDINATOR"]);
+
 export default function MasterAccessLogsPage() {
   const toast = useToast();
   const sessionUser = useUser();
-  const isMasterSession = sessionUser.role === "MASTER";
+  const canViewAccessLogs = STAFF_ROLES.has(sessionUser.role);
 
   const [tab, setTab] = useState<"logins" | "pages">("logins");
 
@@ -72,9 +74,11 @@ export default function MasterAccessLogsPage() {
   const [visitItems, setVisitItems] = useState<PageVisitRow[]>([]);
   const [usersWithActivity, setUsersWithActivity] = useState<UserOption[]>([]);
   const [filterUserId, setFilterUserId] = useState("");
+  const [topPaths, setTopPaths] = useState<Array<{ path: string; count: number }>>([]);
+  const [loadingTopPaths, setLoadingTopPaths] = useState(false);
 
   const loadLogins = useCallback(async () => {
-    if (!isMasterSession) return;
+    if (!canViewAccessLogs) return;
     setLoadingLogins(true);
     try {
       const res = await fetch(
@@ -94,10 +98,10 @@ export default function MasterAccessLogsPage() {
     } finally {
       setLoadingLogins(false);
     }
-  }, [isMasterSession, loginPage, toast]);
+  }, [canViewAccessLogs, loginPage, toast]);
 
   const loadPageVisits = useCallback(async () => {
-    if (!isMasterSession) return;
+    if (!canViewAccessLogs) return;
     setLoadingPages(true);
     try {
       const q = new URLSearchParams({
@@ -124,7 +128,28 @@ export default function MasterAccessLogsPage() {
     } finally {
       setLoadingPages(false);
     }
-  }, [isMasterSession, visitPage, filterUserId, toast]);
+  }, [canViewAccessLogs, visitPage, filterUserId, toast]);
+
+  const loadTopPaths = useCallback(async () => {
+    if (!canViewAccessLogs) return;
+    setLoadingTopPaths(true);
+    try {
+      const res = await fetch("/api/master/page-visits?aggregate=topPaths&limit=25", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const json = (await res.json()) as ApiResponse<{
+        topPaths: Array<{ path: string; count: number }>;
+      }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Não foi possível carregar o ranking de rotas.");
+        return;
+      }
+      setTopPaths(json.data.topPaths);
+    } finally {
+      setLoadingTopPaths(false);
+    }
+  }, [canViewAccessLogs, toast]);
 
   useEffect(() => {
     if (tab === "logins") void loadLogins();
@@ -134,17 +159,21 @@ export default function MasterAccessLogsPage() {
     if (tab === "pages") void loadPageVisits();
   }, [tab, loadPageVisits]);
 
-  if (!isMasterSession) {
+  useEffect(() => {
+    if (tab === "pages") void loadTopPaths();
+  }, [tab, loadTopPaths]);
+
+  if (!canViewAccessLogs) {
     return (
       <div className="flex min-w-0 flex-col gap-6">
         <DashboardHero
-          eyebrow="Master"
+          eyebrow="Acessos"
           title="Acessos ao sistema"
-          description="Esta página só está disponível com o perfil Master selecionado no menu do usuário."
+          description="Esta página está disponível para perfis Administrador, Master ou Coordenador."
         />
         <SectionCard title="Acesso restrito" variant="elevated">
           <p className="text-sm text-[var(--text-secondary)]">
-            Troque para o perfil <strong>Administrador Master</strong> e volte aqui, ou use o{" "}
+            Troque para um perfil de gestão (Admin, Master ou Coordenador) e volte aqui, ou use o{" "}
             <Link href="/dashboard" className="text-[var(--igh-primary)] underline">
               dashboard
             </Link>
@@ -206,7 +235,7 @@ export default function MasterAccessLogsPage() {
               <TableShell className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-[var(--card-border)]">
-                    <Th>Data/hora (UTC)</Th>
+                    <Th>Data/hora (Brasília)</Th>
                     <Th>Usuário</Th>
                     <Th>Papel (conta)</Th>
                     <Th>Login</Th>
@@ -274,6 +303,38 @@ export default function MasterAccessLogsPage() {
       )}
 
       {tab === "pages" && (
+        <>
+        <SectionCard
+          title="Páginas mais acessadas"
+          description="Total de visitas por rota na área logada (agregado de todos os utilizadores)."
+          variant="elevated"
+        >
+          {loadingTopPaths ? (
+            <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
+          ) : topPaths.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Nenhuma visita registada ainda.</p>
+          ) : (
+            <TableShell className="w-full min-w-[400px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--card-border)]">
+                  <Th>#</Th>
+                  <Th>Rota</Th>
+                  <Th className="text-right">Visitas</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {topPaths.map((row, i) => (
+                  <tr key={row.path} className="border-b border-[var(--card-border)]/80">
+                    <Td className="whitespace-nowrap text-[var(--text-muted)]">{i + 1}</Td>
+                    <Td className="max-w-[min(100vw-4rem,520px)] break-all font-mono text-xs">{row.path}</Td>
+                    <Td className="text-right font-semibold tabular-nums text-[var(--igh-primary)]">{row.count}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableShell>
+          )}
+        </SectionCard>
+
         <SectionCard
           title="Páginas abertas na área logada"
           description="Cada linha é uma navegação (rota interna, sem parâmetros na URL). Use o filtro para ver só um utilizador."
@@ -312,7 +373,7 @@ export default function MasterAccessLogsPage() {
               <TableShell className="w-full min-w-[640px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-[var(--card-border)]">
-                    <Th>Data/hora (UTC)</Th>
+                    <Th>Data/hora (Brasília)</Th>
                     <Th>Usuário</Th>
                     <Th>Papel</Th>
                     <Th>Rota (página)</Th>
@@ -365,6 +426,7 @@ export default function MasterAccessLogsPage() {
             </>
           )}
         </SectionCard>
+        </>
       )}
     </div>
   );
