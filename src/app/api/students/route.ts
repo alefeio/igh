@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -7,6 +8,36 @@ import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
 import { birthDateToStudentPasswordParts } from "@/lib/student-password";
+
+const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+
+/** Termos de busca por nome (texto) e CPF (somente dígitos, parcial ou completo). */
+function buildStudentSearchOr(q: string): Prisma.StudentWhereInput[] {
+  const trimmed = q.trim();
+  const digits = normalizeDigits(trimmed);
+  const or: Prisma.StudentWhereInput[] = [{ name: { contains: trimmed, mode: "insensitive" } }];
+
+  if (digits.length === 0) {
+    return or;
+  }
+
+  if (digits.length === 11) {
+    or.push({ cpf: digits });
+  } else if (digits.length === 10) {
+    or.push({ cpf: { startsWith: digits } });
+    or.push({ cpf: { contains: digits } });
+  } else {
+    or.push({ cpf: { contains: digits } });
+  }
+
+  if (digits.length === 11) {
+    or.push({ guardianCpf: digits });
+  } else if (digits.length >= 3) {
+    or.push({ guardianCpf: { contains: digits } });
+  }
+
+  return or;
+}
 
 export async function GET(request: Request) {
   const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
@@ -17,19 +48,20 @@ export async function GET(request: Request) {
     searchParams.get("includeDeleted") === "true" &&
     (user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR");
 
-  const where: {
-    deletedAt?: Date | null;
-    id?: { in: string[] };
-    OR?: Array<
-      | { name: { contains: string; mode: "insensitive" } }
-      | { cpf: string }
-      | { cpf: { contains: string } }
-    >;
-  } = {};
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
+  const pageSizeRaw = parseInt(searchParams.get("pageSize") ?? "20", 10) || 20;
+  const pageSize = PAGE_SIZE_OPTIONS.includes(pageSizeRaw as (typeof PAGE_SIZE_OPTIONS)[number])
+    ? pageSizeRaw
+    : 20;
+  const skip = (page - 1) * pageSize;
+
+  const where: Prisma.StudentWhereInput = {};
 
   if (!includeDeleted) {
     where.deletedAt = null;
   }
+
+  let teacherStudentIds: string[] | null = null;
 
   // Professor: apenas alunos matriculados em turmas que ele leciona
   if (user.role === "TEACHER") {
@@ -38,38 +70,40 @@ export async function GET(request: Request) {
       select: { id: true },
     });
     if (!teacher) {
-      return jsonOk({ students: [] });
+      return jsonOk({ students: [], total: 0, page: 1, pageSize });
     }
     const enrollments = await prisma.enrollment.findMany({
       where: { classGroup: { teacherId: teacher.id } },
       select: { studentId: true },
       distinct: ["studentId"],
     });
-    const studentIds = enrollments.map((e) => e.studentId);
-    if (studentIds.length === 0) {
-      return jsonOk({ students: [] });
+    teacherStudentIds = enrollments.map((e) => e.studentId);
+    if (teacherStudentIds.length === 0) {
+      return jsonOk({ students: [], total: 0, page: 1, pageSize });
     }
-    where.id = { in: studentIds };
   }
 
   if (q.length > 0) {
-    const digits = normalizeDigits(q);
-    const orConditions: (typeof where)["OR"] = [{ name: { contains: q, mode: "insensitive" } }];
-    if (digits.length >= 10 && digits.length <= 11) {
-      const cpfExact = digits.length === 11 ? digits : digits.padStart(11, "0");
-      orConditions.push({ cpf: cpfExact });
+    const searchOr = buildStudentSearchOr(q);
+    if (teacherStudentIds) {
+      where.AND = [{ id: { in: teacherStudentIds } }, { OR: searchOr }];
+    } else {
+      where.OR = searchOr;
     }
-    if (digits.length >= 9 && digits.length <= 11) {
-      orConditions.push({ cpf: { contains: digits } });
-    }
-    where.OR = orConditions;
+  } else if (teacherStudentIds) {
+    where.id = { in: teacherStudentIds };
   }
 
-  const students = await prisma.student.findMany({
-    where,
-    orderBy: { name: "asc" },
-    include: { attachments: { select: { type: true } } },
-  });
+  const [students, total] = await prisma.$transaction([
+    prisma.student.findMany({
+      where,
+      orderBy: { name: "asc" },
+      skip,
+      take: pageSize,
+      include: { attachments: { select: { type: true } } },
+    }),
+    prisma.student.count({ where }),
+  ]);
 
   const studentsWithDocs = students.map((s) => {
     const { attachments, ...rest } = s;
@@ -78,7 +112,7 @@ export async function GET(request: Request) {
     return { ...rest, hasIdDocument, hasAddressProof };
   });
 
-  return jsonOk({ students: studentsWithDocs });
+  return jsonOk({ students: studentsWithDocs, total, page, pageSize });
 }
 
 export async function POST(request: Request) {

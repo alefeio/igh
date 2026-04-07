@@ -1,12 +1,9 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 import {
-  Award,
   BookOpen,
+  CalendarDays,
   ChevronRight,
-  ClipboardList,
   Clock,
-  Flame,
   GraduationCap,
   LayoutDashboard,
   ListChecks,
@@ -17,16 +14,12 @@ import {
   School,
   Star,
   Trophy,
-  UserCheck,
   UserCircle,
   UserPlus,
   Users,
   Users2,
 } from "lucide-react";
 
-import { AdminSessionsCalendar } from "@/components/dashboard/AdminSessionsCalendar";
-import { DashboardForumActivityRail } from "@/components/dashboard/DashboardForumActivityRail";
-import { DashboardStudentRanking } from "@/components/dashboard/DashboardStudentRanking";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import {
   DashboardHero,
@@ -41,24 +34,10 @@ import {
   getDashboardData,
   type DashboardData,
   type DashboardDataAdmin,
-  type DashboardAccessActivitySummary,
   type ClassGroupSummary,
-  type PlatformExperienceDashboardSummary,
-  type PlatformEngagementSnapshot,
   type StudentEnrollmentSummary,
-  type TeacherClassGroupEngagement,
 } from "@/lib/dashboard-data";
-import { formatDateTime } from "@/lib/format";
 import { formatDaysShortPtBr } from "@/lib/turma-display";
-import {
-  getAllUnlockedBadges,
-  getLevel,
-  getNextBadgePerTrack,
-  POINTS_PER_LESSON,
-  type StudentBadgeContext,
-} from "@/lib/student-badge-definitions";
-import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
-import { EXERCISES_TARGET_PER_LESSON, GAMIFICATION_POINTS } from "@/lib/teacher-gamification";
 
 const STATUS_LABELS: Record<string, string> = {
   PLANEJADA: "Planejada",
@@ -80,18 +59,14 @@ const STUDENT_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: "[data-tour=\"dashboard-progresso-geral\"]",
     title: "Seu progresso geral",
-    content: "Aqui aparece quantas aulas você já concluiu no total e a barra de progresso. Conclua as aulas para avançar nos cursos.",
-  },
-  {
-    target: "[data-tour=\"dashboard-desempenho-exercicios\"]",
-    title: "Desempenho nos exercícios",
-    content: "Após responder às questões ao final das aulas, você vê aqui seus acertos e a porcentagem. Use o link para ver por curso e revisar tópicos que precisam de atenção.",
-  },
-  {
-    target: "[data-tour=\"dashboard-sua-evolucao\"]",
-    title: "Sua evolução",
     content:
-      "Você ganha pontos ao concluir aulas, realizar exercícios, manter frequência e participar das dúvidas no fórum. Suba de nível (Iniciante, Explorador, Dedicado...) e desbloqueie conquistas ao longo da jornada.",
+      "Aqui aparece quantas aulas você já concluiu no total e a barra de progresso. Conclua as aulas para avançar nos cursos. Use os atalhos abaixo para ver detalhes por curso, evolução, ranking e calendário — essas páginas carregam só quando você abre.",
+  },
+  {
+    target: "[data-tour=\"dashboard-detalhes-engajamento\"]",
+    title: "Detalhes de engajamento",
+    content:
+      "Evolução e ranking, desempenho em exercícios, fórum e calendário de aulas ficam em páginas próprias (Minhas turmas), para o painel inicial não ficar pesado.",
   },
   {
     target: "[data-tour=\"sidebar-minhas-turmas\"]",
@@ -130,7 +105,8 @@ const ADMIN_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: "[data-tour=\"admin-dashboard-welcome\"]",
     title: "Dashboard Admin",
-    content: "Visão geral do sistema. Aqui você acompanha alunos, professores, cursos, turmas e matrículas.",
+    content:
+      "Visão geral do sistema com totais de alunos, professores, cursos, turmas e matrículas. O painel inicial é leve; engajamento, rankings, fórum e calendário carregam nas páginas dedicadas.",
   },
   {
     target: "[data-tour=\"admin-dashboard-resumo\"]",
@@ -138,22 +114,10 @@ const ADMIN_TUTORIAL_STEPS: TutorialStep[] = [
     content: "Cards com totais de Alunos, Professores, Cursos, Turmas e Matrículas. Clique em cada um para ir à página correspondente.",
   },
   {
-    target: "[data-tour=\"admin-dashboard-engajamento\"]",
-    title: "Engajamento na plataforma",
+    target: "[data-tour=\"admin-dashboard-detalhes\"]",
+    title: "Detalhes da plataforma",
     content:
-      "Indicadores globais de estudo: aulas concluídas, registros de acesso, exercícios, presenças em sessões e participação no fórum — alinhados ao que o aluno vê no painel dele.",
-  },
-  {
-    target: "[data-tour=\"admin-dashboard-rankings\"]",
-    title: "Rankings",
-    content:
-      "Ao lado, o ranking de gamificação dos professores e dos alunos. Use os links para ver o quadro completo.",
-  },
-  {
-    target: "[data-tour=\"admin-dashboard-calendario\"]",
-    title: "Calendário de aulas",
-    content:
-      "Veja quantas sessões existem em cada dia e clique no dia para listar curso, professor e horário. Acesse matrículas da turma pelo link.",
+      "Abra Visão da plataforma para engajamento, rankings de professores e alunos, avaliações e fórum. Use Calendário institucional para sessões e feriados.",
   },
   {
     target: "[data-tour=\"admin-dashboard-atalhos\"]",
@@ -172,7 +136,8 @@ const TEACHER_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: "[data-tour=\"teacher-dashboard-welcome\"]",
     title: "Dashboard Professor",
-    content: "Visão geral das suas turmas e alunos. Aqui você acompanha turmas ativas, matrículas e atalhos para o dia a dia.",
+    content:
+      "Visão geral das suas turmas e alunos. O painel inicial é leve; detalhes de gamificação, ranking, fórum e calendário ficam em páginas próprias.",
   },
   {
     target: "[data-tour=\"teacher-dashboard-resumo\"]",
@@ -180,10 +145,10 @@ const TEACHER_TUTORIAL_STEPS: TutorialStep[] = [
     content: "Turmas ativas (abertas ou em andamento), total de alunos matriculados nas suas turmas e vagas ainda disponíveis.",
   },
   {
-    target: "[data-tour=\"teacher-dashboard-por-turma\"]",
-    title: "Engajamento por turma",
+    target: "[data-tour=\"teacher-dashboard-detalhes\"]",
+    title: "Acompanhamento detalhado",
     content:
-      "Para cada turma: soma de aulas concluídas e acessos ao conteúdo, exercícios, frequência e fórum. Use os atalhos para o painel da turma ou o fórum do curso.",
+      "Abra Acompanhamento completo para gamificação, engajamento por turma, ranking dos alunos, avaliações e fórum. Use Calendário de aulas para sessões e feriados em outra página.",
   },
   {
     target: "[data-tour=\"teacher-dashboard-turmas\"]",
@@ -238,252 +203,6 @@ function TeacherTurmaCell({ cg }: { cg: ClassGroupSummary }) {
   );
 }
 
-function TeacherGamificationPanel({ g }: { g: TeacherGamificationResult }) {
-  const p = g.points;
-  const cards: {
-    title: string;
-    value: number;
-    unit: string;
-    icon: ReactNode;
-    accent: string;
-  }[] = [
-    {
-      title: "Conteúdo nas aulas",
-      value: p.content,
-      unit: "pts",
-      icon: <BookOpen className="h-5 w-5" aria-hidden />,
-      accent: "from-amber-500/20 to-orange-500/10 text-amber-700 dark:text-amber-300",
-    },
-    {
-      title: `Exercícios nas aulas (${EXERCISES_TARGET_PER_LESSON})`,
-      value: p.exercises,
-      unit: "pts",
-      icon: <ClipboardList className="h-5 w-5" aria-hidden />,
-      accent: "from-violet-500/20 to-purple-500/10 text-violet-700 dark:text-violet-300",
-    },
-    {
-      title: "Frequência dos alunos",
-      value: p.attendance,
-      unit: "pts",
-      icon: <Users className="h-5 w-5" aria-hidden />,
-      accent: "from-emerald-500/20 to-teal-500/10 text-emerald-700 dark:text-emerald-300",
-    },
-    {
-      title: "Participações nos fóruns (prof. e alunos)",
-      value: p.forum,
-      unit: "pts",
-      icon: <MessageCircle className="h-5 w-5" aria-hidden />,
-      accent: "from-sky-500/20 to-blue-500/10 text-sky-700 dark:text-sky-300",
-    },
-    {
-      title: "Aulas assistidas",
-      value: p.studentWatchHours,
-      unit: "horas",
-      icon: <Clock className="h-5 w-5" aria-hidden />,
-      accent: "from-rose-500/20 to-pink-500/10 text-rose-700 dark:text-rose-300",
-    },
-    {
-      title: "Exercícios realizados",
-      value: p.studentExerciseScore,
-      unit: "pts",
-      icon: <ListChecks className="h-5 w-5" aria-hidden />,
-      accent: "from-indigo-500/20 to-violet-500/10 text-indigo-700 dark:text-indigo-300",
-    },
-  ];
-
-  return (
-    <section
-      className="relative overflow-hidden rounded-2xl border border-amber-200/70 bg-gradient-to-br from-amber-50/90 via-[var(--card-bg)] to-violet-50/40 p-5 shadow-sm dark:border-amber-900/40 dark:from-amber-950/35 dark:via-[var(--card-bg)] dark:to-violet-950/25 sm:p-6"
-      data-tour="teacher-gamification"
-      aria-labelledby="teacher-gamification-heading"
-    >
-      <div
-        className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-amber-400/10 blur-3xl dark:bg-amber-500/10"
-        aria-hidden
-      />
-      <div className="relative flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2
-            id="teacher-gamification-heading"
-            className="flex items-center gap-2 text-lg font-semibold tracking-tight text-[var(--text-primary)]"
-          >
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md shadow-amber-500/25">
-              <Trophy className="h-5 w-5" aria-hidden />
-            </span>
-            Sua gamificação
-          </h2>
-          <p className="mt-2 text-4xl font-semibold tabular-nums tracking-tight text-[var(--text-primary)]">{p.total}</p>
-          <p className="mt-0.5 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">Pontuação total</p>
-        </div>
-        <Link
-          href="/gamificacao"
-          className="shrink-0 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/80 px-4 py-2 text-sm font-medium text-[var(--igh-primary)] shadow-sm backdrop-blur-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/10 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-        >
-          Ranking completo →
-        </Link>
-      </div>
-
-      <ul className="relative mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {cards.map((c) => (
-          <li
-            key={c.title}
-            className="group rounded-xl border border-[var(--card-border)]/80 bg-[var(--card-bg)]/70 p-4 shadow-sm backdrop-blur-md transition duration-200 hover:border-amber-300/50 hover:shadow-md dark:border-white/10 dark:bg-black/20 dark:hover:border-amber-700/40"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <h3 className="min-w-0 text-xs font-semibold uppercase leading-snug tracking-wide text-[var(--text-muted)]">
-                {c.title}
-              </h3>
-              <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${c.accent}`}
-              >
-                {c.icon}
-              </div>
-            </div>
-            <p className="mt-4 text-3xl font-semibold tabular-nums tracking-tight text-[var(--text-primary)]">{c.value}</p>
-            <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]/90">{c.unit}</p>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function PlatformExperienceSummarySection({
-  summary,
-  href,
-  title,
-  description,
-  className = "",
-  contentClassName = "",
-}: {
-  summary: PlatformExperienceDashboardSummary;
-  href: string;
-  title: string;
-  description: string;
-  className?: string;
-  contentClassName?: string;
-}) {
-  const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(1));
-  return (
-    <SectionCard
-      title={title}
-      description={description}
-      id="platform-exp-summary-heading"
-      variant="elevated"
-      className={className}
-      contentClassName={contentClassName}
-      action={
-        <Link
-          href={href}
-          className="rounded-lg px-3 py-1.5 text-sm font-semibold text-[var(--igh-primary)] transition hover:bg-[var(--igh-primary)]/10 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-        >
-          Ver detalhes →
-        </Link>
-      }
-    >
-      <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/50 p-3 sm:p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Respostas</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--text-primary)]">{summary.totalCount}</p>
-        </div>
-        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/50 p-3 sm:p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Plataforma</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--text-primary)]">
-            {fmt(summary.avgPlatform)}
-            <span className="text-sm font-normal text-[var(--text-muted)]">/10</span>
-          </p>
-        </div>
-        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/50 p-3 sm:p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Aulas</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--text-primary)]">
-            {fmt(summary.avgLessons)}
-            <span className="text-sm font-normal text-[var(--text-muted)]">/10</span>
-          </p>
-        </div>
-        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/50 p-3 sm:p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Professor</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--text-primary)]">
-            {fmt(summary.avgTeacher)}
-            <span className="text-sm font-normal text-[var(--text-muted)]">/10</span>
-          </p>
-        </div>
-      </div>
-    </SectionCard>
-  );
-}
-
-function AdminAccessActivitySummarySection({ summary }: { summary: DashboardAccessActivitySummary }) {
-  const hasAny = summary.recentLogins.length > 0 || summary.recentPageVisits.length > 0;
-
-  return (
-    <SectionCard
-      title="Atividade e acessos"
-      description="Últimos logins e últimas páginas na área logada. Horários em horário de Brasília. Rotas mais visitadas: relatório completo."
-      id="admin-acessos-resumo-heading"
-      dataTour="admin-dashboard-acessos-resumo"
-      variant="elevated"
-      className="flex h-full min-h-0 flex-col"
-      contentClassName="flex min-h-0 flex-1 flex-col gap-5"
-      action={
-        <Link
-          href="/master/acessos"
-          className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
-        >
-          Relatório completo →
-        </Link>
-      }
-    >
-      {!hasAny ? (
-        <p className="text-sm text-[var(--text-muted)]">
-          Ainda não há logins nem visitas de página registados — ou o histórico começou recentemente.
-        </p>
-      ) : (
-        <>
-          {summary.recentLogins.length > 0 && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">Últimos logins</p>
-              <ul className="mt-2 space-y-2 text-sm">
-                {summary.recentLogins.map((row) => (
-                  <li
-                    key={row.id}
-                    className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-[var(--card-border)]/60 pb-2 last:border-0 last:pb-0"
-                  >
-                    <span className="min-w-0 font-medium text-[var(--text-primary)]">{row.userName}</span>
-                    <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[var(--text-muted)]">
-                      {formatDateTime(row.createdAt)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {summary.recentPageVisits.length > 0 && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">Últimas páginas</p>
-              <ul className="mt-2 space-y-2 text-sm">
-                {summary.recentPageVisits.map((row) => (
-                  <li
-                    key={row.id}
-                    className="border-b border-[var(--card-border)]/60 pb-2 last:border-0 last:pb-0"
-                  >
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
-                      <span className="min-w-0 break-all font-mono text-xs text-[var(--text-primary)]">{row.path}</span>
-                      <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[var(--text-muted)]">
-                        {formatDateTime(row.createdAt)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{row.userName}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
-      )}
-    </SectionCard>
-  );
-}
-
 function DashboardAdmin({
   data,
   userName,
@@ -494,21 +213,8 @@ function DashboardAdmin({
   /** Coordenador: sem atalhos para campanhas ou edição do site. */
   readOnly?: boolean;
 }) {
-  const {
-    stats,
-    roleLabel,
-    platformEngagement,
-    teachersGamificationRanking,
-    platformExperienceSummary,
-    accessActivitySummary,
-    forumLessonsWithActivity,
-    studentRankingTop,
-    sessionsCalendar,
-    holidaysCalendar,
-  } = data;
+  const { stats, roleLabel } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Admin";
-  const rankingCardClass =
-    "ring-2 ring-violet-500/40 shadow-xl dark:ring-violet-400/30 h-full min-h-0 flex flex-col";
 
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
@@ -519,8 +225,8 @@ function DashboardAdmin({
         description={
           <>
             {readOnly
-              ? "Acompanhamento do sistema em modo somente leitura — indicadores e atalhos para consulta."
-              : "Visão executiva do sistema — pessoas, turmas, matrículas e engajamento em um só lugar."}
+              ? "Acompanhamento do sistema em modo somente leitura — totais e atalhos para consulta. Engajamento, rankings, fórum e calendário carregam nas páginas dedicadas."
+              : "Resumo leve ao entrar: totais de pessoas e operação. Indicadores de engajamento, rankings, avaliações, fórum e calendário institucional só carregam quando você abre essas páginas."}
             <span className="mt-2 block text-xs font-medium text-[var(--text-muted)]">
               Perfil: <span className="text-[var(--text-primary)]">{roleLabel}</span>
             </span>
@@ -549,92 +255,32 @@ function DashboardAdmin({
         </div>
       </section>
 
-      <section data-tour="admin-dashboard-engajamento" aria-label="Engajamento na plataforma">
-        <SectionCard
-          title="Engajamento na plataforma"
-          description="Totais de estudo, frequência e fórum — mesma base do painel do aluno (matrículas ativas; presenças em sessões até hoje no fuso Brasil)."
-          id="admin-engajamento-heading"
-          variant="elevated"
-        >
-          <PlatformEngagementDashboardGrid e={platformEngagement} />
-        </SectionCard>
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch" data-tour="admin-dashboard-rankings">
-        <SectionCard
-          title="Ranking dos professores"
-          description="Top 10 por pontuação total: conteúdo, exercícios, frequência, fórum, horas assistidas e exercícios dos alunos."
-          id="admin-ranking-professores-heading"
-          variant="elevated"
-          className={rankingCardClass}
-          contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
-          action={
-            <Link
-              href="/gamificacao"
-              className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
-            >
-              Quadro completo →
-            </Link>
-          }
-        >
-          {teachersGamificationRanking.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">Nenhum professor ativo.</p>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:thin]">
-              <TableShell>
-                <thead>
-                  <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]/90 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">#</th>
-                    <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Professor</th>
-                    <th className="px-4 py-3 text-right font-semibold text-[var(--text-primary)]">Pontos</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {teachersGamificationRanking.slice(0, 10).map((r, i) => (
-                    <tr key={r.teacherId} className="border-b border-[var(--card-border)] transition hover:bg-[var(--igh-surface)]/40">
-                      <td className="px-4 py-3 text-[var(--text-secondary)]">{i + 1}</td>
-                      <td className="px-4 py-3 text-sm font-normal text-[var(--text-muted)]">{r.teacherName}</td>
-                      <td className="px-4 py-3 text-right text-lg font-bold tabular-nums text-[var(--igh-primary)]">
-                        {r.points.total}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </TableShell>
-            </div>
-          )}
-        </SectionCard>
-
-        <div className="flex min-h-0 min-w-0 flex-col">
-          <DashboardStudentRanking
-            entries={studentRankingTop}
-            prominent
-            title="Ranking dos alunos"
-            description="Os 7 primeiros no ranking geral de gamificação da plataforma."
-            footerHint="Abre a lista completa com filtros e posições."
-          />
+      <SectionCard
+        title="Visão da plataforma"
+        description="Engajamento global, rankings de professores e alunos, avaliações, trilho de fóruns e últimos acessos — em uma página. Calendário de sessões e feriados em outra."
+        id="admin-detalhes-heading"
+        dataTour="admin-dashboard-detalhes"
+        variant="elevated"
+      >
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/plataforma"
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2 text-sm font-semibold text-[var(--text-primary)] transition hover:border-[var(--igh-primary)]/40"
+          >
+            <Trophy className="h-4 w-4 text-amber-600" aria-hidden />
+            Visão da plataforma
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Link>
+          <Link
+            href="/admin/calendario"
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2 text-sm font-semibold text-[var(--text-primary)] transition hover:border-[var(--igh-primary)]/40"
+          >
+            <CalendarDays className="h-4 w-4 text-[var(--igh-primary)]" aria-hidden />
+            Calendário institucional
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Link>
         </div>
-      </div>
-
-      <PlatformExperienceSummarySection
-        summary={platformExperienceSummary}
-        href="/admin/avaliacoes-experiencia"
-        title="Avaliações dos alunos"
-        description="Médias de 1 a 10 (plataforma, aulas, professor) em todas as respostas registradas."
-        className="flex h-full min-h-0 flex-col"
-        contentClassName="flex flex-1 flex-col"
-      />
-
-      <DashboardForumActivityRail variant="admin" items={forumLessonsWithActivity} />
-
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch" data-tour="admin-dashboard-calendario-acessos">
-        <div className="min-w-0">
-          <AdminSessionsCalendar sessions={sessionsCalendar} holidays={holidaysCalendar} />
-        </div>
-        <div className="min-w-0">
-          <AdminAccessActivitySummarySection summary={accessActivitySummary} />
-        </div>
-      </div>
+      </SectionCard>
 
       <section data-tour="admin-dashboard-atalhos">
           <h2 className="mb-4 text-lg font-bold text-[var(--text-primary)]">O que você precisa agora?</h2>
@@ -760,19 +406,7 @@ function DashboardTeacher({
   data: Extract<DashboardData, { role: "TEACHER" }>;
   userName: string;
 }) {
-  const {
-    myClassGroupsCount,
-    myEnrollmentsCount,
-    classGroups,
-    roleLabel,
-    gamification,
-    platformExperienceSummary,
-    forumLessonsWithActivity,
-    studentRankingTop,
-    sessionsCalendar,
-    holidaysCalendar,
-    teacherClassGroupStats,
-  } = data;
+  const { myClassGroupsCount, myEnrollmentsCount, classGroups, roleLabel } = data;
   const totalVagasDisponiveis = classGroups.reduce(
     (acc, cg) => acc + Math.max(0, (cg.capacity ?? 0) - (cg.enrollmentsCount ?? 0)),
     0
@@ -787,7 +421,8 @@ function DashboardTeacher({
         title={`Bem-vindo, ${firstName}`}
         description={
           <>
-            Turmas, alunos e engajamento em um painel pensado para o seu dia a dia em sala (virtual ou presencial).
+            Resumo leve ao entrar: turmas, matrículas e atalhos. Gamificação, engajamento por turma, ranking dos alunos,
+            avaliações e calendário de aulas carregam só nas páginas dedicadas — quando você abre.
             <span className="mt-2 block text-xs font-medium text-[var(--text-muted)]">
               Perfil: <span className="text-[var(--text-primary)]">{roleLabel}</span>
             </span>
@@ -823,129 +458,91 @@ function DashboardTeacher({
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
-        <div className="min-w-0">
-          {gamification ? (
-            <TeacherGamificationPanel g={gamification} />
-          ) : (
-            <SectionCard
-              title="Gamificação"
-              description="Pontuação por turmas, conteúdo e engajamento."
-              variant="elevated"
-            >
-              <p className="text-sm text-[var(--text-muted)]">
-                Quando houver dados de turmas, sua pontuação aparecerá aqui e na página de gamificação.
-              </p>
-            </SectionCard>
-          )}
+      <SectionCard
+        title="Detalhes de acompanhamento"
+        description="Gamificação, engajamento por turma, ranking dos seus alunos, avaliações e atividade no fórum — em uma página. Calendário de sessões e feriados em outra."
+        id="teacher-detalhes-heading"
+        dataTour="teacher-dashboard-detalhes"
+        variant="elevated"
+      >
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/professor/acompanhamento"
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2 text-sm font-semibold text-[var(--text-primary)] transition hover:border-[var(--igh-primary)]/40"
+          >
+            <Trophy className="h-4 w-4 text-amber-600" aria-hidden />
+            Acompanhamento completo
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Link>
+          <Link
+            href="/professor/calendario"
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2 text-sm font-semibold text-[var(--text-primary)] transition hover:border-[var(--igh-primary)]/40"
+          >
+            <CalendarDays className="h-4 w-4 text-[var(--igh-primary)]" aria-hidden />
+            Calendário de aulas
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Link>
         </div>
-        <div className="min-w-0">
-          <AdminSessionsCalendar
-            sessions={sessionsCalendar}
-            holidays={holidaysCalendar}
-            audience="teacher"
-            footerHref="/professor/turmas"
-            footerLabel="Turmas que leciono →"
-            description="Suas sessões nas turmas em aberto ou em andamento, mais feriados e eventos institucionais. Clique em um dia para ver curso, horário ou feriado/evento."
-            dataTour="dashboard-calendario-aulas-professor"
-          />
-        </div>
-      </div>
+      </SectionCard>
 
-      <section data-tour="teacher-dashboard-por-turma" aria-label="Engajamento por turma">
+      <section data-tour="teacher-dashboard-turmas" className="flex min-h-0 min-w-0 flex-col">
         <SectionCard
-          title="Engajamento por turma"
-          description="Soma do que os alunos fazem em cada turma: aulas concluídas e acessos, exercícios, frequência e participação no fórum."
-          id="teacher-por-turma-heading"
-          variant="elevated"
+          title="Suas turmas no ar"
+          description="Abertas ou em andamento — presenças, sessões e conteúdo a um clique."
+          id="teacher-turmas-heading"
+          className="min-h-0 flex-1"
+          action={
+            <Link
+              href="/professor/turmas"
+              className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
+            >
+              Ver todas →
+            </Link>
+          }
         >
-          <TeacherClassGroupEngagementRows rows={teacherClassGroupStats} />
+          {classGroups.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Nenhuma turma aberta ou em andamento no momento.</p>
+          ) : (
+            <TableShell>
+              <thead>
+                <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]/90 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Turma</th>
+                  <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Vagas</th>
+                  <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classGroups.map((cg) => (
+                  <tr key={cg.id} className="transition hover:bg-[var(--igh-surface)]/40">
+                    <td className="border-b border-[var(--card-border)] px-4 py-3 align-top">
+                      <TeacherTurmaCell cg={cg} />
+                    </td>
+                    <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">
+                      {cg.enrollmentsCount} / {cg.capacity}
+                    </td>
+                    <td className="border-b border-[var(--card-border)] px-4 py-3 align-top">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/professor/turmas/${cg.id}`}
+                          className="rounded-md bg-[var(--igh-primary)]/10 px-2 py-1 text-xs font-bold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/20"
+                        >
+                          Painel
+                        </Link>
+                        <Link
+                          href={`/enrollments?turma=${cg.id}`}
+                          className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--igh-primary)] hover:underline"
+                        >
+                          Matrículas
+                        </Link>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableShell>
+          )}
         </SectionCard>
       </section>
-
-      <div className="flex flex-col gap-6">
-        <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
-          <section data-tour="teacher-dashboard-turmas" className="flex min-h-0 min-w-0 flex-col">
-            <SectionCard
-              title="Suas turmas no ar"
-              description="Abertas ou em andamento — presenças, sessões e conteúdo a um clique."
-              id="teacher-turmas-heading"
-              className="min-h-0 flex-1"
-              action={
-                <Link
-                  href="/professor/turmas"
-                  className="text-sm font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] rounded"
-                >
-                  Ver todas →
-                </Link>
-              }
-            >
-              {classGroups.length === 0 ? (
-                <p className="text-sm text-[var(--text-muted)]">Nenhuma turma aberta ou em andamento no momento.</p>
-              ) : (
-                <TableShell>
-                  <thead>
-                    <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]/90 text-left text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Turma</th>
-                      <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Vagas</th>
-                      <th className="px-4 py-3 font-semibold text-[var(--text-primary)]">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {classGroups.map((cg) => (
-                      <tr key={cg.id} className="transition hover:bg-[var(--igh-surface)]/40">
-                        <td className="border-b border-[var(--card-border)] px-4 py-3 align-top">
-                          <TeacherTurmaCell cg={cg} />
-                        </td>
-                        <td className="border-b border-[var(--card-border)] px-4 py-3 text-[var(--text-secondary)]">
-                          {cg.enrollmentsCount} / {cg.capacity}
-                        </td>
-                        <td className="border-b border-[var(--card-border)] px-4 py-3 align-top">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <Link
-                              href={`/professor/turmas/${cg.id}`}
-                              className="rounded-md bg-[var(--igh-primary)]/10 px-2 py-1 text-xs font-bold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/20"
-                            >
-                              Painel
-                            </Link>
-                            <Link
-                              href={`/enrollments?turma=${cg.id}`}
-                              className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--igh-primary)] hover:underline"
-                            >
-                              Matrículas
-                            </Link>
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </TableShell>
-              )}
-            </SectionCard>
-          </section>
-
-          <div className="flex min-h-0 min-w-0 flex-col">
-            <DashboardStudentRanking
-              entries={studentRankingTop}
-              prominent
-              title="Ranking dos meus alunos"
-              description="Os 10 melhores entre os alunos das suas turmas; a posição exibida é a colocação no ranking geral da plataforma."
-              footerHint="Abre o ranking geral de todos os alunos da plataforma."
-            />
-          </div>
-        </div>
-
-        <PlatformExperienceSummarySection
-          summary={platformExperienceSummary}
-          href="/professor/avaliacoes-experiencia"
-          title="Avaliações dos meus alunos"
-          description="Apenas alunos com matrícula ativa em turmas suas. Inclui notas e comentários quando enviados."
-          className="flex h-full min-h-0 flex-col"
-          contentClassName="flex flex-1 flex-col"
-        />
-      </div>
-
-      <DashboardForumActivityRail variant="teacher" items={forumLessonsWithActivity} />
 
       <section data-tour="teacher-dashboard-atalhos">
           <h2 className="mb-4 text-lg font-bold text-[var(--text-primary)]">Atalhos do professor</h2>
@@ -1055,296 +652,6 @@ function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
   );
 }
 
-function StudentCourseProgressRows({ enrollments }: { enrollments: StudentEnrollmentSummary[] }) {
-  return (
-    <ul className="flex flex-col gap-3" aria-label="Progresso detalhado por curso">
-      {enrollments.map((e) => {
-        const pct = e.lessonsTotal > 0 ? Math.round((e.lessonsCompleted / e.lessonsTotal) * 100) : 0;
-        const exPct =
-          e.exerciseTotalAttempts > 0
-            ? Math.round((e.exerciseCorrectAttempts / e.exerciseTotalAttempts) * 100)
-            : null;
-        return (
-          <li
-            key={e.id}
-            className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/35 p-4 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3 gap-y-2">
-              <div className="min-w-0">
-                <p className="font-semibold leading-snug text-[var(--text-primary)]">{e.courseName}</p>
-                <p className="mt-0.5 text-xs text-[var(--text-muted)]">Prof. {e.teacherName}</p>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <Link
-                  href={`/minhas-turmas/${e.id}/conteudo`}
-                  className="inline-flex items-center gap-1 rounded-lg bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                >
-                  Conteúdo
-                  <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                </Link>
-                <Link
-                  href={`/minhas-turmas/forum/${e.courseId}`}
-                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--igh-primary)]/40 hover:text-[var(--igh-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" aria-hidden />
-                  Fórum
-                </Link>
-              </div>
-            </div>
-            <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <PlayCircle className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Aulas concluídas
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {e.lessonsCompleted} / {e.lessonsTotal}
-                  {e.lessonsTotal > 0 ? <span className="ml-1.5 text-[var(--igh-primary)]">({pct}%)</span> : null}
-                </dd>
-              </div>
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <BookOpen className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Aulas com acesso
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {e.lessonsAccessedCount}{" "}
-                  <span className="font-normal text-[var(--text-muted)]">
-                    {e.lessonsAccessedCount === 1 ? "aula aberta" : "aulas abertas"}
-                  </span>
-                </dd>
-              </div>
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <ClipboardList className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Exercícios
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {e.exerciseTotalAttempts > 0 ? (
-                    <>
-                      {e.exerciseCorrectAttempts} acertos · {e.exerciseTotalAttempts}{" "}
-                      {e.exerciseTotalAttempts === 1 ? "tentativa" : "tentativas"}
-                      {exPct != null ? (
-                        <span className="ml-1.5 font-bold text-[var(--igh-primary)]">({exPct}%)</span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="font-normal text-[var(--text-muted)]">Nenhuma tentativa ainda</span>
-                  )}
-                </dd>
-              </div>
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <UserCheck className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Frequência
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {e.attendancePresentCount}{" "}
-                  <span className="font-normal text-[var(--text-muted)]">
-                    {e.attendancePresentCount === 1 ? "presença registrada" : "presenças registradas"}
-                  </span>
-                </dd>
-              </div>
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60 sm:col-span-2 xl:col-span-1">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <Users2 className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Participação no fórum
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {e.forumQuestionsCount} {e.forumQuestionsCount === 1 ? "tópico" : "tópicos"} ·{" "}
-                  {e.forumRepliesCount} {e.forumRepliesCount === 1 ? "resposta" : "respostas"}
-                </dd>
-              </div>
-            </dl>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function PlatformEngagementDashboardGrid({ e }: { e: PlatformEngagementSnapshot }) {
-  const exPct =
-    e.exerciseAttemptsTotal > 0
-      ? Math.round((e.exerciseCorrectTotal / e.exerciseAttemptsTotal) * 100)
-      : null;
-  return (
-    <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70">
-        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-          <PlayCircle className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-          Aulas concluídas (total)
-        </dt>
-        <dd className="mt-1 text-lg font-bold tabular-nums text-[var(--text-primary)]">{e.lessonsCompletedTotal}</dd>
-      </div>
-      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70">
-        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-          <BookOpen className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-          Registros de acesso a aulas
-        </dt>
-        <dd className="mt-1 text-lg font-bold tabular-nums text-[var(--text-primary)]">{e.lessonAccessRecordsTotal}</dd>
-        <dd className="mt-0.5 text-[11px] leading-snug text-[var(--text-muted)]">
-          Linhas de progresso (matrícula × aula com interação).
-        </dd>
-      </div>
-      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70">
-        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-          <ClipboardList className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-          Exercícios (alunos)
-        </dt>
-        <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-          {e.exerciseCorrectTotal} acertos · {e.exerciseAttemptsTotal}{" "}
-          {e.exerciseAttemptsTotal === 1 ? "tentativa" : "tentativas"}
-          {exPct != null ? (
-            <span className="ml-1.5 font-bold text-[var(--igh-primary)]">({exPct}%)</span>
-          ) : null}
-        </dd>
-      </div>
-      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70">
-        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-          <UserCheck className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-          Presenças registradas
-        </dt>
-        <dd className="mt-1 text-lg font-bold tabular-nums text-[var(--text-primary)]">{e.attendancePresentTotal}</dd>
-        <dd className="mt-0.5 text-[11px] text-[var(--text-muted)]">Sessões até hoje (fuso Brasil).</dd>
-      </div>
-      <div className="rounded-lg bg-[var(--igh-surface)]/50 px-3 py-2.5 ring-1 ring-[var(--card-border)]/70 sm:col-span-2 xl:col-span-2">
-        <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-          <Users2 className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-          Fórum
-        </dt>
-        <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-          {e.forumQuestionsTotal} {e.forumQuestionsTotal === 1 ? "tópico" : "tópicos"} · {e.forumRepliesTotal}{" "}
-          {e.forumRepliesTotal === 1 ? "resposta" : "respostas"}
-        </dd>
-        <dd className="mt-1 text-[11px] leading-snug text-[var(--text-muted)]">
-          Respostas entre alunos e comentários do professor ou da equipe.
-        </dd>
-      </div>
-    </dl>
-  );
-}
-
-function TeacherClassGroupEngagementRows({ rows }: { rows: TeacherClassGroupEngagement[] }) {
-  const sorted = [...rows].sort((a, b) =>
-    a.courseName.localeCompare(b.courseName, "pt-BR", { sensitivity: "base" })
-  );
-  if (sorted.length === 0) {
-    return <p className="text-sm text-[var(--text-muted)]">Nenhuma turma ativa no momento.</p>;
-  }
-  return (
-    <ul className="flex flex-col gap-3" aria-label="Engajamento por turma">
-      {sorted.map((r) => {
-        const exPct =
-          r.exerciseAttempts > 0 ? Math.round((r.exerciseCorrect / r.exerciseAttempts) * 100) : null;
-        const cap =
-          r.lessonsInCourse > 0 && r.enrollmentsCount > 0
-            ? Math.round(
-                (r.lessonsCompletedSum / (r.lessonsInCourse * r.enrollmentsCount)) * 100
-              )
-            : null;
-        return (
-          <li
-            key={r.classGroupId}
-            className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/35 p-4 shadow-sm ring-1 ring-black/[0.02] dark:ring-white/[0.03]"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3 gap-y-2">
-              <div className="min-w-0">
-                <p className="font-semibold leading-snug text-[var(--text-primary)]">{r.courseName}</p>
-                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                  {r.enrollmentsCount} {r.enrollmentsCount === 1 ? "aluno matriculado" : "alunos matriculados"}
-                  {r.lessonsInCourse > 0 ? ` · ${r.lessonsInCourse} aulas no curso` : ""}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <Link
-                  href={`/professor/turmas/${r.classGroupId}`}
-                  className="inline-flex items-center gap-1 rounded-lg bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                >
-                  Painel da turma
-                  <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                </Link>
-                <Link
-                  href={`/professor/forum/${r.courseId}`}
-                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--igh-primary)]/40 hover:text-[var(--igh-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" aria-hidden />
-                  Fórum do curso
-                </Link>
-              </div>
-            </div>
-            <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <PlayCircle className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Aulas concluídas (soma)
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {r.lessonsCompletedSum}
-                  {cap != null && !Number.isNaN(cap) ? (
-                    <span className="ml-1.5 text-[var(--igh-primary)]">(~{cap}% do máx. teórico)</span>
-                  ) : null}
-                </dd>
-              </div>
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <BookOpen className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Acessos ao conteúdo
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {r.lessonAccessRecords}{" "}
-                  <span className="font-normal text-[var(--text-muted)]">registros de progresso</span>
-                </dd>
-              </div>
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <ClipboardList className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Exercícios
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {r.exerciseAttempts > 0 ? (
-                    <>
-                      {r.exerciseCorrect} acertos · {r.exerciseAttempts}{" "}
-                      {r.exerciseAttempts === 1 ? "tentativa" : "tentativas"}
-                      {exPct != null ? (
-                        <span className="ml-1.5 font-bold text-[var(--igh-primary)]">({exPct}%)</span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="font-normal text-[var(--text-muted)]">Nenhuma tentativa ainda</span>
-                  )}
-                </dd>
-              </div>
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <UserCheck className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Frequência
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {r.attendancePresent}{" "}
-                  <span className="font-normal text-[var(--text-muted)]">
-                    {r.attendancePresent === 1 ? "presença" : "presenças"}
-                  </span>
-                </dd>
-              </div>
-              <div className="rounded-lg bg-[var(--card-bg)]/80 px-3 py-2.5 ring-1 ring-[var(--card-border)]/60 sm:col-span-2 xl:col-span-1">
-                <dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  <Users2 className="h-3.5 w-3.5 text-[var(--igh-primary)]" aria-hidden />
-                  Fórum (alunos)
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                  {r.forumQuestions} {r.forumQuestions === 1 ? "tópico" : "tópicos"} · {r.forumReplies}{" "}
-                  {r.forumReplies === 1 ? "resposta" : "respostas"}
-                </dd>
-              </div>
-            </dl>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 /** Bandeira quadriculada de chegada — marca o fim da barra de progresso. */
 function FinishLineFlagIcon({ className }: { className?: string }) {
   return (
@@ -1390,36 +697,8 @@ function DashboardStudent({
     totalLessonsTotal,
     recommendedEnrollmentId,
     lastViewedLesson,
-    totalExerciseCorrect,
-    totalExerciseAttempts,
-    totalAttendancePresent,
-    totalForumQuestions,
-    totalForumReplies,
-    forumLessonsWithActivity,
-    studentRankingTop,
-    myStudentRank,
-    myStudentPoints,
-    sessionsCalendar,
-    holidaysCalendar,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
-  const pointsContent = totalLessonsCompleted * POINTS_PER_LESSON;
-  // Exercícios realizados contam por tentativas; acertos contam um bônus extra.
-  const pointsExercises = totalExerciseAttempts + totalExerciseCorrect;
-  const pointsFrequency = totalAttendancePresent * GAMIFICATION_POINTS.attendancePerPresentStudent;
-  const pointsForum = (totalForumQuestions + totalForumReplies) * GAMIFICATION_POINTS.forumPerReply;
-  const points = pointsContent + pointsExercises + pointsFrequency + pointsForum;
-  const levelInfo = getLevel(points);
-  const badgeContext: StudentBadgeContext = {
-    total: totalLessonsTotal,
-    completed: totalLessonsCompleted,
-    enrollments,
-    exerciseAttempts: totalExerciseAttempts,
-    attendancePresent: totalAttendancePresent,
-    forumInteractions: totalForumQuestions + totalForumReplies,
-  };
-  const conquistasRealizadas = getAllUnlockedBadges(badgeContext);
-  const proximasMetasPorCategoria = getNextBadgePerTrack(badgeContext);
   const recommendedEnrollment = recommendedEnrollmentId
     ? enrollments.find((e) => e.id === recommendedEnrollmentId)
     : null;
@@ -1446,103 +725,6 @@ function DashboardStudent({
       : null;
   const globalPercent =
     totalLessonsTotal > 0 ? Math.round((totalLessonsCompleted / totalLessonsTotal) * 100) : 0;
-  const enrollmentsSorted = [...enrollments].sort((a, b) =>
-    a.courseName.localeCompare(b.courseName, "pt-BR", { sensitivity: "base" })
-  );
-
-  const evolucaoCard = (
-    <SectionCard
-      title="Sua evolução"
-      description="Pontos, nível e conquistas — acompanhe sua jornada no IGH."
-      id="gamificacao-heading"
-      dataTour="dashboard-sua-evolucao"
-      variant="elevated"
-      className="border border-amber-200/80 bg-gradient-to-br from-amber-50/90 via-[var(--card-bg)] to-violet-50/30 ring-2 ring-amber-400/30 shadow-xl dark:border-amber-900/40 dark:from-amber-950/40 dark:via-[var(--card-bg)] dark:to-violet-950/20 dark:ring-amber-500/25"
-      action={
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40" aria-hidden>
-          <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-        </span>
-      }
-    >
-      <div className="flex flex-wrap gap-8">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
-            <Flame className="h-7 w-7 text-amber-700 dark:text-amber-300" aria-hidden />
-          </div>
-          <div>
-            <p className="text-3xl font-bold tabular-nums text-[var(--text-primary)]">{points}</p>
-            <p className="mt-0.5 text-sm font-medium text-[var(--text-secondary)]">pontos</p>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Conteúdo {pointsContent} · Exercícios {pointsExercises} · Frequência {pointsFrequency} · Fórum {pointsForum}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--igh-primary)]/15">
-            <Award className="h-7 w-7 text-[var(--igh-primary)]" aria-hidden />
-          </div>
-          <div>
-            <p className="text-xl font-bold text-[var(--text-primary)]">{levelInfo.name}</p>
-            <p className="mt-0.5 text-sm font-medium text-[var(--text-secondary)]">nível atual</p>
-          </div>
-        </div>
-      </div>
-      {levelInfo.next && (
-        <div className="mt-5">
-          <p className="text-sm font-medium text-[var(--text-secondary)]">
-            Próximo: {levelInfo.next.name} ({levelInfo.next.min} pts)
-          </p>
-          <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[var(--igh-surface)]">
-            <div
-              className="h-full rounded-full bg-[var(--igh-primary)] transition-all"
-              style={{ width: `${Math.round(levelInfo.progressInLevel * 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
-      <div className="mt-6">
-        <p className="text-base font-semibold text-[var(--text-primary)]">Conquistas</p>
-        <p className="mt-1 text-xs text-[var(--text-muted)]">
-          Conquistas desbloqueadas e, em seguida, a próxima meta de cada categoria (borda tracejada).
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {conquistasRealizadas.length === 0 && proximasMetasPorCategoria.length === 0 ? (
-            <p className="text-sm text-[var(--text-secondary)]">
-              Nenhuma conquista ainda. Conclua aulas, responda exercícios, participe das turmas e do fórum.
-            </p>
-          ) : (
-            <>
-              {conquistasRealizadas.map((badge) => (
-                <span
-                  key={badge.id}
-                  title={`Conquista: ${badge.label}`}
-                  className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100"
-                >
-                  <Star className="h-4 w-4 shrink-0 fill-amber-600 dark:fill-amber-400" aria-hidden />
-                  {badge.label}
-                </span>
-              ))}
-              {proximasMetasPorCategoria.map((badge) => (
-                <span
-                  key={`proximo-${badge.id}`}
-                  title={`Próxima meta: ${badge.label}`}
-                  className="inline-flex items-center gap-2 rounded-full border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3.5 py-2 text-sm font-medium text-[var(--text-secondary)]"
-                >
-                  <Star className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden />
-                  {badge.label}
-                </span>
-              ))}
-            </>
-          )}
-        </div>
-        {conquistasRealizadas.length > 0 && proximasMetasPorCategoria.length === 0 ? (
-          <p className="mt-3 text-xs text-[var(--text-muted)]">
-            Todas as metas desta lista foram atingidas nas categorias em que você participa.
-          </p>
-        ) : null}
-      </div>
-    </SectionCard>
-  );
 
   const continueBlock =
     enrollments.length > 0 && continueLink && continueLabel ? (
@@ -1584,48 +766,13 @@ function DashboardStudent({
       </div>
     );
 
-  const desempenhoCard = (
-    <SectionCard
-      title="Desempenho nos exercícios"
-      description="Acertos e revisão por tópico — use para reforçar o que ainda precisa de atenção."
-      id="exercicios-heading"
-      dataTour="dashboard-desempenho-exercicios"
-      variant="elevated"
-    >
-      {totalExerciseAttempts > 0 ? (
-        <div className="flex flex-col gap-3">
-          <div>
-            <p className="text-3xl font-bold tabular-nums text-[var(--text-primary)] sm:text-4xl">{totalExerciseCorrect}</p>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              acertos em {totalExerciseAttempts} {totalExerciseAttempts === 1 ? "tentativa" : "tentativas"}
-              <span className="ml-2 font-bold text-[var(--igh-primary)]">
-                {Math.round((totalExerciseCorrect / totalExerciseAttempts) * 100)}%
-              </span>
-            </p>
-          </div>
-          <Link
-            href="/minhas-turmas"
-            className="inline-flex items-center gap-1 text-sm font-bold text-[var(--igh-primary)] hover:underline"
-          >
-            Ver por curso e tópicos
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          </Link>
-        </div>
-      ) : (
-        <p className="text-sm leading-relaxed text-[var(--text-muted)]">
-          Responda às questões ao final das aulas para ver aqui seu desempenho e quais tópicos merecem uma segunda leitura.
-        </p>
-      )}
-    </SectionCard>
-  );
-
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
       <DashboardHero
         dataTour="dashboard-welcome"
         eyebrow="Sua jornada de aprendizado"
         title={`Olá, ${firstName}!`}
-        description="Progresso, exercícios, conquistas e acesso rápido ao que importa para você evoluir."
+        description="Resumo leve ao entrar: continue de onde parou, veja seu progresso geral e acesse rapidamente turmas e fórum. Detalhes de pontos, ranking, exercícios e calendário ficam em páginas próprias — só carregam quando você abre."
         rightSlot={
           <StudentPlatformExperienceModal
             autoPromptOnce={enrollments.length > 0}
@@ -1637,91 +784,80 @@ function DashboardStudent({
       <div className="min-w-0">{continueBlock}</div>
 
       {enrollments.length > 0 && (
-        <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
-          <div className="min-w-0 lg:col-span-2">
-            <SectionCard
-              title="Seu progresso"
-              description="Resumo geral e, abaixo, o detalhe de cada curso — aulas, exercícios, frequência e fórum."
-              id="resumo-progresso-heading"
-              dataTour="dashboard-progresso-geral"
-              variant="elevated"
-            >
-              {totalLessonsTotal > 0 ? (
-                <div className="flex flex-wrap items-center gap-6">
-                  <div className="flex flex-col">
-                    <span className="text-5xl font-bold tabular-nums tracking-tight text-[var(--text-primary)]">
-                      {totalLessonsCompleted}
-                    </span>
-                    <span className="mt-1 text-sm font-medium text-[var(--text-muted)]">
-                      de {totalLessonsTotal} aulas concluídas
-                    </span>
-                  </div>
-                  <div className="min-w-[200px] flex-1">
-                    <div className="flex items-center gap-2">
-                      <PlayCircle className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
-                      <div className="h-3 flex-1 overflow-hidden rounded-full bg-[var(--igh-surface)] shadow-inner">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-[var(--igh-primary)] to-violet-500 transition-all duration-500"
-                          style={{ width: `${globalPercent}%` }}
-                        />
-                      </div>
-                      <span
-                        className="inline-flex shrink-0"
-                        title="Chegada — fim do percurso do curso"
-                        role="img"
-                        aria-label="Chegada, linha de chegada do percurso"
-                      >
-                        <FinishLineFlagIcon className="h-5 w-5 text-[var(--igh-primary)]" />
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm font-semibold text-[var(--igh-primary)]">{globalPercent}% do percurso total</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm leading-relaxed text-[var(--text-muted)]">
-                  Ainda não há aulas cadastradas nos módulos dos seus cursos. Quando o conteúdo for publicado, seu percurso
-                  e as barras de progresso aparecem aqui.
-                </p>
-              )}
-              <div className="mt-8 border-t border-[var(--card-border)] pt-8">
-                <h3 className="text-base font-bold text-[var(--text-primary)]">Por curso</h3>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">
-                  Aulas assistidas (com acesso), exercícios, presenças nas sessões e participação no fórum de cada matrícula.
-                </p>
-                <div className="mt-5">
-                  <StudentCourseProgressRows enrollments={enrollmentsSorted} />
-                </div>
+        <SectionCard
+          title="Seu progresso"
+          description="Visão geral do percurso. O detalhe por curso (aulas, exercícios, frequência, fórum) está em Minhas turmas; evolução e ranking em outra página."
+          id="resumo-progresso-heading"
+          dataTour="dashboard-progresso-geral"
+          variant="elevated"
+        >
+          {totalLessonsTotal > 0 ? (
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex flex-col">
+                <span className="text-5xl font-bold tabular-nums tracking-tight text-[var(--text-primary)]">
+                  {totalLessonsCompleted}
+                </span>
+                <span className="mt-1 text-sm font-medium text-[var(--text-muted)]">
+                  de {totalLessonsTotal} aulas concluídas
+                </span>
               </div>
-            </SectionCard>
+              <div className="min-w-[200px] flex-1">
+                <div className="flex items-center gap-2">
+                  <PlayCircle className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-[var(--igh-surface)] shadow-inner">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[var(--igh-primary)] to-violet-500 transition-all duration-500"
+                      style={{ width: `${globalPercent}%` }}
+                    />
+                  </div>
+                  <span
+                    className="inline-flex shrink-0"
+                    title="Chegada — fim do percurso do curso"
+                    role="img"
+                    aria-label="Chegada, linha de chegada do percurso"
+                  >
+                    <FinishLineFlagIcon className="h-5 w-5 text-[var(--igh-primary)]" />
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-[var(--igh-primary)]">{globalPercent}% do percurso total</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm leading-relaxed text-[var(--text-muted)]">
+              Ainda não há aulas cadastradas nos módulos dos seus cursos. Quando o conteúdo for publicado, seu percurso e as
+              barras de progresso aparecem aqui.
+            </p>
+          )}
+          <div
+            className="mt-6 flex flex-wrap gap-2 border-t border-[var(--card-border)] pt-6"
+            data-tour="dashboard-detalhes-engajamento"
+          >
+            <Link
+              href="/minhas-turmas"
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2 text-sm font-semibold text-[var(--text-primary)] transition hover:border-[var(--igh-primary)]/40"
+            >
+              Ver detalhe por curso
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Link>
+            <Link
+              href="/minhas-turmas/evolucao"
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2 text-sm font-semibold text-[var(--text-primary)] transition hover:border-[var(--igh-primary)]/40"
+            >
+              <Trophy className="h-4 w-4 text-amber-600" aria-hidden />
+              Evolução, ranking e fórum
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Link>
+            <Link
+              href="/minhas-turmas/calendario"
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2 text-sm font-semibold text-[var(--text-primary)] transition hover:border-[var(--igh-primary)]/40"
+            >
+              <CalendarDays className="h-4 w-4 text-[var(--igh-primary)]" aria-hidden />
+              Calendário de aulas
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Link>
           </div>
-          <div className="min-w-0 lg:col-span-1">
-            <AdminSessionsCalendar
-              sessions={sessionsCalendar}
-              holidays={holidaysCalendar}
-              audience="student"
-              footerHref="/minhas-turmas"
-              footerLabel="Minhas turmas →"
-              description="Sessões das suas turmas (abertas ou em andamento), mais feriados e eventos institucionais. Clique em um dia para ver curso, horário ou feriado/evento."
-              dataTour="dashboard-calendario-aulas-aluno"
-            />
-          </div>
-        </div>
+        </SectionCard>
       )}
-
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
-        <div className="flex min-h-0 flex-col">{evolucaoCard}</div>
-        <div className="flex min-h-0 flex-col">
-          <DashboardStudentRanking
-            entries={studentRankingTop}
-            myRank={myStudentRank}
-            myPoints={myStudentPoints}
-            showMotivation={activeEnrollmentsCount > 0}
-            prominent
-          />
-        </div>
-      </div>
-
-      <div className="min-w-0">{desempenhoCard}</div>
 
       {enrollments.length > 0 ? (
         <>
@@ -1756,8 +892,6 @@ function DashboardStudent({
               </Link>
             </div>
           </section>
-
-          <DashboardForumActivityRail variant="student" items={forumLessonsWithActivity} />
         </>
       ) : (
         <section
@@ -1796,6 +930,20 @@ function DashboardStudent({
               icon: BookOpen,
               accent: "from-[var(--igh-primary)] to-violet-600",
               dataTour: "dashboard-acesso-minhas-turmas",
+            },
+            {
+              href: "/minhas-turmas/evolucao",
+              label: "Evolução e ranking",
+              description: "Pontos, conquistas, ranking e fórum",
+              icon: Trophy,
+              accent: "from-amber-500 to-rose-600",
+            },
+            {
+              href: "/minhas-turmas/calendario",
+              label: "Calendário de aulas",
+              description: "Sessões, feriados e eventos",
+              icon: CalendarDays,
+              accent: "from-violet-500 to-fuchsia-600",
             },
             {
               href: "/minhas-turmas/forum",
@@ -1865,7 +1013,7 @@ export default async function DashboardPage() {
         <DashboardAdmin
           data={data}
           userName={user.name}
-          readOnly={false}
+          readOnly={data.role === "COORDINATOR"}
         />
       ) : data.role === "TEACHER" ? (
         <DashboardTeacher data={data} userName={user.name} />

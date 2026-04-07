@@ -30,7 +30,7 @@ type Item = {
  */
 const ITEMS: Item[] = [
   /* —— Início (todos) —— */
-  { href: "/dashboard", label: "Dashboard", alwaysShow: true, category: "Início" },
+  { href: "/dashboard", label: "Página Inicial", alwaysShow: true, category: "Início" },
   { href: "/onboarding", label: "Como usar o sistema", alwaysShow: true, category: "Início" },
   {
     href: "/coordenacao",
@@ -41,16 +41,22 @@ const ITEMS: Item[] = [
 
   /* —— Aluno —— */
   { href: "/minhas-turmas", label: "Minhas turmas", studentOnly: true, category: "Aluno" },
+  { href: "/minhas-turmas/evolucao", label: "Evolução e ranking", studentOnly: true, category: "Aluno" },
+  { href: "/minhas-turmas/calendario", label: "Calendário de aulas", studentOnly: true, category: "Aluno" },
   { href: "/minhas-turmas/forum", label: "Fórum dos cursos", studentOnly: true, category: "Aluno" },
 
   /* —— Professor —— */
   { href: "/professor/turmas", label: "Turmas que leciono", teacherOnly: true, category: "Professor" },
+  { href: "/professor/acompanhamento", label: "Acompanhamento", teacherOnly: true, category: "Professor" },
+  { href: "/professor/calendario", label: "Calendário de aulas", teacherOnly: true, category: "Professor" },
   { href: "/professor/forum", label: "Fórum dos cursos", teacherOnly: true, category: "Professor" },
   { href: "/professor/frequencia", label: "Frequência", teacherOnly: true, category: "Professor" },
   { href: "/gamificacao", label: "Gamificação", teacherOnly: true, category: "Professor" },
   { href: "/professor/avaliacoes-experiencia", label: "Avaliações de experiência", teacherOnly: true, category: "Professor" },
 
   /* —— Administração (equipa: governança → pessoas → oferta → acompanhamento) —— */
+  { href: "/admin/plataforma", label: "Visão da plataforma", adminOrMaster: true, category: "Administração" },
+  { href: "/admin/calendario", label: "Calendário institucional", adminOrMaster: true, category: "Administração" },
   {
     href: "/admin/onboarding",
     label: "Guia do sistema (edição)",

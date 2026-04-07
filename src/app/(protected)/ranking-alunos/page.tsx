@@ -4,7 +4,7 @@ import { ChevronLeft } from "lucide-react";
 import { RankingAlunosFullTable, type RankingPlacementInfo } from "@/components/dashboard/RankingAlunosFullTable";
 import { requireSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { computeStudentGamificationRanking } from "@/lib/student-gamification-ranking";
+import { getCachedStudentGamificationRankingFull } from "@/lib/cached-dashboard-queries";
 
 export const metadata = {
   title: "Ranking de alunos | IGH",
@@ -13,8 +13,8 @@ export const metadata = {
 
 function buildPlacement(
   student: { id: string } | null,
-  fullRanking: Awaited<ReturnType<typeof computeStudentGamificationRanking>>,
-  filtered: Awaited<ReturnType<typeof computeStudentGamificationRanking>>,
+  fullRanking: Awaited<ReturnType<typeof getCachedStudentGamificationRankingFull>>,
+  filtered: Awaited<ReturnType<typeof getCachedStudentGamificationRankingFull>>,
 ): RankingPlacementInfo {
   if (!student) return { kind: "not_student" };
 
@@ -55,7 +55,7 @@ export default async function RankingAlunosPage() {
     }
   }
 
-  const fullRanking = await computeStudentGamificationRanking({ nameMode: "full" });
+  const fullRanking = await getCachedStudentGamificationRankingFull();
   const filtered = fullRanking
     .filter((r) => r.points > 0)
     .map((r, i) => ({

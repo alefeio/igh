@@ -135,6 +135,9 @@ export default function StudentsPage() {
   const [changePasswordLoading, setChangePasswordLoading] = useState(false);
   const [q, setQ] = useState("");
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [total, setTotal] = useState(0);
 
   const canChangePassword =
     (user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR") && !isTeacher;
@@ -143,23 +146,41 @@ export default function StudentsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
       if (q.trim()) params.set("q", q.trim());
       if (staffFullAccess && includeDeleted) params.set("includeDeleted", "true");
       const res = await fetch(`/api/students?${params.toString()}`);
-      const json = (await res.json()) as ApiResponse<{ students: Student[] }>;
+      const json = (await res.json()) as ApiResponse<{
+        students: Student[];
+        total: number;
+        page: number;
+        pageSize: number;
+      }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao carregar alunos.");
         return;
       }
       setItems(json.data.students);
+      setTotal(json.data.total);
     } finally {
       setLoading(false);
     }
-  }, [q, staffFullAccess, includeDeleted, toast]);
+  }, [q, staffFullAccess, includeDeleted, toast, page, pageSize]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageSafe = Math.min(page, totalPages);
+
+  useEffect(() => {
+    if (loading) return;
+    if (page > totalPages) setPage(totalPages);
+  }, [loading, page, totalPages]);
+  const rangeFrom = total === 0 ? 0 : (pageSafe - 1) * pageSize + 1;
+  const rangeTo = Math.min(pageSafe * pageSize, total);
 
   function openCreate() {
     setEditing(null);
@@ -291,7 +312,10 @@ export default function StudentsPage() {
           <Input
             placeholder="Buscar por nome ou CPF"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
             className="max-w-xs"
           />
           {staffFullAccess && (
@@ -299,7 +323,10 @@ export default function StudentsPage() {
               <input
                 type="checkbox"
                 checked={includeDeleted}
-                onChange={(e) => setIncludeDeleted(e.target.checked)}
+                onChange={(e) => {
+                  setIncludeDeleted(e.target.checked);
+                  setPage(1);
+                }}
               />
               Incluir excluídos
             </label>
@@ -312,7 +339,9 @@ export default function StudentsPage() {
         description={
           loading
             ? "Carregando alunos…"
-            : `${items.length} ${items.length === 1 ? "registro" : "registros"} exibidos.`
+            : total === 0
+              ? "Nenhum registro nesta página."
+              : `Exibindo ${rangeFrom}–${rangeTo} de ${total} ${total === 1 ? "aluno" : "alunos"}.`
         }
         variant="elevated"
       >
@@ -414,6 +443,48 @@ export default function StudentsPage() {
             )}
           </tbody>
           </TableShell>
+        )}
+        {!loading && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--card-border)] pt-4">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]">
+              <span>Itens por página</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm text-[var(--text-primary)]"
+              >
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+            {total > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={pageSafe <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Anterior
+                </Button>
+                <span className="text-sm text-[var(--text-muted)]">
+                  Página {pageSafe} de {totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={pageSafe >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Próxima
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </SectionCard>
 

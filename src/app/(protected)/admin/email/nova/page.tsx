@@ -102,7 +102,7 @@ export default function NovaCampanhaEmailPage() {
     setStudentSearchLoading(true);
     try {
       const res = await fetch(
-        `/api/students?${new URLSearchParams({ q: trimmed }).toString()}`
+        `/api/students?${new URLSearchParams({ q: trimmed, pageSize: "100" }).toString()}`
       );
       const json = (await res.json()) as ApiResponse<{
         students: { id: string; name: string }[];

@@ -17,11 +17,14 @@ import {
 } from "@/lib/dashboard-forum-activity";
 import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
 import type { StudentRankEntry } from "@/lib/student-gamification-ranking";
-import { computeStudentGamificationRanking } from "@/lib/student-gamification-ranking";
 import type {
   DashboardHolidayCalendarItem,
   DashboardSessionCalendarItem,
 } from "@/lib/dashboard-admin-calendar";
+import {
+  getCachedActiveHolidaysRows,
+  getCachedStudentGamificationRankingFull,
+} from "@/lib/cached-dashboard-queries";
 import { expandHolidayDateStringsInRange } from "@/lib/schedule";
 import type { TeacherGamificationResult } from "@/lib/teacher-gamification";
 import {
@@ -34,8 +37,9 @@ export type { DashboardHolidayCalendarItem, DashboardSessionCalendarItem } from 
 
 /**
  * Top 9 fixos + linha 10: o 10º colocado, ou o próprio aluno (destacado) se estiver fora do top 9.
+ * (Usado na página /minhas-turmas/evolucao.)
  */
-function buildStudentDashboardRankingTop(
+export function buildStudentDashboardRankingTop(
   full: StudentRankEntry[],
   viewerStudentId: string,
 ): StudentRankEntry[] {
@@ -156,44 +160,38 @@ export type DashboardAccessActivitySummary = {
   }>;
 };
 
+/** Painel inicial admin/coordenador/master: só totais (detalhes em /admin/plataforma e /admin/calendario). */
 export type DashboardDataAdmin = {
   role: "ADMIN" | "MASTER" | "COORDINATOR";
   roleLabel: string;
   stats: DashboardStats;
-  /** Indicadores globais de estudo, frequência e fórum (alinhados ao painel do aluno). */
-  platformEngagement: PlatformEngagementSnapshot;
-  /** Ranking completo de gamificação (professores); a UI pode exibir só os primeiros. */
-  teachersGamificationRanking: TeacherGamificationResult[];
-  platformExperienceSummary: PlatformExperienceDashboardSummary;
-  /** Últimos logins e páginas vistas (rotas mais visitadas: ver /master/acessos). */
-  accessActivitySummary: DashboardAccessActivitySummary;
-  /** Fóruns com atividade em toda a plataforma (atalho para integração entre cursos). */
-  forumLessonsWithActivity: DashboardForumLessonActivity[];
-  /** Top alunos por pontos de gamificação (mesma regra do painel do aluno). */
-  studentRankingTop: StudentRankEntry[];
-  /** Sessões agendadas no período (calendário do painel). */
-  sessionsCalendar: DashboardSessionCalendarItem[];
-  /** Feriados e eventos institucionais no mesmo intervalo do calendário. */
-  holidaysCalendar: DashboardHolidayCalendarItem[];
 };
 
+/** Engajamento, rankings, avaliações, fórum e acessos — página /admin/plataforma. */
+export type AdminPlataformaPagePayload = {
+  platformEngagement: PlatformEngagementSnapshot;
+  teachersGamificationRanking: TeacherGamificationResult[];
+  platformExperienceSummary: PlatformExperienceDashboardSummary;
+  accessActivitySummary: DashboardAccessActivitySummary;
+  forumLessonsWithActivity: DashboardForumLessonActivity[];
+  studentRankingTop: StudentRankEntry[];
+};
+
+/** Painel inicial do professor: contagens e tabela de turmas (detalhes em páginas dedicadas). */
 export type DashboardDataTeacher = {
   role: "TEACHER";
   roleLabel: string;
   myClassGroupsCount: number;
   myEnrollmentsCount: number;
   classGroups: ClassGroupSummary[];
-  /** Gamificação (conteúdo, exercícios, frequência, fórum, engajamento dos alunos) */
+};
+
+/** Gamificação, ranking dos alunos, fórum, avaliações e engajamento por turma — página /professor/acompanhamento. */
+export type TeacherAcompanhamentoPagePayload = {
   gamification: TeacherGamificationResult | null;
-  /** Médias apenas de alunos com matrícula ativa em turmas deste professor. */
   platformExperienceSummary: PlatformExperienceDashboardSummary;
-  /** Trilho de fóruns: atividade global na plataforma + aulas já ministradas nas suas turmas (com link ao fórum). */
   forumLessonsWithActivity: DashboardForumLessonActivity[];
   studentRankingTop: StudentRankEntry[];
-  /** Sessões das turmas do professor (mesmo intervalo do painel admin). */
-  sessionsCalendar: DashboardSessionCalendarItem[];
-  holidaysCalendar: DashboardHolidayCalendarItem[];
-  /** Engajamento dos alunos por turma ativa (aulas, exercícios, frequência, fórum). */
   teacherClassGroupStats: TeacherClassGroupEngagement[];
 };
 
@@ -252,28 +250,214 @@ export type DashboardDataStudent = {
   totalForumQuestions: number;
   /** Total de participações no fórum: respostas do aluno nas dúvidas */
   totalForumReplies: number;
-  /** Aulas com fórum ativo no curso (≥1 tópico de qualquer pessoa), para atalhos no painel */
-  forumLessonsWithActivity: DashboardForumLessonActivity[];
-  studentRankingTop: StudentRankEntry[];
-  /** Posição no ranking geral (null se sem matrícula ativa ou fora da lista). */
-  myStudentRank: number | null;
-  /** Pontos totais no ranking (null se não aplicável). */
-  myStudentPoints: number | null;
-  /** Sessões das turmas em que o aluno está matriculado (ativas). */
-  sessionsCalendar: DashboardSessionCalendarItem[];
-  holidaysCalendar: DashboardHolidayCalendarItem[];
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
 
-function calendarRangeBounds() {
+export function calendarRangeBounds() {
   const now = new Date();
   const calendarRangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const calendarRangeEnd = new Date(now.getFullYear(), now.getMonth() + 7, 0);
   return { calendarRangeStart, calendarRangeEnd };
 }
 
-function mapHolidaysToDashboardCalendarItems(
+/**
+ * Métricas do aluno (matrículas, progresso, totais) — dashboard e páginas como /minhas-turmas/evolucao.
+ */
+export async function loadStudentDashboardMetrics(
+  studentRecordId: string,
+  userId: string,
+  roleLabel: string,
+): Promise<DashboardDataStudent> {
+  const enrollmentsRaw = await prisma.enrollment.findMany({
+    where: { studentId: studentRecordId, status: "ACTIVE" },
+    orderBy: { enrolledAt: "desc" },
+    include: {
+      classGroup: {
+        include: {
+          course: { select: { id: true, name: true } },
+          teacher: { select: { name: true } },
+        },
+      },
+    },
+  });
+  const enrollmentIds = enrollmentsRaw.map((e) => e.id);
+  const courseIds = [...new Set(enrollmentsRaw.map((e) => e.classGroup.courseId))];
+  const today = (() => {
+    const BRAZIL_UTC_OFFSET_HOURS = 3;
+    const now = new Date();
+    const brazil = new Date(now.getTime() - BRAZIL_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+    return new Date(Date.UTC(brazil.getUTCFullYear(), brazil.getUTCMonth(), brazil.getUTCDate()));
+  })();
+
+  const [
+    modulesWithCount,
+    progressCounts,
+    exerciseAnswers,
+    attendanceByEnrollment,
+    forumQuestionsByEnrollment,
+    forumRepliesByEnrollment,
+    lessonsAccessedByEnrollment,
+  ] = await Promise.all([
+    prisma.courseModule.findMany({
+      where: { courseId: { in: courseIds } },
+      select: { courseId: true, _count: { select: { lessons: true } } },
+    }),
+    prisma.enrollmentLessonProgress.groupBy({
+      by: ["enrollmentId"],
+      where: { enrollmentId: { in: enrollmentIds }, completed: true },
+      _count: { id: true },
+    }),
+    enrollmentIds.length > 0
+      ? prisma.enrollmentLessonExerciseAnswer.findMany({
+          where: { enrollmentId: { in: enrollmentIds } },
+          select: { enrollmentId: true, correct: true },
+        })
+      : Promise.resolve([]),
+    enrollmentIds.length > 0
+      ? prisma.sessionAttendance.groupBy({
+          by: ["enrollmentId"],
+          where: {
+            enrollmentId: { in: enrollmentIds },
+            present: true,
+            classSession: { sessionDate: { lte: today } },
+          },
+          _count: { id: true },
+        })
+      : Promise.resolve([]),
+    enrollmentIds.length > 0
+      ? prisma.enrollmentLessonQuestion.groupBy({
+          by: ["enrollmentId"],
+          where: { enrollmentId: { in: enrollmentIds } },
+          _count: { id: true },
+        })
+      : Promise.resolve([]),
+    enrollmentIds.length > 0
+      ? prisma.enrollmentLessonQuestionReply.groupBy({
+          by: ["enrollmentId"],
+          where: { enrollmentId: { in: enrollmentIds } },
+          _count: { id: true },
+        })
+      : Promise.resolve([]),
+    enrollmentIds.length > 0
+      ? prisma.enrollmentLessonProgress.groupBy({
+          by: ["enrollmentId"],
+          where: { enrollmentId: { in: enrollmentIds } },
+          _count: { id: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const lessonsByCourseId = new Map<string, number>();
+  for (const m of modulesWithCount) {
+    lessonsByCourseId.set(
+      m.courseId,
+      (lessonsByCourseId.get(m.courseId) ?? 0) + m._count.lessons
+    );
+  }
+  const completedByEnrollmentId = new Map(
+    progressCounts.map((p) => [p.enrollmentId, p._count.id])
+  );
+  const exerciseByEnrollmentId = new Map<string, { correct: number; total: number }>();
+  for (const a of exerciseAnswers) {
+    const cur = exerciseByEnrollmentId.get(a.enrollmentId) ?? { correct: 0, total: 0 };
+    cur.total += 1;
+    if (a.correct) cur.correct += 1;
+    exerciseByEnrollmentId.set(a.enrollmentId, cur);
+  }
+  const attendanceMap = new Map(attendanceByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
+  const forumQMap = new Map(forumQuestionsByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
+  const forumRMap = new Map(forumRepliesByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
+  const lessonsAccessedMap = new Map(lessonsAccessedByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
+  const enrollments: StudentEnrollmentSummary[] = enrollmentsRaw.map((e) => {
+    const courseId = e.classGroup.courseId;
+    const lessonsTotal = lessonsByCourseId.get(courseId) ?? 0;
+    const lessonsCompleted = completedByEnrollmentId.get(e.id) ?? 0;
+    const ex = exerciseByEnrollmentId.get(e.id) ?? { correct: 0, total: 0 };
+    return {
+      id: e.id,
+      courseId,
+      courseName: e.classGroup.course.name,
+      teacherName: e.classGroup.teacher.name,
+      startDate: e.classGroup.startDate,
+      status: e.classGroup.status,
+      location: e.classGroup.location,
+      lessonsTotal,
+      lessonsCompleted,
+      lessonsAccessedCount: lessonsAccessedMap.get(e.id) ?? 0,
+      exerciseCorrectAttempts: ex.correct,
+      exerciseTotalAttempts: ex.total,
+      attendancePresentCount: attendanceMap.get(e.id) ?? 0,
+      forumQuestionsCount: forumQMap.get(e.id) ?? 0,
+      forumRepliesCount: forumRMap.get(e.id) ?? 0,
+    };
+  });
+  const totalLessonsCompleted = enrollments.reduce((s, e) => s + e.lessonsCompleted, 0);
+  const totalLessonsTotal = enrollments.reduce((s, e) => s + e.lessonsTotal, 0);
+  const totalExerciseCorrect = enrollments.reduce((s, e) => s + e.exerciseCorrectAttempts, 0);
+  const totalExerciseAttempts = enrollments.reduce((s, e) => s + e.exerciseTotalAttempts, 0);
+  const attendancePresentCount = attendanceByEnrollment.reduce((s, r) => s + r._count.id, 0);
+  const forumQuestionsCount = forumQuestionsByEnrollment.reduce((s, r) => s + r._count.id, 0);
+  const forumRepliesCount = forumRepliesByEnrollment.reduce((s, r) => s + r._count.id, 0);
+  const recommended = enrollments.find(
+    (e) => e.lessonsTotal > 0 && e.lessonsCompleted > 0 && e.lessonsCompleted < e.lessonsTotal
+  );
+
+  const lastViewedProgress = await prisma.enrollmentLessonProgress.findFirst({
+    where: {
+      enrollmentId: { in: enrollmentIds },
+      lastAccessedAt: { not: null },
+    },
+    orderBy: { lastAccessedAt: "desc" },
+    select: {
+      enrollmentId: true,
+      lessonId: true,
+      lastContentPageIndex: true,
+      lesson: {
+        select: {
+          title: true,
+          module: { select: { title: true, courseId: true } },
+        },
+      },
+    },
+  });
+  const enrollmentById = new Map(enrollmentsRaw.map((e) => [e.id, e]));
+  const lastViewedLesson =
+    lastViewedProgress != null
+      ? (() => {
+          const enrollment = enrollmentById.get(lastViewedProgress.enrollmentId);
+          const courseName = enrollment?.classGroup.course.name ?? "";
+          return {
+            enrollmentId: lastViewedProgress.enrollmentId,
+            lessonId: lastViewedProgress.lessonId,
+            lessonTitle: lastViewedProgress.lesson.title,
+            courseId: lastViewedProgress.lesson.module.courseId,
+            courseName,
+            moduleTitle: lastViewedProgress.lesson.module.title,
+            lastContentPageIndex: lastViewedProgress.lastContentPageIndex,
+          };
+        })()
+      : null;
+
+  await ensurePendingDocumentRemindersForStudent(studentRecordId, userId);
+
+  return {
+    role: "STUDENT",
+    roleLabel,
+    activeEnrollmentsCount: enrollments.length,
+    enrollments,
+    totalLessonsCompleted,
+    totalLessonsTotal,
+    recommendedEnrollmentId: recommended?.id ?? null,
+    lastViewedLesson,
+    totalExerciseCorrect,
+    totalExerciseAttempts,
+    totalAttendancePresent: attendancePresentCount,
+    totalForumQuestions: forumQuestionsCount,
+    totalForumReplies: forumRepliesCount,
+  };
+}
+
+export function mapHolidaysToDashboardCalendarItems(
   holidays: Array<{
     id: string;
     name: string | null;
@@ -316,7 +500,7 @@ function mapHolidaysToDashboardCalendarItems(
   return out;
 }
 
-function mapClassSessionsToCalendarItems(
+export function mapClassSessionsToCalendarItems(
   rows: Array<{
     id: string;
     sessionDate: Date;
@@ -361,12 +545,122 @@ function foldEnrollmentMetricToClassGroup(
   return out;
 }
 
+async function loadAdminDashboardHome(
+  user: SessionUser,
+  roleLabel: string,
+): Promise<DashboardDataAdmin> {
+  const [
+    students,
+    teachers,
+    courses,
+    classGroupsTotal,
+    enrollmentsTotal,
+    preEnrollments,
+    confirmedEnrollments,
+    classGroupsByStatusRows,
+  ] = await Promise.all([
+    prisma.student.count({ where: { deletedAt: null } }),
+    prisma.teacher.count({ where: { deletedAt: null } }),
+    prisma.course.count({ where: { status: "ACTIVE" } }),
+    prisma.classGroup.count(),
+    prisma.enrollment.count(),
+    prisma.enrollment.count({ where: { isPreEnrollment: true } }),
+    prisma.enrollment.count({ where: { enrollmentConfirmedAt: { not: null } } }),
+    prisma.classGroup.groupBy({
+      by: ["status"],
+      _count: { id: true },
+    }),
+  ]);
+
+  const classGroupsByStatus: Record<string, number> = {
+    PLANEJADA: 0,
+    ABERTA: 0,
+    EM_ANDAMENTO: 0,
+    ENCERRADA: 0,
+    CANCELADA: 0,
+    INTERNO: 0,
+    EXTERNO: 0,
+  };
+  for (const row of classGroupsByStatusRows) {
+    classGroupsByStatus[row.status] = row._count.id;
+  }
+
+  return {
+    role: user.role as "ADMIN" | "MASTER" | "COORDINATOR",
+    roleLabel,
+    stats: {
+      students,
+      teachers,
+      courses,
+      classGroups: classGroupsTotal,
+      enrollments: enrollmentsTotal,
+      preEnrollments,
+      confirmedEnrollments,
+      classGroupsByStatus,
+    },
+  };
+}
+
+async function loadTeacherDashboardHome(
+  user: SessionUser,
+  roleLabel: string,
+): Promise<DashboardDataTeacher> {
+  const teacher = await prisma.teacher.findFirst({
+    where: { userId: user.id, deletedAt: null },
+    select: { id: true },
+  });
+  if (!teacher) {
+    return {
+      role: "TEACHER",
+      roleLabel,
+      myClassGroupsCount: 0,
+      myEnrollmentsCount: 0,
+      classGroups: [],
+    };
+  }
+  const classGroups = await prisma.classGroup.findMany({
+    where: {
+      teacherId: teacher.id,
+      status: { in: ["ABERTA", "EM_ANDAMENTO"] },
+    },
+    include: {
+      course: { select: { name: true } },
+      teacher: { select: { name: true } },
+      _count: { select: { enrollments: true } },
+    },
+    orderBy: { startDate: "asc" },
+  });
+  const myEnrollmentsCount = await prisma.enrollment.count({
+    where: {
+      classGroup: { teacherId: teacher.id },
+      status: "ACTIVE",
+    },
+  });
+  return {
+    role: "TEACHER",
+    roleLabel,
+    myClassGroupsCount: classGroups.length,
+    myEnrollmentsCount,
+    classGroups: classGroups.map((cg) => ({
+      id: cg.id,
+      courseId: cg.courseId,
+      courseName: cg.course.name,
+      teacherName: cg.teacher.name,
+      status: cg.status,
+      startDate: cg.startDate,
+      startTime: cg.startTime,
+      endTime: cg.endTime,
+      capacity: cg.capacity,
+      enrollmentsCount: cg._count.enrollments,
+      daysOfWeek: cg.daysOfWeek,
+      location: cg.location ?? null,
+    })),
+  };
+}
+
 export async function getDashboardData(user: SessionUser): Promise<DashboardData> {
   await applyClassGroupAutomaticStatusUpdates();
   const roleLabel = ROLE_LABELS[user.role] ?? user.role;
-
-  const studentRankingFull = await computeStudentGamificationRanking({ nameMode: "full" });
-  const studentRankingTop = studentRankingFull.slice(0, 10);
 
   if (user.role === "STUDENT") {
     const student = await prisma.student.findFirst({
@@ -388,619 +682,395 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         totalAttendancePresent: 0,
         totalForumQuestions: 0,
         totalForumReplies: 0,
-        forumLessonsWithActivity: [],
-        studentRankingTop,
-        myStudentRank: null,
-        myStudentPoints: null,
-        sessionsCalendar: [],
-        holidaysCalendar: [],
       };
     }
-    const enrollmentsRaw = await prisma.enrollment.findMany({
-      where: { studentId: student.id, status: "ACTIVE" },
-      orderBy: { enrolledAt: "desc" },
-      include: {
-        classGroup: {
-          include: {
-            course: { select: { id: true, name: true } },
-            teacher: { select: { name: true } },
-          },
-        },
-      },
-    });
-    const enrollmentIds = enrollmentsRaw.map((e) => e.id);
-    const courseIds = [...new Set(enrollmentsRaw.map((e) => e.classGroup.courseId))];
-    const classGroupIdsForCalendar = [...new Set(enrollmentsRaw.map((e) => e.classGroupId))];
-    const { calendarRangeStart, calendarRangeEnd } = calendarRangeBounds();
-    const today = (() => {
-      // "Hoje" no calendário do Brasil (UTC-3), para comparar com sessionDate.
-      const BRAZIL_UTC_OFFSET_HOURS = 3;
-      const now = new Date();
-      const brazil = new Date(now.getTime() - BRAZIL_UTC_OFFSET_HOURS * 60 * 60 * 1000);
-      return new Date(Date.UTC(brazil.getUTCFullYear(), brazil.getUTCMonth(), brazil.getUTCDate()));
-    })();
-
-    const [
-      modulesWithCount,
-      progressCounts,
-      exerciseAnswers,
-      attendanceByEnrollment,
-      forumQuestionsByEnrollment,
-      forumRepliesByEnrollment,
-      lessonsAccessedByEnrollment,
-      sessionsCalendarRawStudent,
-      holidaysRowsStudent,
-    ] = await Promise.all([
-      prisma.courseModule.findMany({
-        where: { courseId: { in: courseIds } },
-        select: { courseId: true, _count: { select: { lessons: true } } },
-      }),
-      prisma.enrollmentLessonProgress.groupBy({
-        by: ["enrollmentId"],
-        where: { enrollmentId: { in: enrollmentIds }, completed: true },
-        _count: { id: true },
-      }),
-      enrollmentIds.length > 0
-        ? prisma.enrollmentLessonExerciseAnswer.findMany({
-            where: { enrollmentId: { in: enrollmentIds } },
-            select: { enrollmentId: true, correct: true },
-          })
-        : Promise.resolve([]),
-      enrollmentIds.length > 0
-        ? prisma.sessionAttendance.groupBy({
-            by: ["enrollmentId"],
-            where: {
-              enrollmentId: { in: enrollmentIds },
-              present: true,
-              classSession: { sessionDate: { lte: today } },
-            },
-            _count: { id: true },
-          })
-        : Promise.resolve([]),
-      enrollmentIds.length > 0
-        ? prisma.enrollmentLessonQuestion.groupBy({
-            by: ["enrollmentId"],
-            where: { enrollmentId: { in: enrollmentIds } },
-            _count: { id: true },
-          })
-        : Promise.resolve([]),
-      enrollmentIds.length > 0
-        ? prisma.enrollmentLessonQuestionReply.groupBy({
-            by: ["enrollmentId"],
-            where: { enrollmentId: { in: enrollmentIds } },
-            _count: { id: true },
-          })
-        : Promise.resolve([]),
-      enrollmentIds.length > 0
-        ? prisma.enrollmentLessonProgress.groupBy({
-            by: ["enrollmentId"],
-            where: { enrollmentId: { in: enrollmentIds } },
-            _count: { id: true },
-          })
-        : Promise.resolve([]),
-      classGroupIdsForCalendar.length > 0
-        ? prisma.classSession.findMany({
-            where: {
-              classGroupId: { in: classGroupIdsForCalendar },
-              sessionDate: { gte: calendarRangeStart, lte: calendarRangeEnd },
-              classGroup: { status: { in: ["ABERTA", "EM_ANDAMENTO"] } },
-            },
-            select: {
-              id: true,
-              sessionDate: true,
-              startTime: true,
-              endTime: true,
-              lesson: { select: { title: true } },
-              classGroup: {
-                select: {
-                  id: true,
-                  course: { select: { name: true } },
-                  teacher: { select: { name: true } },
-                },
-              },
-            },
-            orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
-          })
-        : Promise.resolve([]),
-      prisma.holiday.findMany({
-        where: { isActive: true },
-        select: {
-          id: true,
-          name: true,
-          date: true,
-          recurring: true,
-          eventStartTime: true,
-          eventEndTime: true,
-        },
-      }),
-    ]);
-    const lessonsByCourseId = new Map<string, number>();
-    for (const m of modulesWithCount) {
-      lessonsByCourseId.set(
-        m.courseId,
-        (lessonsByCourseId.get(m.courseId) ?? 0) + m._count.lessons
-      );
-    }
-    const completedByEnrollmentId = new Map(
-      progressCounts.map((p) => [p.enrollmentId, p._count.id])
-    );
-    const exerciseByEnrollmentId = new Map<string, { correct: number; total: number }>();
-    for (const a of exerciseAnswers) {
-      const cur = exerciseByEnrollmentId.get(a.enrollmentId) ?? { correct: 0, total: 0 };
-      cur.total += 1;
-      if (a.correct) cur.correct += 1;
-      exerciseByEnrollmentId.set(a.enrollmentId, cur);
-    }
-    const attendanceMap = new Map(attendanceByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
-    const forumQMap = new Map(forumQuestionsByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
-    const forumRMap = new Map(forumRepliesByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
-    const lessonsAccessedMap = new Map(lessonsAccessedByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
-    const enrollments: StudentEnrollmentSummary[] = enrollmentsRaw.map((e) => {
-      const courseId = e.classGroup.courseId;
-      const lessonsTotal = lessonsByCourseId.get(courseId) ?? 0;
-      const lessonsCompleted = completedByEnrollmentId.get(e.id) ?? 0;
-      const ex = exerciseByEnrollmentId.get(e.id) ?? { correct: 0, total: 0 };
-      return {
-        id: e.id,
-        courseId,
-        courseName: e.classGroup.course.name,
-        teacherName: e.classGroup.teacher.name,
-        startDate: e.classGroup.startDate,
-        status: e.classGroup.status,
-        location: e.classGroup.location,
-        lessonsTotal,
-        lessonsCompleted,
-        lessonsAccessedCount: lessonsAccessedMap.get(e.id) ?? 0,
-        exerciseCorrectAttempts: ex.correct,
-        exerciseTotalAttempts: ex.total,
-        attendancePresentCount: attendanceMap.get(e.id) ?? 0,
-        forumQuestionsCount: forumQMap.get(e.id) ?? 0,
-        forumRepliesCount: forumRMap.get(e.id) ?? 0,
-      };
-    });
-    const totalLessonsCompleted = enrollments.reduce((s, e) => s + e.lessonsCompleted, 0);
-    const totalLessonsTotal = enrollments.reduce((s, e) => s + e.lessonsTotal, 0);
-    const totalExerciseCorrect = enrollments.reduce((s, e) => s + e.exerciseCorrectAttempts, 0);
-    const totalExerciseAttempts = enrollments.reduce((s, e) => s + e.exerciseTotalAttempts, 0);
-    const attendancePresentCount = attendanceByEnrollment.reduce((s, r) => s + r._count.id, 0);
-    const forumQuestionsCount = forumQuestionsByEnrollment.reduce((s, r) => s + r._count.id, 0);
-    const forumRepliesCount = forumRepliesByEnrollment.reduce((s, r) => s + r._count.id, 0);
-    const recommended = enrollments.find(
-      (e) => e.lessonsTotal > 0 && e.lessonsCompleted > 0 && e.lessonsCompleted < e.lessonsTotal
-    );
-
-    const lastViewedProgress = await prisma.enrollmentLessonProgress.findFirst({
-      where: {
-        enrollmentId: { in: enrollmentIds },
-        lastAccessedAt: { not: null },
-      },
-      orderBy: { lastAccessedAt: "desc" },
-      select: {
-        enrollmentId: true,
-        lessonId: true,
-        lastContentPageIndex: true,
-        lesson: {
-          select: {
-            title: true,
-            module: { select: { title: true, courseId: true } },
-          },
-        },
-      },
-    });
-    const enrollmentById = new Map(enrollmentsRaw.map((e) => [e.id, e]));
-    const lastViewedLesson =
-      lastViewedProgress != null
-        ? (() => {
-            const enrollment = enrollmentById.get(lastViewedProgress.enrollmentId);
-            const courseName = enrollment?.classGroup.course.name ?? "";
-            return {
-              enrollmentId: lastViewedProgress.enrollmentId,
-              lessonId: lastViewedProgress.lessonId,
-              lessonTitle: lastViewedProgress.lesson.title,
-              courseId: lastViewedProgress.lesson.module.courseId,
-              courseName,
-              moduleTitle: lastViewedProgress.lesson.module.title,
-              lastContentPageIndex: lastViewedProgress.lastContentPageIndex,
-            };
-          })()
-        : null;
-
-    const forumLessonsWithActivity = await attachForumLastMessagePreviews(
-      await getStudentAttendedLessonsForumActivities(enrollmentIds, 96)
-    );
-
-    const myRow = studentRankingFull.find((r) => r.studentId === student.id);
-    const studentRankingTopForViewer = buildStudentDashboardRankingTop(studentRankingFull, student.id);
-
-    await ensurePendingDocumentRemindersForStudent(student.id, user.id);
-
-    const sessionsCalendar = mapClassSessionsToCalendarItems(sessionsCalendarRawStudent);
-    const holidaysCalendar = mapHolidaysToDashboardCalendarItems(
-      holidaysRowsStudent,
-      calendarRangeStart,
-      calendarRangeEnd,
-    );
-
-    return {
-      role: "STUDENT",
-      roleLabel,
-      activeEnrollmentsCount: enrollments.length,
-      enrollments,
-      totalLessonsCompleted,
-      totalLessonsTotal,
-      recommendedEnrollmentId: recommended?.id ?? null,
-      lastViewedLesson,
-      totalExerciseCorrect,
-      totalExerciseAttempts,
-      totalAttendancePresent: attendancePresentCount,
-      totalForumQuestions: forumQuestionsCount,
-      totalForumReplies: forumRepliesCount,
-      forumLessonsWithActivity,
-      studentRankingTop: studentRankingTopForViewer,
-      myStudentRank: myRow?.rank ?? null,
-      myStudentPoints: myRow != null ? myRow.points : null,
-      sessionsCalendar,
-      holidaysCalendar,
-    };
+    return loadStudentDashboardMetrics(student.id, user.id, roleLabel);
   }
 
   if (user.role === "TEACHER") {
-    const teacher = await prisma.teacher.findFirst({
-      where: { userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!teacher) {
-      return {
-        role: "TEACHER",
-        roleLabel,
-        myClassGroupsCount: 0,
-        myEnrollmentsCount: 0,
-        classGroups: [],
-        gamification: null,
-        platformExperienceSummary: {
-          totalCount: 0,
-          avgPlatform: null,
-          avgLessons: null,
-          avgTeacher: null,
-        },
-        forumLessonsWithActivity: [],
-        studentRankingTop: [],
-        sessionsCalendar: [],
-        holidaysCalendar: [],
-        teacherClassGroupStats: [],
-      };
-    }
-    const classGroups = await prisma.classGroup.findMany({
-      where: {
-        teacherId: teacher.id,
-        status: { in: ["ABERTA", "EM_ANDAMENTO"] },
-      },
-      include: {
-        course: { select: { name: true } },
-        teacher: { select: { name: true } },
-        _count: { select: { enrollments: true } },
-      },
-      orderBy: { startDate: "asc" },
-    });
-    const { calendarRangeStart: calStartT, calendarRangeEnd: calEndT } = calendarRangeBounds();
-    const teacherCgIds = classGroups.map((cg) => cg.id);
-    const myEnrollmentsCount = await prisma.enrollment.count({
-      where: {
-        classGroup: { teacherId: teacher.id },
-        status: "ACTIVE",
-      },
-    });
-    const teacherForumCourseIds = await prisma.classGroup
-      .findMany({
-        where: { teacherId: teacher.id },
-        select: { courseId: true },
-      })
-      .then((rows) => [...new Set(rows.map((r) => r.courseId))]);
+    return loadTeacherDashboardHome(user, roleLabel);
+  }
 
-    const [gamification, enrollmentsForFeedback, enrollmentsForTeacherRanking, forumGlobal, forumTaught] =
-      await Promise.all([
-        computeTeacherGamification(teacher.id),
-        prisma.enrollment.findMany({
+  if (user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR") {
+    return loadAdminDashboardHome(user, roleLabel);
+  }
+
+  throw new Error(`Unsupported role for dashboard: ${user.role}`);
+}
+
+/** Calendário de aulas + feriados (só alunos) — página dedicada. */
+export async function getStudentCalendarPagePayload(userId: string): Promise<{
+  sessions: DashboardSessionCalendarItem[];
+  holidays: DashboardHolidayCalendarItem[];
+} | null> {
+  const student = await prisma.student.findFirst({
+    where: { userId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!student) return null;
+  const enrollments = await prisma.enrollment.findMany({
+    where: { studentId: student.id, status: "ACTIVE" },
+    select: { classGroupId: true },
+  });
+  const classGroupIds = [...new Set(enrollments.map((e) => e.classGroupId))];
+  const { calendarRangeStart, calendarRangeEnd } = calendarRangeBounds();
+  const [sessionsRaw, holidaysRows] = await Promise.all([
+    classGroupIds.length > 0
+      ? prisma.classSession.findMany({
           where: {
-            status: "ACTIVE",
-            classGroup: { teacherId: teacher.id },
-            student: { userId: { not: null }, deletedAt: null },
+            classGroupId: { in: classGroupIds },
+            sessionDate: { gte: calendarRangeStart, lte: calendarRangeEnd },
+            classGroup: { status: { in: ["ABERTA", "EM_ANDAMENTO"] } },
           },
-          select: { student: { select: { userId: true } } },
-        }),
-        prisma.enrollment.findMany({
-          where: {
-            status: "ACTIVE",
-            classGroup: { teacherId: teacher.id },
-            student: { deletedAt: null },
-          },
-          select: { studentId: true },
-        }),
-        getForumLessonsWithActivityForCourses(teacherForumCourseIds),
-        getForumLessonsFromTaughtSessions(teacher.id),
-      ]);
-
-    const teacherStudentIds = new Set(enrollmentsForTeacherRanking.map((e) => e.studentId));
-    const studentRankingTop = buildTeacherDashboardStudentRankingTop(
-      studentRankingFull,
-      teacherStudentIds,
-      10,
-    );
-    const forumMerged = mergeTeacherForumGlobalAndTaught(forumGlobal, forumTaught);
-    const lastTaughtLessonId = await getLastTaughtLessonIdForTeacher(teacher.id);
-    const forumOrdered = putLastTaughtLessonFirstForTeacher(forumMerged, lastTaughtLessonId);
-    const forumLessonsWithActivity = await attachForumLastMessagePreviews(forumOrdered);
-
-    const sessionsCalendarRawTeacher =
-      teacherCgIds.length > 0
-        ? await prisma.classSession.findMany({
-            where: {
-              classGroupId: { in: teacherCgIds },
-              sessionDate: { gte: calStartT, lte: calEndT },
-            },
-            select: {
-              id: true,
-              sessionDate: true,
-              startTime: true,
-              endTime: true,
-              lesson: { select: { title: true } },
-              classGroup: {
-                select: {
-                  id: true,
-                  course: { select: { name: true } },
-                  teacher: { select: { name: true } },
-                },
+          select: {
+            id: true,
+            sessionDate: true,
+            startTime: true,
+            endTime: true,
+            lesson: { select: { title: true } },
+            classGroup: {
+              select: {
+                id: true,
+                course: { select: { name: true } },
+                teacher: { select: { name: true } },
               },
             },
-            orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
-          })
-        : [];
-    const sessionsCalendarTeacher = mapClassSessionsToCalendarItems(sessionsCalendarRawTeacher);
-    const holidaysRowsTeacher = await prisma.holiday.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        name: true,
-        date: true,
-        recurring: true,
-        eventStartTime: true,
-        eventEndTime: true,
-      },
-    });
-    const holidaysCalendarTeacher = mapHolidaysToDashboardCalendarItems(
-      holidaysRowsTeacher,
-      calStartT,
-      calEndT,
-    );
+          },
+          orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
+        })
+      : Promise.resolve([]),
+    getCachedActiveHolidaysRows(),
+  ]);
+  return {
+    sessions: mapClassSessionsToCalendarItems(sessionsRaw),
+    holidays: mapHolidaysToDashboardCalendarItems(holidaysRows, calendarRangeStart, calendarRangeEnd),
+  };
+}
 
-    const studentUserIdsForFeedback = [
-      ...new Set(
-        enrollmentsForFeedback
-          .map((e) => e.student.userId)
-          .filter((id): id is string => typeof id === "string" && id.length > 0),
-      ),
-    ];
+/** Evolução, ranking e trilho de fórum — página /minhas-turmas/evolucao. */
+export async function getStudentEvolucaoPagePayload(user: SessionUser): Promise<{
+  metrics: DashboardDataStudent;
+  studentRankingTop: StudentRankEntry[];
+  myStudentRank: number | null;
+  myStudentPoints: StudentRankEntry["points"] | null;
+  forumLessonsWithActivity: DashboardForumLessonActivity[];
+} | null> {
+  const student = await prisma.student.findFirst({
+    where: { userId: user.id, deletedAt: null },
+    select: { id: true },
+  });
+  if (!student) return null;
+  const roleLabel = ROLE_LABELS[user.role] ?? user.role;
+  const metrics = await loadStudentDashboardMetrics(student.id, user.id, roleLabel);
+  const [rankingFull, forumLessonsWithActivity] = await Promise.all([
+    getCachedStudentGamificationRankingFull(),
+    attachForumLastMessagePreviews(await getStudentAttendedLessonsForumActivities(metrics.enrollments.map((e) => e.id), 96)),
+  ]);
+  const myRow = rankingFull.find((r) => r.studentId === student.id);
+  return {
+    metrics,
+    studentRankingTop: buildStudentDashboardRankingTop(rankingFull, student.id),
+    myStudentRank: myRow?.rank ?? null,
+    myStudentPoints: myRow != null ? myRow.points : null,
+    forumLessonsWithActivity,
+  };
+}
 
-    let platformExperienceSummary: PlatformExperienceDashboardSummary = {
-      totalCount: 0,
-      avgPlatform: null,
-      avgLessons: null,
-      avgTeacher: null,
-    };
-    if (studentUserIdsForFeedback.length > 0) {
-      const agg = await prisma.platformExperienceFeedback.aggregate({
-        where: { userId: { in: studentUserIdsForFeedback } },
-        _avg: { ratingPlatform: true, ratingLessons: true, ratingTeacher: true },
-        _count: { id: true },
-      });
-      platformExperienceSummary = {
-        totalCount: agg._count.id,
-        avgPlatform: formatExperienceAvg(agg._avg.ratingPlatform),
-        avgLessons: formatExperienceAvg(agg._avg.ratingLessons),
-        avgTeacher: formatExperienceAvg(agg._avg.ratingTeacher),
-      };
-    }
-
-    const teacherCourseIds = [...new Set(classGroups.map((cg) => cg.courseId))];
-    const enrollmentRows =
-      teacherCgIds.length > 0
-        ? await prisma.enrollment.findMany({
-            where: { classGroupId: { in: teacherCgIds }, status: "ACTIVE" },
-            select: { id: true, classGroupId: true },
-          })
-        : [];
-    const enrollmentToCg = new Map(enrollmentRows.map((e) => [e.id, e.classGroupId]));
-    const teacherEnrollmentIds = enrollmentRows.map((e) => e.id);
-    const todayTeacher = getBrazilTodayDateOnly();
-
-    const [
-      modulesLessonCountTeacher,
-      completedProgressTeacher,
-      accessProgressTeacher,
-      attendanceTeacher,
-      forumQTeacher,
-      forumRTeacher,
-      exerciseAnswersTeacher,
-    ] = await Promise.all([
-      teacherCourseIds.length > 0
-        ? prisma.courseModule.findMany({
-            where: { courseId: { in: teacherCourseIds } },
-            select: { courseId: true, _count: { select: { lessons: true } } },
-          })
-        : Promise.resolve([]),
-      teacherEnrollmentIds.length > 0
-        ? prisma.enrollmentLessonProgress.groupBy({
-            by: ["enrollmentId"],
-            where: { enrollmentId: { in: teacherEnrollmentIds }, completed: true },
-            _count: { id: true },
-          })
-        : Promise.resolve([]),
-      teacherEnrollmentIds.length > 0
-        ? prisma.enrollmentLessonProgress.groupBy({
-            by: ["enrollmentId"],
-            where: { enrollmentId: { in: teacherEnrollmentIds } },
-            _count: { id: true },
-          })
-        : Promise.resolve([]),
-      teacherEnrollmentIds.length > 0
-        ? prisma.sessionAttendance.groupBy({
-            by: ["enrollmentId"],
-            where: {
-              enrollmentId: { in: teacherEnrollmentIds },
-              present: true,
-              classSession: { sessionDate: { lte: todayTeacher } },
+/** Calendário de aulas + feriados (professor) — página /professor/calendario. */
+export async function getTeacherCalendarPagePayload(userId: string): Promise<{
+  sessions: DashboardSessionCalendarItem[];
+  holidays: DashboardHolidayCalendarItem[];
+} | null> {
+  const teacher = await prisma.teacher.findFirst({
+    where: { userId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!teacher) return null;
+  const classGroups = await prisma.classGroup.findMany({
+    where: {
+      teacherId: teacher.id,
+      status: { in: ["ABERTA", "EM_ANDAMENTO"] },
+    },
+    select: { id: true },
+  });
+  const teacherCgIds = classGroups.map((cg) => cg.id);
+  const { calendarRangeStart, calendarRangeEnd } = calendarRangeBounds();
+  const [sessionsRaw, holidaysRows] = await Promise.all([
+    teacherCgIds.length > 0
+      ? prisma.classSession.findMany({
+          where: {
+            classGroupId: { in: teacherCgIds },
+            sessionDate: { gte: calendarRangeStart, lte: calendarRangeEnd },
+          },
+          select: {
+            id: true,
+            sessionDate: true,
+            startTime: true,
+            endTime: true,
+            lesson: { select: { title: true } },
+            classGroup: {
+              select: {
+                id: true,
+                course: { select: { name: true } },
+                teacher: { select: { name: true } },
+              },
             },
-            _count: { id: true },
-          })
-        : Promise.resolve([]),
-      teacherEnrollmentIds.length > 0
-        ? prisma.enrollmentLessonQuestion.groupBy({
-            by: ["enrollmentId"],
-            where: { enrollmentId: { in: teacherEnrollmentIds } },
-            _count: { id: true },
-          })
-        : Promise.resolve([]),
-      teacherEnrollmentIds.length > 0
-        ? prisma.enrollmentLessonQuestionReply.groupBy({
-            by: ["enrollmentId"],
-            where: { enrollmentId: { in: teacherEnrollmentIds } },
-            _count: { id: true },
-          })
-        : Promise.resolve([]),
-      teacherEnrollmentIds.length > 0
-        ? prisma.enrollmentLessonExerciseAnswer.findMany({
-            where: { enrollmentId: { in: teacherEnrollmentIds } },
-            select: { enrollmentId: true, correct: true },
-          })
-        : Promise.resolve([]),
+          },
+          orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
+        })
+      : Promise.resolve([]),
+    getCachedActiveHolidaysRows(),
+  ]);
+  return {
+    sessions: mapClassSessionsToCalendarItems(sessionsRaw),
+    holidays: mapHolidaysToDashboardCalendarItems(holidaysRows, calendarRangeStart, calendarRangeEnd),
+  };
+}
+
+/** Gamificação, ranking, fórum, avaliações e engajamento por turma — página /professor/acompanhamento. */
+export async function getTeacherAcompanhamentoPagePayload(
+  user: SessionUser,
+): Promise<TeacherAcompanhamentoPagePayload | null> {
+  const teacher = await prisma.teacher.findFirst({
+    where: { userId: user.id, deletedAt: null },
+    select: { id: true },
+  });
+  if (!teacher) return null;
+
+  const classGroups = await prisma.classGroup.findMany({
+    where: {
+      teacherId: teacher.id,
+      status: { in: ["ABERTA", "EM_ANDAMENTO"] },
+    },
+    include: {
+      course: { select: { name: true } },
+      teacher: { select: { name: true } },
+      _count: { select: { enrollments: true } },
+    },
+    orderBy: { startDate: "asc" },
+  });
+  const teacherCgIds = classGroups.map((cg) => cg.id);
+  const teacherForumCourseIds = await prisma.classGroup
+    .findMany({
+      where: { teacherId: teacher.id },
+      select: { courseId: true },
+    })
+    .then((rows) => [...new Set(rows.map((r) => r.courseId))]);
+
+  const studentRankingFull = await getCachedStudentGamificationRankingFull();
+
+  const [gamification, enrollmentsForFeedback, enrollmentsForTeacherRanking, forumGlobal, forumTaught] =
+    await Promise.all([
+      computeTeacherGamification(teacher.id),
+      prisma.enrollment.findMany({
+        where: {
+          status: "ACTIVE",
+          classGroup: { teacherId: teacher.id },
+          student: { userId: { not: null }, deletedAt: null },
+        },
+        select: { student: { select: { userId: true } } },
+      }),
+      prisma.enrollment.findMany({
+        where: {
+          status: "ACTIVE",
+          classGroup: { teacherId: teacher.id },
+          student: { deletedAt: null },
+        },
+        select: { studentId: true },
+      }),
+      getForumLessonsWithActivityForCourses(teacherForumCourseIds),
+      getForumLessonsFromTaughtSessions(teacher.id),
     ]);
 
-    const lessonsByCourseIdTeacher = new Map<string, number>();
-    for (const m of modulesLessonCountTeacher) {
-      lessonsByCourseIdTeacher.set(
-        m.courseId,
-        (lessonsByCourseIdTeacher.get(m.courseId) ?? 0) + m._count.lessons
-      );
-    }
+  const teacherStudentIds = new Set(enrollmentsForTeacherRanking.map((e) => e.studentId));
+  const studentRankingTop = buildTeacherDashboardStudentRankingTop(
+    studentRankingFull,
+    teacherStudentIds,
+    10,
+  );
+  const forumMerged = mergeTeacherForumGlobalAndTaught(forumGlobal, forumTaught);
+  const lastTaughtLessonId = await getLastTaughtLessonIdForTeacher(teacher.id);
+  const forumOrdered = putLastTaughtLessonFirstForTeacher(forumMerged, lastTaughtLessonId);
+  const forumLessonsWithActivity = await attachForumLastMessagePreviews(forumOrdered);
 
-    const completedMap = new Map(
-      completedProgressTeacher.map((r) => [r.enrollmentId, r._count.id])
-    );
-    const accessMap = new Map(accessProgressTeacher.map((r) => [r.enrollmentId, r._count.id]));
-    const attMap = new Map(attendanceTeacher.map((r) => [r.enrollmentId, r._count.id]));
-    const fqMap = new Map(forumQTeacher.map((r) => [r.enrollmentId, r._count.id]));
-    const frMap = new Map(forumRTeacher.map((r) => [r.enrollmentId, r._count.id]));
+  const studentUserIdsForFeedback = [
+    ...new Set(
+      enrollmentsForFeedback
+        .map((e) => e.student.userId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  ];
 
-    const completedByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, completedMap);
-    const accessByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, accessMap);
-    const attByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, attMap);
-    const fqByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, fqMap);
-    const frByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, frMap);
-
-    const exByCg = new Map<string, { correct: number; total: number }>();
-    for (const a of exerciseAnswersTeacher) {
-      const cg = enrollmentToCg.get(a.enrollmentId);
-      if (!cg) continue;
-      const cur = exByCg.get(cg) ?? { correct: 0, total: 0 };
-      cur.total += 1;
-      if (a.correct) cur.correct += 1;
-      exByCg.set(cg, cur);
-    }
-
-    const enrollmentsCountByCg = new Map<string, number>();
-    for (const e of enrollmentRows) {
-      enrollmentsCountByCg.set(
-        e.classGroupId,
-        (enrollmentsCountByCg.get(e.classGroupId) ?? 0) + 1
-      );
-    }
-
-    const teacherClassGroupStats: TeacherClassGroupEngagement[] = classGroups.map((cg) => {
-      const ex = exByCg.get(cg.id) ?? { correct: 0, total: 0 };
-      return {
-        classGroupId: cg.id,
-        courseId: cg.courseId,
-        courseName: cg.course.name,
-        lessonsInCourse: lessonsByCourseIdTeacher.get(cg.courseId) ?? 0,
-        lessonsCompletedSum: completedByCg.get(cg.id) ?? 0,
-        lessonAccessRecords: accessByCg.get(cg.id) ?? 0,
-        exerciseAttempts: ex.total,
-        exerciseCorrect: ex.correct,
-        attendancePresent: attByCg.get(cg.id) ?? 0,
-        forumQuestions: fqByCg.get(cg.id) ?? 0,
-        forumReplies: frByCg.get(cg.id) ?? 0,
-        enrollmentsCount: enrollmentsCountByCg.get(cg.id) ?? 0,
-      };
+  let platformExperienceSummary: PlatformExperienceDashboardSummary = {
+    totalCount: 0,
+    avgPlatform: null,
+    avgLessons: null,
+    avgTeacher: null,
+  };
+  if (studentUserIdsForFeedback.length > 0) {
+    const agg = await prisma.platformExperienceFeedback.aggregate({
+      where: { userId: { in: studentUserIdsForFeedback } },
+      _avg: { ratingPlatform: true, ratingLessons: true, ratingTeacher: true },
+      _count: { id: true },
     });
-
-    return {
-      role: "TEACHER",
-      roleLabel,
-      myClassGroupsCount: classGroups.length,
-      myEnrollmentsCount: myEnrollmentsCount,
-      classGroups: classGroups.map((cg) => ({
-        id: cg.id,
-        courseId: cg.courseId,
-        courseName: cg.course.name,
-        teacherName: cg.teacher.name,
-        status: cg.status,
-        startDate: cg.startDate,
-        startTime: cg.startTime,
-        endTime: cg.endTime,
-        capacity: cg.capacity,
-        enrollmentsCount: cg._count.enrollments,
-        daysOfWeek: cg.daysOfWeek,
-        location: cg.location ?? null,
-      })),
-      gamification,
-      platformExperienceSummary,
-      forumLessonsWithActivity,
-      studentRankingTop,
-      sessionsCalendar: sessionsCalendarTeacher,
-      holidaysCalendar: holidaysCalendarTeacher,
-      teacherClassGroupStats,
+    platformExperienceSummary = {
+      totalCount: agg._count.id,
+      avgPlatform: formatExperienceAvg(agg._avg.ratingPlatform),
+      avgLessons: formatExperienceAvg(agg._avg.ratingLessons),
+      avgTeacher: formatExperienceAvg(agg._avg.ratingTeacher),
     };
   }
 
-  // ADMIN ou MASTER
+  const teacherCourseIds = [...new Set(classGroups.map((cg) => cg.courseId))];
+  const enrollmentRows =
+    teacherCgIds.length > 0
+      ? await prisma.enrollment.findMany({
+          where: { classGroupId: { in: teacherCgIds }, status: "ACTIVE" },
+          select: { id: true, classGroupId: true },
+        })
+      : [];
+  const enrollmentToCg = new Map(enrollmentRows.map((e) => [e.id, e.classGroupId]));
+  const teacherEnrollmentIds = enrollmentRows.map((e) => e.id);
+  const todayTeacher = getBrazilTodayDateOnly();
+
+  const [
+    modulesLessonCountTeacher,
+    completedProgressTeacher,
+    accessProgressTeacher,
+    attendanceTeacher,
+    forumQTeacher,
+    forumRTeacher,
+    exerciseAnswersTeacher,
+  ] = await Promise.all([
+    teacherCourseIds.length > 0
+      ? prisma.courseModule.findMany({
+          where: { courseId: { in: teacherCourseIds } },
+          select: { courseId: true, _count: { select: { lessons: true } } },
+        })
+      : Promise.resolve([]),
+    teacherEnrollmentIds.length > 0
+      ? prisma.enrollmentLessonProgress.groupBy({
+          by: ["enrollmentId"],
+          where: { enrollmentId: { in: teacherEnrollmentIds }, completed: true },
+          _count: { id: true },
+        })
+      : Promise.resolve([]),
+    teacherEnrollmentIds.length > 0
+      ? prisma.enrollmentLessonProgress.groupBy({
+          by: ["enrollmentId"],
+          where: { enrollmentId: { in: teacherEnrollmentIds } },
+          _count: { id: true },
+        })
+      : Promise.resolve([]),
+    teacherEnrollmentIds.length > 0
+      ? prisma.sessionAttendance.groupBy({
+          by: ["enrollmentId"],
+          where: {
+            enrollmentId: { in: teacherEnrollmentIds },
+            present: true,
+            classSession: { sessionDate: { lte: todayTeacher } },
+          },
+          _count: { id: true },
+        })
+      : Promise.resolve([]),
+    teacherEnrollmentIds.length > 0
+      ? prisma.enrollmentLessonQuestion.groupBy({
+          by: ["enrollmentId"],
+          where: { enrollmentId: { in: teacherEnrollmentIds } },
+          _count: { id: true },
+        })
+      : Promise.resolve([]),
+    teacherEnrollmentIds.length > 0
+      ? prisma.enrollmentLessonQuestionReply.groupBy({
+          by: ["enrollmentId"],
+          where: { enrollmentId: { in: teacherEnrollmentIds } },
+          _count: { id: true },
+        })
+      : Promise.resolve([]),
+    teacherEnrollmentIds.length > 0
+      ? prisma.enrollmentLessonExerciseAnswer.findMany({
+          where: { enrollmentId: { in: teacherEnrollmentIds } },
+          select: { enrollmentId: true, correct: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const lessonsByCourseIdTeacher = new Map<string, number>();
+  for (const m of modulesLessonCountTeacher) {
+    lessonsByCourseIdTeacher.set(
+      m.courseId,
+      (lessonsByCourseIdTeacher.get(m.courseId) ?? 0) + m._count.lessons
+    );
+  }
+
+  const completedMap = new Map(
+    completedProgressTeacher.map((r) => [r.enrollmentId, r._count.id])
+  );
+  const accessMap = new Map(accessProgressTeacher.map((r) => [r.enrollmentId, r._count.id]));
+  const attMap = new Map(attendanceTeacher.map((r) => [r.enrollmentId, r._count.id]));
+  const fqMap = new Map(forumQTeacher.map((r) => [r.enrollmentId, r._count.id]));
+  const frMap = new Map(forumRTeacher.map((r) => [r.enrollmentId, r._count.id]));
+
+  const completedByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, completedMap);
+  const accessByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, accessMap);
+  const attByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, attMap);
+  const fqByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, fqMap);
+  const frByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, frMap);
+
+  const exByCg = new Map<string, { correct: number; total: number }>();
+  for (const a of exerciseAnswersTeacher) {
+    const cg = enrollmentToCg.get(a.enrollmentId);
+    if (!cg) continue;
+    const cur = exByCg.get(cg) ?? { correct: 0, total: 0 };
+    cur.total += 1;
+    if (a.correct) cur.correct += 1;
+    exByCg.set(cg, cur);
+  }
+
+  const enrollmentsCountByCg = new Map<string, number>();
+  for (const e of enrollmentRows) {
+    enrollmentsCountByCg.set(
+      e.classGroupId,
+      (enrollmentsCountByCg.get(e.classGroupId) ?? 0) + 1
+    );
+  }
+
+  const teacherClassGroupStats: TeacherClassGroupEngagement[] = classGroups.map((cg) => {
+    const ex = exByCg.get(cg.id) ?? { correct: 0, total: 0 };
+    return {
+      classGroupId: cg.id,
+      courseId: cg.courseId,
+      courseName: cg.course.name,
+      lessonsInCourse: lessonsByCourseIdTeacher.get(cg.courseId) ?? 0,
+      lessonsCompletedSum: completedByCg.get(cg.id) ?? 0,
+      lessonAccessRecords: accessByCg.get(cg.id) ?? 0,
+      exerciseAttempts: ex.total,
+      exerciseCorrect: ex.correct,
+      attendancePresent: attByCg.get(cg.id) ?? 0,
+      forumQuestions: fqByCg.get(cg.id) ?? 0,
+      forumReplies: frByCg.get(cg.id) ?? 0,
+      enrollmentsCount: enrollmentsCountByCg.get(cg.id) ?? 0,
+    };
+  });
+
+  return {
+    gamification,
+    platformExperienceSummary,
+    forumLessonsWithActivity,
+    studentRankingTop,
+    teacherClassGroupStats,
+  };
+}
+
+/** Calendário global de sessões + feriados — página /admin/calendario. */
+export async function getAdminCalendarPagePayload(): Promise<{
+  sessions: DashboardSessionCalendarItem[];
+  holidays: DashboardHolidayCalendarItem[];
+}> {
   const now = new Date();
   const calendarRangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const calendarRangeEnd = new Date(now.getFullYear(), now.getMonth() + 7, 0);
-  const todayAdmin = getBrazilTodayDateOnly();
-
-  const [
-    students,
-    teachers,
-    courses,
-    classGroupsTotal,
-    enrollmentsTotal,
-    preEnrollments,
-    confirmedEnrollments,
-    classGroupsByStatusRows,
-    sessionsCalendarRaw,
-    holidaysRowsAdmin,
-    platformExperienceAgg,
-    forumRawGlobal,
-    engagementLessonsCompleted,
-    engagementLessonAccessRows,
-    engagementExerciseAttempts,
-    engagementExerciseCorrect,
-    engagementAttendancePresent,
-    engagementForumQ,
-    engagementForumRStudent,
-    engagementForumRTeacher,
-  ] = await Promise.all([
-    prisma.student.count({ where: { deletedAt: null } }),
-    prisma.teacher.count({ where: { deletedAt: null } }),
-    prisma.course.count({ where: { status: "ACTIVE" } }),
-    prisma.classGroup.count(),
-    prisma.enrollment.count(),
-    prisma.enrollment.count({ where: { isPreEnrollment: true } }),
-    prisma.enrollment.count({ where: { enrollmentConfirmedAt: { not: null } } }),
-    prisma.classGroup.groupBy({
-      by: ["status"],
-      _count: { id: true },
-    }),
+  const [sessionsCalendarRaw, holidaysRowsAdmin] = await Promise.all([
     prisma.classSession.findMany({
       where: {
         sessionDate: { gte: calendarRangeStart, lte: calendarRangeEnd },
@@ -1022,17 +1092,42 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       },
       orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
     }),
-    prisma.holiday.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        name: true,
-        date: true,
-        recurring: true,
-        eventStartTime: true,
-        eventEndTime: true,
-      },
-    }),
+    getCachedActiveHolidaysRows(),
+  ]);
+  return {
+    sessions: mapClassSessionsToCalendarItems(sessionsCalendarRaw),
+    holidays: mapHolidaysToDashboardCalendarItems(
+      holidaysRowsAdmin,
+      calendarRangeStart,
+      calendarRangeEnd,
+    ),
+  };
+}
+
+/** Engajamento, rankings, avaliações, fórum e acessos — página /admin/plataforma. */
+export async function getAdminPlataformaPagePayload(
+  user: SessionUser,
+): Promise<AdminPlataformaPagePayload | null> {
+  if (user.role !== "ADMIN" && user.role !== "MASTER" && user.role !== "COORDINATOR") {
+    return null;
+  }
+
+  const todayAdmin = getBrazilTodayDateOnly();
+
+  const studentRankingFull = await getCachedStudentGamificationRankingFull();
+
+  const [
+    platformExperienceAgg,
+    forumRawGlobal,
+    engagementLessonsCompleted,
+    engagementLessonAccessRows,
+    engagementExerciseAttempts,
+    engagementExerciseCorrect,
+    engagementAttendancePresent,
+    engagementForumQ,
+    engagementForumRStudent,
+    engagementForumRTeacher,
+  ] = await Promise.all([
     prisma.platformExperienceFeedback.aggregate({
       _avg: { ratingPlatform: true, ratingLessons: true, ratingTeacher: true },
       _count: { id: true },
@@ -1051,53 +1146,6 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
   ]);
 
   const forumLessonsWithActivity = await attachForumLastMessagePreviews(forumRawGlobal);
-
-  const classGroupsByStatus: Record<string, number> = {
-    PLANEJADA: 0,
-    ABERTA: 0,
-    EM_ANDAMENTO: 0,
-    ENCERRADA: 0,
-    CANCELADA: 0,
-    INTERNO: 0,
-    EXTERNO: 0,
-  };
-  for (const row of classGroupsByStatusRows) {
-    classGroupsByStatus[row.status] = row._count.id;
-  }
-
-  const stats: DashboardStats = {
-    students,
-    teachers,
-    courses,
-    classGroups: classGroupsTotal,
-    enrollments: enrollmentsTotal,
-    preEnrollments,
-    confirmedEnrollments,
-    classGroupsByStatus,
-  };
-
-  const sessionsCalendar: DashboardSessionCalendarItem[] = sessionsCalendarRaw.map((s) => {
-    const d = s.sessionDate;
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(d.getUTCDate()).padStart(2, "0");
-    return {
-      sessionId: s.id,
-      sessionDate: `${y}-${m}-${day}`,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      classGroupId: s.classGroup.id,
-      courseName: s.classGroup.course.name,
-      teacherName: s.classGroup.teacher.name,
-      lessonTitle: s.lesson?.title ?? null,
-    };
-  });
-
-  const holidaysCalendar = mapHolidaysToDashboardCalendarItems(
-    holidaysRowsAdmin,
-    calendarRangeStart,
-    calendarRangeEnd,
-  );
 
   const teachersGamificationRanking = await computeAllTeachersGamification();
 
@@ -1156,16 +1204,11 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
   };
 
   return {
-    role: user.role as "ADMIN" | "MASTER" | "COORDINATOR",
-    roleLabel,
-    stats,
     platformEngagement,
     teachersGamificationRanking,
     platformExperienceSummary,
     accessActivitySummary,
     forumLessonsWithActivity,
     studentRankingTop: studentRankingFull.slice(0, 7),
-    sessionsCalendar,
-    holidaysCalendar,
   };
 }
