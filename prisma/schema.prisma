@@ -1117,6 +1117,7 @@ enum UserNotificationKind {
   LEVEL_UP
   ACHIEVEMENT_UNLOCKED
   FORUM_ACTIVITY
+  BIRTHDAY
 }
 
 /// * Termos de uso, política de privacidade ou política de cookies (LGPD / ePrivacy).
