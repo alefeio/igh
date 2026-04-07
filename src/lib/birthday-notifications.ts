@@ -1,5 +1,6 @@
 import "server-only";
 
+import { UserNotificationKind } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
 import { createUserNotificationIfNew } from "@/lib/user-notifications";
@@ -45,7 +46,7 @@ export async function runBirthdayNotificationsForToday(): Promise<BirthdayNotify
     const fn = firstName(row.name);
     const created = await createUserNotificationIfNew({
       userId: row.userId,
-      kind: "BIRTHDAY",
+      kind: UserNotificationKind.BIRTHDAY,
       title: "Feliz aniversário!",
       body: `Parabéns, ${fn}! Desejamos um dia muito especial e um ano cheio de conquistas.`,
       linkUrl: "/dashboard",
