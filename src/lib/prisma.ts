@@ -2,7 +2,12 @@ import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 declare global {
+  // Em dev (Turbopack/HMR), o módulo pode ser avaliado múltiplas vezes.
+  // Guardamos client + adapter no globalThis para evitar abrir pools/conexões repetidamente.
+  // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
+  // eslint-disable-next-line no-var
+  var prismaPgAdapter: PrismaPg | undefined;
 }
 
 function getConnectionString(): string {
@@ -24,13 +29,18 @@ function createAdapter() {
   return new PrismaPg({ connectionString: getConnectionString() });
 }
 
+const g = globalThis as typeof globalThis & {
+  prisma?: PrismaClient;
+  prismaPgAdapter?: PrismaPg;
+};
+
 export const prisma =
-  global.prisma ??
+  g.prisma ??
   new PrismaClient({
-    adapter: createAdapter(),
+    adapter: (g.prismaPgAdapter ??= createAdapter()),
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
 
 if (process.env.NODE_ENV !== "production") {
-  global.prisma = prisma;
+  g.prisma = prisma;
 }
