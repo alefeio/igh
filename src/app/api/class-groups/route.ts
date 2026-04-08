@@ -10,13 +10,13 @@ import {
   parseDurationHours,
   splitHolidaysForSchedule,
 } from "@/lib/schedule";
-import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
+import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 
 export async function GET() {
   try {
     const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
 
-    await applyClassGroupAutomaticStatusUpdates();
+    await applyClassGroupAutomaticStatusUpdatesCached();
 
     const isTeacher = user.role === "TEACHER";
     let teacherId: string | null = null;

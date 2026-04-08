@@ -1,5 +1,6 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 /** Status que passam automaticamente para EM_ANDAMENTO quando startDate <= hoje (calendário Brasil). */
@@ -65,3 +66,13 @@ export async function applyClassGroupAutomaticStatusUpdates(): Promise<{
     closedEncerrada: closed.count,
   };
 }
+
+/**
+ * Evita rodar as atualizações a cada request (principal causa de saturação de conexões).
+ * O cron (`/api/cron/class-groups-status`) deve ser a fonte principal; este cache é um "safety net".
+ */
+export const applyClassGroupAutomaticStatusUpdatesCached = unstable_cache(
+  () => applyClassGroupAutomaticStatusUpdates(),
+  ["class-group-auto-status-v1"],
+  { revalidate: 60 },
+);

@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonOk } from "@/lib/http";
-import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
+import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 
 export async function GET() {
   const user = await requireRole("STUDENT");
 
-  await applyClassGroupAutomaticStatusUpdates();
+  await applyClassGroupAutomaticStatusUpdatesCached();
 
   const student = await prisma.student.findFirst({
     where: { userId: user.id },

@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
+import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 
 /** Lista turmas para pré-matrícula (público, sem auth). Inclui ABERTA e EM_ANDAMENTO que ainda tenham vagas (matrículas ACTIVE menores que capacity). Exclui demais status. Query: courseId (uuid) para filtrar por curso. */
 const PUBLIC_INSCREVA_STATUSES = ["ABERTA", "EM_ANDAMENTO"] as const;
 
 export async function GET(request: Request) {
   try {
-    await applyClassGroupAutomaticStatusUpdates();
+    await applyClassGroupAutomaticStatusUpdatesCached();
     const url = new URL(request.url);
     const courseId = url.searchParams.get("courseId")?.trim() || null;
 

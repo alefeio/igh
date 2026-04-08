@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
+import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 
 /** Lista turmas que o professor leciona (apenas TEACHER). */
 export async function GET() {
   const user = await requireRole(["TEACHER"]);
-  await applyClassGroupAutomaticStatusUpdates();
+  await applyClassGroupAutomaticStatusUpdatesCached();
   const teacher = await prisma.teacher.findFirst({
     where: { userId: user.id, deletedAt: null },
     select: { id: true },

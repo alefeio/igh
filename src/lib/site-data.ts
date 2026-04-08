@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
@@ -12,31 +13,37 @@ export type { MenuItemPublic, SiteSettingsPublic };
 
 export async function getMenuItems(): Promise<MenuItemPublic[]> {
   try {
-  const items = await prisma.siteMenuItem.findMany({
-    where: { isVisible: true, parentId: null },
-    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-    include: {
-      children: {
-        where: { isVisible: true },
-        orderBy: [{ order: "asc" }],
-      },
-    },
-  });
-  return items.map((i) => ({
-    id: i.id,
-    label: i.label,
-    href: i.href,
-    order: i.order,
-    isExternal: i.isExternal,
-    children: i.children.map((c) => ({
-      id: c.id,
-      label: c.label,
-      href: c.href,
-      order: c.order,
-      isExternal: c.isExternal,
-      children: [],
-    })),
-  }));
+    const items = await unstable_cache(
+      () =>
+        prisma.siteMenuItem.findMany({
+          where: { isVisible: true, parentId: null },
+          orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+          include: {
+            children: {
+              where: { isVisible: true },
+              orderBy: [{ order: "asc" }],
+            },
+          },
+        }),
+      ["site-menu-items-public-v1"],
+      { revalidate: 300 },
+    )();
+
+    return items.map((i) => ({
+      id: i.id,
+      label: i.label,
+      href: i.href,
+      order: i.order,
+      isExternal: i.isExternal,
+      children: i.children.map((c) => ({
+        id: c.id,
+        label: c.label,
+        href: c.href,
+        order: c.order,
+        isExternal: c.isExternal,
+        children: [],
+      })),
+    }));
   } catch {
     return [];
   }
@@ -60,26 +67,30 @@ function parseAddresses(value: unknown): { line: string; city: string; state: st
 
 export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
   try {
-    const s = await prisma.siteSettings.findFirst();
+    const s = await unstable_cache(
+      () => prisma.siteSettings.findFirst(),
+      ["site-settings-public-v1"],
+      { revalidate: 300 },
+    )();
     if (!s) return null;
     return {
-    siteName: s.siteName,
-    logoUrl: s.logoUrl,
-    faviconUrl: s.faviconUrl,
-    primaryColor: s.primaryColor,
-    secondaryColor: s.secondaryColor,
-    contactEmail: s.contactEmail,
-    contactPhone: s.contactPhone,
-    contactWhatsapp: s.contactWhatsapp,
-    addresses: parseAddresses(s.addresses),
-    businessHours: s.businessHours,
-    socialInstagram: s.socialInstagram,
-    socialFacebook: s.socialFacebook,
-    socialYoutube: s.socialYoutube,
-    socialLinkedin: s.socialLinkedin,
-    seoTitleDefault: s.seoTitleDefault,
-    seoDescriptionDefault: s.seoDescriptionDefault,
-  };
+      siteName: s.siteName,
+      logoUrl: s.logoUrl,
+      faviconUrl: s.faviconUrl,
+      primaryColor: s.primaryColor,
+      secondaryColor: s.secondaryColor,
+      contactEmail: s.contactEmail,
+      contactPhone: s.contactPhone,
+      contactWhatsapp: s.contactWhatsapp,
+      addresses: parseAddresses(s.addresses),
+      businessHours: s.businessHours,
+      socialInstagram: s.socialInstagram,
+      socialFacebook: s.socialFacebook,
+      socialYoutube: s.socialYoutube,
+      socialLinkedin: s.socialLinkedin,
+      seoTitleDefault: s.seoTitleDefault,
+      seoDescriptionDefault: s.seoDescriptionDefault,
+    };
   } catch {
     return null;
   }

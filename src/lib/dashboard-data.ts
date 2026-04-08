@@ -3,7 +3,7 @@ import "server-only";
 import { ensurePendingDocumentRemindersForStudent } from "@/lib/document-reminder-notifications";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
-import { applyClassGroupAutomaticStatusUpdates } from "@/lib/class-group-auto-status";
+import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import {
   attachForumLastMessagePreviews,
   getForumLessonsFromTaughtSessions,
@@ -659,7 +659,7 @@ async function loadTeacherDashboardHome(
 }
 
 export async function getDashboardData(user: SessionUser): Promise<DashboardData> {
-  await applyClassGroupAutomaticStatusUpdates();
+  await applyClassGroupAutomaticStatusUpdatesCached();
   const roleLabel = ROLE_LABELS[user.role] ?? user.role;
 
   if (user.role === "STUDENT") {
