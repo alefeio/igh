@@ -996,7 +996,7 @@ export default async function DashboardPage() {
           </h2>
           <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
             {isConnectionError
-              ? "Falha na conexão com o banco de dados. Verifique se o servidor está rodando e se a variável DATABASE_URL no .env está correta."
+              ? "Falha na conexão com o banco de dados. Verifique se o servidor está rodando e se as variáveis APP_DATABASE_URL (runtime) e APP_DIRECT_URL (migrations) estão corretas."
               : "Ocorreu um erro ao buscar os dados."}
           </p>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
