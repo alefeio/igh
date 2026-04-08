@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
-import { HighlightableContentViewer } from "@/components/lesson/HighlightableContentViewer";
+import { HighlightableContentViewer, type LessonPassage } from "@/components/lesson/HighlightableContentViewer";
 import { LessonVideoPlayer } from "@/components/lesson/LessonVideoPlayer";
 import type { ApiResponse } from "@/lib/api-types";
 import { splitContentByH1 } from "@/lib/lesson-slides";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { hostedRawUrlForDownload } from "@/lib/hosted-file-url";
 import {
   ChevronLeft,
   ChevronRight,
@@ -54,6 +56,17 @@ type ExercisePayload = {
   options: { id: string; order: number; text: string; isCorrect: boolean }[];
 };
 
+type LessonQuestion = {
+  id: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  authorName: string;
+  teacherReplies: { id: string; content: string; createdAt: string; teacherName: string }[];
+};
+
+type TeacherNote = { id: string; content: string; createdAt: string };
+
 export default function ProfessorApresentarAulaPage() {
   const params = useParams();
   const router = useRouter();
@@ -75,6 +88,21 @@ export default function ProfessorApresentarAulaPage() {
   const [showExerciseAnswers, setShowExerciseAnswers] = useState(false);
   const contentWrapperRef = useRef<HTMLDivElement>(null);
   const contentPageIndexRef = useRef(0);
+
+  const [passages, setPassages] = useState<LessonPassage[]>([]);
+  const [savingPassage, setSavingPassage] = useState(false);
+  const [notes, setNotes] = useState<TeacherNote[]>([]);
+  const [noteContent, setNoteContent] = useState("");
+  const [questions, setQuestions] = useState<LessonQuestion[]>([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [replyContentByQuestionId, setReplyContentByQuestionId] = useState<Record<string, string>>({});
+  const [replyingQuestionId, setReplyingQuestionId] = useState<string | null>(null);
+
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [attachmentDisplayName, setAttachmentDisplayName] = useState("");
+
+  const localStoragePassagesKey = `teacher-presentation:${classGroupId}:${lessonId}:passages`;
+  const localStorageNotesKey = `teacher-presentation:${classGroupId}:${lessonId}:notes`;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,7 +135,169 @@ export default function ProfessorApresentarAulaPage() {
   useEffect(() => {
     setShowExerciseAnswers(false);
     setContentFontSizePercent(100);
+    // restaurar notas/trechos locais do professor
+    try {
+      const rawPassages = localStorage.getItem(localStoragePassagesKey);
+      if (rawPassages) setPassages(JSON.parse(rawPassages) as LessonPassage[]);
+      else setPassages([]);
+    } catch {
+      setPassages([]);
+    }
+    try {
+      const rawNotes = localStorage.getItem(localStorageNotesKey);
+      if (rawNotes) setNotes(JSON.parse(rawNotes) as TeacherNote[]);
+      else setNotes([]);
+    } catch {
+      setNotes([]);
+    }
   }, [lessonId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(localStoragePassagesKey, JSON.stringify(passages));
+    } catch {
+      // ignore
+    }
+  }, [localStoragePassagesKey, passages]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(localStorageNotesKey, JSON.stringify(notes));
+    } catch {
+      // ignore
+    }
+  }, [localStorageNotesKey, notes]);
+
+  const loadQuestions = useCallback(async () => {
+    setLoadingQuestions(true);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${classGroupId}/lesson-questions?lessonId=${lessonId}`);
+      const json = (await res.json()) as ApiResponse<{ questions: LessonQuestion[] }>;
+      if (!res.ok || !json.ok) {
+        setQuestions([]);
+        return;
+      }
+      setQuestions(json.data.questions);
+    } finally {
+      setLoadingQuestions(false);
+    }
+  }, [classGroupId, lessonId]);
+
+  useEffect(() => {
+    void loadQuestions();
+  }, [loadQuestions]);
+
+  const handleSavePassage = useCallback(
+    (payload: { text: string; startOffset: number }) => {
+      const text = payload.text.trim();
+      if (!text) return;
+      const id = `p_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      setPassages((prev) => [{ id, text, startOffset: payload.startOffset, createdAt: new Date().toISOString() }, ...prev]);
+    },
+    []
+  );
+
+  const handleRemovePassage = useCallback((id: string) => {
+    setPassages((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  const handleAddNote = useCallback(() => {
+    const text = noteContent.trim();
+    if (text.length < 1) return;
+    const id = `n_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    setNotes((prev) => [{ id, content: text, createdAt: new Date().toISOString() }, ...prev]);
+    setNoteContent("");
+  }, [noteContent]);
+
+  const handleReply = useCallback(
+    async (questionId: string) => {
+      const content = (replyContentByQuestionId[questionId] ?? "").trim();
+      if (content.length < 2) return;
+      setReplyingQuestionId(questionId);
+      try {
+        const res = await fetch(`/api/teacher/class-groups/${classGroupId}/lesson-questions/${questionId}/reply`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        });
+        const json = (await res.json()) as ApiResponse<{ id: string; content: string; createdAt: string; teacherName: string }>;
+        if (!res.ok || !json.ok) {
+          toast.push("error", !json.ok ? json.error.message : "Falha ao responder.");
+          return;
+        }
+        setReplyContentByQuestionId((prev) => ({ ...prev, [questionId]: "" }));
+        setQuestions((prev) =>
+          prev.map((q) =>
+            q.id === questionId
+              ? { ...q, teacherReplies: [...(q.teacherReplies ?? []), json.data] }
+              : q
+          )
+        );
+      } finally {
+        setReplyingQuestionId(null);
+      }
+    },
+    [classGroupId, replyContentByQuestionId, toast]
+  );
+
+  const handleUploadAttachment = useCallback(
+    async (file: File) => {
+      setUploadingAttachment(true);
+      try {
+        const signRes = await fetch("/api/teacher/uploads/apimages-signature", { method: "POST" });
+        const signJson = (await signRes.json()) as ApiResponse<{ uploadUrl: string; apiKey: string }>;
+        if (!signRes.ok || !signJson.ok) {
+          toast.push("error", !signJson.ok ? signJson.error.message : "Falha ao preparar upload.");
+          return;
+        }
+
+        const fd = buildApimagesUploadFormData(file);
+        const uploadRes = await fetch(signJson.data.uploadUrl, {
+          method: "POST",
+          headers: apimagesUploadHeaders(signJson.data.apiKey),
+          body: fd,
+        });
+        const uploadJson = await uploadRes.json();
+        const parsed = parseApimagesUploadJson(uploadJson);
+        if (!uploadRes.ok || parsed.errorMessage || !parsed.url) {
+          toast.push("error", parsed.errorMessage ?? "Falha no upload.");
+          return;
+        }
+
+        const persistRes = await fetch(
+          `/api/teacher/class-groups/${classGroupId}/presentation/${lessonId}/attachments`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: parsed.url,
+              name: attachmentDisplayName.trim() || file.name,
+            }),
+          }
+        );
+        const persistJson = (await persistRes.json()) as ApiResponse<{ lesson: { attachmentUrls: string[]; attachmentNames: string[] } }>;
+        if (!persistRes.ok || !persistJson.ok) {
+          toast.push("error", !persistJson.ok ? persistJson.error.message : "Falha ao salvar anexo.");
+          return;
+        }
+
+        setLesson((prev) =>
+          prev
+            ? {
+                ...prev,
+                attachmentUrls: persistJson.data.lesson.attachmentUrls,
+                attachmentNames: persistJson.data.lesson.attachmentNames,
+              }
+            : prev
+        );
+        setAttachmentDisplayName("");
+        toast.push("success", "Material anexado e disponível para os alunos.");
+      } finally {
+        setUploadingAttachment(false);
+      }
+    },
+    [attachmentDisplayName, classGroupId, lessonId, toast]
+  );
 
   const contentPages = useMemo(() => splitContentByH1(lesson?.contentRich?.trim() ?? ""), [lesson?.contentRich]);
 
@@ -410,10 +600,10 @@ export default function ProfessorApresentarAulaPage() {
                 >
                   <HighlightableContentViewer
                     content={contentToShow}
-                    passages={[]}
-                    onSavePassage={() => {}}
-                    saving={false}
-                    hideDestacarButton
+                    passages={passages}
+                    onSavePassage={handleSavePassage}
+                    onRemovePassage={handleRemovePassage}
+                    saving={savingPassage}
                   />
                 </div>
               </div>
@@ -422,36 +612,185 @@ export default function ProfessorApresentarAulaPage() {
         </div>
       )}
 
-      {(lesson.pdfUrl?.trim() || lesson.attachmentUrls.some((u) => u?.trim())) && (
-        <SectionCard title="Material complementar" variant="elevated">
-          <div className="flex flex-col gap-2 text-sm">
+      <SectionCard title="Material complementar" variant="elevated">
+        {!(lesson.pdfUrl?.trim() || lesson.attachmentUrls.some((u) => u?.trim())) ? (
+          <p className="text-sm text-[var(--text-muted)]">Nenhum material complementar nesta aula.</p>
+        ) : (
+          <div className="flex flex-col gap-3 text-sm">
             {lesson.pdfUrl?.trim() && (
-              <a
-                href={lesson.pdfUrl.trim()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-[var(--igh-primary)] hover:underline"
-              >
-                Abrir PDF da aula (nova aba)
-              </a>
-            )}
-            {lesson.attachmentUrls
-              .map((url, index) => ({ url: url?.trim() ?? "", index }))
-              .filter((x) => x.url)
-              .map(({ url, index }) => (
+              <div className="flex flex-wrap items-center gap-3">
                 <a
-                  key={index}
-                  href={url}
+                  href={lesson.pdfUrl.trim()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[var(--igh-primary)] hover:underline"
+                  className="font-medium text-[var(--igh-primary)] hover:underline"
                 >
-                  {getAttachmentLabel(url, index, lesson.attachmentNames[index])}
+                  Visualizar PDF da aula
                 </a>
-              ))}
+                <a
+                  href={hostedRawUrlForDownload(lesson.pdfUrl.trim())}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--text-secondary)] hover:underline"
+                >
+                  Baixar PDF
+                </a>
+              </div>
+            )}
+
+            {lesson.attachmentUrls
+              .map((u, index) => ({ url: u?.trim() ?? "", index }))
+              .filter((x) => x.url)
+              .map(({ url, index }) => {
+                const label = getAttachmentLabel(url, index, lesson.attachmentNames[index]);
+                return (
+                  <div key={index} className="flex flex-wrap items-center gap-3">
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--igh-primary)] hover:underline"
+                    >
+                      {label}
+                    </a>
+                    <a
+                      href={hostedRawUrlForDownload(url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--text-secondary)] hover:underline"
+                    >
+                      Baixar
+                    </a>
+                  </div>
+                );
+              })}
           </div>
-        </SectionCard>
-      )}
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Anexar novo material complementar"
+        description="Este material será adicionado à aula e ficará disponível para os alunos (aceita qualquer tipo de arquivo)."
+        variant="elevated"
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-[var(--text-primary)]">Nome exibido (opcional)</label>
+            <input
+              value={attachmentDisplayName}
+              onChange={(e) => setAttachmentDisplayName(e.target.value)}
+              placeholder="Ex.: Planilha de exercícios, Material extra, etc."
+              className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--text-primary)]"
+            />
+          </div>
+          <label className="inline-flex w-fit cursor-pointer items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-50">
+            <input
+              type="file"
+              accept="*/*"
+              className="hidden"
+              disabled={uploadingAttachment}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleUploadAttachment(f);
+                e.target.value = "";
+              }}
+            />
+            {uploadingAttachment ? "Enviando…" : "Escolher arquivo"}
+          </label>
+          <p className="text-xs text-[var(--text-muted)]">
+            Dica: para arquivos grandes, prefira PDF quando possível.
+          </p>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Bloco de anotações (professor)"
+        description="Anotações pessoais para esta aula (salvas neste navegador)."
+        variant="elevated"
+      >
+        <div className="flex flex-col gap-3">
+          <textarea
+            value={noteContent}
+            onChange={(e) => setNoteContent(e.target.value)}
+            placeholder="Digite suas anotações..."
+            className="min-h-[110px] w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm text-[var(--text-primary)]"
+          />
+          <button
+            type="button"
+            onClick={handleAddNote}
+            className="inline-flex w-fit items-center justify-center rounded-md bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-60"
+            disabled={noteContent.trim().length === 0}
+          >
+            Salvar anotação
+          </button>
+
+          {notes.length > 0 && (
+            <div className="space-y-2">
+              {notes.map((n) => (
+                <div key={n.id} className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/20 p-3">
+                  <p className="text-xs text-[var(--text-muted)]">{new Date(n.createdAt).toLocaleString("pt-BR")}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--text-primary)]">{n.content}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Fórum da aula"
+        description="Dúvidas dos alunos nesta aula (você pode responder)."
+        variant="elevated"
+      >
+        {loadingQuestions ? (
+          <p className="text-sm text-[var(--text-muted)]">Carregando fórum…</p>
+        ) : questions.length === 0 ? (
+          <p className="text-sm text-[var(--text-muted)]">Nenhuma dúvida nesta aula ainda.</p>
+        ) : (
+          <div className="space-y-4">
+            {questions.map((q) => (
+              <div key={q.id} className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/10 p-4">
+                <p className="text-xs font-semibold text-[var(--text-muted)]">
+                  {q.authorName} · {new Date(q.createdAt).toLocaleString("pt-BR")}
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--text-primary)]">{q.content}</p>
+
+                {q.teacherReplies?.length > 0 && (
+                  <div className="mt-3 space-y-2 border-l border-[var(--card-border)] pl-3">
+                    {q.teacherReplies.map((r) => (
+                      <div key={r.id} className="text-sm">
+                        <p className="text-xs text-[var(--text-muted)]">
+                          {r.teacherName} · {new Date(r.createdAt).toLocaleString("pt-BR")}
+                        </p>
+                        <p className="whitespace-pre-wrap text-[var(--text-secondary)]">{r.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-col gap-2">
+                  <textarea
+                    value={replyContentByQuestionId[q.id] ?? ""}
+                    onChange={(e) => setReplyContentByQuestionId((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                    placeholder="Responder..."
+                    className="min-h-[80px] w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm text-[var(--text-primary)]"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleReply(q.id)}
+                      disabled={replyingQuestionId === q.id || (replyContentByQuestionId[q.id] ?? "").trim().length < 2}
+                      className="inline-flex w-fit items-center justify-center rounded-md bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-60"
+                    >
+                      {replyingQuestionId === q.id ? "Enviando…" : "Responder"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard
         title="Exercícios"

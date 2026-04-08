@@ -181,13 +181,35 @@ export default function EnrollmentsPage() {
   }
 
   async function loadFormOptions() {
-    const [studentsRes, classGroupsRes] = await Promise.all([
-      fetch("/api/students"),
+    async function loadAllStudents(): Promise<Student[]> {
+      const pageSize = 100;
+      let page = 1;
+      let out: Student[] = [];
+      let total = Infinity;
+
+      while (out.length < total) {
+        const params = new URLSearchParams();
+        params.set("page", String(page));
+        params.set("pageSize", String(pageSize));
+        const res = await fetch(`/api/students?${params.toString()}`);
+        const json = await parseJson<{ students: Student[]; total: number; page: number; pageSize: number }>(res);
+        if (!res.ok || !json?.ok) break;
+        const items = Array.isArray(json.data?.students) ? json.data.students : [];
+        total = Number.isFinite(json.data.total) ? json.data.total : out.length + items.length;
+        out = [...out, ...items];
+        if (items.length === 0) break;
+        page += 1;
+        if (page > 50) break; // safety
+      }
+      return out;
+    }
+
+    const [students, classGroupsRes] = await Promise.all([
+      loadAllStudents(),
       fetch("/api/class-groups"),
     ]);
-    const studentsJson = await parseJson<{ students: Student[] }>(studentsRes);
     const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
-    if (studentsJson?.ok) setStudents(studentsJson.data.students);
+    setStudents(students);
     if (classGroupsJson?.ok) setClassGroups(classGroupsJson.data.classGroups);
   }
 

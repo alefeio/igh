@@ -19,13 +19,16 @@ async function assertTeacherOwnsClassGroup(userId: string, classGroupId: string)
 
 /** Lista dúvidas do curso da turma (para o professor responder). */
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   const user = await requireRole(["TEACHER"]);
   const { id: classGroupId } = await context.params;
   const ctx = await assertTeacherOwnsClassGroup(user.id, classGroupId);
   if (!ctx) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+
+  const { searchParams } = new URL(request.url);
+  const lessonIdFilter = searchParams.get("lessonId")?.trim() || null;
 
   const lessonIds = (
     await prisma.courseLesson.findMany({
@@ -38,7 +41,9 @@ export async function GET(
     return a.order - b.order;
   });
 
-  const ids = lessonIds.map((l) => l.id);
+  const ids = lessonIdFilter
+    ? lessonIds.filter((l) => l.id === lessonIdFilter).map((l) => l.id)
+    : lessonIds.map((l) => l.id);
   if (ids.length === 0) return jsonOk({ questions: [], courseName: ctx.courseName });
 
   const questions = await prisma.enrollmentLessonQuestion.findMany({
