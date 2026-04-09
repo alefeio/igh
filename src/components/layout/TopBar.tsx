@@ -79,6 +79,17 @@ export function TopBar({
       .catch(() => {});
   }, []);
 
+  const lastSupportBadgeFetchAtRef = useRef<number>(0);
+  const fetchSupportBadgeThrottled = useCallback(
+    (minIntervalMs: number) => {
+      const now = Date.now();
+      if (now - lastSupportBadgeFetchAtRef.current < minIntervalMs) return;
+      lastSupportBadgeFetchAtRef.current = now;
+      fetchSupportBadge();
+    },
+    [fetchSupportBadge]
+  );
+
   const fetchCoordinatorReportBadge = useCallback(() => {
     if (!hasCoordinatorReportAccess) return;
     fetch("/api/coordinator-reports/badge", { credentials: "include", cache: "no-store" })
@@ -89,6 +100,18 @@ export function TopBar({
       .catch(() => {});
   }, [hasCoordinatorReportAccess]);
 
+  const lastCoordinatorBadgeFetchAtRef = useRef<number>(0);
+  const fetchCoordinatorReportBadgeThrottled = useCallback(
+    (minIntervalMs: number) => {
+      if (!hasCoordinatorReportAccess) return;
+      const now = Date.now();
+      if (now - lastCoordinatorBadgeFetchAtRef.current < minIntervalMs) return;
+      lastCoordinatorBadgeFetchAtRef.current = now;
+      fetchCoordinatorReportBadge();
+    },
+    [hasCoordinatorReportAccess, fetchCoordinatorReportBadge]
+  );
+
   const fetchNotificationBadge = useCallback(() => {
     fetch("/api/me/notifications/badge", { credentials: "include", cache: "no-store" })
       .then((r) => r.json() as Promise<ApiResponse<{ hasUnread?: boolean }>>)
@@ -97,6 +120,17 @@ export function TopBar({
       })
       .catch(() => {});
   }, []);
+
+  const lastNotificationBadgeFetchAtRef = useRef<number>(0);
+  const fetchNotificationBadgeThrottled = useCallback(
+    (minIntervalMs: number) => {
+      const now = Date.now();
+      if (now - lastNotificationBadgeFetchAtRef.current < minIntervalMs) return;
+      lastNotificationBadgeFetchAtRef.current = now;
+      fetchNotificationBadge();
+    },
+    [fetchNotificationBadge]
+  );
 
   const fetchNotificationPreview = useCallback(() => {
     setNotificationPreview((p) => ({ ...p, loading: true, error: null }));
@@ -142,7 +176,7 @@ export function TopBar({
   userIdRef.current = user.id;
 
   useEffect(() => {
-    fetchSupportBadge();
+    fetchSupportBadgeThrottled(0);
 
     if (typeof window === "undefined") return;
 
@@ -154,7 +188,7 @@ export function TopBar({
     function connect() {
       ws = new WebSocket(wsUrl);
       ws.onopen = () => {
-        fetchSupportBadge();
+        fetchSupportBadgeThrottled(0);
       };
       ws.onmessage = (event) => {
         try {
@@ -180,7 +214,7 @@ export function TopBar({
           const isNewMessage = audience === "student" || audience === "admin";
           if (shouldRefetch) {
             setTimeout(() => {
-              fetchSupportBadge();
+              fetchSupportBadgeThrottled(2_000);
               if (isNewMessage) playNotificationSound();
             }, 0);
           }
@@ -203,65 +237,65 @@ export function TopBar({
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       ws?.close();
     };
-  }, [fetchSupportBadge]);
+  }, [fetchSupportBadgeThrottled]);
 
   useEffect(() => {
     const onVisible = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        fetchSupportBadge();
+        fetchSupportBadgeThrottled(15_000);
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, []);
+  }, [fetchSupportBadgeThrottled]);
 
   useEffect(() => {
-    const onRefetch = () => fetchSupportBadge();
+    const onRefetch = () => fetchSupportBadgeThrottled(2_000);
     window.addEventListener("support-badge-refetch", onRefetch);
     return () => window.removeEventListener("support-badge-refetch", onRefetch);
-  }, [fetchSupportBadge]);
+  }, [fetchSupportBadgeThrottled]);
 
   useEffect(() => {
     if (!hasCoordinatorReportAccess) return;
-    fetchCoordinatorReportBadge();
-  }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadge]);
+    fetchCoordinatorReportBadgeThrottled(0);
+  }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadgeThrottled]);
 
   useEffect(() => {
-    const onRefetch = () => fetchCoordinatorReportBadge();
+    const onRefetch = () => fetchCoordinatorReportBadgeThrottled(2_000);
     window.addEventListener("coordinator-report-badge-refetch", onRefetch);
     return () => window.removeEventListener("coordinator-report-badge-refetch", onRefetch);
-  }, [fetchCoordinatorReportBadge]);
+  }, [fetchCoordinatorReportBadgeThrottled]);
 
   useEffect(() => {
     if (!hasCoordinatorReportAccess) return;
     const onVisible = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        fetchCoordinatorReportBadge();
+        fetchCoordinatorReportBadgeThrottled(15_000);
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadge]);
+  }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadgeThrottled]);
 
   useEffect(() => {
-    fetchNotificationBadge();
-  }, [fetchNotificationBadge]);
+    fetchNotificationBadgeThrottled(0);
+  }, [fetchNotificationBadgeThrottled]);
 
   useEffect(() => {
-    const onRefetch = () => fetchNotificationBadge();
+    const onRefetch = () => fetchNotificationBadgeThrottled(2_000);
     window.addEventListener("notifications-badge-refetch", onRefetch);
     return () => window.removeEventListener("notifications-badge-refetch", onRefetch);
-  }, [fetchNotificationBadge]);
+  }, [fetchNotificationBadgeThrottled]);
 
   useEffect(() => {
     const onVisible = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        fetchNotificationBadge();
+        fetchNotificationBadgeThrottled(15_000);
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [fetchNotificationBadge]);
+  }, [fetchNotificationBadgeThrottled]);
 
   useEffect(() => {
     if (!notificationsOpen) return;

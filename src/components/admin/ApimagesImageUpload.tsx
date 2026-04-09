@@ -6,6 +6,7 @@ import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUpload
 export type SiteUploadKind =
   | "logo"
   | "favicon"
+  | "qrcode"
   | "banners"
   | "partners"
   | "formations"

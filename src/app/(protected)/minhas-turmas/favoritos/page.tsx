@@ -41,11 +41,10 @@ export default function FavoritosPage() {
     <div className="flex min-w-0 flex-col gap-8 pb-4 sm:gap-10">
       <nav aria-label="Navegação">
         <Link
-          href="/minhas-turmas"
+          href="/dashboard"
           className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
         >
-          <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
-          Voltar às turmas
+          Dashboard · Favoritos
         </Link>
       </nav>
 

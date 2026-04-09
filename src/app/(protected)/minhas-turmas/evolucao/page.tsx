@@ -32,12 +32,7 @@ export default async function MinhasTurmasEvolucaoPage() {
         <span className="text-[var(--text-muted)]" aria-hidden>
           ·
         </span>
-        <Link
-          href="/minhas-turmas"
-          className="text-sm font-semibold text-[var(--igh-primary)] hover:underline"
-        >
-          Minhas turmas
-        </Link>
+        <span className="text-sm text-[var(--text-muted)]">Evolução e engajamento</span>
       </nav>
 
       <DashboardHero

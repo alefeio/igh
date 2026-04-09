@@ -60,7 +60,9 @@ export default function EnrollmentExercisesSummaryPage() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/me/enrollments/${enrollmentId}/course-content`);
+        const res = await fetch(`/api/me/enrollments/${enrollmentId}/exercise-stats`, {
+          cache: "no-store",
+        });
         const json = (await res.json()) as ApiResponse<CourseExercisesResponse>;
         if (res.ok && json?.ok) {
           setData(json.data);

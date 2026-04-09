@@ -250,6 +250,87 @@ export default function AulaConteudoPage() {
   /** Se a aula atual pode ser acessada (exercícios da aula anterior concluídos). null = ainda verificando. */
   const [prevLessonExercisesComplete, setPrevLessonExercisesComplete] = useState<boolean | null>(null);
 
+  /**
+   * Progresso da aula: este endpoint era chamado muitas vezes (slide change, visibilitychange, unload etc.).
+   * Para reduzir carga/conexões, fazemos merge de updates e limitamos a frequência de PATCH.
+   */
+  const PROGRESS_PATCH_MIN_INTERVAL_MS = 15_000;
+  const pendingProgressPatchRef = useRef<
+    | {
+        completed?: boolean;
+        percentWatched?: number;
+        percentRead?: number;
+        studyMinutesDelta?: number;
+        lastContentPageIndex?: number | null;
+      }
+    | null
+  >(null);
+  const progressPatchTimerRef = useRef<number | null>(null);
+  const progressPatchLastSentAtRef = useRef<number>(0);
+
+  const flushProgressPatch = useCallback(
+    async (opts?: { immediate?: boolean; preferBeacon?: boolean }) => {
+      if (!enrollmentId || !lessonId) return;
+      const payload = pendingProgressPatchRef.current;
+      if (!payload) return;
+
+      const now = Date.now();
+      const immediate = opts?.immediate === true;
+      const preferBeacon = opts?.preferBeacon === true;
+      const elapsed = now - progressPatchLastSentAtRef.current;
+      if (!immediate && elapsed < PROGRESS_PATCH_MIN_INTERVAL_MS) return;
+
+      pendingProgressPatchRef.current = null;
+      progressPatchLastSentAtRef.current = now;
+
+      const url = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+      const body = JSON.stringify(payload);
+
+      if (preferBeacon && typeof navigator !== "undefined" && "sendBeacon" in navigator) {
+        try {
+          navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+          return;
+        } catch {
+          // fallback para fetch abaixo
+        }
+      }
+
+      try {
+        const res = await fetch(url, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body,
+          keepalive: true,
+        });
+        if (res.ok) {
+          const json = (await res.json()) as ApiResponse<LessonProgress>;
+          if (json?.ok && json.data) setProgress(json.data);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [enrollmentId, lessonId]
+  );
+
+  const queueProgressPatch = useCallback(
+    (partial: NonNullable<typeof pendingProgressPatchRef.current>, opts?: { immediate?: boolean }) => {
+      if (!enrollmentId || !lessonId) return;
+      pendingProgressPatchRef.current = { ...(pendingProgressPatchRef.current ?? {}), ...partial };
+
+      if (progressPatchTimerRef.current != null) window.clearTimeout(progressPatchTimerRef.current);
+      const immediate = opts?.immediate === true;
+      const wait = immediate
+        ? 0
+        : Math.max(0, PROGRESS_PATCH_MIN_INTERVAL_MS - (Date.now() - progressPatchLastSentAtRef.current));
+      progressPatchTimerRef.current = window.setTimeout(() => {
+        progressPatchTimerRef.current = null;
+        void flushProgressPatch({ immediate });
+      }, wait);
+    },
+    [enrollmentId, lessonId, flushProgressPatch]
+  );
+
   /** Abre/fecha a seção e atualiza a URL (?secao= e #secoes) para abrir na âncora Seções da aula. */
   const openSectionPanel = useCallback(
     (key: SectionKey) => {
@@ -352,7 +433,10 @@ export default function AulaConteudoPage() {
   }, []);
 
   useEffect(() => {
-    console.log("Página da aula montada. Abra o DevTools (F12) > aba Console e role a página para ver 'SCROLL ATIVADO'.");
+    if (process.env.NEXT_PUBLIC_DEBUG_SCROLL !== "1") return;
+    console.log(
+      "Página da aula montada. Abra o DevTools (F12) > aba Console e role a página para ver 'SCROLL ATIVADO'."
+    );
     return () => console.log("Página da aula desmontada.");
   }, []);
 
@@ -361,10 +445,98 @@ export default function AulaConteudoPage() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/me/enrollments/${enrollmentId}/course-content`);
-        const json = (await res.json()) as ApiResponse<{ courseName: string; modules: Module[] }>;
-        if (res.ok && json?.ok) setData(json.data);
-        else toast.push("error", json && "error" in json ? json.error.message : "Conteúdo não disponível.");
+        const [outlineRes, lessonRes] = await Promise.all([
+          fetch(`/api/me/enrollments/${enrollmentId}/course-outline`, { cache: "no-store" }),
+          fetch(`/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/details`, { cache: "no-store" }),
+        ]);
+        const outlineJson = (await outlineRes.json()) as ApiResponse<{
+          courseName: string;
+          modules: {
+            id: string;
+            title: string;
+            description: string | null;
+            order: number;
+            lessons: {
+              id: string;
+              title: string;
+              order: number;
+              durationMinutes: number | null;
+              videoUrl: string | null;
+              isLiberada: boolean;
+              completed: boolean;
+              lastContentPageIndex: number | null;
+            }[];
+          }[];
+        }>;
+        const lessonJson = (await lessonRes.json()) as ApiResponse<{
+          lesson: {
+            id: string;
+            title: string;
+            order: number;
+            durationMinutes: number | null;
+            videoUrl: string | null;
+            contentRich: string | null;
+            summary: string | null;
+            imageUrls: string[];
+            pdfUrl: string | null;
+            attachmentUrls: string[];
+            attachmentNames: string[];
+            isLiberada: boolean;
+            completed: boolean;
+            lastContentPageIndex: number | null;
+          };
+        }>;
+
+        if (!outlineRes.ok || !outlineJson?.ok) {
+          toast.push(
+            "error",
+            outlineJson && "error" in outlineJson ? outlineJson.error.message : "Conteúdo não disponível."
+          );
+          return;
+        }
+        if (!lessonRes.ok || !lessonJson?.ok) {
+          toast.push(
+            "error",
+            lessonJson && "error" in lessonJson ? lessonJson.error.message : "Aula não disponível."
+          );
+          // Ainda deixa a navegação de módulos/aulas disponível.
+          setData({
+            courseName: outlineJson.data.courseName,
+            modules: outlineJson.data.modules.map((m) => ({
+              ...m,
+              lessons: m.lessons.map((l) => ({
+                ...l,
+                contentRich: null,
+                summary: null,
+                imageUrls: [],
+                pdfUrl: null,
+                attachmentUrls: [],
+                attachmentNames: [],
+              })),
+            })),
+          });
+          return;
+        }
+
+        const details = lessonJson.data.lesson;
+        setData({
+          courseName: outlineJson.data.courseName,
+          modules: outlineJson.data.modules.map((m) => ({
+            ...m,
+            lessons: m.lessons.map((l) => {
+              const base: Lesson = {
+                ...l,
+                contentRich: null,
+                summary: null,
+                imageUrls: [],
+                pdfUrl: null,
+                attachmentUrls: [],
+                attachmentNames: [],
+              };
+              return l.id === details.id ? ({ ...base, ...details } satisfies Lesson) : base;
+            }),
+          })),
+        });
       } finally {
         setLoading(false);
       }
@@ -457,8 +629,10 @@ export default function AulaConteudoPage() {
 
   // Carrega exercícios em segundo plano para saber se é permitido avançar para a próxima aula.
   useEffect(() => {
-    if (enrollmentId && lessonId) void loadExercises();
-  }, [enrollmentId, lessonId, loadExercises]);
+    if (!enrollmentId || !lessonId) return;
+    if (loadedSections.exercicios) return;
+    void loadExercises().then(() => setLoadedSections((p) => ({ ...p, exercicios: true })));
+  }, [enrollmentId, lessonId, loadExercises, loadedSections.exercicios]);
 
   // Verifica se os exercícios da aula anterior foram concluídos (bloqueia acesso à aula atual se não).
   useEffect(() => {
@@ -513,29 +687,29 @@ export default function AulaConteudoPage() {
     const startMs = Date.now();
 
     const touchProgress = async () => {
-      try {
-        const res = await fetch(`/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            percentWatched: progress?.percentWatched ?? 0,
-            percentRead: progress?.percentRead ?? 0,
-          }),
-        });
-        if (res.ok) {
-          const json = (await res.json()) as ApiResponse<LessonProgress>;
-          if (json?.ok) setProgress(json.data);
-        }
-      } catch {
-        // ignore
-      }
+      queueProgressPatch({
+        percentWatched: progress?.percentWatched ?? 0,
+        percentRead: progress?.percentRead ?? 0,
+      });
     };
 
-    void touchProgress().then(() => { loadProgress(); });
+    void touchProgress().then(() => {
+      void flushProgressPatch({ immediate: true });
+      loadProgress();
+    });
 
     const sendStudyTime = (minutes: number) => {
       if (minutes <= 0) return;
-      const body = JSON.stringify({
+      queueProgressPatch(
+        {
+          percentWatched: progress?.percentWatched ?? 0,
+          percentRead: progress?.percentRead ?? 0,
+          studyMinutesDelta: minutes,
+          lastContentPageIndex: contentPageIndexRef.current,
+        },
+        { immediate: true }
+      );
+      const body = JSON.stringify(pendingProgressPatchRef.current ?? {
         percentWatched: progress?.percentWatched ?? 0,
         percentRead: progress?.percentRead ?? 0,
         studyMinutesDelta: minutes,
@@ -557,23 +731,19 @@ export default function AulaConteudoPage() {
       window.removeEventListener("beforeunload", onUnload);
       const minutes = Math.floor((Date.now() - startMs) / 60_000);
       if (minutes > 0) {
-        fetch(`/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        queueProgressPatch(
+          {
             percentWatched: progress?.percentWatched ?? 0,
             percentRead: progress?.percentRead ?? 0,
             studyMinutesDelta: minutes,
             lastContentPageIndex: contentPageIndexRef.current,
-          }),
-          keepalive: true,
-        }).then(async (res) => {
-          const json = (await res.json()) as ApiResponse<LessonProgress>;
-          if (res.ok && json?.ok) setProgress(json.data);
-        }).catch(() => {});
+          },
+          { immediate: true }
+        );
+        void flushProgressPatch({ immediate: true, preferBeacon: true });
       }
     };
-  }, [enrollmentId, lessonId, data?.modules]);
+  }, [enrollmentId, lessonId, data?.modules, flushProgressPatch, loadProgress, progress?.percentRead, progress?.percentWatched, queueProgressPatch]);
 
   // Só observar o header quando estamos de fato renderizando o card da aula.
   // Se dependermos só de [data, lessonId], o effect pode rodar quando data existe
@@ -640,27 +810,10 @@ export default function AulaConteudoPage() {
   const persistSlideIndex = useCallback(
     (index: number, from: string) => {
       if (!enrollmentId || !lessonId || progress?.completed) return;
-      console.log("[Slide] Salvando no banco:", { momento: from, indice: index, paginaExibida: index + 1 });
-      const url = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
-      fetch(url, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastContentPageIndex: index }),
-      })
-        .then(async (res) => {
-          const json = (await res.json()) as ApiResponse<LessonProgress>;
-          if (res.ok && json?.ok && json.data) {
-            console.log("[Slide] Banco atualizado com sucesso (indice", index, ")");
-            setProgress(json.data);
-          } else {
-            console.warn("[Slide] Resposta do banco não OK:", res.status, json);
-          }
-        })
-        .catch((err) => {
-          console.error("[Slide] Erro ao salvar no banco:", err);
-        });
+      console.log("[Slide] Enfileirando persistência:", { momento: from, indice: index, paginaExibida: index + 1 });
+      queueProgressPatch({ lastContentPageIndex: index });
     },
-    [enrollmentId, lessonId, progress?.completed]
+    [enrollmentId, lessonId, progress?.completed, queueProgressPatch]
   );
 
   const gotoPrevSlide = useCallback(() => {
@@ -668,9 +821,6 @@ export default function AulaConteudoPage() {
     const cur = contentPageIndexRef.current;
     if (cur <= 0) return;
     const prev = Math.max(0, cur - 1);
-    const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
-    const body = JSON.stringify({ lastContentPageIndex: prev });
-    navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
     persistSlideIndex(prev, "tecla ArrowLeft");
     router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${prev + 1}#conteudo`);
     setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -682,9 +832,6 @@ export default function AulaConteudoPage() {
     const last = totalPages - 1;
     if (cur >= last) return;
     const next = Math.min(last, cur + 1);
-    const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
-    const body = JSON.stringify({ lastContentPageIndex: next });
-    navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
     persistSlideIndex(next, "tecla ArrowRight");
     router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${next + 1}#conteudo`);
     setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -733,8 +880,8 @@ export default function AulaConteudoPage() {
     }
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        console.log("[Slide] Aba oculta, persistindo índice", contentPageIndexRef.current);
-        persistSlideIndex(contentPageIndexRef.current, "visibilitychange (aba oculta)");
+        console.log("[Slide] Aba oculta, enviando (beacon) índice", contentPageIndexRef.current);
+        sendBeaconPersist(contentPageIndexRef.current);
       }
     };
     const onPageHide = () => {
@@ -765,25 +912,13 @@ export default function AulaConteudoPage() {
       return;
     hasAutoCompletedOnLastSlideRef.current = true;
     const url = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
-    fetch(url, {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed: true, lastContentPageIndex: contentPageIndex }),
-    })
-      .then(async (res) => {
-        const json = (await res.json()) as ApiResponse<LessonProgress>;
-        if (res.ok && json?.ok && json.data) {
-          setProgress(json.data);
-          toast.push("success", "Aula marcada como concluída.");
-        } else {
-          hasAutoCompletedOnLastSlideRef.current = false;
-          if (res.status === 401) {
-            toast.push("error", "Sessão expirada. Faça login novamente.");
-          } else {
-            toast.push("error", "Não foi possível atualizar o status da aula.");
-          }
-        }
+    queueProgressPatch(
+      { completed: true, lastContentPageIndex: contentPageIndex },
+      { immediate: true }
+    );
+    void flushProgressPatch({ immediate: true })
+      .then(() => {
+        toast.push("success", "Aula marcada como concluída.");
       })
       .catch(() => {
         hasAutoCompletedOnLastSlideRef.current = false;
@@ -874,9 +1009,10 @@ export default function AulaConteudoPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [showLessonCard, lessonId]);
 
-  // Debug: logar sempre que o scroll for ativado (window ou document)
+  // Debug (opt-in): logar scroll quando habilitado via env var (evita custo em produção).
   useEffect(() => {
     if (!showLessonCard) return;
+    if (process.env.NEXT_PUBLIC_DEBUG_SCROLL !== "1") return;
     let lastLog = 0;
     const throttleMs = 400;
     const onScrollDebug = () => {
@@ -890,12 +1026,10 @@ export default function AulaConteudoPage() {
         });
       }
     };
-    console.log("SCROLL DEBUG: listener instalado em window e document (página da aula visível). Role a página para ver 'SCROLL ATIVADO'.");
+    console.log("SCROLL DEBUG ATIVO (NEXT_PUBLIC_DEBUG_SCROLL=1).");
     window.addEventListener("scroll", onScrollDebug, { passive: true });
-    document.addEventListener("scroll", onScrollDebug, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScrollDebug);
-      document.removeEventListener("scroll", onScrollDebug);
     };
   }, [showLessonCard]);
 

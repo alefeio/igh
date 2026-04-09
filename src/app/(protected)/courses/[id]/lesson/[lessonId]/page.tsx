@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, ChevronsLeft, ChevronsRight, Save } from "lucide-react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import type { ApiResponse } from "@/lib/api-types";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
 type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[]; attachmentNames?: string[]; lastEditedAt?: string | null; lastEditedByUserName?: string | null };
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
@@ -34,6 +35,49 @@ const emptyLessonForm = {
   attachmentNameInput: "",
 };
 
+function comparableLessonPayload(form: typeof emptyLessonForm) {
+  const durationMinutes =
+    form.durationMinutes === "" || form.durationMinutes === null || form.durationMinutes === undefined
+      ? null
+      : Number(form.durationMinutes);
+  const attachmentUrls = (form.attachmentUrls ?? []).map((s) => String(s).trim()).filter(Boolean);
+  const attachmentNames = (form.attachmentNames ?? [])
+    .slice(0, attachmentUrls.length)
+    .map((s) => String(s).trim());
+  while (attachmentNames.length < attachmentUrls.length) attachmentNames.push("");
+
+  return {
+    title: String(form.title ?? "").trim(),
+    order: Number(form.order) || 0,
+    durationMinutes: Number.isFinite(durationMinutes as number) ? durationMinutes : null,
+    videoUrl: String(form.videoUrl ?? "").trim() || null,
+    imageUrls: (form.imageUrls ?? []).map((s) => String(s).trim()).filter(Boolean),
+    contentRich: String(form.contentRich ?? "").trim() || null,
+    summary: String(form.summary ?? "").trim() || null,
+    pdfUrl: null as null,
+    attachmentUrls,
+    attachmentNames,
+  };
+}
+
+function isProbablyImageUrl(url: string): boolean {
+  const u = (url || "").trim().toLowerCase();
+  if (!u) return false;
+  if (u.includes("/image/upload/")) return true;
+  return /\.(png|jpe?g|gif|webp|svg)(\?|#|$)/i.test(u);
+}
+
+function filenameFromUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const last = u.pathname.split("/").filter(Boolean).pop();
+    if (last) return decodeURIComponent(last);
+  } catch {
+    // ignore
+  }
+  return "arquivo";
+}
+
 export default function LessonEditPage() {
   const router = useRouter();
   const params = useParams();
@@ -49,6 +93,8 @@ export default function LessonEditPage() {
   const [moduleId, setModuleId] = useState<string | null>(isNew ? moduleIdFromQuery : null);
   const [modules, setModules] = useState<ModuleWithLessons[]>([]);
   const [lessonForm, setLessonForm] = useState(emptyLessonForm);
+  const lessonFormRef = useRef<HTMLFormElement>(null);
+  const initialComparableRef = useRef<string>(JSON.stringify(comparableLessonPayload(emptyLessonForm)));
   const [savingLesson, setSavingLesson] = useState(false);
   const [lessonExercises, setLessonExercises] = useState<LessonExercise[]>([]);
   const [loadingExercises, setLoadingExercises] = useState(false);
@@ -57,6 +103,17 @@ export default function LessonEditPage() {
   const [savingExercise, setSavingExercise] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const contentSectionRef = useRef<HTMLDivElement>(null);
+  const lessonFilesRef = useRef<HTMLDivElement>(null);
+  const [floatLessonFiles, setFloatLessonFiles] = useState(true);
+  const [lessonFilesExpanded, setLessonFilesExpanded] = useState(false);
+  const [editFileModal, setEditFileModal] = useState<{
+    kind: "lessonFile" | "supportFile";
+    index: number;
+    url: string;
+    name?: string;
+  } | null>(null);
+  const [savingEditFile, setSavingEditFile] = useState(false);
+  const [uploadingEditFile, setUploadingEditFile] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setShowBackToTop(window.scrollY > 400);
@@ -64,7 +121,238 @@ export default function LessonEditPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Arquivos da aula: por padrão, manter painel flutuante (desktop).
+
+  const uploadSupportFileAndAttach = useCallback(
+    async (file: File) => {
+      try {
+        const signRes = await fetch("/api/admin/site/uploads/signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: "formations" }),
+        });
+        const signJson = (await signRes.json()) as ApiResponse<{ uploadUrl: string; apiKey: string }>;
+        if (!signRes.ok || !signJson.ok) {
+          toast.push("error", !signJson.ok ? signJson.error.message : "Falha ao preparar upload.");
+          return;
+        }
+
+        const fd = buildApimagesUploadFormData(file);
+        const uploadRes = await fetch(signJson.data.uploadUrl, {
+          method: "POST",
+          headers: apimagesUploadHeaders(signJson.data.apiKey),
+          body: fd,
+        });
+        const uploadJson = await uploadRes.json();
+        const parsed = parseApimagesUploadJson(uploadJson);
+        if (!uploadRes.ok || parsed.errorMessage || !parsed.url) {
+          toast.push("error", parsed.errorMessage ?? "Falha no upload.");
+          return;
+        }
+
+        setLessonForm((f) => ({
+          ...f,
+          attachmentUrls: [...(f.attachmentUrls ?? []), parsed.url!],
+          attachmentNames: [...(f.attachmentNames ?? []), file.name],
+        }));
+        toast.push("success", "Arquivo anexado em Arquivos de apoio.");
+      } catch {
+        toast.push("error", "Falha ao anexar arquivo.");
+      }
+    },
+    [toast],
+  );
+
+  const uploadFileToApimages = useCallback(
+    async (file: File): Promise<string | null> => {
+      const signRes = await fetch("/api/admin/site/uploads/signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "formations" }),
+      });
+      const signJson = (await signRes.json()) as ApiResponse<{ uploadUrl: string; apiKey: string }>;
+      if (!signRes.ok || !signJson.ok) return null;
+
+      const fd = buildApimagesUploadFormData(file);
+      const uploadRes = await fetch(signJson.data.uploadUrl, {
+        method: "POST",
+        headers: apimagesUploadHeaders(signJson.data.apiKey),
+        body: fd,
+      });
+      const uploadJson = await uploadRes.json();
+      const parsed = parseApimagesUploadJson(uploadJson);
+      if (!uploadRes.ok || parsed.errorMessage || !parsed.url) return null;
+      return parsed.url;
+    },
+    [],
+  );
+
+  const copyFileToClipboard = useCallback(
+    async (url: string) => {
+      const trimmed = (url || "").trim();
+      if (!trimmed) return;
+      if (!isProbablyImageUrl(trimmed)) {
+        await navigator.clipboard.writeText(trimmed);
+        toast.push("success", "Link copiado.");
+        return;
+      }
+      try {
+        const res = await fetch(trimmed);
+        if (!res.ok) throw new Error("download_failed");
+        const blob = await res.blob();
+        const mime = blob.type || "image/png";
+        // ClipboardItem costuma funcionar para imagens (equivalente a “Copiar imagem”).
+        await navigator.clipboard.write([new ClipboardItem({ [mime]: blob })]);
+        toast.push("success", "Imagem copiada. Cole no Conteúdo (Ctrl+V).");
+      } catch {
+        // Fallback: copiar link
+        await navigator.clipboard.writeText(trimmed);
+        toast.push("success", "Não foi possível copiar a imagem; link copiado como fallback.");
+      }
+    },
+    [toast],
+  );
+
+  const lessonFilesPanel = (
+    <div className="flex flex-col gap-3">
+      <div>
+        <ApimagesFormationUpload
+          onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
+          label="Adicionar arquivo"
+          multiple
+        />
+      </div>
+
+      {lessonForm.imageUrls && lessonForm.imageUrls.length > 0 && (
+        <ul className="space-y-2">
+          {lessonForm.imageUrls.map((url, idx) => {
+            const isImageUrl = isProbablyImageUrl(url);
+            const displayName = filenameFromUrl(url);
+            return (
+              <li
+                key={`${url}-${idx}`}
+                className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2"
+              >
+                {isImageUrl ? (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-white ring-1 ring-[var(--card-border)]">
+                    <img src={url} alt="" className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-[var(--card-border)] text-[var(--text-muted)]"
+                    title={displayName}
+                  >
+                    📎
+                  </a>
+                )}
+                <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      void copyFileToClipboard(url);
+                    }}
+                  >
+                    Copiar arquivo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(url);
+                      toast.push("success", "Endereço copiado.");
+                    }}
+                  >
+                    Copiar endereço
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      setEditFileModal({
+                        kind: "lessonFile",
+                        index: idx,
+                        url,
+                      })
+                    }
+                  >
+                    Editar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="text-red-600"
+                    onClick={() =>
+                      setLessonForm((f) => ({
+                        ...f,
+                        imageUrls: (f.imageUrls ?? []).filter((_, i) => i !== idx),
+                      }))
+                    }
+                  >
+                    Remover
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+
+  const lessonFilesMiniPanel = (
+    <div className="flex flex-col gap-2">
+      {lessonForm.imageUrls && lessonForm.imageUrls.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {lessonForm.imageUrls.slice(0, 12).map((url, idx) => {
+            const isImageUrl = isProbablyImageUrl(url);
+            const displayName = filenameFromUrl(url);
+            return (
+              <div
+                key={`${url}-${idx}`}
+                className="relative h-10 w-10 overflow-hidden rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)]"
+                title={displayName}
+              >
+                {isImageUrl ? (
+                  <img src={url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-[var(--card-border)] text-[var(--text-muted)]">
+                    📎
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void copyFileToClipboard(url)}
+                  className="absolute bottom-0 right-0 inline-flex h-5 w-5 items-center justify-center rounded-tl-md bg-black/60 text-[10px] font-semibold text-white hover:bg-black/70"
+                  title="Copiar arquivo"
+                >
+                  ⧉
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-[var(--text-muted)]">Sem arquivos.</p>
+      )}
+      {lessonForm.imageUrls && lessonForm.imageUrls.length > 12 && (
+        <p className="text-[10px] text-[var(--text-muted)]">+{lessonForm.imageUrls.length - 12}</p>
+      )}
+    </div>
+  );
+
   const currentModule = useMemo(() => modules.find((m) => m.id === moduleId), [modules, moduleId]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    return JSON.stringify(comparableLessonPayload(lessonForm)) !== initialComparableRef.current;
+  }, [lessonForm]);
 
   const tutorialSteps: TutorialStep[] = useMemo(() => {
     if (!moduleId) return [];
@@ -109,7 +397,9 @@ export default function LessonEditPage() {
               return;
             }
             setModuleId(moduleIdFromQuery);
-            setLessonForm({ ...emptyLessonForm, order: mod.lessons.length });
+            const next = { ...emptyLessonForm, order: mod.lessons.length };
+            setLessonForm(next);
+            initialComparableRef.current = JSON.stringify(comparableLessonPayload(next));
           } else {
             let found: { mod: ModuleWithLessons; les: Lesson } | null = null;
             for (const mod of json.data.modules) {
@@ -130,7 +420,7 @@ export default function LessonEditPage() {
             const names = les.attachmentNames ?? [];
             const attachmentNamesPadded = [...names];
             while (attachmentNamesPadded.length < urls.length) attachmentNamesPadded.push("");
-            setLessonForm({
+            const next = {
               title: les.title,
               order: les.order,
               durationMinutes: les.durationMinutes ?? "",
@@ -142,7 +432,9 @@ export default function LessonEditPage() {
               attachmentNames: attachmentNamesPadded,
               attachmentUrlInput: "",
               attachmentNameInput: "",
-            });
+            };
+            setLessonForm(next);
+            initialComparableRef.current = JSON.stringify(comparableLessonPayload(next));
           }
         }
       })
@@ -251,20 +543,13 @@ export default function LessonEditPage() {
         ? `/api/courses/${courseId}/modules/${moduleId}/lessons`
         : `/api/courses/${courseId}/modules/${moduleId}/lessons/${lessonIdParam}`;
       const method = isNew ? "POST" : "PATCH";
+      const payload = comparableLessonPayload(lessonForm);
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: lessonForm.title.trim(),
-          order: Number(lessonForm.order) || 0,
-          durationMinutes: duration,
-          videoUrl: lessonForm.videoUrl?.trim() || null,
-          imageUrls: lessonForm.imageUrls ?? [],
-          contentRich: lessonForm.contentRich?.trim() || null,
-          summary: lessonForm.summary?.trim() || null,
-          pdfUrl: null,
-          attachmentUrls: lessonForm.attachmentUrls ?? [],
-          attachmentNames: (lessonForm.attachmentNames ?? []).slice(0, (lessonForm.attachmentUrls ?? []).length).map((s) => String(s).trim()),
+          ...payload,
+          durationMinutes: Number.isFinite(duration as number) ? duration : null,
         }),
       });
       const text = await res.text();
@@ -291,6 +576,7 @@ export default function LessonEditPage() {
       if (!isNew) {
         const mods = (json as { data?: { modules?: ModuleWithLessons[] } }).data?.modules;
         if (mods) setModules(mods);
+        initialComparableRef.current = JSON.stringify(comparableLessonPayload(lessonForm));
       }
     } finally {
       setSavingLesson(false);
@@ -324,7 +610,7 @@ export default function LessonEditPage() {
         )}
       </header>
 
-      <form className="flex flex-col gap-6" onSubmit={saveLesson}>
+      <form ref={lessonFormRef} className="flex flex-col gap-6" onSubmit={saveLesson}>
         {/* Parte superior: campos que podem ficar ocultos no scroll */}
         <div className="card" data-tour="lesson-edit-dados">
           <div className="card-header">
@@ -359,32 +645,15 @@ export default function LessonEditPage() {
             <div>
               <label className="text-sm font-medium text-[var(--text-primary)]">Arquivos da aula</label>
               <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens e arquivos. Para inserir uma imagem no Conteúdo (rich text), copie o arquivo aqui (botão &quot;Copiar arquivo&quot;) e cole (Ctrl+V) no editor abaixo.</p>
-              <div className="mt-1">
+              <div ref={lessonFilesRef} className="mt-1">
                 <ApimagesFormationUpload
                   onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
                   label="Adicionar arquivo"
                   multiple
                 />
               </div>
-              {lessonForm.imageUrls && lessonForm.imageUrls.length > 0 && (
-                <ul className="mt-3 space-y-2">
-                  {lessonForm.imageUrls.map((url, idx) => {
-                    const isImageUrl = url.includes("/image/upload/");
-                    return (
-                      <li key={`${url}-${idx}`} className="flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-2">
-                        {isImageUrl ? (
-                          <img src={url} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
-                        ) : (
-                          <a href={url} target="_blank" rel="noopener noreferrer" className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-[var(--card-border)] text-[var(--text-muted)]" title="Abrir arquivo">📎</a>
-                        )}
-                        <Button type="button" variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(url); toast.push("success", "Copiado. Cole no Conteúdo (rich text) com Ctrl+V."); }}>Copiar arquivo</Button>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => { navigator.clipboard.writeText(url); toast.push("success", "Endereço copiado."); }}>Copiar endereço do arquivo</Button>
-                        <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => setLessonForm((f) => ({ ...f, imageUrls: (f.imageUrls ?? []).filter((_, i) => i !== idx) }))}>Remover</Button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+              {/* Mobile/Tablet: exibe lista aqui (sem painel flutuante). */}
+              <div className="mt-3 lg:hidden">{lessonFilesPanel}</div>
             </div>
             <div>
               <label className="text-sm font-medium">Arquivos de apoio (URLs, opcional)</label>
@@ -424,6 +693,19 @@ export default function LessonEditPage() {
                   />
                 </div>
                 <Button type="button" variant="secondary" size="sm" onClick={() => { const url = (lessonForm.attachmentUrlInput ?? "").trim(); const name = (lessonForm.attachmentNameInput ?? "").trim(); if (url) setLessonForm((f) => ({ ...f, attachmentUrls: [...(f.attachmentUrls ?? []), url], attachmentNames: [...(f.attachmentNames ?? []), name], attachmentUrlInput: "", attachmentNameInput: "" })); }}>Adicionar</Button>
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:opacity-90">
+                  <input
+                    type="file"
+                    accept="*/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadSupportFileAndAttach(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  Anexar arquivo…
+                </label>
               </div>
               {lessonForm.attachmentUrls && lessonForm.attachmentUrls.length > 0 && (
                 <ul className="mt-3 space-y-2">
@@ -438,6 +720,21 @@ export default function LessonEditPage() {
                         />
                         <span className="block truncate text-xs text-[var(--text-muted)]" title={url}>{url}</span>
                       </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() =>
+                          setEditFileModal({
+                            kind: "supportFile",
+                            index: idx,
+                            url,
+                            name: (lessonForm.attachmentNames ?? [])[idx] ?? "",
+                          })
+                        }
+                      >
+                        Editar
+                      </Button>
                       <Button type="button" variant="secondary" size="sm" className="text-red-600 shrink-0" onClick={() => setLessonForm((f) => ({ ...f, attachmentUrls: (f.attachmentUrls ?? []).filter((_, i) => i !== idx), attachmentNames: (f.attachmentNames ?? []).filter((_, i) => i !== idx) }))}>Remover</Button>
                     </li>
                   ))}
@@ -514,6 +811,75 @@ export default function LessonEditPage() {
         </div>
       </form>
 
+      {/* Painel flutuante à direita (quando o scroll entrar no Conteúdo) */}
+      {floatLessonFiles && (
+        <div
+          className={`fixed right-0 top-24 z-50 hidden flex-col gap-2 lg:flex ${
+            lessonFilesExpanded ? "w-[380px] max-w-[calc(100vw-1rem)]" : "w-[52px]"
+          }`}
+        >
+          <aside>
+            <div className="rounded-l-2xl rounded-r-none border border-r-0 border-[var(--card-border)] bg-[var(--card-bg)] shadow-xl">
+              <div
+                className={`flex items-center justify-end gap-2 border-b border-[var(--card-border)] ${
+                  lessonFilesExpanded ? "px-4 py-3" : "px-1.5 py-2"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setLessonFilesExpanded((v) => !v)}
+                  title={lessonFilesExpanded ? "Minimizar" : "Expandir"}
+                  aria-label={lessonFilesExpanded ? "Minimizar painel de arquivos" : "Expandir painel de arquivos"}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-primary)] hover:bg-[var(--card-bg)]"
+                >
+                  {lessonFilesExpanded ? (
+                    <ChevronsRight className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <ChevronsLeft className="h-4 w-4" aria-hidden />
+                  )}
+                </button>
+                {lessonFilesExpanded && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      lessonFilesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                  >
+                    Ir para seção
+                  </Button>
+                )}
+              </div>
+              <div
+                className={`max-h-[70vh] overflow-auto ${lessonFilesExpanded ? "px-4 py-3" : "px-1.5 py-2"}`}
+              >
+                {lessonFilesExpanded ? lessonFilesPanel : lessonFilesMiniPanel}
+              </div>
+            </div>
+          </aside>
+
+          {hasUnsavedChanges && (
+            <div className="rounded-l-2xl rounded-r-none border border-r-0 border-[var(--card-border)] bg-[var(--card-bg)] p-2 shadow-xl">
+              <Button
+                type="button"
+                disabled={savingLesson}
+                className={lessonFilesExpanded ? "w-full justify-center" : "h-10 w-10 p-0"}
+                onClick={() => {
+                  lessonFormRef.current?.requestSubmit();
+                }}
+                title="Salvar alterações"
+              >
+                <Save className="h-4 w-4" aria-hidden />
+                {lessonFilesExpanded && (
+                  <span className="ml-2">{savingLesson ? "Salvando…" : "Salvar alterações"}</span>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {exerciseModal && (
         <Modal open={!!exerciseModal} title={exerciseModal.type === "edit" ? "Editar exercício" : "Novo exercício"} onClose={() => setExerciseModal(null)} size="large">
           <form onSubmit={saveExercise} className="flex flex-col gap-4">
@@ -571,6 +937,110 @@ export default function LessonEditPage() {
             <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
               <Button type="button" variant="secondary" onClick={() => setExerciseModal(null)} disabled={savingExercise}>Cancelar</Button>
               <Button type="submit" disabled={savingExercise}>{savingExercise ? "Salvando…" : "Salvar"}</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {editFileModal && (
+        <Modal
+          open={!!editFileModal}
+          title={editFileModal.kind === "lessonFile" ? "Editar arquivo da aula" : "Editar arquivo de apoio"}
+          onClose={() => setEditFileModal(null)}
+          size="large"
+        >
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!editFileModal) return;
+              setSavingEditFile(true);
+              try {
+                const nextUrl = editFileModal.url.trim();
+                if (!nextUrl) return;
+                if (editFileModal.kind === "lessonFile") {
+                  setLessonForm((f) => ({
+                    ...f,
+                    imageUrls: (f.imageUrls ?? []).map((u, i) => (i === editFileModal.index ? nextUrl : u)),
+                  }));
+                } else {
+                  const nextName = (editFileModal.name ?? "").trim();
+                  setLessonForm((f) => ({
+                    ...f,
+                    attachmentUrls: (f.attachmentUrls ?? []).map((u, i) => (i === editFileModal.index ? nextUrl : u)),
+                    attachmentNames: (f.attachmentNames ?? []).map((n, i) => (i === editFileModal.index ? nextName : n)),
+                  }));
+                }
+                toast.push("success", "Arquivo atualizado (salve a aula para aplicar).");
+                setEditFileModal(null);
+              } finally {
+                setSavingEditFile(false);
+              }
+            }}
+          >
+            {editFileModal.kind === "supportFile" && (
+              <div>
+                <label className="text-sm font-medium text-[var(--text-primary)]">Nome</label>
+                <Input
+                  className="mt-1"
+                  value={editFileModal.name ?? ""}
+                  onChange={(e) => setEditFileModal((m) => (m ? { ...m, name: e.target.value } : m))}
+                  placeholder="Nome exibido para o aluno"
+                />
+              </div>
+            )}
+            <div>
+              <label className="text-sm font-medium text-[var(--text-primary)]">URL</label>
+              <Input
+                className="mt-1"
+                value={editFileModal.url}
+                onChange={(e) => setEditFileModal((m) => (m ? { ...m, url: e.target.value } : m))}
+                placeholder="https://..."
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-[var(--text-primary)]">Substituir arquivo (upload)</label>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                Faz upload e troca a URL automaticamente.
+              </p>
+              <label className="mt-1 inline-flex cursor-pointer items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:opacity-90 disabled:opacity-50">
+                <input
+                  type="file"
+                  accept="*/*"
+                  className="hidden"
+                  disabled={uploadingEditFile}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    setUploadingEditFile(true);
+                    void (async () => {
+                      try {
+                        const url = await uploadFileToApimages(f);
+                        if (!url) {
+                          toast.push("error", "Falha no upload.");
+                          return;
+                        }
+                        setEditFileModal((m) => (m ? { ...m, url } : m));
+                        toast.push("success", "Upload concluído. URL atualizada.");
+                      } finally {
+                        setUploadingEditFile(false);
+                      }
+                    })();
+                    e.target.value = "";
+                  }}
+                />
+                {uploadingEditFile ? "Enviando…" : "Escolher arquivo"}
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setEditFileModal(null)} disabled={savingEditFile}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={savingEditFile}>
+                {savingEditFile ? "Salvando…" : "Aplicar alterações"}
+              </Button>
             </div>
           </form>
         </Modal>

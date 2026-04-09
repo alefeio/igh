@@ -33,7 +33,7 @@ export default async function AdminCalendarioPage() {
         <span className="text-[var(--text-muted)]" aria-hidden>
           ·
         </span>
-        <span className="text-sm text-[var(--text-muted)]">Administração</span>
+        <span className="text-sm text-[var(--text-muted)]">Calendário institucional</span>
       </nav>
 
       <DashboardHero

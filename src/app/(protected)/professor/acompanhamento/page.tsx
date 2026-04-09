@@ -32,7 +32,7 @@ export default async function ProfessorAcompanhamentoPage() {
         <span className="text-[var(--text-muted)]" aria-hidden>
           ·
         </span>
-        <span className="text-sm text-[var(--text-muted)]">Professor</span>
+        <span className="text-sm text-[var(--text-muted)]">Acompanhamento</span>
       </nav>
 
       <DashboardHero

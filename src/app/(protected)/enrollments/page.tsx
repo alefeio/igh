@@ -141,6 +141,8 @@ export default function EnrollmentsPage() {
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
   const studentComboboxRef = useRef<HTMLDivElement>(null);
+  const studentSearchTimerRef = useRef<number | null>(null);
+  const lastStudentSearchAtRef = useRef<number>(0);
   const [listFilter, setListFilter] = useState("");
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
@@ -181,41 +183,52 @@ export default function EnrollmentsPage() {
   }
 
   async function loadFormOptions() {
-    async function loadAllStudents(): Promise<Student[]> {
-      const pageSize = 100;
-      let page = 1;
-      let out: Student[] = [];
-      let total = Infinity;
-
-      while (out.length < total) {
-        const params = new URLSearchParams();
-        params.set("page", String(page));
-        params.set("pageSize", String(pageSize));
-        const res = await fetch(`/api/students?${params.toString()}`);
-        const json = await parseJson<{ students: Student[]; total: number; page: number; pageSize: number }>(res);
-        if (!res.ok || !json?.ok) break;
-        const items = Array.isArray(json.data?.students) ? json.data.students : [];
-        total = Number.isFinite(json.data.total) ? json.data.total : out.length + items.length;
-        out = [...out, ...items];
-        if (items.length === 0) break;
-        page += 1;
-        if (page > 50) break; // safety
-      }
-      return out;
-    }
-
-    const [students, classGroupsRes] = await Promise.all([
-      loadAllStudents(),
-      fetch("/api/class-groups"),
-    ]);
+    const classGroupsRes = await fetch("/api/class-groups");
     const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
-    setStudents(students);
     if (classGroupsJson?.ok) setClassGroups(classGroupsJson.data.classGroups);
   }
+
+  const searchStudents = useCallback(
+    async (q: string) => {
+      const query = (q || "").trim();
+      const params = new URLSearchParams();
+      if (query) params.set("q", query);
+      params.set("page", "1");
+      params.set("pageSize", "20");
+      try {
+        const res = await fetch(`/api/students?${params.toString()}`, { cache: "no-store" });
+        const json = await parseJson<{ students: Student[] }>(res);
+        if (res.ok && json?.ok && Array.isArray(json.data?.students)) {
+          setStudents(json.data.students);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     void load();
   }, []);
+
+  // Busca de alunos (combobox): debounce para evitar rajadas ao digitar.
+  useEffect(() => {
+    if (!studentDropdownOpen) return;
+    if (studentSearchTimerRef.current != null) window.clearTimeout(studentSearchTimerRef.current);
+    const q = studentSearchQuery;
+    studentSearchTimerRef.current = window.setTimeout(() => {
+      studentSearchTimerRef.current = null;
+      const now = Date.now();
+      // proteção contra spam involuntário (ex.: re-renders rápidos)
+      if (now - lastStudentSearchAtRef.current < 150) return;
+      lastStudentSearchAtRef.current = now;
+      void searchStudents(q);
+    }, 250);
+    return () => {
+      if (studentSearchTimerRef.current != null) window.clearTimeout(studentSearchTimerRef.current);
+    };
+  }, [studentSearchQuery, studentDropdownOpen, searchStudents]);
 
   useEffect(() => {
     setPage(1);
@@ -1490,7 +1503,10 @@ export default function EnrollmentsPage() {
                 setStudentId("");
                 setStudentDropdownOpen(true);
               }}
-              onFocus={() => setStudentDropdownOpen(true)}
+              onFocus={() => {
+                setStudentDropdownOpen(true);
+                if (students.length === 0) void searchStudents(studentSearchQuery);
+              }}
               onBlur={() => setTimeout(() => setStudentDropdownOpen(false), 150)}
               placeholder="Digite o nome ou e-mail do aluno..."
               className="theme-input w-full rounded border px-3 py-2 text-sm"
@@ -1502,24 +1518,14 @@ export default function EnrollmentsPage() {
                 role="listbox"
               >
                 {(() => {
-                  const q = studentSearchQuery.trim();
-                  const qNorm = q.length > 0 ? normalizeForSearch(q) : "";
-                  const filtered =
-                    qNorm.length === 0
-                      ? students
-                      : students.filter(
-                          (s) =>
-                            normalizeForSearch(s.name).includes(qNorm) ||
-                            (s.email != null && normalizeForSearch(s.email).includes(qNorm))
-                        );
-                  if (filtered.length === 0) {
+                  if (students.length === 0) {
                     return (
                       <li className="px-3 py-2 text-sm text-[var(--text-muted)]">
                         Nenhum aluno encontrado.
                       </li>
                     );
                   }
-                  return filtered.map((s) => {
+                  return students.map((s) => {
                     const label = `${s.name}${s.email ? ` (${s.email})` : " (sem e-mail)"}`;
                     return (
                       <li

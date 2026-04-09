@@ -178,12 +178,25 @@ export default function ConteudoPage() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/me/enrollments/${enrollmentId}/course-content`, {
-          cache: "no-store",
-        });
-        const json = (await res.json()) as ApiResponse<CourseContentData>;
-        if (res.ok && json?.ok) setData(json.data);
-        else toast.push("error", json && "error" in json ? json.error.message : "Conteúdo não disponível ou ainda não liberado.");
+        const [outlineRes, statsRes] = await Promise.all([
+          fetch(`/api/me/enrollments/${enrollmentId}/course-outline`, { cache: "no-store" }),
+          fetch(`/api/me/enrollments/${enrollmentId}/exercise-stats`, { cache: "no-store" }),
+        ]);
+        const outlineJson = (await outlineRes.json()) as ApiResponse<Omit<CourseContentData, "exerciseStats">>;
+        const statsJson = (await statsRes.json()) as ApiResponse<{ exerciseStats?: ExerciseStats }>;
+        if (outlineRes.ok && outlineJson?.ok) {
+          setData({
+            ...(outlineJson.data as Omit<CourseContentData, "exerciseStats">),
+            exerciseStats: statsRes.ok && statsJson?.ok ? statsJson.data.exerciseStats : undefined,
+          });
+        } else {
+          toast.push(
+            "error",
+            outlineJson && "error" in outlineJson
+              ? outlineJson.error.message
+              : "Conteúdo não disponível ou ainda não liberado."
+          );
+        }
       } finally {
         setLoading(false);
       }

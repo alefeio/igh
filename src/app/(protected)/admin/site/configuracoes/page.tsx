@@ -6,6 +6,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
+import QRCode from "qrcode";
 
 type AddressEntry = { line: string; city: string; state: string; zip: string };
 
@@ -41,6 +42,13 @@ export default function ConfiguracoesPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [addresses, setAddresses] = useState<AddressEntry[]>([emptyAddress()]);
+
+  const [qrTitle, setQrTitle] = useState("");
+  const [qrLink, setQrLink] = useState("");
+  const [qrCenterImageUrl, setQrCenterImageUrl] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const [qrGenerating, setQrGenerating] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
 
   async function parseJson<T>(res: Response): Promise<T | null> {
     const text = await res.text();
@@ -107,6 +115,39 @@ export default function ConfiguracoesPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    const link = qrLink.trim();
+    if (!link) {
+      setQrDataUrl("");
+      setQrError(null);
+      return;
+    }
+    let canceled = false;
+    setQrGenerating(true);
+    setQrError(null);
+    void (async () => {
+      try {
+        const url = await QRCode.toDataURL(link, {
+          errorCorrectionLevel: "H",
+          margin: 2,
+          width: 512,
+          color: { dark: "#000000", light: "#FFFFFF" },
+        });
+        if (canceled) return;
+        setQrDataUrl(url);
+      } catch (e) {
+        if (canceled) return;
+        setQrDataUrl("");
+        setQrError(e instanceof Error ? e.message : "Falha ao gerar QR Code.");
+      } finally {
+        if (!canceled) setQrGenerating(false);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [qrLink]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -412,6 +453,79 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => setForm((f) => ({ ...f, seoDescriptionDefault: e.target.value }))}
               />
             </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">Gerar QR Code</div>
+          <div className="card-body flex flex-col gap-4">
+            <div>
+              <label className="text-sm font-medium">Título (opcional)</label>
+              <Input
+                className="mt-1"
+                value={qrTitle}
+                onChange={(e) => setQrTitle(e.target.value)}
+                placeholder="Ex.: Link do WhatsApp, Página de inscrição, etc."
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Link</label>
+              <Input
+                className="mt-1"
+                value={qrLink}
+                onChange={(e) => setQrLink(e.target.value)}
+                placeholder="https://..."
+              />
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Dica: use links completos com <code className="px-1">https://</code>.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Imagem central (opcional)</label>
+              <ApimagesImageUpload
+                kind="qrcode"
+                currentUrl={qrCenterImageUrl || undefined}
+                onUploaded={(url) => setQrCenterImageUrl(url)}
+                label="Enviar imagem"
+                accept="image/*"
+              />
+            </div>
+
+            {qrError && <p className="text-sm text-red-600">{qrError}</p>}
+
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-[var(--text-secondary)]">
+                {qrGenerating ? "Gerando…" : qrDataUrl ? "Prévia pronta." : "Informe um link para gerar."}
+              </div>
+              {qrDataUrl && (
+                <a
+                  href={qrDataUrl}
+                  download={`qrcode${qrTitle.trim() ? "-" + qrTitle.trim().replace(/\\s+/g, "-").toLowerCase() : ""}.png`}
+                  className="inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:opacity-90"
+                >
+                  Baixar PNG
+                </a>
+              )}
+            </div>
+
+            {qrDataUrl && (
+              <div className="flex flex-col items-center gap-3">
+                {qrTitle.trim() && <div className="text-sm font-semibold">{qrTitle.trim()}</div>}
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={qrDataUrl} alt="QR Code" className="h-64 w-64 rounded-lg border border-[var(--card-border)] bg-white" />
+                  {qrCenterImageUrl.trim() && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={qrCenterImageUrl.trim()}
+                      alt=""
+                      className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-white bg-white object-cover shadow"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -32,12 +32,7 @@ export default async function MinhasTurmasCalendarioPage() {
         <span className="text-[var(--text-muted)]" aria-hidden>
           ·
         </span>
-        <Link
-          href="/minhas-turmas"
-          className="text-sm font-semibold text-[var(--igh-primary)] hover:underline"
-        >
-          Minhas turmas
-        </Link>
+        <span className="text-sm text-[var(--text-muted)]">Calendário de aulas</span>
       </nav>
 
       <DashboardHero

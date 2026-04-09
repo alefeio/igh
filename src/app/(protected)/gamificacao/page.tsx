@@ -39,7 +39,7 @@ export default async function GamificacaoProfessoresPage() {
           href="/dashboard"
           className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5"
         >
-          ← Voltar ao dashboard
+          Dashboard · Gamificação
         </Link>
       </nav>
 
