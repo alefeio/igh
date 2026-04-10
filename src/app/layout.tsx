@@ -20,6 +20,33 @@ const geistMono = Geist_Mono({
 const defaultTitle = "Painel";
 const defaultDescription = "Sistema de cadastro de cursos, turmas e professores.";
 
+function metadataBaseUrl(): URL | undefined {
+  const app = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (app) {
+    try {
+      const normalized = app.replace(/\/$/, "");
+      return new URL(`${normalized}/`);
+    } catch {
+      /* ignore */
+    }
+  }
+  const vercel = process.env.VERCEL_URL?.trim();
+  if (vercel) {
+    try {
+      return new URL(`https://${vercel.replace(/^https?:\/\//, "")}/`);
+    } catch {
+      /* ignore */
+    }
+  }
+  return undefined;
+}
+
+const fallbackFavicon = {
+  icon: [{ url: "/images/favicon.svg", type: "image/svg+xml" }],
+  shortcut: ["/images/favicon.svg"],
+  apple: [{ url: "/images/favicon.svg", type: "image/svg+xml" }],
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
   const title = settings?.seoTitleDefault ?? defaultTitle;
@@ -27,22 +54,16 @@ export async function generateMetadata(): Promise<Metadata> {
   const faviconUrl = settings?.faviconUrl?.trim() || undefined;
 
   return {
+    metadataBase: metadataBaseUrl(),
     title,
     description,
     icons: faviconUrl
       ? {
-          icon: [{ url: faviconUrl, type: "image/png" }, { url: faviconUrl, type: "image/x-icon" }],
+          icon: [{ url: faviconUrl }],
           shortcut: [faviconUrl],
-          apple: [faviconUrl],
+          apple: [{ url: faviconUrl }],
         }
-      : {
-          icon: [
-            { url: "/images/favicon.ico", type: "image/x-icon" },
-            { url: "/images/favicon.png", type: "image/png" },
-          ],
-          shortcut: ["/images/favicon.ico"],
-          apple: [{ url: "/images/favicon.png", type: "image/png" }],
-        },
+      : fallbackFavicon,
   };
 }
 

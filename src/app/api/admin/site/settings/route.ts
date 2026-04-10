@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -46,6 +47,7 @@ export async function PATCH(request: Request) {
         data: clean as never,
       });
     }
+    revalidateTag("site-settings-public-v1", "max");
     return jsonOk({ settings });
   } catch (e) {
     return jsonErr("SERVER_ERROR", "Erro ao salvar configurações.", 500);

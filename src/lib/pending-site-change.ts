@@ -1,5 +1,6 @@
 import "server-only";
 
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 export type PendingChangeEntityType =
@@ -102,6 +103,7 @@ async function applyPendingChange(pending: {
       } else {
         await prisma.siteSettings.update({ where: { id: settings.id }, data: clean as never });
       }
+      revalidateTag("site-settings-public-v1", "max");
       return;
     }
     case "site_about": {

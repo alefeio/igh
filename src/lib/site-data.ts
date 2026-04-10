@@ -70,7 +70,7 @@ export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
     const s = await unstable_cache(
       () => prisma.siteSettings.findFirst(),
       ["site-settings-public-v1"],
-      { revalidate: 300 },
+      { revalidate: 300, tags: ["site-settings-public-v1"] },
     )();
     if (!s) return null;
     return {
