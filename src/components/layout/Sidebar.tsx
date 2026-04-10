@@ -52,6 +52,7 @@ const ITEMS: Item[] = [
   { href: "/professor/forum", label: "Fórum dos cursos", teacherOnly: true, category: "Professor" },
   { href: "/professor/frequencia", label: "Frequência", teacherOnly: true, category: "Professor" },
   { href: "/gamificacao", label: "Gamificação", teacherOnly: true, category: "Professor" },
+  { href: "/ranking-alunos", label: "Ranking dos alunos", teacherOnly: true, category: "Professor" },
   { href: "/professor/avaliacoes-experiencia", label: "Avaliações de experiência", teacherOnly: true, category: "Professor" },
 
   /* —— Administração (equipa: governança → pessoas → oferta → acompanhamento) —— */
@@ -88,6 +89,7 @@ const ITEMS: Item[] = [
   { href: "/admin/frequencia", label: "Frequência — todas as turmas", adminOrMaster: true, category: "Administração" },
   { href: "/admin/avaliacoes-experiencia", label: "Avaliações de experiência", adminOrMaster: true, category: "Administração" },
   { href: "/gamificacao", label: "Gamificação", adminOrMaster: true, category: "Administração" },
+  { href: "/ranking-alunos", label: "Ranking dos alunos", adminOrMaster: true, category: "Administração" },
 
   /* —— Comunicação (campanhas) —— */
   { href: "/admin/sms", label: "Campanhas SMS", adminOrMaster: true, adminMasterOnly: true, category: "Comunicação" },

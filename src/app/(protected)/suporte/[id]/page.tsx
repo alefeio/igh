@@ -71,14 +71,12 @@ export default function SuporteChamadoPage() {
     if (!ticket || isSupport) return;
     fetch(`/api/me/support/${id}/read`, { method: "PATCH", credentials: "include" })
       .catch(() => {})
-      .finally(() => {
-        window.dispatchEvent(new CustomEvent("support-badge-refetch"));
-      });
+      .finally(() => {});
   }, [id, ticket, isSupport]);
 
   useEffect(() => {
     if (ticket && isSupport) {
-      window.dispatchEvent(new CustomEvent("support-badge-refetch"));
+      // Sem polling/WS: não refaz badge automaticamente.
     }
   }, [ticket, isSupport]);
 

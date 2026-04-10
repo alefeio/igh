@@ -1919,7 +1919,7 @@ export default function AulaConteudoPage() {
           <div ref={sectionsBarRef} id="secoes" className="scroll-mt-24" data-tour="aula-secoes">
           <SectionCard
             title="Seções da aula"
-            description="Trechos salvos, material, anotações, exercícios (após concluir a aula) e dúvidas."
+            description="Trechos salvos, material, anotações, exercícios (após concluir a aula) e fórum."
           >
             <nav aria-label="Seções da aula" className="flex flex-wrap items-center gap-2">
             {!panelMenuCollapsed ? (
@@ -1994,7 +1994,7 @@ export default function AulaConteudoPage() {
                   data-tour="aula-btn-duvidas"
                 >
                   <MessageCircleQuestion className="h-4 w-4 shrink-0" aria-hidden />
-                  Dúvidas
+                  Fórum
                 </button>
                 <button
                   type="button"

@@ -71,9 +71,7 @@ export default function CoordenacaoReportePage() {
     if (!report) return;
     fetch(`/api/coordinator-reports/${id}/read`, { method: "POST", credentials: "include" })
       .catch(() => {})
-      .finally(() => {
-        window.dispatchEvent(new CustomEvent("coordinator-report-badge-refetch"));
-      });
+      .finally(() => {});
   }, [id, report]);
 
   async function sendReply(e: React.FormEvent) {

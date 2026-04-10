@@ -103,7 +103,6 @@ export default function LessonEditPage() {
   const [savingExercise, setSavingExercise] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const contentSectionRef = useRef<HTMLDivElement>(null);
-  const lessonFilesRef = useRef<HTMLDivElement>(null);
   const [floatLessonFiles, setFloatLessonFiles] = useState(true);
   const [lessonFilesExpanded, setLessonFilesExpanded] = useState(false);
   const [editFileModal, setEditFileModal] = useState<{
@@ -643,19 +642,6 @@ export default function LessonEditPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[var(--text-primary)]">Arquivos da aula</label>
-              <p className="mt-0.5 text-xs text-[var(--text-muted)]">Anexe imagens e arquivos. Para inserir uma imagem no Conteúdo (rich text), copie o arquivo aqui (botão &quot;Copiar arquivo&quot;) e cole (Ctrl+V) no editor abaixo.</p>
-              <div ref={lessonFilesRef} className="mt-1">
-                <ApimagesFormationUpload
-                  onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
-                  label="Adicionar arquivo"
-                  multiple
-                />
-              </div>
-              {/* Mobile/Tablet: exibe lista aqui (sem painel flutuante). */}
-              <div className="mt-3 lg:hidden">{lessonFilesPanel}</div>
-            </div>
-            <div>
               <label className="text-sm font-medium">Arquivos de apoio (URLs, opcional)</label>
               <p className="mt-0.5 text-xs text-[var(--text-muted)]">Informe a URL e um nome para exibição. O nome é o texto do link para o aluno.</p>
               <div className="mt-1 flex flex-wrap items-end gap-2">
@@ -825,6 +811,9 @@ export default function LessonEditPage() {
                   lessonFilesExpanded ? "px-4 py-3" : "px-1.5 py-2"
                 }`}
               >
+                {lessonFilesExpanded && (
+                  <div className="text-sm font-semibold text-[var(--text-primary)]">Arquivos da aula</div>
+                )}
                 <button
                   type="button"
                   onClick={() => setLessonFilesExpanded((v) => !v)}
@@ -838,18 +827,6 @@ export default function LessonEditPage() {
                     <ChevronsLeft className="h-4 w-4" aria-hidden />
                   )}
                 </button>
-                {lessonFilesExpanded && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      lessonFilesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
-                  >
-                    Ir para seção
-                  </Button>
-                )}
               </div>
               <div
                 className={`max-h-[70vh] overflow-auto ${lessonFilesExpanded ? "px-4 py-3" : "px-1.5 py-2"}`}

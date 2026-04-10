@@ -16,12 +16,6 @@ type Item = {
   createdAt: string;
 };
 
-function refetchNotificationBadge() {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("notifications-badge-refetch"));
-  }
-}
-
 export function NotificacoesClient() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +43,6 @@ export function NotificacoesClient() {
       method: "PATCH",
       credentials: "include",
     });
-    refetchNotificationBadge();
     load();
   }
 
@@ -58,7 +51,6 @@ export function NotificacoesClient() {
       method: "PATCH",
       credentials: "include",
     });
-    refetchNotificationBadge();
     setItems((prev) =>
       prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n))
     );

@@ -7,7 +7,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
-import { playNotificationSound } from "@/lib/notification-sound";
 
 type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR"; label: string };
 
@@ -79,17 +78,6 @@ export function TopBar({
       .catch(() => {});
   }, []);
 
-  const lastSupportBadgeFetchAtRef = useRef<number>(0);
-  const fetchSupportBadgeThrottled = useCallback(
-    (minIntervalMs: number) => {
-      const now = Date.now();
-      if (now - lastSupportBadgeFetchAtRef.current < minIntervalMs) return;
-      lastSupportBadgeFetchAtRef.current = now;
-      fetchSupportBadge();
-    },
-    [fetchSupportBadge]
-  );
-
   const fetchCoordinatorReportBadge = useCallback(() => {
     if (!hasCoordinatorReportAccess) return;
     fetch("/api/coordinator-reports/badge", { credentials: "include", cache: "no-store" })
@@ -100,18 +88,6 @@ export function TopBar({
       .catch(() => {});
   }, [hasCoordinatorReportAccess]);
 
-  const lastCoordinatorBadgeFetchAtRef = useRef<number>(0);
-  const fetchCoordinatorReportBadgeThrottled = useCallback(
-    (minIntervalMs: number) => {
-      if (!hasCoordinatorReportAccess) return;
-      const now = Date.now();
-      if (now - lastCoordinatorBadgeFetchAtRef.current < minIntervalMs) return;
-      lastCoordinatorBadgeFetchAtRef.current = now;
-      fetchCoordinatorReportBadge();
-    },
-    [hasCoordinatorReportAccess, fetchCoordinatorReportBadge]
-  );
-
   const fetchNotificationBadge = useCallback(() => {
     fetch("/api/me/notifications/badge", { credentials: "include", cache: "no-store" })
       .then((r) => r.json() as Promise<ApiResponse<{ hasUnread?: boolean }>>)
@@ -120,17 +96,6 @@ export function TopBar({
       })
       .catch(() => {});
   }, []);
-
-  const lastNotificationBadgeFetchAtRef = useRef<number>(0);
-  const fetchNotificationBadgeThrottled = useCallback(
-    (minIntervalMs: number) => {
-      const now = Date.now();
-      if (now - lastNotificationBadgeFetchAtRef.current < minIntervalMs) return;
-      lastNotificationBadgeFetchAtRef.current = now;
-      fetchNotificationBadge();
-    },
-    [fetchNotificationBadge]
-  );
 
   const fetchNotificationPreview = useCallback(() => {
     setNotificationPreview((p) => ({ ...p, loading: true, error: null }));
@@ -164,149 +129,32 @@ export function TopBar({
         method: "PATCH",
         credentials: "include",
       });
-      window.dispatchEvent(new Event("notifications-badge-refetch"));
+      // Sem polling/WS: atualiza apenas o painel aberto e limpa badge localmente.
       fetchNotificationPreview();
+      setNotificationBadge({ hasUnread: false });
     },
     [fetchNotificationPreview],
   );
 
-  const isSupportRef = useRef(isSupport);
-  isSupportRef.current = isSupport;
-  const userIdRef = useRef(user.id);
-  userIdRef.current = user.id;
-
   useEffect(() => {
-    fetchSupportBadgeThrottled(0);
-
-    if (typeof window === "undefined") return;
-
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/support`;
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    function connect() {
-      ws = new WebSocket(wsUrl);
-      ws.onopen = () => {
-        fetchSupportBadgeThrottled(0);
-      };
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data as string) as {
-            type?: string;
-            audience?: string;
-            forUserId?: string;
-          };
-          if (data.type !== "support_badge") return;
-          const audience = data.audience ?? "all";
-          const forUserId = typeof data.forUserId === "string" ? data.forUserId : undefined;
-          const support = isSupportRef.current;
-
-          /* Admin respondeu: só o aluno dono do chamado deve atualizar badge e ouvir som. */
-          if (audience === "student" && forUserId && forUserId !== userIdRef.current) {
-            return;
-          }
-
-          const shouldRefetch =
-            audience === "all" ||
-            (audience === "student" && !support) ||
-            (audience === "admin" && support);
-          const isNewMessage = audience === "student" || audience === "admin";
-          if (shouldRefetch) {
-            setTimeout(() => {
-              fetchSupportBadgeThrottled(2_000);
-              if (isNewMessage) playNotificationSound();
-            }, 0);
-          }
-        } catch {
-          // ignorar mensagem inválida
-        }
-      };
-      ws.onclose = () => {
-        ws = null;
-        reconnectTimeout = setTimeout(connect, 3000);
-      };
-      ws.onerror = () => {
-        ws?.close();
-      };
-    }
-
-    connect();
-
-    return () => {
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      ws?.close();
-    };
-  }, [fetchSupportBadgeThrottled]);
-
-  useEffect(() => {
-    const onVisible = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        fetchSupportBadgeThrottled(15_000);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [fetchSupportBadgeThrottled]);
-
-  useEffect(() => {
-    const onRefetch = () => fetchSupportBadgeThrottled(2_000);
-    window.addEventListener("support-badge-refetch", onRefetch);
-    return () => window.removeEventListener("support-badge-refetch", onRefetch);
-  }, [fetchSupportBadgeThrottled]);
+    // Sem polling/WS: busca uma vez ao carregar a sessão.
+    fetchSupportBadge();
+  }, [fetchSupportBadge]);
 
   useEffect(() => {
     if (!hasCoordinatorReportAccess) return;
-    fetchCoordinatorReportBadgeThrottled(0);
-  }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadgeThrottled]);
+    // Sem polling/WS: busca uma vez ao carregar a sessão.
+    fetchCoordinatorReportBadge();
+  }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadge]);
 
   useEffect(() => {
-    const onRefetch = () => fetchCoordinatorReportBadgeThrottled(2_000);
-    window.addEventListener("coordinator-report-badge-refetch", onRefetch);
-    return () => window.removeEventListener("coordinator-report-badge-refetch", onRefetch);
-  }, [fetchCoordinatorReportBadgeThrottled]);
-
-  useEffect(() => {
-    if (!hasCoordinatorReportAccess) return;
-    const onVisible = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        fetchCoordinatorReportBadgeThrottled(15_000);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [hasCoordinatorReportAccess, fetchCoordinatorReportBadgeThrottled]);
-
-  useEffect(() => {
-    fetchNotificationBadgeThrottled(0);
-  }, [fetchNotificationBadgeThrottled]);
-
-  useEffect(() => {
-    const onRefetch = () => fetchNotificationBadgeThrottled(2_000);
-    window.addEventListener("notifications-badge-refetch", onRefetch);
-    return () => window.removeEventListener("notifications-badge-refetch", onRefetch);
-  }, [fetchNotificationBadgeThrottled]);
-
-  useEffect(() => {
-    const onVisible = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        fetchNotificationBadgeThrottled(15_000);
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [fetchNotificationBadgeThrottled]);
+    // Sem polling/WS: busca uma vez ao carregar a sessão.
+    fetchNotificationBadge();
+  }, [fetchNotificationBadge]);
 
   useEffect(() => {
     if (!notificationsOpen) return;
     fetchNotificationPreview();
-  }, [notificationsOpen, fetchNotificationPreview]);
-
-  useEffect(() => {
-    if (!notificationsOpen) return;
-    const onRefetch = () => fetchNotificationPreview();
-    window.addEventListener("notifications-badge-refetch", onRefetch);
-    return () => window.removeEventListener("notifications-badge-refetch", onRefetch);
   }, [notificationsOpen, fetchNotificationPreview]);
 
   const r = user.availableRoles;
