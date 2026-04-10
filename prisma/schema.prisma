@@ -51,6 +51,7 @@ model User {
   notifications                UserNotification[]
   pageVisits                   UserPageVisit[]
   verificationTokens           VerificationToken[]
+  siteQrCodesCreated           SiteQrCode[]                 @relation("SiteQrCodeCreatedBy")
 }
 
 /// * Navegação na área logada — rota (pathname) por utilizador, para o Master acompanhar páginas vistas.
@@ -637,6 +638,21 @@ model SiteSettings {
   addresses             Json?
   /// * Base URL do site (https://...) para placeholders {link}, {link_area_aluno} em e-mails quando APP_URL não está no .env
   publicAppUrl          String?
+}
+
+/// * QR Codes gerados em Configurações do site (título, link alvo, imagem central opcional, PNG final no CDN).
+model SiteQrCode {
+  id               String   @id @default(uuid())
+  title            String?
+  link             String
+  centerImageUrl   String?
+  /// * URL pública do PNG composto (APImages / CDN).
+  imageUrl         String
+  createdAt        DateTime @default(now())
+  createdByUserId  String?
+  createdBy        User?    @relation("SiteQrCodeCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)])
 }
 
 model SiteAboutPage {

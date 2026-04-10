@@ -6,9 +6,19 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
+import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 import QRCode from "qrcode";
 
 type AddressEntry = { line: string; city: string; state: string; zip: string };
+
+type SiteQrCodeRow = {
+  id: string;
+  title: string | null;
+  link: string;
+  centerImageUrl: string | null;
+  imageUrl: string;
+  createdAt: string;
+};
 
 type Settings = {
   id: string;
@@ -35,6 +45,75 @@ type Settings = {
 const empty = (s: string | null | undefined) => s ?? "";
 const emptyAddress = (): AddressEntry => ({ line: "", city: "", state: "", zip: "" });
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) throw new Error("Data URL inválida.");
+  const header = dataUrl.slice(0, comma);
+  const b64 = dataUrl.slice(comma + 1);
+  const mimeMatch = /data:([^;]+)/.exec(header);
+  const mime = mimeMatch?.[1] ?? "image/png";
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+/** Carrega imagem de URL de forma utilizável no canvas (evita “taint” quando possível). */
+async function loadCenterDrawable(url: string): Promise<CanvasImageSource> {
+  try {
+    const res = await fetch(url.trim(), { mode: "cors", credentials: "omit" });
+    if (res.ok) {
+      const blob = await res.blob();
+      return await createImageBitmap(blob);
+    }
+  } catch {
+    // tenta <img> abaixo
+  }
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("load"));
+    img.src = url.trim();
+  });
+}
+
+async function buildQrCompositePngDataUrl(link: string, centerUrl: string | null): Promise<string> {
+  const canvas = document.createElement("canvas");
+  await QRCode.toCanvas(canvas, link, {
+    errorCorrectionLevel: "H",
+    margin: 2,
+    width: 512,
+    color: { dark: "#000000", light: "#FFFFFF" },
+  });
+  const w = canvas.width;
+  if (!centerUrl?.trim()) {
+    return canvas.toDataURL("image/png");
+  }
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas.toDataURL("image/png");
+
+  let drawable: CanvasImageSource;
+  try {
+    drawable = await loadCenterDrawable(centerUrl);
+  } catch {
+    throw new Error(
+      "Não foi possível carregar a imagem central para compor o arquivo. Verifique o link ou envie a imagem novamente."
+    );
+  }
+
+  const logoSize = Math.round(w * 0.22);
+  const x = (w - logoSize) / 2;
+  const y = (w - logoSize) / 2;
+  const pad = Math.max(2, Math.round(w * 0.015));
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x - pad, y - pad, logoSize + pad * 2, logoSize + pad * 2);
+  ctx.drawImage(drawable, x, y, logoSize, logoSize);
+  if (drawable instanceof ImageBitmap) drawable.close();
+
+  return canvas.toDataURL("image/png");
+}
+
 export default function ConfiguracoesPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -49,6 +128,9 @@ export default function ConfiguracoesPage() {
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [qrGenerating, setQrGenerating] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
+  const [qrSavingRemote, setQrSavingRemote] = useState(false);
+  const [qrSavedList, setQrSavedList] = useState<SiteQrCodeRow[]>([]);
+  const [qrDeletingId, setQrDeletingId] = useState<string | null>(null);
 
   async function parseJson<T>(res: Response): Promise<T | null> {
     const text = await res.text();
@@ -57,6 +139,18 @@ export default function ConfiguracoesPage() {
       return JSON.parse(text) as T;
     } catch {
       return null;
+    }
+  }
+
+  async function loadQrCodes() {
+    try {
+      const res = await fetch("/api/admin/site/qr-codes");
+      const json = await parseJson<ApiResponse<{ items: SiteQrCodeRow[] }>>(res);
+      if (res.ok && json?.ok && Array.isArray(json.data?.items)) {
+        setQrSavedList(json.data.items);
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -109,6 +203,7 @@ export default function ConfiguracoesPage() {
       setAddresses(addrs.map((a: AddressEntry) => ({ ...a })));
     } finally {
       setLoading(false);
+      void loadQrCodes();
     }
   }
 
@@ -128,12 +223,7 @@ export default function ConfiguracoesPage() {
     setQrError(null);
     void (async () => {
       try {
-        const url = await QRCode.toDataURL(link, {
-          errorCorrectionLevel: "H",
-          margin: 2,
-          width: 512,
-          color: { dark: "#000000", light: "#FFFFFF" },
-        });
+        const url = await buildQrCompositePngDataUrl(link, qrCenterImageUrl.trim() || null);
         if (canceled) return;
         setQrDataUrl(url);
       } catch (e) {
@@ -147,7 +237,90 @@ export default function ConfiguracoesPage() {
     return () => {
       canceled = true;
     };
-  }, [qrLink]);
+  }, [qrLink, qrCenterImageUrl]);
+
+  async function saveQrToServer() {
+    if (!qrDataUrl.trim()) {
+      toast.push("error", "Gere o QR Code antes de salvar.");
+      return;
+    }
+    setQrSavingRemote(true);
+    try {
+      const blob = dataUrlToBlob(qrDataUrl);
+      const safeName = qrTitle.trim()
+        ? `qrcode-${qrTitle.trim().replace(/\s+/g, "-").toLowerCase().replace(/[^a-z0-9-]/gi, "")}.png`
+        : `qrcode-${Date.now()}.png`;
+      const file = new File([blob], safeName, { type: "image/png" });
+
+      const signRes = await fetch("/api/admin/site/uploads/signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "qrcode" }),
+      });
+      const signJson = (await signRes.json()) as ApiResponse<{ uploadUrl: string; apiKey: string }>;
+      if (!signRes.ok || !signJson.ok) {
+        toast.push("error", !signJson.ok ? signJson.error.message : "Falha ao preparar upload.");
+        return;
+      }
+
+      const uploadRes = await fetch(signJson.data.uploadUrl, {
+        method: "POST",
+        headers: apimagesUploadHeaders(signJson.data.apiKey),
+        body: buildApimagesUploadFormData(file),
+      });
+      const uploadJson = await uploadRes.json();
+      const parsed = parseApimagesUploadJson(uploadJson);
+      if (!uploadRes.ok || parsed.errorMessage || !parsed.url) {
+        toast.push("error", parsed.errorMessage ?? "Falha ao enviar o PNG.");
+        return;
+      }
+
+      const saveRes = await fetch("/api/admin/site/qr-codes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: qrTitle.trim() || null,
+          link: qrLink.trim(),
+          centerImageUrl: qrCenterImageUrl.trim() || null,
+          imageUrl: parsed.url,
+        }),
+      });
+      const saveJson = await parseJson<ApiResponse<{ item: SiteQrCodeRow }>>(saveRes);
+      if (!saveRes.ok || !saveJson?.ok) {
+        toast.push(
+          "error",
+          saveJson && "error" in saveJson ? saveJson.error.message : "Falha ao gravar no banco de dados."
+        );
+        return;
+      }
+
+      await loadQrCodes();
+      toast.push("success", "QR Code salvo no banco de dados (imagem no CDN + registro com título e link).");
+    } catch {
+      toast.push("error", "Não foi possível salvar o QR Code.");
+    } finally {
+      setQrSavingRemote(false);
+    }
+  }
+
+  async function deleteQrCode(id: string) {
+    if (!confirm("Excluir este QR Code do histórico? A imagem no CDN permanece.")) return;
+    setQrDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/site/qr-codes/${id}`, { method: "DELETE" });
+      const json = await parseJson<ApiResponse<{ deleted: boolean }>>(res);
+      if (!res.ok || !json?.ok) {
+        toast.push("error", json && "error" in json ? json.error.message : "Falha ao excluir.");
+        return;
+      }
+      toast.push("success", "Registro excluído.");
+      await loadQrCodes();
+    } catch {
+      toast.push("error", "Falha ao excluir.");
+    } finally {
+      setQrDeletingId(null);
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -494,36 +667,101 @@ export default function ConfiguracoesPage() {
 
             {qrError && <p className="text-sm text-red-600">{qrError}</p>}
 
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <div className="text-sm text-[var(--text-secondary)]">
-                {qrGenerating ? "Gerando…" : qrDataUrl ? "Prévia pronta." : "Informe um link para gerar."}
+                {qrGenerating
+                  ? "Gerando…"
+                  : qrDataUrl
+                    ? "Prévia pronta (PNG inclui a imagem central, se houver)."
+                    : "Informe um link para gerar."}
               </div>
               {qrDataUrl && (
-                <a
-                  href={qrDataUrl}
-                  download={`qrcode${qrTitle.trim() ? "-" + qrTitle.trim().replace(/\\s+/g, "-").toLowerCase() : ""}.png`}
-                  className="inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:opacity-90"
-                >
-                  Baixar PNG
-                </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={qrDataUrl}
+                    download={`qrcode${qrTitle.trim() ? "-" + qrTitle.trim().replace(/\s+/g, "-").toLowerCase() : ""}.png`}
+                    className="inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:opacity-90"
+                  >
+                    Baixar PNG
+                  </a>
+                  <Button type="button" variant="secondary" disabled={qrSavingRemote} onClick={() => void saveQrToServer()}>
+                    {qrSavingRemote ? "Salvando…" : "Salvar no banco"}
+                  </Button>
+                </div>
               )}
             </div>
+
+            <p className="text-xs text-[var(--text-muted)]">
+              Ao salvar, o PNG é enviado ao CDN e um registro é criado no PostgreSQL com título, link, imagem central (se houver) e URL do arquivo gerado.
+            </p>
+
+            {qrSavedList.length > 0 && (
+              <div className="overflow-x-auto rounded-md border border-[var(--card-border)]">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Data</th>
+                      <th className="px-3 py-2 font-medium">Título</th>
+                      <th className="px-3 py-2 font-medium">Link</th>
+                      <th className="px-3 py-2 font-medium">QR (PNG)</th>
+                      <th className="px-3 py-2 font-medium w-28" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {qrSavedList.map((row) => (
+                      <tr key={row.id} className="border-b border-[var(--card-border)] last:border-0">
+                        <td className="px-3 py-2 whitespace-nowrap text-[var(--text-muted)]">
+                          {new Date(row.createdAt).toLocaleString("pt-BR")}
+                        </td>
+                        <td className="px-3 py-2 max-w-[140px] truncate" title={row.title ?? ""}>
+                          {row.title ?? "—"}
+                        </td>
+                        <td className="px-3 py-2 max-w-[200px]">
+                          <a href={row.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline break-all">
+                            {row.link}
+                          </a>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={row.imageUrl} alt="" className="h-12 w-12 rounded border border-[var(--card-border)] bg-white object-contain" />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                void navigator.clipboard.writeText(row.imageUrl);
+                                toast.push("success", "Link da imagem copiado.");
+                              }}
+                            >
+                              Copiar URL
+                            </Button>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="text-red-600"
+                            disabled={qrDeletingId === row.id}
+                            onClick={() => void deleteQrCode(row.id)}
+                          >
+                            {qrDeletingId === row.id ? "…" : "Excluir"}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {qrDataUrl && (
               <div className="flex flex-col items-center gap-3">
                 {qrTitle.trim() && <div className="text-sm font-semibold">{qrTitle.trim()}</div>}
-                <div className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrDataUrl} alt="QR Code" className="h-64 w-64 rounded-lg border border-[var(--card-border)] bg-white" />
-                  {qrCenterImageUrl.trim() && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={qrCenterImageUrl.trim()}
-                      alt=""
-                      className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-lg border border-white bg-white object-cover shadow"
-                    />
-                  )}
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrDataUrl} alt="QR Code" className="h-64 w-64 rounded-lg border border-[var(--card-border)] bg-white" />
               </div>
             )}
           </div>
