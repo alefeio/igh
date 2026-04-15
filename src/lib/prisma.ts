@@ -45,9 +45,42 @@ function warnIfMigrationOnlyUser(connectionString: string) {
   }
 }
 
+function detectEnvSource(): "APP_DATABASE_URL" | "DATABASE_URL" | "POSTGRES_URL" | "PRISMA_DATABASE_URL" | "none" {
+  if (process.env.APP_DATABASE_URL) return "APP_DATABASE_URL";
+  if (process.env.DATABASE_URL) return "DATABASE_URL";
+  if (process.env.POSTGRES_URL) return "POSTGRES_URL";
+  if (process.env.PRISMA_DATABASE_URL) return "PRISMA_DATABASE_URL";
+  return "none";
+}
+
+function safeConnInfo(connectionString: string): { user: string; host: string; db: string; flags: string[] } {
+  try {
+    const u = new URL(connectionString.replace(/^postgresql:/i, "http:"));
+    const userRaw = decodeURIComponent(u.username || "");
+    const host = u.host || "";
+    const db = (u.pathname || "").replace(/^\//, "");
+    const flags: string[] = [];
+    if (/migration/i.test(userRaw)) flags.push("migration_user");
+    if (u.searchParams.get("pooled") === "true") flags.push("pooled=true");
+    const user = userRaw ? `${userRaw.slice(0, 3)}***` : "(empty)";
+    return { user, host, db, flags };
+  } catch {
+    return { user: "(unparseable)", host: "(unparseable)", db: "(unparseable)", flags: ["unparseable"] };
+  }
+}
+
 function poolConfigFromEnv(): PoolConfig {
+  const source = detectEnvSource();
   const connectionString = getConnectionString();
   warnIfMigrationOnlyUser(connectionString);
+  // Log seguro (sem segredo) para diagnosticar qual env está sendo usada em produção (Vercel).
+  if (!process.env.PRISMA_ENV_LOGGED) {
+    const info = safeConnInfo(connectionString);
+    console.warn(
+      `[prisma] datasource=${source} host=${info.host} db=${info.db} user=${info.user} flags=${info.flags.join(",") || "-"}`
+    );
+    process.env.PRISMA_ENV_LOGGED = "1";
+  }
 
   const parsed = parseInt(process.env.PRISMA_PG_POOL_MAX ?? "", 10);
   const fallback = process.env.NODE_ENV === "production" ? 10 : 5;

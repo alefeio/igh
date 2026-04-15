@@ -41,10 +41,19 @@ function metadataBaseUrl(): URL | undefined {
   return undefined;
 }
 
+// Fallback quando não houver favicon no banco (ou DB indisponível):
+// - Prioriza PNG em /public/images/favicon.png (o browser tende a preferir .png/.ico).
+// - Mantém SVG como alternativa.
 const fallbackFavicon = {
-  icon: [{ url: "/images/favicon.svg", type: "image/svg+xml" }],
-  shortcut: ["/images/favicon.svg"],
-  apple: [{ url: "/images/favicon.svg", type: "image/svg+xml" }],
+  icon: [
+    { url: "/images/favicon.png", type: "image/png" },
+    { url: "/images/favicon.svg", type: "image/svg+xml" },
+  ],
+  shortcut: ["/images/favicon.png", "/images/favicon.svg"],
+  apple: [
+    { url: "/images/favicon.png", type: "image/png" },
+    { url: "/images/favicon.svg", type: "image/svg+xml" },
+  ],
 };
 
 export async function generateMetadata(): Promise<Metadata> {
