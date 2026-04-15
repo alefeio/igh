@@ -3,6 +3,18 @@
 import { useCallback, useState } from "react";
 import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 
+async function readResponseJson(res: Response): Promise<unknown> {
+  const text = await res.text();
+  if (!text.trim()) {
+    throw new Error("Resposta vazia do servidor.");
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new Error("Resposta inválida (não é JSON).");
+  }
+}
+
 export type SiteUploadKind =
   | "logo"
   | "favicon"
@@ -51,9 +63,12 @@ export function ApimagesImageUpload({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind, ...(id && { id }) }),
       });
-      const signJson = await signRes.json();
+      const signBody = await readResponseJson(signRes);
+      const signJson = signBody as { ok?: boolean; data?: { uploadUrl: string; apiKey: string }; error?: { message?: string } };
       if (!signRes.ok || !signJson.ok) return null;
-      const { uploadUrl, apiKey } = signJson.data as { uploadUrl: string; apiKey: string };
+      const uploadUrl = signJson.data?.uploadUrl;
+      const apiKey = signJson.data?.apiKey;
+      if (!uploadUrl?.trim() || !apiKey?.trim()) return null;
 
       const formData = buildApimagesUploadFormData(file);
 
@@ -62,8 +77,8 @@ export function ApimagesImageUpload({
         headers: apimagesUploadHeaders(apiKey),
         body: formData,
       });
-      const uploadJson = await uploadRes.json();
-      const parsed = parseApimagesUploadJson(uploadJson);
+      const uploadBody = await readResponseJson(uploadRes);
+      const parsed = parseApimagesUploadJson(uploadBody);
       if (!uploadRes.ok || parsed.errorMessage || !parsed.url) return null;
       return parsed.url;
     },

@@ -1,9 +1,9 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import type { PoolConfig } from "pg";
 
 declare global {
-  // Em dev (Turbopack/HMR), o módulo pode ser avaliado múltiplas vezes.
-  // Guardamos client + adapter no globalThis para evitar abrir pools/conexões repetidamente.
+  // Turbopack/HMR e múltiplos entrypoints podem reavaliar o módulo: um único client + pool no globalThis.
   // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
   // eslint-disable-next-line no-var
@@ -28,8 +28,41 @@ function getConnectionString(): string {
   return u;
 }
 
+/** Usuários do tipo prisma_migration têm pouquíssimas conexões (só migração). O app deve usar URL “pooled” / app. */
+function warnIfMigrationOnlyUser(connectionString: string) {
+  try {
+    const url = new URL(connectionString.replace(/^postgresql:/i, "http:"));
+    const user = decodeURIComponent(url.username || "");
+    if (/migration/i.test(user)) {
+      console.warn(
+        "[prisma] O usuário na URL parece ser só para migração (ex.: prisma_migration). " +
+          "Configure APP_DATABASE_URL ou DATABASE_URL com o usuário da aplicação (Neon: host com -pooler ou string “pooled”). " +
+          "Do contrário o Postgres recusa conexões e o login falha com UNAUTHENTICATED."
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function poolConfigFromEnv(): PoolConfig {
+  const connectionString = getConnectionString();
+  warnIfMigrationOnlyUser(connectionString);
+
+  const parsed = parseInt(process.env.PRISMA_PG_POOL_MAX ?? "", 10);
+  const fallback = process.env.NODE_ENV === "production" ? 10 : 5;
+  const max = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+
+  return {
+    connectionString,
+    max,
+    idleTimeoutMillis: 20_000,
+    connectionTimeoutMillis: 15_000,
+  };
+}
+
 function createAdapter() {
-  return new PrismaPg({ connectionString: getConnectionString() });
+  return new PrismaPg(poolConfigFromEnv());
 }
 
 const g = globalThis as typeof globalThis & {
@@ -39,11 +72,7 @@ const g = globalThis as typeof globalThis & {
 
 export const prisma =
   g.prisma ??
-  new PrismaClient({
+  (g.prisma = new PrismaClient({
     adapter: (g.prismaPgAdapter ??= createAdapter()),
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  g.prisma = prisma;
-}
+  }));

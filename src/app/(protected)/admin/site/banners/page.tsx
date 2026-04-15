@@ -96,12 +96,19 @@ export default function BannersPage() {
         isActive,
       }),
     });
-    const json = (await res.json()) as ApiResponse<{ item: Banner }>;
+    const json = (await res.json()) as ApiResponse<
+      { item: Banner; pending?: boolean; message?: string } | { item: Banner }
+    >;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
       return;
     }
-    toast.push("success", editing ? "Banner atualizado." : "Banner criado.");
+    const d = json.data as { item: Banner; pending?: boolean; message?: string };
+    if (d.pending) {
+      toast.push("success", d.message ?? "Alteração enviada para aprovação do Master.");
+    } else {
+      toast.push("success", editing ? "Banner atualizado." : "Banner criado.");
+    }
     setOpen(false);
     resetForm();
     void load();

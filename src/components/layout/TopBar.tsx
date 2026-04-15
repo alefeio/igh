@@ -264,7 +264,7 @@ export function TopBar({
               />
               <div
                 id="notifications-dropdown-panel"
-                className="absolute right-0 top-full z-50 mt-1 w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-lg"
+                className="fixed left-3 right-3 top-14 z-50 mt-1 w-auto overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-lg sm:absolute sm:left-auto sm:right-0 sm:top-full sm:w-[22rem]"
                 role="dialog"
                 aria-label="Notificações não lidas"
               >

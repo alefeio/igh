@@ -31,7 +31,7 @@ export type HolidayEventBlock = { dateStr: string; startTime: string; endTime: s
 
 /** Datas (YYYY-MM-DD) em que o feriado/evento cai dentro de [rangeStart, rangeEnd] (mesma regra do agendamento de turmas). */
 export function expandHolidayDateStringsInRange(
-  h: { date: Date; recurring: boolean },
+  h: { date: Date | string; recurring: boolean },
   rangeStart: Date,
   rangeEnd: Date,
 ): string[] {
@@ -42,24 +42,41 @@ export function expandHolidayDateStringsInRange(
   return expandOneHolidayDateStrings(h, rangeStartStr, rangeEndStr, startYear, endYear);
 }
 
+function coerceUtcDate(value: Date | string): Date | null {
+  if (value instanceof Date) return value;
+  if (typeof value !== "string") return null;
+  const s = value.trim();
+  if (!s) return null;
+  // Aceita ISO ou YYYY-MM-DD. Mantemos tudo em UTC para consistência com o restante do agendamento.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split("-").map((x) => parseInt(x, 10));
+    if (!y || !m || !d) return null;
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+  const parsed = new Date(s);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function expandOneHolidayDateStrings(
-  h: { date: Date; recurring: boolean },
+  h: { date: Date | string; recurring: boolean },
   rangeStartStr: string,
   rangeEndStr: string,
   startYear: number,
   endYear: number,
 ): string[] {
+  const date = coerceUtcDate(h.date);
+  if (!date) return [];
   const out: string[] = [];
   if (h.recurring) {
-    const month = h.date.getUTCMonth();
-    const day = h.date.getUTCDate();
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
     for (let y = startYear; y <= endYear; y++) {
       const d = new Date(Date.UTC(y, month, day));
       const str = dateToDateString(d);
       if (str >= rangeStartStr && str <= rangeEndStr) out.push(str);
     }
   } else {
-    const str = dateToDateString(h.date);
+    const str = dateToDateString(date);
     if (str >= rangeStartStr && str <= rangeEndStr) out.push(str);
   }
   return out;
@@ -71,7 +88,7 @@ function expandOneHolidayDateStrings(
  * - Evento: com início e fim → holidayEventBlocks (só turmas cujo horário cruza o intervalo são afetadas).
  */
 export function splitHolidaysForSchedule(
-  holidays: { date: Date; recurring: boolean; eventStartTime?: string | null; eventEndTime?: string | null }[],
+  holidays: { date: Date | string; recurring: boolean; eventStartTime?: string | null; eventEndTime?: string | null }[],
   rangeStart: Date,
   rangeEnd: Date,
 ): { holidayDateStrings: string[]; holidayEventBlocks: HolidayEventBlock[] } {
@@ -103,7 +120,7 @@ export function splitHolidaysForSchedule(
  * @deprecated Prefira splitHolidaysForSchedule quando for gerar turmas (inclui eventos por horário).
  */
 export function expandHolidaysToDateStrings(
-  holidays: { date: Date; recurring: boolean; eventStartTime?: string | null; eventEndTime?: string | null }[],
+  holidays: { date: Date | string; recurring: boolean; eventStartTime?: string | null; eventEndTime?: string | null }[],
   rangeStart: Date,
   rangeEnd: Date,
 ): string[] {
