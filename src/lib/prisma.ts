@@ -96,7 +96,9 @@ function poolConfigFromEnv(): PoolConfig {
   }
 
   const parsed = parseInt(process.env.PRISMA_PG_POOL_MAX ?? "", 10);
-  const fallback = process.env.NODE_ENV === "production" ? 10 : 5;
+  // Em serverless (Vercel), várias instâncias × pool alto estouram o limite do Postgres.
+  // Padrão conservador em produção: 1 conexão por processo; em dev mantemos 5 para fluidez local.
+  const fallback = process.env.NODE_ENV === "production" ? 1 : 5;
   const max = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 
   return {
