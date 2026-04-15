@@ -69,6 +69,19 @@ function safeConnInfo(connectionString: string): { user: string; host: string; d
   }
 }
 
+export function getPrismaConnectionDebugInfo(): {
+  source: "APP_DATABASE_URL" | "DATABASE_URL" | "POSTGRES_URL" | "PRISMA_DATABASE_URL" | "none";
+  host: string;
+  db: string;
+  userMasked: string;
+  flags: string[];
+} {
+  const source = detectEnvSource();
+  const connectionString = getConnectionString();
+  const info = safeConnInfo(connectionString);
+  return { source, host: info.host, db: info.db, userMasked: info.user, flags: info.flags };
+}
+
 function poolConfigFromEnv(): PoolConfig {
   const source = detectEnvSource();
   const connectionString = getConnectionString();
