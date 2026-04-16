@@ -1,42 +1,73 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { siteNewsCategorySchema, reorderSchema } from "@/lib/validators/site";
+import { siteNewsPostSchema } from "@/lib/validators/site";
 
-export async function GET() {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
-  const items = await prisma.siteNewsCategory.findMany({ orderBy: [{ order: "asc" }] });
-  return jsonOk({ items });
-}
+type RouteCtx = { params: Promise<{ id: string }> };
 
-export async function POST(request: Request) {
+export async function GET(_request: Request, ctx: RouteCtx) {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
-  const body = await request.json().catch(() => null);
-  const parsed = siteNewsCategorySchema.safeParse(body);
-  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
-  const slugVal = parsed.data.slug || parsed.data.name.toLowerCase().replace(/\s+/g, "-");
-  if (await prisma.siteNewsCategory.findUnique({ where: { slug: slugVal } }))
-    return jsonErr("DUPLICATE_SLUG", "Slug em uso.", 409);
-  const max = await prisma.siteNewsCategory.aggregate({ _max: { order: true } });
-  const item = await prisma.siteNewsCategory.create({
-    data: {
-      name: parsed.data.name,
-      slug: slugVal,
-      order: parsed.data.order ?? (max._max.order ?? -1) + 1,
-      isActive: parsed.data.isActive ?? true,
-    },
+  const { id } = await ctx.params;
+  const item = await prisma.siteNewsPost.findUnique({
+    where: { id },
+    include: { category: true },
   });
-  return jsonOk({ item }, { status: 201 });
+  if (!item) {
+    return jsonErr("NOT_FOUND", "Post não encontrado.", 404);
+  }
+  return jsonOk({ item });
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: Request, ctx: RouteCtx) {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
-  const parsed = reorderSchema.safeParse(body);
-  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
-  await prisma.$transaction(
-    parsed.data.ids.map((id, i) => prisma.siteNewsCategory.update({ where: { id }, data: { order: i } }))
-  );
-  const items = await prisma.siteNewsCategory.findMany({ orderBy: [{ order: "asc" }] });
-  return jsonOk({ items });
+  const parsed = siteNewsPostSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+  }
+
+  const existing = await prisma.siteNewsPost.findUnique({ where: { id } });
+  if (!existing) {
+    return jsonErr("NOT_FOUND", "Post não encontrado.", 404);
+  }
+
+  const slugVal = parsed.data.slug || parsed.data.title.toLowerCase().replace(/\s+/g, "-");
+  if (slugVal !== existing.slug) {
+    const dup = await prisma.siteNewsPost.findFirst({
+      where: { slug: slugVal, NOT: { id } },
+      select: { id: true },
+    });
+    if (dup) {
+      return jsonErr("DUPLICATE_SLUG", "Slug em uso.", 409);
+    }
+  }
+
+  const item = await prisma.siteNewsPost.update({
+    where: { id },
+    data: {
+      title: parsed.data.title,
+      slug: slugVal,
+      excerpt: parsed.data.excerpt ?? null,
+      content: parsed.data.content ?? null,
+      coverImageUrl: parsed.data.coverImageUrl || null,
+      imageUrls: parsed.data.imageUrls ?? [],
+      categoryId: parsed.data.categoryId ?? null,
+      publishedAt: parsed.data.publishedAt ? new Date(parsed.data.publishedAt) : null,
+      isPublished: parsed.data.isPublished ?? false,
+    },
+    include: { category: true },
+  });
+  return jsonOk({ item });
+}
+
+export async function DELETE(_request: Request, ctx: RouteCtx) {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const { id } = await ctx.params;
+  const existing = await prisma.siteNewsPost.findUnique({ where: { id } });
+  if (!existing) {
+    return jsonErr("NOT_FOUND", "Post não encontrado.", 404);
+  }
+  await prisma.siteNewsPost.delete({ where: { id } });
+  return jsonOk({ deleted: true });
 }
