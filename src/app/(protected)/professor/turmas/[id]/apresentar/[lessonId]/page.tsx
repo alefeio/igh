@@ -101,7 +101,8 @@ export default function ProfessorApresentarAulaPage() {
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [attachmentDisplayName, setAttachmentDisplayName] = useState("");
 
-  const localStoragePassagesKey = `teacher-presentation:${classGroupId}:${lessonId}:passages`;
+  // v2: passages agora são por slide (pageIndex + startOffset relativo à página).
+  const localStoragePassagesKey = `teacher-presentation:${classGroupId}:${lessonId}:passages:v2`;
   const localStorageNotesKey = `teacher-presentation:${classGroupId}:${lessonId}:notes`;
 
   const load = useCallback(async () => {
@@ -138,7 +139,15 @@ export default function ProfessorApresentarAulaPage() {
     // restaurar notas/trechos locais do professor
     try {
       const rawPassages = localStorage.getItem(localStoragePassagesKey);
-      if (rawPassages) setPassages(JSON.parse(rawPassages) as LessonPassage[]);
+      if (rawPassages) {
+        const parsed = JSON.parse(rawPassages) as LessonPassage[];
+        // Normaliza (caso algum item antigo não tenha pageIndex).
+        setPassages(
+          Array.isArray(parsed)
+            ? parsed.map((p) => ({ ...p, pageIndex: Number.isFinite(p.pageIndex as number) ? (p.pageIndex as number) : 0 }))
+            : []
+        );
+      }
       else setPassages([]);
     } catch {
       setPassages([]);
@@ -192,7 +201,11 @@ export default function ProfessorApresentarAulaPage() {
       const text = payload.text.trim();
       if (!text) return;
       const id = `p_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-      setPassages((prev) => [{ id, text, startOffset: payload.startOffset, createdAt: new Date().toISOString() }, ...prev]);
+      const pageIndex = contentPageIndexRef.current ?? 0;
+      setPassages((prev) => [
+        { id, text, startOffset: payload.startOffset, pageIndex, createdAt: new Date().toISOString() },
+        ...prev,
+      ]);
     },
     []
   );
@@ -319,6 +332,31 @@ export default function ProfessorApresentarAulaPage() {
       : (lesson?.contentRich ?? "");
 
   contentPageIndexRef.current = contentPageIndex;
+
+  const passagesForCurrentPage = useMemo(() => {
+    // Se a aula não tem páginas, mantém compatibilidade com offsets globais (pageIndex ausente).
+    if (!hasMultiplePages) return passages;
+    return passages.filter((p) => (p.pageIndex ?? 0) === contentPageIndex);
+  }, [contentPageIndex, hasMultiplePages, passages]);
+
+  const passagesByPage = useMemo(() => {
+    if (!hasMultiplePages) {
+      return passages.length > 0 ? [{ pageIndex: 0, items: passages }] : [];
+    }
+    const map = new Map<number, LessonPassage[]>();
+    for (const p of passages) {
+      const idx = p.pageIndex ?? 0;
+      const arr = map.get(idx) ?? [];
+      arr.push(p);
+      map.set(idx, arr);
+    }
+    return [...map.entries()]
+      .map(([pageIndex, items]) => ({
+        pageIndex,
+        items: [...items].sort((a, b) => a.startOffset - b.startOffset),
+      }))
+      .sort((a, b) => a.pageIndex - b.pageIndex);
+  }, [hasMultiplePages, passages]);
 
   const presentationPath = `/professor/turmas/${classGroupId}/apresentar/${lessonId}`;
 
@@ -600,7 +638,7 @@ export default function ProfessorApresentarAulaPage() {
                 >
                   <HighlightableContentViewer
                     content={contentToShow}
-                    passages={passages}
+                    passages={passagesForCurrentPage}
                     onSavePassage={handleSavePassage}
                     onRemovePassage={handleRemovePassage}
                     saving={savingPassage}
@@ -611,6 +649,67 @@ export default function ProfessorApresentarAulaPage() {
           </SectionCard>
         </div>
       )}
+
+      <SectionCard
+        title="Trechos destacados da aula"
+        description="Lista todos os trechos que você marcou nesta aula (organizados por slide)."
+        variant="elevated"
+      >
+        {passages.length === 0 ? (
+          <p className="text-sm text-[var(--text-muted)]">Nenhum trecho destacado ainda.</p>
+        ) : (
+          <div className="space-y-4">
+            {passagesByPage.map((group) => (
+              <div key={group.pageIndex} className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/30">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--card-border)] px-3 py-2">
+                  <div className="text-sm font-semibold text-[var(--text-primary)]">
+                    {hasMultiplePages ? `Slide ${group.pageIndex + 1}` : "Aula"}
+                  </div>
+                  {hasMultiplePages && (
+                    <button
+                      type="button"
+                      onClick={() => goToSlide(group.pageIndex)}
+                      className="text-sm font-medium text-[var(--igh-primary)] hover:underline"
+                    >
+                      Ir para o slide
+                    </button>
+                  )}
+                </div>
+                <ul className="divide-y divide-[var(--card-border)]">
+                  {group.items.map((p) => (
+                    <li key={p.id} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm text-[var(--text-primary)]">{p.text}</p>
+                        <p className="mt-1 text-xs text-[var(--text-muted)]">
+                          {p.createdAt ? new Date(p.createdAt).toLocaleString("pt-BR") : "Sem data"}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                        {hasMultiplePages && (
+                          <button
+                            type="button"
+                            onClick={() => goToSlide(group.pageIndex)}
+                            className="inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--igh-surface)]"
+                          >
+                            Ver
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePassage(p.id)}
+                          className="inline-flex items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-[var(--igh-surface)] dark:text-red-400"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard title="Material complementar" variant="elevated">
         {!(lesson.pdfUrl?.trim() || lesson.attachmentUrls.some((u) => u?.trim())) ? (

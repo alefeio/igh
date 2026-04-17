@@ -9,6 +9,8 @@ export type LessonPassage = {
   id: string;
   text: string;
   startOffset: number;
+  /** Índice do slide/página (quando o conteúdo é dividido em seções). */
+  pageIndex?: number;
   createdAt?: string;
 };
 
