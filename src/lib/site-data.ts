@@ -243,6 +243,66 @@ export async function getPublicStudentRanking(limit = 12): Promise<StudentRankEn
   }
 }
 
+const MOTHERS_CAMPAIGN_SLUG = "dia-das-maes-2026";
+
+function peerDisplayNameForHome(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "Aluno(a)";
+  if (parts.length === 1) return parts[0]!;
+  const last = parts[parts.length - 1]!;
+  const initial = last.charAt(0).toUpperCase();
+  return `${parts[0]} ${initial}.`;
+}
+
+export type MotherCampaignMessagePublic = {
+  id: string;
+  text: string;
+  authorLabel: string;
+};
+
+/** Declarações públicas da campanha Dia das Mães (home institucional). */
+export async function getPublicMotherCampaignMessages(limit = 18): Promise<MotherCampaignMessagePublic[]> {
+  try {
+    return await unstable_cache(
+      async () => {
+        const campaign = await prisma.marketingCampaign.findUnique({
+          where: { slug: MOTHERS_CAMPAIGN_SLUG },
+          select: { id: true },
+        });
+        if (!campaign) return [];
+
+        const rows = await prisma.marketingCampaignResponse.findMany({
+          where: { campaignId: campaign.id, comment: { not: null } },
+          orderBy: [{ createdAt: "desc" }],
+          take: 80,
+          select: {
+            id: true,
+            comment: true,
+            user: { select: { name: true } },
+          },
+        });
+
+        const out: MotherCampaignMessagePublic[] = [];
+        for (const r of rows) {
+          const text = (r.comment ?? "").trim();
+          if (text.length < 4) continue;
+          out.push({
+            id: r.id,
+            text: text.length > 620 ? `${text.slice(0, 617)}…` : text,
+            authorLabel: peerDisplayNameForHome(r.user.name),
+          });
+          if (out.length >= limit) break;
+        }
+        return out;
+      },
+      ["public-mothers-day-messages-v1", String(limit)],
+      { revalidate: 120, tags: ["public-mothers-day-messages-v1"] },
+    )();
+  } catch {
+    return [];
+  }
+}
+
 export type PlatformExperiencePublicSnippet = {
   id: string;
   author: string;

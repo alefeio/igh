@@ -52,6 +52,8 @@ model User {
   pageVisits                   UserPageVisit[]
   verificationTokens           VerificationToken[]
   siteQrCodesCreated           SiteQrCode[]                 @relation("SiteQrCodeCreatedBy")
+  marketingCampaignResponses       MarketingCampaignResponse[]
+  marketingCampaignResponseLikes   MarketingCampaignResponseLike[]
 }
 
 /// * Navegação na área logada — rota (pathname) por utilizador, para o Master acompanhar páginas vistas.
@@ -180,6 +182,59 @@ model PlatformExperienceFeedback {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+/// * Campanha de marketing / pesquisa (ex.: Dia das Mães).
+model MarketingCampaign {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  description String?
+  isActive    Boolean  @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  responses MarketingCampaignResponse[]
+
+  @@index([isActive])
+  @@index([startsAt])
+  @@index([endsAt])
+}
+
+/// * Resposta do usuário para uma campanha (nota + comentário).
+model MarketingCampaignResponse {
+  id          String   @id @default(uuid())
+  campaignId  String
+  userId      String
+  ratingStars Int
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  campaign MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes    MarketingCampaignResponseLike[]
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([createdAt])
+  @@unique([campaignId, userId])
+}
+
+/// * Curtida de um aluno em uma declaração de outro aluno na mesma campanha (uma por par usuário×resposta).
+model MarketingCampaignResponseLike {
+  id         String   @id @default(uuid())
+  responseId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  response MarketingCampaignResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  user     User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, userId])
+  @@index([responseId])
+  @@index([userId])
 }
 
 model SentEmail {

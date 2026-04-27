@@ -124,6 +124,7 @@ export const config = {
     "/admin/forum/:path*",
     "/admin/frequencia/:path*",
     "/admin/avaliacoes-experiencia/:path*",
+    "/admin/campanhas/:path*",
     "/gamificacao/:path*",
     "/ranking-alunos/:path*",
     "/onboarding/:path*",

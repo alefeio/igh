@@ -12,6 +12,7 @@ export { CTASection } from "./CTASection";
 export { Stats } from "./Stats";
 export { Testimonials } from "./Testimonials";
 export { StudentRankingShowcase } from "./StudentRankingShowcase";
+export { MothersDayMessagesHomeSection } from "./MothersDayMessagesHomeSection";
 export { PlatformExperienceHomeSection } from "./PlatformExperienceHomeSection";
 export { CookieConsentBanner } from "./CookieConsentBanner";
 export { FAQ } from "./FAQ";

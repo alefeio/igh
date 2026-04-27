@@ -29,6 +29,7 @@ import {
   TableShell,
 } from "@/components/dashboard/DashboardUI";
 import { StudentPlatformExperienceModal } from "@/components/student/StudentPlatformExperienceModal";
+import { StudentMarketingCampaignModal } from "@/components/student/StudentMarketingCampaignModal";
 import { requireSessionUser } from "@/lib/auth";
 import {
   getDashboardData,
@@ -774,10 +775,10 @@ function DashboardStudent({
         title={`Olá, ${firstName}!`}
         description="Resumo leve ao entrar: continue de onde parou, veja seu progresso geral e acesse rapidamente turmas e fórum. Detalhes de pontos, ranking, exercícios e calendário ficam em páginas próprias — só carregam quando você abre."
         rightSlot={
-          <StudentPlatformExperienceModal
-            autoPromptOnce={enrollments.length > 0}
-            className="w-full sm:w-auto"
-          />
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+            <StudentMarketingCampaignModal autoPromptOnce={enrollments.length > 0} className="w-full sm:w-auto" />
+            <StudentPlatformExperienceModal autoPromptOnce={enrollments.length > 0} className="w-full sm:w-auto" />
+          </div>
         }
       />
 

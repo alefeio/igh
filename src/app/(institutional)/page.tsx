@@ -15,6 +15,7 @@ import {
   HeroBannerCarousel,
   StudentRankingShowcase,
   PlatformExperienceHomeSection,
+  MothersDayMessagesHomeSection,
 } from "@/components/site";
 import { statsImpact } from "@/content";
 import {
@@ -27,6 +28,7 @@ import {
   getNewsPostsForSite,
   getPublicStudentRanking,
   getPublicPlatformExperienceBlock,
+  getPublicMotherCampaignMessages,
 } from "@/lib/site-data";
 
 export const metadata = {
@@ -55,6 +57,7 @@ export default async function HomePage({ searchParams }: Props) {
     newsPosts,
     studentRanking,
     platformExperienceBlock,
+    motherCampaignMessages,
   ] = await Promise.all([
     getFormationsForFilter(),
     getCoursesForSite(formacaoSlug),
@@ -65,6 +68,7 @@ export default async function HomePage({ searchParams }: Props) {
     getNewsPostsForSite(),
     getPublicStudentRanking(15),
     getPublicPlatformExperienceBlock(),
+    getPublicMotherCampaignMessages(18),
   ]);
 
   const recentPosts = newsPosts.slice(0, 4).map((p) => {
@@ -153,6 +157,8 @@ export default async function HomePage({ searchParams }: Props) {
       </Section>
 
       <HomeStudentJourneySection />
+
+      <MothersDayMessagesHomeSection items={motherCampaignMessages} />
 
       {studentRanking.length > 0 && <StudentRankingShowcase items={studentRanking} />}
 

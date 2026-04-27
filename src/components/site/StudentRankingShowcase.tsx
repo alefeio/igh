@@ -45,7 +45,7 @@ function PodiumCard({
 
   return (
     <div
-      className={`relative flex w-full max-w-[200px] flex-col items-center sm:max-w-none sm:flex-1 ${order} ${h} justify-end`}
+      className={`relative flex w-full max-w-[260px] flex-col items-center sm:max-w-none sm:min-w-0 sm:flex-1 ${order} ${h} justify-end`}
     >
       <div className="mb-2 text-4xl drop-shadow-sm" aria-hidden>
         {MEDALS[place - 1]}
@@ -107,7 +107,7 @@ export function StudentRankingShowcase({
           </div>
 
           {showPodium && first && second && third && (
-            <div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-center gap-4 sm:flex-row sm:items-end sm:gap-3 lg:gap-4">
+            <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-center gap-4 sm:flex-row sm:items-end sm:gap-4 lg:gap-6">
               <PodiumCard
                 entry={second}
                 place={2}
@@ -154,8 +154,9 @@ export function StudentRankingShowcase({
                       type="button"
                       onClick={() => setDetailEntry(entry)}
                       className="text-sm font-semibold text-[var(--igh-primary)] underline underline-offset-2"
+                      aria-label="Ver detalhes da pontuação"
                     >
-                      Ver detalhes da pontuação
+                      + detalhes
                     </button>
                   </div>
                 </li>
@@ -164,26 +165,27 @@ export function StudentRankingShowcase({
           )}
 
           {showPodium && rest.length > 0 && (
-            <ul className="mx-auto mt-10 grid max-w-2xl gap-2 sm:grid-cols-2">
+            <ul className="mx-auto mt-10 grid max-w-4xl gap-3 sm:grid-cols-2">
               {rest.map((r) => (
                 <li
                   key={r.studentId}
-                  className="flex flex-col gap-2 rounded-xl border border-[var(--igh-border)] bg-[var(--card-bg)] px-4 py-3 text-sm shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-2 rounded-xl border border-[var(--igh-border)] bg-[var(--card-bg)] px-4 py-3 text-sm shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                 >
-                  <span className="flex min-w-0 items-center gap-2 font-semibold text-[var(--text-primary)]">
+                  <span className="flex min-w-0 flex-1 items-center gap-2 font-semibold text-[var(--text-primary)]">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--igh-primary)]/15 text-xs font-bold text-[var(--igh-primary)]">
                       {r.rank}
                     </span>
-                    <span className="line-clamp-1">{r.displayName}</span>
+                    <span className="min-w-0 flex-1 break-words leading-snug line-clamp-2">{r.displayName}</span>
                   </span>
-                  <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <span className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
                     <span className="tabular-nums font-bold text-[var(--igh-primary)]">{r.points} pts</span>
                     <button
                       type="button"
                       onClick={() => setDetailEntry(r)}
-                      className="text-xs font-semibold text-[var(--igh-primary)] underline underline-offset-2"
+                      className="shrink-0 text-xs font-semibold text-[var(--igh-primary)] underline underline-offset-2"
+                      aria-label="Ver detalhes da pontuação"
                     >
-                      Ver detalhes da pontuação
+                      + detalhes
                     </button>
                   </span>
                 </li>
