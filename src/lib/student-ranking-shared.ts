@@ -11,17 +11,27 @@ export const STUDENT_RANKING_GAMIFICATION_POINTS = {
   forumPerReply: 5,
 } as const;
 
+/** Bônus alto por ações importantes (contabiliza 1x por aluno). */
+export const STUDENT_RANKING_BONUS_POINTS = {
+  platformExperienceFeedback: 300,
+  mothersDayTribute: 300,
+} as const;
+
 export type StudentRankPointsBreakdown = {
   pointsContent: number;
   pointsExercises: number;
   pointsFrequency: number;
   pointsForum: number;
+  pointsPlatformExperience: number;
+  pointsMothersDay: number;
   lessonsCompleted: number;
   exerciseAttempts: number;
   exerciseCorrect: number;
   attendancePresent: number;
   forumQuestions: number;
   forumReplies: number;
+  hasPlatformExperienceFeedback: boolean;
+  hasMothersDayTribute: boolean;
 };
 
 export type StudentRankEntry = {

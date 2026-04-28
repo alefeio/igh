@@ -258,6 +258,7 @@ export type MotherCampaignMessagePublic = {
   id: string;
   text: string;
   authorLabel: string;
+  likeCount: number;
 };
 
 /** Declarações públicas da campanha Dia das Mães (home institucional). */
@@ -279,6 +280,7 @@ export async function getPublicMotherCampaignMessages(limit = 18): Promise<Mothe
             id: true,
             comment: true,
             user: { select: { name: true } },
+            _count: { select: { publicLikes: true } },
           },
         });
 
@@ -290,6 +292,7 @@ export async function getPublicMotherCampaignMessages(limit = 18): Promise<Mothe
             id: r.id,
             text: text.length > 620 ? `${text.slice(0, 617)}…` : text,
             authorLabel: peerDisplayNameForHome(r.user.name),
+            likeCount: r._count.publicLikes,
           });
           if (out.length >= limit) break;
         }

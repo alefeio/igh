@@ -3,6 +3,7 @@
 import { Modal } from "@/components/ui/Modal";
 import {
   STUDENT_POINTS_PER_LESSON,
+  STUDENT_RANKING_BONUS_POINTS,
   STUDENT_RANKING_GAMIFICATION_POINTS,
   type StudentRankEntry,
 } from "@/lib/student-ranking-shared";
@@ -30,6 +31,7 @@ export function StudentRankingPointsBreakdownModal({
     );
   }
   const forumCount = b.forumQuestions + b.forumReplies;
+  const bonus = STUDENT_RANKING_BONUS_POINTS;
 
   return (
     <Modal
@@ -39,7 +41,7 @@ export function StudentRankingPointsBreakdownModal({
       size="small"
     >
       <p className="mb-4 text-sm text-[var(--text-muted)]">
-        Soma dos quatro eixos (mesma regra do painel do aluno e do ranking completo).
+        Soma dos eixos de estudo/engajamento + bônus por ações importantes.
       </p>
       <table className="w-full border-collapse text-left text-sm">
         <thead>
@@ -89,6 +91,24 @@ export function StudentRankingPointsBreakdownModal({
               {b.pointsForum}
             </td>
           </tr>
+          <tr className="border-b border-[var(--card-border)]/70">
+            <td className="py-2.5 pr-2 align-top font-medium">Avaliação da experiência</td>
+            <td className="py-2.5 pr-2 align-top text-[var(--text-secondary)]">
+              {b.hasPlatformExperienceFeedback ? "Enviou avaliação (bônus 1×)" : "Ainda não enviou"}
+            </td>
+            <td className="py-2.5 text-right tabular-nums font-semibold text-[var(--igh-primary)]">
+              {b.pointsPlatformExperience || 0}
+            </td>
+          </tr>
+          <tr className="border-b border-[var(--card-border)]/70">
+            <td className="py-2.5 pr-2 align-top font-medium">Homenagem do Dia das Mães</td>
+            <td className="py-2.5 pr-2 align-top text-[var(--text-secondary)]">
+              {b.hasMothersDayTribute ? "Enviou homenagem (bônus 1×)" : "Ainda não enviou"}
+            </td>
+            <td className="py-2.5 text-right tabular-nums font-semibold text-[var(--igh-primary)]">
+              {b.pointsMothersDay || 0}
+            </td>
+          </tr>
         </tbody>
       </table>
       <p className="mt-4 border-t border-[var(--card-border)] pt-3 text-right text-base font-bold tabular-nums text-[var(--igh-primary)]">
@@ -107,6 +127,7 @@ export function StudentRankingPointsHelpModal({
   onClose: () => void;
 }) {
   const gp = STUDENT_RANKING_GAMIFICATION_POINTS;
+  const bonus = STUDENT_RANKING_BONUS_POINTS;
   return (
     <Modal open={open} onClose={onClose} title="Como a pontuação do ranking é calculada" size="small">
       <ul className="list-disc space-y-3 pl-5 text-sm leading-relaxed text-[var(--text-secondary)]">
@@ -126,10 +147,15 @@ export function StudentRankingPointsHelpModal({
           <strong className="text-[var(--text-primary)]">Fórum:</strong> cada pergunta ou resposta nas dúvidas das aulas
           soma <strong>{gp.forumPerReply} pontos</strong>.
         </li>
+        <li>
+          <strong className="text-[var(--text-primary)]">Bônus (ações importantes):</strong> enviar a avaliação da
+          experiência soma <strong>{bonus.platformExperienceFeedback} pontos</strong> (conta 1 vez), e enviar a homenagem
+          do Dia das Mães soma <strong>{bonus.mothersDayTribute} pontos</strong> (conta 1 vez).
+        </li>
       </ul>
       <p className="mt-4 text-xs text-[var(--text-muted)]">
-        O total exibido no ranking é a soma desses quatro valores. Use &quot;Ver detalhes&quot; em cada linha para ver os
-        números daquele aluno.
+        O total exibido no ranking é a soma desses valores + bônus quando aplicável. Use &quot;Ver detalhes&quot; em cada
+        linha para ver os números daquele aluno.
       </p>
     </Modal>
   );

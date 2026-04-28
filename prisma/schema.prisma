@@ -215,6 +215,7 @@ model MarketingCampaignResponse {
   campaign MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   likes    MarketingCampaignResponseLike[]
+  publicLikes MarketingCampaignResponsePublicLike[]
 
   @@index([campaignId])
   @@index([userId])
@@ -235,6 +236,20 @@ model MarketingCampaignResponseLike {
   @@unique([responseId, userId])
   @@index([responseId])
   @@index([userId])
+}
+
+/// * Curtida pública (anônima) para mensagens exibidas no site institucional (bloqueio por cookie).
+model MarketingCampaignResponsePublicLike {
+  id         String   @id @default(uuid())
+  responseId String
+  anonId     String
+  createdAt  DateTime @default(now())
+
+  response MarketingCampaignResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, anonId])
+  @@index([responseId])
+  @@index([anonId])
 }
 
 model SentEmail {

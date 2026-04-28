@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import {
   STUDENT_POINTS_PER_LESSON,
+  STUDENT_RANKING_BONUS_POINTS,
   STUDENT_RANKING_GAMIFICATION_POINTS,
   type StudentRankPointsBreakdown,
   type StudentRankEntry,
@@ -67,7 +68,7 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
     select: {
       id: true,
       studentId: true,
-      student: { select: { id: true, name: true } },
+      student: { select: { id: true, name: true, userId: true } },
       classGroup: { select: { courseId: true } },
     },
   });
@@ -75,6 +76,11 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
   if (enrollments.length === 0) return [];
 
   const enrollmentIds = enrollments.map((e) => e.id);
+  const studentIdToUserId = new Map<string, string>();
+  for (const e of enrollments) {
+    if (e.student.userId) studentIdToUserId.set(e.studentId, e.student.userId);
+  }
+  const userIds = Array.from(new Set(Array.from(studentIdToUserId.values())));
 
   const [
     progressCounts,
@@ -82,6 +88,8 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
     attendanceByEnrollmentRows,
     forumQRows,
     forumRRows,
+    platformExperienceUsers,
+    mothersDayUsers,
   ] = await Promise.all([
     prisma.enrollmentLessonProgress.groupBy({
       by: ["enrollmentId"],
@@ -119,6 +127,27 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
           _count: { id: true },
         })
       : Promise.resolve([]),
+    userIds.length > 0
+      ? prisma.platformExperienceFeedback.findMany({
+          where: { userId: { in: userIds } },
+          distinct: ["userId"],
+          select: { userId: true },
+        })
+      : Promise.resolve([]),
+    userIds.length > 0
+      ? (async () => {
+          const campaign = await prisma.marketingCampaign.findUnique({
+            where: { slug: "dia-das-maes-2026" },
+            select: { id: true },
+          });
+          if (!campaign) return [];
+          return prisma.marketingCampaignResponse.findMany({
+            where: { campaignId: campaign.id, userId: { in: userIds } },
+            distinct: ["userId"],
+            select: { userId: true },
+          });
+        })()
+      : Promise.resolve([]),
   ]);
 
   const completedByEnrollment = new Map(progressCounts.map((p) => [p.enrollmentId, p._count.id]));
@@ -132,9 +161,12 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
   const attByEnrollment = new Map(attendanceByEnrollmentRows.map((r) => [r.enrollmentId, r._count.id]));
   const forumQByEnrollment = new Map(forumQRows.map((r) => [r.enrollmentId, r._count.id]));
   const forumRByEnrollment = new Map(forumRRows.map((r) => [r.enrollmentId, r._count.id]));
+  const hasPlatformExperienceByUserId = new Set(platformExperienceUsers.map((r) => r.userId));
+  const hasMothersDayByUserId = new Set(mothersDayUsers.map((r) => r.userId));
 
   type Agg = {
     name: string;
+    userId: string | null;
     lessonsCompleted: number;
     exerciseAttempts: number;
     exerciseCorrect: number;
@@ -147,10 +179,12 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
   for (const e of enrollments) {
     const sid = e.studentId;
     const name = e.student.name;
+    const userId = e.student.userId ?? null;
     const cur =
       byStudent.get(sid) ??
       ({
         name,
+        userId,
         lessonsCompleted: 0,
         exerciseAttempts: 0,
         exerciseCorrect: 0,
@@ -159,6 +193,7 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
         forumReplies: 0,
       } satisfies Agg);
     cur.name = name;
+    cur.userId = userId;
     cur.lessonsCompleted += completedByEnrollment.get(e.id) ?? 0;
     const ex = exerciseByEnrollment.get(e.id) ?? { correct: 0, total: 0 };
     cur.exerciseAttempts += ex.total;
@@ -171,24 +206,37 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
 
   const rows: Omit<StudentRankEntry, "rank">[] = [];
   for (const [studentId, a] of byStudent) {
+    const hasPlatformExperienceFeedback =
+      a.userId != null ? hasPlatformExperienceByUserId.has(a.userId) : false;
+    const hasMothersDayTribute = a.userId != null ? hasMothersDayByUserId.has(a.userId) : false;
+
     const pointsContent = a.lessonsCompleted * STUDENT_POINTS_PER_LESSON;
     const pointsExercises = a.exerciseAttempts + a.exerciseCorrect;
     const pointsFrequency =
       a.attendancePresent * STUDENT_RANKING_GAMIFICATION_POINTS.attendancePerPresentStudent;
     const pointsForum =
       (a.forumQuestions + a.forumReplies) * STUDENT_RANKING_GAMIFICATION_POINTS.forumPerReply;
-    const points = pointsContent + pointsExercises + pointsFrequency + pointsForum;
+    const pointsPlatformExperience = hasPlatformExperienceFeedback
+      ? STUDENT_RANKING_BONUS_POINTS.platformExperienceFeedback
+      : 0;
+    const pointsMothersDay = hasMothersDayTribute ? STUDENT_RANKING_BONUS_POINTS.mothersDayTribute : 0;
+    const points =
+      pointsContent + pointsExercises + pointsFrequency + pointsForum + pointsPlatformExperience + pointsMothersDay;
     const breakdown: StudentRankPointsBreakdown = {
       pointsContent,
       pointsExercises,
       pointsFrequency,
       pointsForum,
+      pointsPlatformExperience,
+      pointsMothersDay,
       lessonsCompleted: a.lessonsCompleted,
       exerciseAttempts: a.exerciseAttempts,
       exerciseCorrect: a.exerciseCorrect,
       attendancePresent: a.attendancePresent,
       forumQuestions: a.forumQuestions,
       forumReplies: a.forumReplies,
+      hasPlatformExperienceFeedback,
+      hasMothersDayTribute,
     };
     rows.push({
       studentId,
@@ -223,6 +271,7 @@ export async function getGamificationSnapshotForStudent(studentId: string): Prom
     select: { id: true, userId: true },
   });
   if (!student?.userId) return null;
+  const userId = student.userId;
 
   const enrollments = await prisma.enrollment.findMany({
     where: { studentId, status: "ACTIVE" },
@@ -300,10 +349,32 @@ export async function getGamificationSnapshotForStudent(studentId: string): Prom
     attendancePresent * STUDENT_RANKING_GAMIFICATION_POINTS.attendancePerPresentStudent;
   const pointsForum =
     (forumQuestions + forumReplies) * STUDENT_RANKING_GAMIFICATION_POINTS.forumPerReply;
-  const points = pointsContent + pointsExercises + pointsFrequency + pointsForum;
+  const [hasPlatformExperienceFeedback, hasMothersDayTribute] = await Promise.all([
+    prisma.platformExperienceFeedback
+      .findFirst({ where: { userId }, select: { id: true } })
+      .then((r) => !!r)
+      .catch(() => false),
+    (async () => {
+      const campaign = await prisma.marketingCampaign.findUnique({
+        where: { slug: "dia-das-maes-2026" },
+        select: { id: true },
+      });
+      if (!campaign) return false;
+      const row = await prisma.marketingCampaignResponse.findFirst({
+        where: { campaignId: campaign.id, userId },
+        select: { id: true },
+      });
+      return !!row;
+    })().catch(() => false),
+  ]);
+  const pointsPlatformExperience = hasPlatformExperienceFeedback
+    ? STUDENT_RANKING_BONUS_POINTS.platformExperienceFeedback
+    : 0;
+  const pointsMothersDay = hasMothersDayTribute ? STUDENT_RANKING_BONUS_POINTS.mothersDayTribute : 0;
+  const points = pointsContent + pointsExercises + pointsFrequency + pointsForum + pointsPlatformExperience + pointsMothersDay;
 
   return {
-    userId: student.userId,
+    userId,
     points,
     levelName: studentLevelNameFromPoints(points),
   };
