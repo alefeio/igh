@@ -41,7 +41,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
       comment: true,
       createdAt: true,
       user: { select: { name: true } },
-      _count: { select: { likes: true } },
+      _count: { select: { likes: true, publicLikes: true } },
       likes: {
         where: { userId: user.id },
         select: { id: true },
@@ -57,7 +57,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
     ratingStars: r.ratingStars,
     comment: r.comment ?? "",
     createdAt: r.createdAt.toISOString(),
-    likeCount: r._count.likes,
+    likeCount: r._count.likes + r._count.publicLikes,
     likedByMe: r.likes.length > 0,
   }));
 

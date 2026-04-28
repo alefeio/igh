@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -43,6 +44,8 @@ export async function POST(_request: Request, ctx: RouteCtx) {
     where: { responseId },
   });
 
+  // Atualiza a contagem pública na home (home soma likes+publicLikes).
+  revalidateTag("public-mothers-day-messages-v1", "max");
   return jsonOk({ liked: true, likeCount });
 }
 
@@ -70,5 +73,6 @@ export async function DELETE(_request: Request, ctx: RouteCtx) {
     where: { responseId },
   });
 
+  revalidateTag("public-mothers-day-messages-v1", "max");
   return jsonOk({ liked: false, likeCount });
 }
