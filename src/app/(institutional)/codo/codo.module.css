@@ -1,0 +1,599 @@
+.page {
+  --verde-principal: #016b59;
+  --verde-escuro: #003f35;
+  --verde-claro: #00a884;
+  --vermelho: #ea2228;
+  --branco-gelo: #f6f8f7;
+  --grafite: #1e1e1e;
+  --cinza-texto: #4b4b4b;
+  --cinza-borda: #e5e5e5;
+
+  font-family: Arial, sans-serif;
+  background-color: #ffffff;
+  color: var(--grafite);
+}
+
+.page :global(html) {
+  scroll-behavior: smooth;
+}
+
+.page,
+.page * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.page a {
+  text-decoration: none;
+}
+
+.page img {
+  max-width: 100%;
+  display: block;
+}
+
+.page :global(.container) {
+  width: 90%;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+/* CABEÇALHO */
+.page :global(.cabecalho) {
+  background-color: rgba(0, 63, 53, 0.97);
+  position: sticky;
+  top: 0;
+  z-index: 2000;
+  padding: 10px 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Quando o usuário rola, vira um painel lateral fixo */
+.page :global(.cabecalho.cabecalho-lateral) {
+  position: fixed;
+  top: 96px; /* evita ficar atrás de menus globais */
+  right: 18px;
+  left: auto;
+  width: auto;
+  padding: 10px 12px;
+  border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(6px);
+}
+
+.page :global(.cabecalho.cabecalho-lateral .container) {
+  width: auto;
+  max-width: none;
+  margin: 0;
+}
+
+.page :global(.cabecalho.cabecalho-lateral .cabecalho-conteudo) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.page :global(.cabecalho.cabecalho-lateral .logo) {
+  display: none;
+}
+
+.page :global(.cabecalho.cabecalho-lateral .menu) {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.page :global(.cabecalho.cabecalho-lateral .menu a) {
+  white-space: nowrap;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.page :global(.cabecalho.cabecalho-lateral .menu a:hover) {
+  background: rgba(234, 34, 40, 0.14);
+}
+
+.page :global(.cabecalho-conteudo) {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page :global(.logo) {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.page :global(.logo img) {
+  width: 100px;
+  background-color: #ffffff;
+  padding: 6px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.page :global(.menu) {
+  display: flex;
+  gap: 24px;
+}
+
+.page :global(.menu a) {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  transition: 0.3s;
+}
+
+.page :global(.menu a:hover) {
+  color: var(--vermelho);
+}
+
+.page :global(.cabecalho),
+.page :global(.menu a) {
+  transition: 0.25s ease;
+}
+
+/* HERO */
+.page :global(.hero) {
+  min-height: 88vh;
+  background:
+    radial-gradient(circle at top right, rgba(234, 34, 40, 0.18), transparent 30%),
+    linear-gradient(135deg, var(--verde-escuro), var(--verde-principal));
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  padding: 80px 0;
+}
+
+.page :global(.hero-conteudo) {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+}
+
+.page :global(.hero-texto) {
+  flex: 1;
+}
+
+.page :global(.hero-imagem) {
+  flex: 1;
+  height: 460px;
+  border-radius: 26px;
+  overflow: hidden;
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.22);
+  background-color: var(--verde-escuro);
+}
+
+.page :global(.hero-imagem img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.page :global(.hero h1) {
+  font-size: 52px;
+  line-height: 1.05;
+  margin-bottom: 22px;
+}
+
+.page :global(.hero p) {
+  font-size: 18px;
+  line-height: 1.7;
+  max-width: 560px;
+  margin-bottom: 28px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ETIQUETAS */
+.page :global(.etiqueta) {
+  display: inline-block;
+  background-color: rgba(234, 34, 40, 0.14);
+  color: var(--vermelho);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+
+.page :global(.etiqueta-clara) {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+/* BOTÕES */
+.page :global(.botoes) {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.page :global(.botao) {
+  display: inline-block;
+  padding: 14px 22px;
+  border-radius: 12px;
+  font-weight: 800;
+  transition: 0.3s;
+}
+
+.page :global(.botao-principal) {
+  background-color: var(--vermelho);
+  color: #ffffff;
+}
+
+.page :global(.botao-principal:hover) {
+  background-color: #c9181f;
+  transform: translateY(-2px);
+}
+
+.page :global(.botao-secundario) {
+  background-color: #ffffff;
+  color: var(--verde-escuro);
+}
+
+.page :global(.botao-secundario:hover) {
+  background-color: var(--branco-gelo);
+  transform: translateY(-2px);
+}
+
+/* SEÇÕES */
+.page :global(.secao) {
+  padding: 80px 0;
+}
+
+.page :global(.titulo-secao) {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto 44px;
+}
+
+.page :global(.titulo-secao h2) {
+  color: var(--verde-escuro);
+  font-size: 38px;
+  margin-bottom: 14px;
+}
+
+.page :global(.titulo-secao p) {
+  color: var(--cinza-texto);
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+/* CURSOS */
+.page :global(.cursos) {
+  background-color: #ffffff;
+}
+
+.page :global(.grid-cursos) {
+  display: flex;
+  gap: 24px;
+}
+
+.page :global(.card-curso) {
+  flex: 1;
+  background: linear-gradient(180deg, #ffffff, var(--branco-gelo));
+  border: 1px solid rgba(0, 63, 53, 0.12);
+  border-radius: 22px;
+  padding: 34px 32px;
+  transition: 0.3s;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+.page :global(.card-curso:hover) {
+  transform: translateY(-6px);
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.14);
+  border-color: rgba(0, 63, 53, 0.22);
+}
+
+.page :global(.card-curso::before) {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, var(--vermelho), var(--verde-claro));
+}
+
+.page :global(.curso-capa) {
+  height: 180px;
+  margin: -34px -32px 18px;
+  border-radius: 22px 22px 16px 16px;
+  overflow: hidden;
+  background: rgba(0, 63, 53, 0.12);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.10);
+}
+
+.page :global(.curso-capa img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.page :global(.card-curso h3) {
+  color: var(--verde-escuro);
+  font-size: 24px;
+  margin-bottom: 12px;
+  letter-spacing: -0.2px;
+}
+
+.page :global(.card-curso p) {
+  color: var(--cinza-texto);
+  line-height: 1.6;
+  font-size: 16px;
+}
+
+/* BENEFÍCIOS */
+.page :global(.beneficios) {
+  background-color: var(--branco-gelo);
+}
+
+.page :global(.beneficios-conteudo) {
+  display: flex;
+  align-items: center;
+  gap: 50px;
+}
+
+.page :global(.beneficios-imagem) {
+  flex: 1;
+  height: 390px;
+  border-radius: 26px;
+  overflow: hidden;
+  background-color: #dddddd;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.10);
+}
+
+.page :global(.beneficios-imagem img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.page :global(.beneficios-texto) {
+  flex: 1;
+}
+
+.page :global(.beneficios-texto h2) {
+  color: var(--verde-escuro);
+  font-size: 40px;
+  margin-bottom: 18px;
+}
+
+.page :global(.beneficios-texto p) {
+  color: var(--cinza-texto);
+  line-height: 1.7;
+  margin-bottom: 24px;
+  font-size: 17px;
+}
+
+.page :global(.lista-beneficios) {
+  list-style: none;
+}
+
+.page :global(.lista-beneficios li) {
+  background-color: #ffffff;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border-left: 5px solid var(--vermelho);
+  font-weight: 700;
+  color: var(--verde-escuro);
+}
+
+/* GALERIA */
+.page :global(.galeria) {
+  background-color: #ffffff;
+}
+
+.page :global(.grid-galeria) {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+.page :global(.galeria-item) {
+  aspect-ratio: 1 / 1;
+  border-radius: 22px;
+  overflow: hidden;
+  background-color: var(--branco-gelo);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.08);
+}
+
+.page :global(.galeria-item img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: 0.3s;
+}
+
+.page :global(.galeria-item:hover img) {
+  transform: scale(1.05);
+}
+
+/* CHAMADA */
+.page :global(.chamada) {
+  background: linear-gradient(135deg, var(--verde-escuro), var(--verde-principal));
+  color: #ffffff;
+  padding: 80px 0;
+  text-align: center;
+}
+
+.page :global(.chamada-conteudo) {
+  max-width: 760px;
+}
+
+.page :global(.chamada h2) {
+  font-size: 40px;
+  margin-bottom: 14px;
+}
+
+.page :global(.chamada p) {
+  font-size: 18px;
+  line-height: 1.7;
+  margin-bottom: 28px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* CONTATO */
+.page :global(.contato) {
+  background-color: var(--branco-gelo);
+}
+
+.page :global(.contato-conteudo) {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.page :global(.contato-texto) {
+  flex: 1;
+}
+
+.page :global(.contato h2) {
+  color: var(--verde-escuro);
+  font-size: 38px;
+  margin-bottom: 16px;
+}
+
+.page :global(.contato p) {
+  color: var(--cinza-texto);
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+
+.page :global(.card-contato) {
+  flex: 1;
+  background-color: #ffffff;
+  border-radius: 22px;
+  padding: 32px;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.08);
+}
+
+.page :global(.card-contato h3) {
+  color: var(--verde-escuro);
+  font-size: 24px;
+  margin-bottom: 18px;
+}
+
+.page :global(.card-contato .botao) {
+  margin-top: 16px;
+}
+
+/* RODAPÉ */
+.page :global(.rodape) {
+  background-color: var(--grafite);
+  color: #ffffff;
+  padding: 26px 0;
+}
+
+.page :global(.rodape-conteudo) {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  font-size: 14px;
+}
+
+/* RESPONSIVIDADE */
+@media (max-width: 900px) {
+  .page :global(.hero-conteudo),
+  .page :global(.beneficios-conteudo),
+  .page :global(.contato-conteudo) {
+    flex-direction: column;
+  }
+
+  .page :global(.hero) {
+    padding: 70px 0;
+    text-align: center;
+  }
+
+  .page :global(.hero h1) {
+    font-size: 40px;
+  }
+
+  .page :global(.hero p) {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .page :global(.botoes) {
+    justify-content: center;
+  }
+
+  .page :global(.hero-imagem),
+  .page :global(.beneficios-imagem) {
+    width: 100%;
+  }
+
+  .page :global(.grid-cursos) {
+    flex-direction: column;
+  }
+
+  .page :global(.grid-galeria) {
+    grid-template-columns: 1fr;
+  }
+
+  .page :global(.galeria-item) {
+    max-width: 520px;
+    width: 100%;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 700px) {
+  .page :global(.cabecalho-conteudo) {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .page :global(.menu) {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  
+  .page :global(.cabecalho) {
+    padding: 8px 0;
+  }
+
+  .page :global(.hero h1) {
+    font-size: 34px;
+  }
+
+  .page :global(.hero p) {
+    font-size: 16px;
+  }
+
+  .page :global(.hero-imagem) {
+    height: 340px;
+  }
+
+  .page :global(.beneficios-imagem) {
+    height: 260px;
+  }
+
+  .page :global(.titulo-secao h2),
+  .page :global(.beneficios-texto h2),
+  .page :global(.contato h2),
+  .page :global(.chamada h2) {
+    font-size: 30px;
+  }
+
+  .page :global(.rodape-conteudo) {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .page :global(.curso-capa) {
+    height: 160px;
+  }
+}
+

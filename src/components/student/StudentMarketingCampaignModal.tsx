@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Heart } from "lucide-react";
 
+import { LOCAL_STORAGE_OPEN_CAMPAIGN_AFTER_AUTH } from "@/lib/mothers-day-open-prompt";
+
 const STORAGE_AUTO_ONCE_PREFIX = "student-marketing-campaign-auto-shown:";
 
 function TenHeartRating({
@@ -130,6 +132,25 @@ export function StudentMarketingCampaignModal({
   useEffect(() => {
     void refreshCampaign();
   }, [refreshCampaign]);
+
+  /** Abre o formulário da homenagem quando o usuário veio da home (cadastro ou login). */
+  useEffect(() => {
+    if (loadingStatus || !campaign || hasResponded) return;
+    if (typeof window === "undefined") return;
+    try {
+      const pending = window.localStorage.getItem(LOCAL_STORAGE_OPEN_CAMPAIGN_AFTER_AUTH);
+      if (pending && pending === campaign.slug) {
+        window.localStorage.removeItem(LOCAL_STORAGE_OPEN_CAMPAIGN_AFTER_AUTH);
+        // Evita que o auto-prompt (autoPromptOnce) abra de novo alguns segundos depois.
+        if (storageAutoKey) window.localStorage.setItem(storageAutoKey, "1");
+        resetForm();
+        setModalMode("form");
+        setOpen(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [loadingStatus, campaign, hasResponded, resetForm, storageAutoKey]);
 
   const loadFeed = useCallback(async (campaignId: string) => {
     setFeedLoading(true);

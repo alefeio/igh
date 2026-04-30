@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { jsonErr } from "@/lib/http";
 
-type RouteCtx = { params: Promise<{ responseId: string }> };
+type RouteCtx = { params: Promise<{ guestResponseId: string }> };
 
 const ANON_COOKIE = "mothers_day_like_anon";
 const MAX_AGE_DAYS = 365;
@@ -21,44 +21,39 @@ function getCookieOptions() {
   };
 }
 
-async function resolveOrCreateAnonId(request: Request): Promise<{ anonId: string; setCookie?: string }> {
+function resolveOrCreateAnonId(request: Request): string {
   const cookieHeader = request.headers.get("cookie") ?? "";
   const m = cookieHeader.match(new RegExp(`(?:^|;\\s*)${ANON_COOKIE}=([^;]+)`));
   const anonId = m?.[1]?.trim();
-  if (anonId) return { anonId };
-
-  const fresh = randomUUID();
-  // NextResponse.cookies.set é mais seguro, mas aqui devolvemos o valor e setamos no response.
-  return { anonId: fresh };
+  return anonId || randomUUID();
 }
 
 export async function POST(request: Request, ctx: RouteCtx) {
-  const { responseId } = await ctx.params;
-  const { anonId } = await resolveOrCreateAnonId(request);
+  const { guestResponseId } = await ctx.params;
+  const anonId = resolveOrCreateAnonId(request);
 
-  const response = await prisma.marketingCampaignResponse.findUnique({
-    where: { id: responseId },
+  const row = await prisma.marketingCampaignGuestResponse.findUnique({
+    where: { id: guestResponseId },
     select: { id: true, campaign: { select: { slug: true } } },
   });
-  if (!response) return jsonErr("NOT_FOUND", "Mensagem não encontrada.", 404);
-  if (response.campaign.slug !== MOTHERS_CAMPAIGN_SLUG) {
+  if (!row) return jsonErr("NOT_FOUND", "Mensagem não encontrada.", 404);
+  if (row.campaign.slug !== MOTHERS_CAMPAIGN_SLUG) {
     return jsonErr("FORBIDDEN", "Mensagem não disponível para curtidas públicas.", 403);
   }
 
   try {
-    await prisma.marketingCampaignResponsePublicLike.create({
-      data: { responseId, anonId },
+    await prisma.marketingCampaignGuestResponsePublicLike.create({
+      data: { guestResponseId, anonId },
       select: { id: true },
     });
   } catch {
     return jsonErr("ALREADY_LIKED", "Você já curtiu esta mensagem.", 409);
   }
 
-  const likeCount = await prisma.marketingCampaignResponsePublicLike.count({ where: { responseId } });
+  const likeCount = await prisma.marketingCampaignGuestResponsePublicLike.count({ where: { guestResponseId } });
   revalidateTag("public-mothers-day-messages-v2", "max");
 
   const res = NextResponse.json({ ok: true as const, data: { liked: true, likeCount } });
-  // garante persistência do bloqueio no servidor (cookie)
   res.cookies.set(ANON_COOKIE, anonId, getCookieOptions());
   return res;
 }

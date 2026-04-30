@@ -8,6 +8,7 @@ import {
   type StudentRankEntry,
 } from "@/lib/student-gamification-ranking";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
+import { isMarketingCampaignActiveInWindow } from "@/lib/marketing-campaign-active";
 
 export type { MenuItemPublic, SiteSettingsPublic };
 
@@ -256,53 +257,80 @@ function peerDisplayNameForHome(fullName: string): string {
 
 export type MotherCampaignMessagePublic = {
   id: string;
+  kind: "student" | "guest";
+  targetId: string;
   text: string;
   authorLabel: string;
+  createdAt: string;
   likeCount: number;
 };
 
+export type MothersDayHomeSectionData = {
+  items: MotherCampaignMessagePublic[];
+  /** Campanha ativa na janela de datas (permite participação no site). */
+  participationOpen: boolean;
+};
+
 /** Declarações públicas da campanha Dia das Mães (home institucional). */
-export async function getPublicMotherCampaignMessages(limit = 18): Promise<MotherCampaignMessagePublic[]> {
+export async function getPublicMotherCampaignMessages(limit = 18): Promise<MothersDayHomeSectionData> {
   try {
     return await unstable_cache(
       async () => {
         const campaign = await prisma.marketingCampaign.findUnique({
           where: { slug: MOTHERS_CAMPAIGN_SLUG },
-          select: { id: true },
+          select: { id: true, isActive: true, startsAt: true, endsAt: true },
         });
-        if (!campaign) return [];
+        if (!campaign) {
+          return { items: [], participationOpen: false };
+        }
+        const participationOpen = isMarketingCampaignActiveInWindow(campaign);
 
-        const rows = await prisma.marketingCampaignResponse.findMany({
+        const studentRows = await prisma.marketingCampaignResponse.findMany({
           where: { campaignId: campaign.id, comment: { not: null } },
           orderBy: [{ createdAt: "desc" }],
           take: 80,
           select: {
             id: true,
             comment: true,
+            createdAt: true,
             user: { select: { name: true } },
             _count: { select: { publicLikes: true, likes: true } },
           },
         });
 
+        const merged = studentRows.map((r) => ({
+          kind: "student" as const,
+          targetId: r.id,
+          authorName: r.user.name,
+          comment: r.comment ?? "",
+          createdAt: r.createdAt,
+          likeCount: r._count.publicLikes + r._count.likes,
+        }));
+
+        merged.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
         const out: MotherCampaignMessagePublic[] = [];
-        for (const r of rows) {
+        for (const r of merged) {
           const text = (r.comment ?? "").trim();
           if (text.length < 4) continue;
           out.push({
-            id: r.id,
+            id: `${r.kind}:${r.targetId}`,
+            kind: r.kind,
+            targetId: r.targetId,
             text: text.length > 620 ? `${text.slice(0, 617)}…` : text,
-            authorLabel: peerDisplayNameForHome(r.user.name),
-            likeCount: r._count.publicLikes + r._count.likes,
+            authorLabel: peerDisplayNameForHome(r.authorName),
+            createdAt: r.createdAt.toISOString(),
+            likeCount: r.likeCount,
           });
           if (out.length >= limit) break;
         }
-        return out;
+        return { items: out, participationOpen };
       },
-      ["public-mothers-day-messages-v1", String(limit)],
-      { revalidate: 120, tags: ["public-mothers-day-messages-v1"] },
+      ["public-mothers-day-messages-v2", String(limit)],
+      { revalidate: 120, tags: ["public-mothers-day-messages-v2"] },
     )();
   } catch {
-    return [];
+    return { items: [], participationOpen: false };
   }
 }
 

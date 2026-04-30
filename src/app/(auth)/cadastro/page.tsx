@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 
 import { getSessionUserFromCookie } from "@/lib/auth";
-import { LoginForm } from "./login-form";
+import { CadastroForm } from "./cadastro-form";
 
 type Props = { searchParams: Promise<{ from?: string | string[] }> };
 
@@ -11,7 +10,7 @@ function normalizeRedirectFrom(from: string | string[] | undefined): string | un
   return typeof raw === "string" && raw.startsWith("/") && !raw.startsWith("//") ? raw : undefined;
 }
 
-export default async function LoginPage({ searchParams }: Props) {
+export default async function CadastroPage({ searchParams }: Props) {
   const session = await getSessionUserFromCookie();
   const { from } = await searchParams;
   const redirectTo = normalizeRedirectFrom(from);
@@ -26,17 +25,13 @@ export default async function LoginPage({ searchParams }: Props) {
       </div>
       <div className="card w-full">
         <div className="card-header">
-          <div className="text-lg font-semibold text-[var(--text-primary)]">Entrar</div>
-          <div className="mt-1 text-sm text-[var(--text-secondary)]">Acesse com seu e-mail e senha.</div>
+          <div className="text-lg font-semibold text-[var(--text-primary)]">Cadastro rápido</div>
+          <div className="mt-1 text-sm text-[var(--text-secondary)]">
+            Crie sua conta no site e vá direto para enviar sua homenagem.
+          </div>
         </div>
         <div className="card-body">
-          <LoginForm redirectTo={redirectTo} />
-          <p className="mt-3 text-center text-xs text-[var(--text-muted)]">
-            Ainda não tem conta?{" "}
-            <Link href={redirectTo ? `/cadastro?from=${encodeURIComponent(redirectTo)}` : "/cadastro"} className="underline">
-              Criar cadastro rápido
-            </Link>
-          </p>
+          <CadastroForm redirectTo={redirectTo} />
         </div>
       </div>
     </div>

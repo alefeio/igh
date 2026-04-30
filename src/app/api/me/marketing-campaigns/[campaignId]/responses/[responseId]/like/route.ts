@@ -45,7 +45,7 @@ export async function POST(_request: Request, ctx: RouteCtx) {
   });
 
   // Atualiza a contagem pública na home (home soma likes+publicLikes).
-  revalidateTag("public-mothers-day-messages-v1", "max");
+  revalidateTag("public-mothers-day-messages-v2", "max");
   return jsonOk({ liked: true, likeCount });
 }
 
@@ -73,6 +73,6 @@ export async function DELETE(_request: Request, ctx: RouteCtx) {
     where: { responseId },
   });
 
-  revalidateTag("public-mothers-day-messages-v1", "max");
+  revalidateTag("public-mothers-day-messages-v2", "max");
   return jsonOk({ liked: false, likeCount });
 }

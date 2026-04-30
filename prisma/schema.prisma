@@ -197,6 +197,7 @@ model MarketingCampaign {
   updatedAt   DateTime @updatedAt
 
   responses MarketingCampaignResponse[]
+  guestResponses MarketingCampaignGuestResponse[]
 
   @@index([isActive])
   @@index([startsAt])
@@ -249,6 +250,37 @@ model MarketingCampaignResponsePublicLike {
 
   @@unique([responseId, anonId])
   @@index([responseId])
+  @@index([anonId])
+}
+
+/// * Participação pública (não-aluno) na campanha (mensagem + nome).
+model MarketingCampaignGuestResponse {
+  id         String   @id @default(uuid())
+  campaignId String
+  name       String
+  email      String?
+  /// * Nota simbólica em corações (1–10), alinhada à participação do aluno na campanha.
+  ratingStars Int      @default(5)
+  comment    String
+  createdAt  DateTime @default(now())
+
+  campaign MarketingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  publicLikes MarketingCampaignGuestResponsePublicLike[]
+
+  @@index([campaignId])
+  @@index([createdAt])
+}
+
+model MarketingCampaignGuestResponsePublicLike {
+  id              String   @id @default(uuid())
+  guestResponseId String
+  anonId          String
+  createdAt       DateTime @default(now())
+
+  guestResponse MarketingCampaignGuestResponse @relation(fields: [guestResponseId], references: [id], onDelete: Cascade)
+
+  @@unique([guestResponseId, anonId])
+  @@index([guestResponseId])
   @@index([anonId])
 }
 

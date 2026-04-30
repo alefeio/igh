@@ -122,6 +122,7 @@ export default function StudentsPage() {
   const user = useUser();
   const isTeacher = user.role === "TEACHER";
   const staffFullAccess = user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR";
+  const canExport = user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR" || user.role === "TEACHER";
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Student[]>([]);
@@ -139,8 +140,90 @@ export default function StudentsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
 
+  const [audienceLoading, setAudienceLoading] = useState(false);
+  const [audience, setAudience] = useState<null | {
+    total: number;
+    gender: { label: string; count: number; pct: number }[];
+    age: { label: string; count: number; pct: number }[];
+    neighborhood: { label: string; count: number; pct: number }[];
+    city: { label: string; count: number; pct: number }[];
+    state: { label: string; count: number; pct: number }[];
+    educationLevel: { label: string; count: number; pct: number }[];
+    studyShift: { label: string; count: number; pct: number }[];
+  }>(null);
+
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"pdf" | "xlsx">("xlsx");
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportFields, setExportFields] = useState<Record<string, boolean>>({
+    name: true,
+    phone: true,
+    email: true,
+    cpf: false,
+    birthDate: false,
+    rg: false,
+    gender: false,
+    city: false,
+    state: false,
+    street: false,
+    number: false,
+  });
+
   const canChangePassword =
     (user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR") && !isTeacher;
+
+  function openExport(format: "pdf" | "xlsx") {
+    setExportFormat(format);
+    setExportOpen(true);
+  }
+
+  async function doExport() {
+    if (exportBusy) return;
+    const fields = Object.entries(exportFields)
+      .filter(([, on]) => on)
+      .map(([k]) => k);
+    if (fields.length === 0) {
+      toast.push("error", "Selecione pelo menos um campo para exportar.");
+      return;
+    }
+    setExportBusy(true);
+    try {
+      const res = await fetch(`/api/students/export?format=${exportFormat}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fields,
+          q: q.trim(),
+          includeDeleted: staffFullAccess && includeDeleted,
+        }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as ApiResponse<{ message?: string }> | null;
+        const msg =
+          json && typeof json === "object" && "ok" in json && json.ok === false
+            ? json.error.message
+            : "Falha ao exportar alunos.";
+        toast.push("error", msg);
+        return;
+      }
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get("content-disposition") ?? "";
+      const match = /filename="([^"]+)"/i.exec(contentDisposition);
+      const filename = match?.[1] ?? `alunos.${exportFormat}`;
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setExportOpen(false);
+    } finally {
+      setExportBusy(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,9 +251,39 @@ export default function StudentsPage() {
     }
   }, [q, staffFullAccess, includeDeleted, toast, page, pageSize]);
 
+  const loadAudience = useCallback(async () => {
+    setAudienceLoading(true);
+    try {
+      const res = await fetch("/api/students/audience");
+      const json = (await res.json().catch(() => null)) as ApiResponse<{
+        total: number;
+        gender: { label: string; count: number; pct: number }[];
+        age: { label: string; count: number; pct: number }[];
+        neighborhood: { label: string; count: number; pct: number }[];
+        city: { label: string; count: number; pct: number }[];
+        state: { label: string; count: number; pct: number }[];
+        educationLevel: { label: string; count: number; pct: number }[];
+        studyShift: { label: string; count: number; pct: number }[];
+      }>;
+      if (!res.ok || !json.ok) {
+        setAudience(null);
+        return;
+      }
+      setAudience(json.data);
+    } catch {
+      setAudience(null);
+    } finally {
+      setAudienceLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadAudience();
+  }, [loadAudience]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const pageSafe = Math.min(page, totalPages);
@@ -295,11 +408,35 @@ export default function StudentsPage() {
             : "Cadastro base do aluno. Use a busca por nome ou CPF."
         }
         rightSlot={
-          !isTeacher ? (
-            <Button onClick={openCreate} className="w-full sm:w-auto">
-              Novo aluno
-            </Button>
-          ) : undefined
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+            {canExport ? (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => openExport("pdf")}
+                  className="w-full sm:w-auto"
+                >
+                  Exportar PDF
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => openExport("xlsx")}
+                  className="w-full sm:w-auto"
+                >
+                  Exportar Excel
+                </Button>
+              </>
+            ) : null}
+            {!isTeacher ? (
+              <Button onClick={openCreate} className="w-full sm:w-auto">
+                Novo aluno
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
@@ -332,6 +469,138 @@ export default function StudentsPage() {
             </label>
           )}
         </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Público-alvo (perfil geral)"
+        description={
+          audienceLoading
+            ? "Calculando predominâncias…"
+            : audience?.total
+              ? `Analisando ${audience.total} ${audience.total === 1 ? "aluno" : "alunos"} cadastrados.`
+              : "Sem alunos cadastrados para análise."
+        }
+        variant="elevated"
+      >
+        {audienceLoading ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+                <div className="h-4 w-28 animate-pulse rounded bg-[var(--igh-primary)]/10" />
+                <div className="mt-3 h-3 w-40 animate-pulse rounded bg-[var(--igh-primary)]/10" />
+                <div className="mt-2 h-3 w-32 animate-pulse rounded bg-[var(--igh-primary)]/10" />
+              </div>
+            ))}
+          </div>
+        ) : audience?.total ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Sexo</div>
+              <div className="mt-2 text-sm font-semibold text-[var(--text-primary)]">
+                {audience.gender[0]?.label ?? "—"}
+              </div>
+              <div className="mt-1 text-xs text-[var(--text-muted)]">
+                {audience.gender[0] ? `${audience.gender[0].count} (${audience.gender[0].pct}%)` : "—"}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Faixa etária</div>
+              <div className="mt-2 text-sm font-semibold text-[var(--text-primary)]">
+                {audience.age[0]?.label ?? "—"}
+              </div>
+              <div className="mt-1 text-xs text-[var(--text-muted)]">
+                {audience.age[0] ? `${audience.age[0].count} (${audience.age[0].pct}%)` : "—"}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Bairro (top)</div>
+              <div className="mt-2 text-sm font-semibold text-[var(--text-primary)]">
+                {audience.neighborhood[0]?.label ?? "—"}
+              </div>
+              <div className="mt-1 text-xs text-[var(--text-muted)]">
+                {audience.neighborhood[0]
+                  ? `${audience.neighborhood[0].count} (${audience.neighborhood[0].pct}%)`
+                  : "—"}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Cidade</div>
+              <div className="mt-2 text-sm font-semibold text-[var(--text-primary)]">
+                {audience.city[0]?.label ?? "—"}
+              </div>
+              <div className="mt-1 text-xs text-[var(--text-muted)]">
+                {audience.city[0] ? `${audience.city[0].count} (${audience.city[0].pct}%)` : "—"}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">UF</div>
+              <div className="mt-2 text-sm font-semibold text-[var(--text-primary)]">
+                {audience.state[0]?.label ?? "—"}
+              </div>
+              <div className="mt-1 text-xs text-[var(--text-muted)]">
+                {audience.state[0] ? `${audience.state[0].count} (${audience.state[0].pct}%)` : "—"}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Escolaridade</div>
+              <div className="mt-2 text-sm font-semibold text-[var(--text-primary)]">
+                {audience.educationLevel[0]?.label ?? "—"}
+              </div>
+              <div className="mt-1 text-xs text-[var(--text-muted)]">
+                {audience.educationLevel[0]
+                  ? `${audience.educationLevel[0].count} (${audience.educationLevel[0].pct}%)`
+                  : "—"}
+              </div>
+            </div>
+
+            {audience.studyShift.length ? (
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:col-span-2 lg:col-span-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Turno (entre quem marcou que está estudando)
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {audience.studyShift.slice(0, 6).map((b) => (
+                    <span
+                      key={b.label}
+                      className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1 text-xs font-semibold text-[var(--text-primary)]"
+                      title={`${b.count} (${b.pct}%)`}
+                    >
+                      {b.label}
+                      <span className="text-[var(--text-muted)]">{b.pct}%</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {audience.neighborhood.length > 1 ? (
+              <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:col-span-2 lg:col-span-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Bairros (top)</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {audience.neighborhood.slice(0, 8).map((b) => (
+                    <span
+                      key={b.label}
+                      className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-1 text-xs font-semibold text-[var(--text-primary)]"
+                      title={`${b.count} (${b.pct}%)`}
+                    >
+                      {b.label}
+                      <span className="text-[var(--text-muted)]">{b.pct}%</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="text-sm text-[var(--text-muted)]">
+            Nenhum aluno para analisar no momento.
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard
@@ -699,6 +968,56 @@ export default function StudentsPage() {
             </div>
           </form>
         )}
+      </Modal>
+
+      <Modal
+        open={exportOpen}
+        title={`Exportar alunos (${exportFormat === "pdf" ? "PDF" : "Excel"})`}
+        onClose={() => {
+          if (exportBusy) return;
+          setExportOpen(false);
+        }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[var(--text-muted)]">
+            Selecione quais campos devem aparecer no arquivo. A exportação respeita os filtros atuais (busca e incluir
+            excluídos).
+          </p>
+
+          <div className="grid gap-2 text-sm sm:grid-cols-2">
+            {[
+              ["name", "Nome"],
+              ["phone", "Celular"],
+              ["email", "E-mail"],
+              ["cpf", "CPF"],
+              ["birthDate", "Nascimento"],
+              ["rg", "RG"],
+              ["gender", "Gênero"],
+              ["city", "Cidade"],
+              ["state", "UF"],
+              ["street", "Rua"],
+              ["number", "Número"],
+            ].map(([key, label]) => (
+              <label key={key} className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={exportFields[key] === true}
+                  onChange={(e) => setExportFields((prev) => ({ ...prev, [key]: e.target.checked }))}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="secondary" onClick={() => setExportOpen(false)} disabled={exportBusy}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={() => void doExport()} disabled={exportBusy}>
+              {exportBusy ? "Gerando..." : "Gerar arquivo"}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

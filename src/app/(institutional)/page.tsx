@@ -57,7 +57,7 @@ export default async function HomePage({ searchParams }: Props) {
     newsPosts,
     studentRanking,
     platformExperienceBlock,
-    motherCampaignMessages,
+    mothersDaySection,
   ] = await Promise.all([
     getFormationsForFilter(),
     getCoursesForSite(formacaoSlug),
@@ -158,7 +158,10 @@ export default async function HomePage({ searchParams }: Props) {
 
       <HomeStudentJourneySection />
 
-      <MothersDayMessagesHomeSection items={motherCampaignMessages} />
+      <MothersDayMessagesHomeSection
+        items={mothersDaySection.items}
+        participationOpen={mothersDaySection.participationOpen}
+      />
 
       {studentRanking.length > 0 && <StudentRankingShowcase items={studentRanking} />}
 

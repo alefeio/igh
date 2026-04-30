@@ -41,7 +41,7 @@ export async function POST(request: Request, ctx: RouteCtx) {
       },
       select: { id: true, createdAt: true },
     });
-    revalidateTag("public-mothers-day-messages-v1", "max");
+    revalidateTag("public-mothers-day-messages-v2", "max");
     return jsonOk({ id: row.id, createdAt: row.createdAt.toISOString() });
   } catch {
     // Unique(campaignId,userId): impede duplicação

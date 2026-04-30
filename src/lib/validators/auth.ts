@@ -6,6 +6,15 @@ export const setupSchema = z.object({
   password: z.string().min(8, "Senha deve ter no mínimo 8 caracteres"),
 });
 
+export const registerSchema = z.object({
+  name: z.string().trim().min(2, "Informe seu nome completo.").max(120, "Nome muito longo."),
+  email: z.string().trim().email("Informe um e-mail válido.").toLowerCase(),
+  password: z
+    .string()
+    .min(8, "A senha deve ter pelo menos 8 caracteres.")
+    .max(72, "A senha deve ter no máximo 72 caracteres."),
+});
+
 /** Aceita `login` ou (legado) `email` no corpo da requisição. */
 export const loginSchema = z
   .object({
