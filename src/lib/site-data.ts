@@ -403,6 +403,89 @@ export async function getPublicPlatformExperienceBlock(): Promise<PlatformExperi
   }
 }
 
+// --- Unidades (landings locais) ---
+export type SiteUnitPublic = {
+  id: string;
+  slug: string;
+  city: string;
+  state: string;
+  addressLine: string | null;
+  locationName: string | null;
+  whatsapp: string | null;
+  heroBadge: string | null;
+  heroTitle: string | null;
+  heroText: string | null;
+  heroImageUrl: string | null;
+  benefitsBadge: string | null;
+  benefitsTitle: string | null;
+  benefitsText: string | null;
+  benefitsBullets: string[];
+  benefitsImageUrl: string | null;
+  galleryImages: string[];
+  courses: { id: string; name: string; description: string | null; imageUrl: string | null }[];
+};
+
+/** Unidade pública (landing local) por slug (ex.: "codo"). */
+export async function getSiteUnitPublicBySlug(slug: string): Promise<SiteUnitPublic | null> {
+  const clean = (slug ?? "").trim();
+  if (!clean) return null;
+  try {
+    return await unstable_cache(
+      async () => {
+        const unit = await prisma.siteUnit.findUnique({
+          where: { slug: clean },
+          include: {
+            courses: { include: { course: true }, orderBy: [{ order: "asc" }] },
+          },
+        });
+        if (!unit || !unit.isActive) return null;
+        return {
+          id: unit.id,
+          slug: unit.slug,
+          city: unit.city,
+          state: unit.state,
+          addressLine: unit.addressLine ?? null,
+          locationName: unit.locationName ?? null,
+          whatsapp: unit.whatsapp ?? null,
+          heroBadge: unit.heroBadge ?? null,
+          heroTitle: unit.heroTitle ?? null,
+          heroText: unit.heroText ?? null,
+          heroImageUrl: unit.heroImageUrl ?? null,
+          benefitsBadge: unit.benefitsBadge ?? null,
+          benefitsTitle: unit.benefitsTitle ?? null,
+          benefitsText: unit.benefitsText ?? null,
+          benefitsBullets: unit.benefitsBullets ?? [],
+          benefitsImageUrl: unit.benefitsImageUrl ?? null,
+          galleryImages: unit.galleryImages ?? [],
+          courses: unit.courses.map((c) => ({
+            id: c.course.id,
+            name: c.course.name,
+            description: c.course.description ?? null,
+            imageUrl: c.course.imageUrl ?? null,
+          })),
+        } satisfies SiteUnitPublic;
+      },
+      [`site-unit-public-v1:${clean}`],
+      { revalidate: 120, tags: [`site-unit-public-v1:${clean}`] },
+    )();
+  } catch {
+    return null;
+  }
+}
+
+/** Slugs de unidades ativas (para `generateStaticParams` da landing `/unidades/[slug]`). */
+export async function getActiveSiteUnitSlugs(): Promise<string[]> {
+  try {
+    const rows = await prisma.siteUnit.findMany({
+      where: { isActive: true },
+      select: { slug: true },
+    });
+    return rows.map((r) => r.slug);
+  } catch {
+    return [];
+  }
+}
+
 // --- Formações ---
 export type FormationWithCourses = {
   id: string;

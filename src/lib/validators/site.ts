@@ -163,6 +163,28 @@ export const sitePartnerSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+// SiteUnit (unidades/landing pages locais)
+export const siteUnitSchema = z.object({
+  slug: slugSchema,
+  city: z.string().min(1, "Cidade é obrigatória"),
+  state: z.string().min(2, "UF é obrigatória").max(2, "UF inválida"),
+  addressLine: z.string().optional().or(z.literal("")),
+  locationName: z.string().optional().or(z.literal("")),
+  whatsapp: z.string().optional().or(z.literal("")),
+  heroBadge: z.string().optional().or(z.literal("")),
+  heroTitle: z.string().optional().or(z.literal("")),
+  heroText: z.string().optional().or(z.literal("")),
+  heroImageUrl: z.string().url().optional().or(z.literal("")),
+  benefitsBadge: z.string().optional().or(z.literal("")),
+  benefitsTitle: z.string().optional().or(z.literal("")),
+  benefitsText: z.string().optional().or(z.literal("")),
+  benefitsBullets: z.array(z.string()).optional(),
+  benefitsImageUrl: z.string().url().optional().or(z.literal("")),
+  galleryImages: z.array(z.string().url()).optional(),
+  isActive: z.boolean().optional(),
+  courseIds: z.array(z.string().uuid()).optional(),
+});
+
 // SiteNewsCategory
 export const siteNewsCategorySchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),

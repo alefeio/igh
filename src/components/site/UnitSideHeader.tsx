@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-export function CodoSideHeader() {
+type Props = { brandLabel: string };
+
+export function UnitSideHeader({ brandLabel }: Props) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -18,7 +20,7 @@ export function CodoSideHeader() {
     <header className={`cabecalho ${scrolled ? "cabecalho-lateral" : ""}`}>
       <div className="container cabecalho-conteudo">
         <a href="#inicio" className="logo" aria-label="Ir para o início">
-          IGH - CODÓ
+          {brandLabel}
         </a>
 
         <nav className="menu" aria-label="Menu">
@@ -31,4 +33,3 @@ export function CodoSideHeader() {
     </header>
   );
 }
-
