@@ -3,7 +3,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-sessions-holiday-resync";
 
 /**
- * Reexecuta o recálculo de sessões de todas as turmas não encerradas com a lista atual de feriados/eventos ativos.
+ * Reexecuta o recálculo de sessões de **todas** as turmas (qualquer status) com a lista atual de feriados/eventos ativos.
  * Útil quando o primeiro cadastro gravou o feriado mas o recálculo falhou (ex.: timeout), sem precisar duplicar o registro.
  */
 export async function POST() {

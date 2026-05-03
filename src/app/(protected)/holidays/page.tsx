@@ -376,7 +376,7 @@ export default function HolidaysPage() {
       <DashboardHero
         eyebrow="Cadastros"
         title="Eventos e Feriados"
-        description="Feriados de dia inteiro não geram aula nesse dia; as aulas são remarcadas para os próximos dias de aula da turma. Eventos com horário só afetam turmas cujo horário cruza o intervalo. Ao salvar, o sistema recalcula automaticamente as sessões das turmas não encerradas. Se o cadastro falhou depois de avisar duplicata, o registro já existe: use Recalcular ou edite e salve o evento na lista."
+        description="Feriados de dia inteiro não geram aula nesse dia; as aulas são remarcadas para os próximos dias de aula da turma. Eventos com horário só afetam turmas cujo horário cruza o intervalo. Ao salvar, o sistema recalcula automaticamente as sessões de todas as turmas (qualquer status). Se o cadastro falhou depois de avisar duplicata, o registro já existe: use Recalcular ou edite e salve o evento na lista."
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
             <Button
@@ -441,7 +441,7 @@ export default function HolidaysPage() {
           {lastFeedback.tag === "schedule" ? (
             <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
               <p>
-                <strong className="text-[var(--text-primary)]">Turmas analisadas</strong> (não encerradas):{" "}
+                <strong className="text-[var(--text-primary)]">Turmas analisadas</strong> (todas):{" "}
                 {lastFeedback.data.classGroupsProcessed}
               </p>
               <p>
@@ -507,7 +507,7 @@ export default function HolidaysPage() {
             que começam depois do fim do evento.
           </li>
           <li>
-            Ao criar, editar, inativar ou excluir um registro ativo, o calendário das turmas não encerradas é
+            Ao criar, editar, inativar ou excluir um registro ativo, o calendário de todas as turmas é
             recalculado automaticamente.
           </li>
           <li>
@@ -750,7 +750,7 @@ export default function HolidaysPage() {
           ) : null}
           {isActive ? (
             <p className="text-xs text-[var(--text-muted)]">
-              Ao salvar um registro <strong>ativo</strong>, o sistema recalcula as turmas não encerradas e envia
+              Ao salvar um registro <strong>ativo</strong>, o sistema recalcula todas as turmas e envia
               notificações — pode levar alguns minutos. O resumo aparece no painel abaixo do título da página ao
               concluir.
             </p>

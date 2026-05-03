@@ -68,7 +68,7 @@ function scheduleDiffersFromComputed(
 }
 
 /**
- * Recalcula datas (e aulas vinculadas) de todas as turmas não encerradas, usando a lista atual de feriados/eventos ativos
+ * Recalcula datas (e aulas vinculadas) de **todas** as turmas (qualquer status), usando a lista atual de feriados/eventos ativos
  * e a mesma lógica de `generateSessionsByWorkload` da criação/edição de turma.
  *
  * Comportamento (alinhado a {@link generateSessionsByWorkload}):
@@ -96,7 +96,6 @@ export async function recalculateAllClassGroupSessionsAfterHolidayChange(): Prom
   });
 
   const groups = await prisma.classGroup.findMany({
-    where: { status: { not: "ENCERRADA" } },
     select: { id: true },
   });
 
