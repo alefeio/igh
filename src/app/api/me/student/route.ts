@@ -7,7 +7,7 @@ import { updateStudentSchema } from "@/lib/validators/students";
 export async function GET() {
   const user = await getSessionUserFromCookie();
   if (!user || user.role !== "STUDENT") {
-    return jsonOk({ student: null, enrolledCourseIds: [], enrolledCourseIdsEmAndamento: [] });
+    return jsonOk({ student: null, enrolledCourseIds: [], enrolledCourseIdsEmAndamento: [], classGroupsEmAndamento: [] });
   }
 
   const student = await prisma.student.findFirst({
@@ -23,7 +23,7 @@ export async function GET() {
   });
 
   if (!student) {
-    return jsonOk({ student: null, enrolledCourseIds: [], enrolledCourseIdsEmAndamento: [] });
+    return jsonOk({ student: null, enrolledCourseIds: [], enrolledCourseIdsEmAndamento: [], classGroupsEmAndamento: [] });
   }
 
   const ACTIVE_CLASS_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
@@ -36,14 +36,32 @@ export async function GET() {
         course: { status: "ACTIVE" },
       },
     },
-    select: { classGroup: { select: { courseId: true, status: true } } },
+    select: {
+      classGroup: {
+        select: {
+          id: true,
+          courseId: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
   });
   const enrolledCourseIds = [...new Set(activeEnrollments.map((e) => e.classGroup.courseId))];
+  const enrolledClassGroupIds = [...new Set(activeEnrollments.map((e) => e.classGroup.id))];
   const enrolledCourseIdsEmAndamento = [
     ...new Set(
       activeEnrollments.filter((e) => e.classGroup.status === "EM_ANDAMENTO").map((e) => e.classGroup.courseId),
     ),
   ];
+  const classGroupsEmAndamento = activeEnrollments
+    .filter((e) => e.classGroup.status === "EM_ANDAMENTO")
+    .map((e) => ({
+      courseId: e.classGroup.courseId,
+      startDate: e.classGroup.startDate,
+      endDate: e.classGroup.endDate,
+    }));
 
   return jsonOk({
     student: {
@@ -55,7 +73,9 @@ export async function GET() {
       email: student.email,
     },
     enrolledCourseIds,
+    enrolledClassGroupIds,
     enrolledCourseIdsEmAndamento,
+    classGroupsEmAndamento,
   });
 }
 

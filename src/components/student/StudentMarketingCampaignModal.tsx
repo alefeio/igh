@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Heart } from "lucide-react";
 
@@ -77,6 +78,8 @@ export function StudentMarketingCampaignModal({
   autoPromptOnce?: boolean;
   className?: string;
 }) {
+  const router = useRouter();
+  const openedFromUrlRef = useRef(false);
   const [open, setOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("form");
   const [campaign, setCampaign] = useState<ActiveCampaign | null>(null);
@@ -177,6 +180,35 @@ export function StudentMarketingCampaignModal({
       setFeedLoading(false);
     }
   }, []);
+
+  /**
+   * Abre a campanha quando o aluno chega com `?campanha=<slug>` ou `?abrirCampanha=<slug>` (ex.: link do banner).
+   * O slug deve coincidir com a campanha ativa na API; Dia das Mães: `dia-das-maes-2026` (MOTHERS_DAY_CAMPAIGN_SLUG).
+   */
+  useEffect(() => {
+    if (openedFromUrlRef.current) return;
+    if (loadingStatus || !campaign) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("campanha") ?? params.get("abrirCampanha");
+    if (!q || q !== campaign.slug) return;
+    openedFromUrlRef.current = true;
+    if (hasResponded) {
+      setModalMode("feed");
+      setOpen(true);
+      void loadFeed(campaign.id);
+    } else {
+      if (storageAutoKey) window.localStorage.setItem(storageAutoKey, "1");
+      resetForm();
+      setModalMode("form");
+      setOpen(true);
+    }
+    params.delete("campanha");
+    params.delete("abrirCampanha");
+    const rest = params.toString();
+    const path = `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`;
+    router.replace(path, { scroll: false });
+  }, [campaign, hasResponded, loadFeed, loadingStatus, resetForm, router, storageAutoKey]);
 
   useEffect(() => {
     if (!autoPromptOnce || loadingStatus) return;

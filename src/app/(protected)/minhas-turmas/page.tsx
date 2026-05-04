@@ -1,12 +1,14 @@
 "use client";
 
-import { GraduationCap, LayoutDashboard, Star, UserCircle } from "lucide-react";
+import { GraduationCap, LayoutDashboard, MoreVertical, Star, UserCircle } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { DashboardHero, QuickActionGrid, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
@@ -45,21 +47,35 @@ export default function MinhasTurmasPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [enrollments, setEnrollments] = useState<EnrollmentItem[]>([]);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EnrollmentItem | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  const loadEnrollments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/me/enrollments");
+      const json = (await res.json()) as ApiResponse<{ enrollments: EnrollmentItem[] }>;
+      if (res.ok && json?.ok) setEnrollments(json.data.enrollments);
+      else toast.push("error", "Falha ao carregar turmas.");
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/me/enrollments");
-        const json = (await res.json()) as ApiResponse<{ enrollments: EnrollmentItem[] }>;
-        if (res.ok && json?.ok) setEnrollments(json.data.enrollments);
-        else toast.push("error", "Falha ao carregar turmas.");
-      } finally {
-        setLoading(false);
-      }
+    void loadEnrollments();
+  }, [loadEnrollments]);
+
+  useEffect(() => {
+    if (!menuOpenId) return;
+    function handleMouseDown(ev: MouseEvent) {
+      const wrap = document.querySelector(`[data-enrollment-menu="${menuOpenId}"]`);
+      if (wrap && !wrap.contains(ev.target as Node)) setMenuOpenId(null);
     }
-    void load();
-  }, [toast]);
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [menuOpenId]);
 
   /** Formata ISO date ou date-time em pt-BR. Usa só a parte da data para evitar dia errado em fusos à esquerda de UTC. */
   function formatDate(iso: string) {
@@ -131,7 +147,9 @@ export default function MinhasTurmasPage() {
                 <Th>Início</Th>
                 <Th>Status</Th>
                 <Th>Local</Th>
-                <Th></Th>
+                <Th className="w-px text-right">
+                  <span className="sr-only">Ações</span>
+                </Th>
               </tr>
             </thead>
             <tbody>
@@ -168,13 +186,45 @@ export default function MinhasTurmasPage() {
                     <Badge tone={STATUS_TONE[e.status] ?? "zinc"}>{STATUS_LABEL[e.status] ?? e.status}</Badge>
                   </Td>
                   <Td>{e.location ?? "—"}</Td>
-                  <Td>
-                    <Link
-                      href={`/minhas-turmas/${e.id}`}
-                      className="font-semibold text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
-                    >
-                      Ver detalhes
-                    </Link>
+                  <Td className="text-right">
+                    <div className="relative inline-flex justify-end" data-enrollment-menu={e.id}>
+                      <button
+                        type="button"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--text-muted)] transition hover:border-[var(--card-border)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpenId === e.id}
+                        aria-label={`Opções da turma ${e.courseName}`}
+                        onClick={() => setMenuOpenId((id) => (id === e.id ? null : e.id))}
+                      >
+                        <MoreVertical className="h-5 w-5" aria-hidden />
+                      </button>
+                      {menuOpenId === e.id ? (
+                        <div
+                          role="menu"
+                          className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] py-1 text-left shadow-lg"
+                        >
+                          <Link
+                            role="menuitem"
+                            href={`/minhas-turmas/${e.id}`}
+                            className="block px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                            onClick={() => setMenuOpenId(null)}
+                          >
+                            Ver detalhes
+                          </Link>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="w-full px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            onClick={() => {
+                              setDeleteTarget(e);
+                              setMenuOpenId(null);
+                            }}
+                          >
+                            Excluir turma
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   </Td>
                 </tr>
               ))}
@@ -182,6 +232,58 @@ export default function MinhasTurmasPage() {
           </TableShell>
         )}
       </SectionCard>
+
+      <Modal
+        open={deleteTarget != null}
+        title="Excluir turma"
+        size="small"
+        onClose={() => {
+          if (!deleteSubmitting) setDeleteTarget(null);
+        }}
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+            Tem certeza que deseja sair desta turma? Você perderá o acesso ao conteúdo desta matrícula na área do aluno. Se precisar voltar, será necessário contatar a secretaria.
+          </p>
+          {deleteTarget ? (
+            <p className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/60 px-3 py-2 text-sm font-semibold text-[var(--text-primary)]">
+              {deleteTarget.courseName}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <Button type="button" variant="secondary" disabled={deleteSubmitting} onClick={() => setDeleteTarget(null)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={deleteSubmitting}
+              onClick={async () => {
+                if (!deleteTarget) return;
+                setDeleteSubmitting(true);
+                try {
+                  const res = await fetch(`/api/me/enrollments/${deleteTarget.id}`, { method: "DELETE" });
+                  const json = (await res.json()) as ApiResponse<{ cancelled: boolean }>;
+                  if (!res.ok || !json?.ok) {
+                    toast.push(
+                      "error",
+                      json && !json.ok && "error" in json ? json.error.message : "Não foi possível excluir a turma.",
+                    );
+                    return;
+                  }
+                  toast.push("success", "Turma removida da sua lista.");
+                  setEnrollments((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+                  setDeleteTarget(null);
+                } finally {
+                  setDeleteSubmitting(false);
+                }
+              }}
+            >
+              {deleteSubmitting ? "Excluindo…" : "Excluir turma"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <section aria-label="Atalhos">
         <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">Atalhos úteis</h2>

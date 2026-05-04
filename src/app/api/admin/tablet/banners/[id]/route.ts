@@ -21,6 +21,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     title: parsed.data.title ?? undefined,
     subtitle: parsed.data.subtitle ?? undefined,
     imageUrl: parsed.data.imageUrl === "" ? null : (parsed.data.imageUrl ?? undefined),
+    ...(parsed.data.linkHref !== undefined ? { linkHref: parsed.data.linkHref } : {}),
     order: parsed.data.order ?? undefined,
     isActive: parsed.data.isActive ?? undefined,
   };

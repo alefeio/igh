@@ -17,6 +17,7 @@ type TabletBanner = {
   title: string | null;
   subtitle: string | null;
   imageUrl: string | null;
+  linkHref: string | null;
   order: number;
   isActive: boolean;
 };
@@ -30,6 +31,7 @@ export default function TabletBannersPage() {
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [linkHref, setLinkHref] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -37,6 +39,7 @@ export default function TabletBannersPage() {
     setTitle("");
     setSubtitle("");
     setImageUrl("");
+    setLinkHref("");
     setIsActive(true);
     setEditing(null);
   }
@@ -70,6 +73,7 @@ export default function TabletBannersPage() {
     setTitle(b.title ?? "");
     setSubtitle(b.subtitle ?? "");
     setImageUrl(b.imageUrl ?? "");
+    setLinkHref(b.linkHref ?? "");
     setIsActive(b.isActive);
     setOpen(true);
   }
@@ -87,6 +91,7 @@ export default function TabletBannersPage() {
           title: title || undefined,
           subtitle: subtitle || undefined,
           imageUrl: imageUrl || undefined,
+          linkHref: linkHref.trim() || "",
           isActive,
         }),
       });
@@ -138,9 +143,10 @@ export default function TabletBannersPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="text-lg font-semibold">Banners para tablet</div>
+          <div className="text-lg font-semibold">Banners (aluno)</div>
           <div className="text-sm text-[var(--text-secondary)]">
-            Banners exibidos apenas na tela de tablet (não aparecem no site).
+            Conteúdo ativo aparece no topo do painel do aluno (<strong className="text-[var(--text-primary)]">/dashboard</strong>) e na vitrine em tela cheia do tablet (
+            <strong className="text-[var(--text-primary)]">/tablet/banners</strong>). Não aparece nas páginas institucionais do site.
           </div>
         </div>
         <Button onClick={openCreate}>Novo banner</Button>
@@ -162,6 +168,7 @@ export default function TabletBannersPage() {
                 <Th>Título</Th>
                 <Th>Status</Th>
                 <Th>Imagem</Th>
+                <Th>Link</Th>
                 <Th className="w-40" />
               </tr>
             </thead>
@@ -195,6 +202,15 @@ export default function TabletBannersPage() {
                       />
                     ) : (
                       <span className="text-xs text-[var(--text-muted)]">Sem imagem</span>
+                    )}
+                  </Td>
+                  <Td>
+                    {b.linkHref?.trim() ? (
+                      <span className="text-xs text-[var(--text-secondary)] line-clamp-2 break-all" title={b.linkHref}>
+                        {b.linkHref}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-[var(--text-muted)]">—</span>
                     )}
                   </Td>
                   <Td>
@@ -242,6 +258,23 @@ export default function TabletBannersPage() {
                 placeholder="Mensagem complementar"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-primary)]">
+              Link (opcional)
+            </label>
+            <Input
+              className="mt-1"
+              value={linkHref}
+              onChange={(e) => setLinkHref(e.target.value)}
+              placeholder="https://… ou caminho interno, ex.: /inscreva"
+              type="text"
+              inputMode="url"
+              autoComplete="off"
+            />
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              No painel do aluno e na vitrine tablet aparece o botão &quot;Abrir link&quot; quando preenchido. Pode ser URL completa, caminho com / (ex.: /dashboard?campanha=dia-das-maes-2026) ou só a query no contexto atual (ex.: ?abrirCampanha=dia-das-maes-2026).
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">

@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     title: parsed.data.title ?? null,
     subtitle: parsed.data.subtitle ?? null,
     imageUrl: parsed.data.imageUrl || null,
+    linkHref: parsed.data.linkHref ?? null,
     order: parsed.data.order ?? (maxOrder._max.order ?? -1) + 1,
     isActive: parsed.data.isActive ?? true,
   };

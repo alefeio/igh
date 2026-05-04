@@ -20,6 +20,7 @@ type ClassGroupOption = {
   courseId: string;
   courseName: string;
   startDate: string;
+  endDate?: string | null;
   daysOfWeek: string[];
   startTime: string;
   endTime: string;
@@ -60,6 +61,76 @@ function formatDateForInput(d: Date | string): string {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function toDateOnlyString(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const part = value.trim().split("T")[0]?.split(" ")[0] ?? "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(part) ? part : null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(value.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return null;
+}
+
+function dateOnlyToUtcDate(dateOnly: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return null;
+  const [y, m, d] = dateOnly.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
+  return aStart.getTime() <= bEnd.getTime() && bStart.getTime() <= aEnd.getTime();
+}
+
+function overlapsWithTwoInProgress(
+  candidate: { startDate: string; endDate?: string | null },
+  inProgress: { startDate: string; endDate?: string | null }[],
+): boolean {
+  if (inProgress.length < 2) return false;
+  const cStartStr = toDateOnlyString(candidate.startDate);
+  const cEndStr = toDateOnlyString(candidate.endDate ?? candidate.startDate);
+  const cStart = cStartStr ? dateOnlyToUtcDate(cStartStr) : null;
+  const cEnd = cEndStr ? dateOnlyToUtcDate(cEndStr) : null;
+  if (!cStart || !cEnd) return true; // conservador
+  const overlapping = inProgress.filter((ip) => {
+    const ipStartStr = toDateOnlyString(ip.startDate);
+    const ipEndStr = toDateOnlyString(ip.endDate ?? ip.startDate);
+    const ipStart = ipStartStr ? dateOnlyToUtcDate(ipStartStr) : null;
+    const ipEnd = ipEndStr ? dateOnlyToUtcDate(ipEndStr) : null;
+    if (!ipStart || !ipEnd) return true; // conservador
+    return rangesOverlap(ipStart, ipEnd, cStart, cEnd);
+  }).length;
+  return overlapping >= 2;
+}
+
+function canEnrollSameCourseAfterInProgressEnds(args: {
+  courseId: string;
+  candidateStartDate: string;
+  inProgress: { courseId: string; startDate: string; endDate?: string | null }[];
+}): boolean {
+  const list = args.inProgress.filter((c) => c.courseId === args.courseId);
+  if (list.length === 0) return false;
+  const candStartStr = toDateOnlyString(args.candidateStartDate);
+  const candStart = candStartStr ? dateOnlyToUtcDate(candStartStr) : null;
+  if (!candStart) return false;
+
+  let latestEnd: Date | null = null;
+  for (const cg of list) {
+    const endStr = toDateOnlyString(cg.endDate ?? cg.startDate);
+    const end = endStr ? dateOnlyToUtcDate(endStr) : null;
+    if (!end) return false; // conservador
+    if (!latestEnd || end.getTime() > latestEnd.getTime()) latestEnd = end;
+  }
+  if (!latestEnd) return false;
+  // Libera se a nova turma começar depois do fim da(s) turma(s) em andamento do mesmo curso.
+  return candStart.getTime() > latestEnd.getTime();
 }
 
 /** Primeira letra de cada palavra maiúscula, restante minúscula. */
@@ -125,8 +196,12 @@ export function InscrevaForm() {
   const [registeredWithoutEmail, setRegisteredWithoutEmail] = useState(false);
   const [showSecretariatMessage, setShowSecretariatMessage] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
+  const [enrolledClassGroupIds, setEnrolledClassGroupIds] = useState<string[]>([]);
   /** Cursos em que o aluno tem turma com status EM_ANDAMENTO (limite de 2 para novas inscrições). */
   const [enrolledCourseIdsEmAndamento, setEnrolledCourseIdsEmAndamento] = useState<string[]>([]);
+  const [classGroupsEmAndamento, setClassGroupsEmAndamento] = useState<
+    { courseId: string; startDate: string; endDate?: string | null }[]
+  >([]);
   const [enrollmentSuccessName, setEnrollmentSuccessName] = useState<string | null>(null);
 
   const load = useCallback(async (options?: { ignoreCourseId?: boolean }) => {
@@ -145,13 +220,17 @@ export function InscrevaForm() {
       const meJson = (await meRes.json()) as ApiResponse<{
         student: StudentData | null;
         enrolledCourseIds?: string[];
+        enrolledClassGroupIds?: string[];
         enrolledCourseIdsEmAndamento?: string[];
+        classGroupsEmAndamento?: { courseId: string; startDate: string; endDate?: string | null }[];
       }>;
       const cgJson = (await cgRes.json()) as ApiResponse<{ classGroups: ClassGroupOption[] }>;
       if (meJson?.ok) {
         setStudent(meJson.data.student ?? null);
         setEnrolledCourseIds(meJson.data.enrolledCourseIds ?? []);
+        setEnrolledClassGroupIds(meJson.data.enrolledClassGroupIds ?? []);
         setEnrolledCourseIdsEmAndamento(meJson.data.enrolledCourseIdsEmAndamento ?? []);
+        setClassGroupsEmAndamento(meJson.data.classGroupsEmAndamento ?? []);
       }
       if (cgJson?.ok && cgJson.data.classGroups) {
         // API retorna só PLANEJADA com vagas; mantém filtro defensivo.
@@ -225,6 +304,8 @@ export function InscrevaForm() {
   }
 
   const selectedClassGroups = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
+  const showLimitBanner =
+    classGroupsEmAndamento.length >= 2 && classGroups.some((cg) => overlapsWithTwoInProgress(cg, classGroupsEmAndamento));
 
   /**
    * Bloqueia turmas de cursos em que o usuário já está matriculado (uma turma por curso).
@@ -232,8 +313,38 @@ export function InscrevaForm() {
    */
   function isClassGroupOptionDisabled(cg: ClassGroupOption): boolean {
     if (selectedClassGroupIds.includes(cg.id)) return false;
-    if (enrolledCourseIds.includes(cg.courseId)) return true;
-    if (enrolledCourseIdsEmAndamento.length >= 2) return true;
+    if (enrolledClassGroupIds.includes(cg.id)) return true;
+    if (enrolledCourseIds.includes(cg.courseId)) {
+      // Exceção: pode se inscrever novamente no mesmo curso se a turma nova começar só depois do término
+      // da(s) turma(s) em andamento desse curso.
+      const canReEnrollSameCourse = canEnrollSameCourseAfterInProgressEnds({
+        courseId: cg.courseId,
+        candidateStartDate: cg.startDate,
+        inProgress: classGroupsEmAndamento,
+      });
+      if (!canReEnrollSameCourse) return true;
+    }
+    // Regra: não permitir inscrição em turma cujo período sobreponha o período de 2 turmas EM_ANDAMENTO do aluno.
+    if (classGroupsEmAndamento.length >= 2) {
+      const cgStartStr = toDateOnlyString(cg.startDate);
+      const cgEndStr = toDateOnlyString(cg.endDate ?? cg.startDate);
+      const cgStart = cgStartStr ? dateOnlyToUtcDate(cgStartStr) : null;
+      const cgEnd = cgEndStr ? dateOnlyToUtcDate(cgEndStr) : null;
+      if (cgStart && cgEnd) {
+        const overlapping = classGroupsEmAndamento.filter((ip) => {
+          const ipStartStr = toDateOnlyString(ip.startDate);
+          const ipEndStr = toDateOnlyString(ip.endDate ?? ip.startDate);
+          const ipStart = ipStartStr ? dateOnlyToUtcDate(ipStartStr) : null;
+          const ipEnd = ipEndStr ? dateOnlyToUtcDate(ipEndStr) : null;
+          if (!ipStart || !ipEnd) return true; // conservador: se não souber, considera sobreposição
+          return rangesOverlap(ipStart, ipEnd, cgStart, cgEnd);
+        }).length;
+        if (overlapping >= 2) return true;
+      } else {
+        // Se não conseguir interpretar datas, mantém o bloqueio conservador.
+        return true;
+      }
+    }
     if (selectedClassGroupIds.length >= 2) return true;
     const selected = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
     if (selected.some((other) => doOverlap(other, cg))) return true;
@@ -268,6 +379,7 @@ export function InscrevaForm() {
           setEnrollmentSuccessName(student.name);
           const newCourseIds = selectedClassGroups.map((c) => c.courseId);
           setEnrolledCourseIds((prev) => [...new Set([...prev, ...newCourseIds])]);
+          setEnrolledClassGroupIds((prev) => [...new Set([...prev, ...selectedClassGroupIds])]);
         }
         setCadastroName("");
         setCadastroCpf("");
@@ -647,7 +759,7 @@ export function InscrevaForm() {
 
       <div className={cardClass}>
         <h2 className="text-lg font-bold text-[var(--text-primary)]">Escolher turmas</h2>
-        {enrolledCourseIdsEmAndamento.length >= 2 ? (
+        {showLimitBanner ? (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-5 dark:border-amber-800 dark:bg-amber-950/40">
             <p className="font-semibold text-[var(--text-primary)]">Limite de cursos atingido</p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">

@@ -219,6 +219,14 @@ export type StudentEnrollmentSummary = {
   forumRepliesCount: number;
 };
 
+export type StudentWelcomeBanner = {
+  id: string;
+  title: string | null;
+  subtitle: string | null;
+  imageUrl: string | null;
+  linkHref: string | null;
+};
+
 export type DashboardDataStudent = {
   role: "STUDENT";
   roleLabel: string;
@@ -250,6 +258,8 @@ export type DashboardDataStudent = {
   totalForumQuestions: number;
   /** Total de participações no fórum: respostas do aluno nas dúvidas */
   totalForumReplies: number;
+  /** Banners ativos (Admin → Banners (aluno)); topo do painel do aluno e vitrine /tablet/banners */
+  welcomeBanners: StudentWelcomeBanner[];
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -440,6 +450,12 @@ export async function loadStudentDashboardMetrics(
 
   await ensurePendingDocumentRemindersForStudent(studentRecordId, userId);
 
+  const welcomeBanners = await prisma.tabletBanner.findMany({
+    where: { isActive: true },
+    orderBy: [{ order: "asc" }],
+    select: { id: true, title: true, subtitle: true, imageUrl: true, linkHref: true },
+  });
+
   return {
     role: "STUDENT",
     roleLabel,
@@ -454,6 +470,7 @@ export async function loadStudentDashboardMetrics(
     totalAttendancePresent: attendancePresentCount,
     totalForumQuestions: forumQuestionsCount,
     totalForumReplies: forumRepliesCount,
+    welcomeBanners,
   };
 }
 
@@ -668,6 +685,11 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       select: { id: true },
     });
     if (!student) {
+      const welcomeBanners = await prisma.tabletBanner.findMany({
+        where: { isActive: true },
+        orderBy: [{ order: "asc" }],
+        select: { id: true, title: true, subtitle: true, imageUrl: true, linkHref: true },
+      });
       return {
         role: "STUDENT",
         roleLabel,
@@ -682,6 +704,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         totalAttendancePresent: 0,
         totalForumQuestions: 0,
         totalForumReplies: 0,
+        welcomeBanners,
       };
     }
     return loadStudentDashboardMetrics(student.id, user.id, roleLabel);

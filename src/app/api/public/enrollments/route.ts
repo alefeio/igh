@@ -4,6 +4,32 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { createPreEnrollmentSchema } from "@/lib/validators/public-enrollment";
 import { verifyStudentToken } from "@/lib/student-token";
 
+function toDateOnlyString(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const part = value.trim().split("T")[0]?.split(" ")[0] ?? "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(part) ? part : null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(value.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return null;
+}
+
+function dateOnlyToUtcDate(dateOnly: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return null;
+  const [y, m, d] = dateOnly.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
+  return aStart.getTime() <= bEnd.getTime() && bStart.getTime() <= aEnd.getTime();
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = createPreEnrollmentSchema.safeParse(body);
@@ -76,15 +102,39 @@ export async function POST(request: Request) {
       status: "ACTIVE",
       classGroup: { status: "EM_ANDAMENTO" },
     },
-    select: { classGroup: { select: { courseId: true } } },
+    select: { classGroup: { select: { courseId: true, startDate: true, endDate: true } } },
   });
-  const currentEmAndamentoCourseIds = new Set(currentEmAndamentoEnrollments.map((e) => e.classGroup.courseId));
   const newCourseId = classGroup.courseId;
-  if (!currentEmAndamentoCourseIds.has(newCourseId) && currentEmAndamentoCourseIds.size >= 2) {
+  const candStartStr = toDateOnlyString(classGroup.startDate);
+  const candEndStr = toDateOnlyString(classGroup.endDate ?? classGroup.startDate);
+  const candStart = candStartStr ? dateOnlyToUtcDate(candStartStr) : null;
+  const candEnd = candEndStr ? dateOnlyToUtcDate(candEndStr) : null;
+  if (!candStart || !candEnd) {
+    return jsonErr("VALIDATION_ERROR", "Data da turma inválida para inscrição. Contate a secretaria.", 400);
+  }
+
+  const overlappingCourseIds = new Set<string>();
+  for (const e of currentEmAndamentoEnrollments) {
+    const ipStartStr = toDateOnlyString(e.classGroup.startDate);
+    const ipEndStr = toDateOnlyString(e.classGroup.endDate ?? e.classGroup.startDate);
+    const ipStart = ipStartStr ? dateOnlyToUtcDate(ipStartStr) : null;
+    const ipEnd = ipEndStr ? dateOnlyToUtcDate(ipEndStr) : null;
+    if (!ipStart || !ipEnd) {
+      // conservador: se não souber datas, considera como sobreposição
+      overlappingCourseIds.add(e.classGroup.courseId);
+      continue;
+    }
+    if (rangesOverlap(ipStart, ipEnd, candStart, candEnd)) {
+      overlappingCourseIds.add(e.classGroup.courseId);
+    }
+  }
+
+  // Limite de 2 cursos se aplica apenas quando o período da turma nova "coincide" com 2 turmas em andamento.
+  if (overlappingCourseIds.size >= 2 && !overlappingCourseIds.has(newCourseId)) {
     return jsonErr(
       "LIMIT_EXCEEDED",
-      "Você já está inscrito em 2 cursos com turmas em andamento. O aluno pode ter no máximo 2 cursos nessa situação.",
-      400
+      "Você já está inscrito em 2 cursos com turmas em andamento no mesmo período. Aguarde o encerramento de alguma turma ou entre em contato com a secretaria.",
+      400,
     );
   }
 

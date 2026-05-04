@@ -107,7 +107,7 @@ const ITEMS: Item[] = [
   { href: "/admin/site/configuracoes", label: "Configurações gerais", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/menu", label: "Menu do site", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/banners", label: "Banners", adminOrMaster: true, category: "Site" },
-  { href: "/admin/tablet/banners", label: "Banners (tablet)", adminOrMaster: true, category: "Site" },
+  { href: "/admin/tablet/banners", label: "Banners (aluno)", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/contato-pagina", label: "Página de contato", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/sobre", label: "Página Sobre", adminOrMaster: true, category: "Site" },

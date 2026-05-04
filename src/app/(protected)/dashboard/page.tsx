@@ -30,6 +30,7 @@ import {
 } from "@/components/dashboard/DashboardUI";
 import { StudentPlatformExperienceModal } from "@/components/student/StudentPlatformExperienceModal";
 import { StudentMarketingCampaignModal } from "@/components/student/StudentMarketingCampaignModal";
+import { TabletBannerViewer } from "@/components/tablet/TabletBannerViewer";
 import { requireSessionUser } from "@/lib/auth";
 import {
   getDashboardData,
@@ -55,7 +56,8 @@ const STUDENT_TUTORIAL_STEPS: TutorialStep[] = [
   {
     target: "[data-tour=\"dashboard-welcome\"]",
     title: "Bem-vindo à Área do aluno",
-    content: "Este é seu painel. Aqui você vê seu progresso, cursos matriculados e atalhos. Vamos mostrar os principais recursos.",
+    content:
+      "Este é seu painel. Quando houver banners ativos, eles aparecem no topo no mesmo formato da vitrine em tela cheia do tablet (imagens, textos e rotação automática). Abaixo ficam seu progresso, cursos matriculados e atalhos.",
   },
   {
     target: "[data-tour=\"dashboard-progresso-geral\"]",
@@ -598,6 +600,9 @@ function DashboardTeacher({
   );
 }
 
+const STUDENT_DASHBOARD_DEFAULT_WELCOME_TEXT =
+  "Resumo leve ao entrar: continue de onde parou, veja seu progresso geral e acesse rapidamente turmas e fórum. Detalhes de pontos, ranking, exercícios e calendário ficam em páginas próprias — só carregam quando você abre.";
+
 function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
   const percent =
     enrollment.lessonsTotal > 0
@@ -698,6 +703,7 @@ function DashboardStudent({
     totalLessonsTotal,
     recommendedEnrollmentId,
     lastViewedLesson,
+    welcomeBanners,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
   const recommendedEnrollment = recommendedEnrollmentId
@@ -767,13 +773,26 @@ function DashboardStudent({
       </div>
     );
 
+  const hasWelcomeBanner = welcomeBanners.some(
+    (b) =>
+      (b.title && b.title.trim()) ||
+      (b.subtitle && b.subtitle.trim()) ||
+      (b.imageUrl && b.imageUrl.trim()) ||
+      (b.linkHref && b.linkHref.trim()),
+  );
+
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      {hasWelcomeBanner ? (
+        <div className="min-w-0" data-tour="dashboard-welcome-banner">
+          <TabletBannerViewer mode="embedded" banners={welcomeBanners} className="w-full" />
+        </div>
+      ) : null}
       <DashboardHero
         dataTour="dashboard-welcome"
         eyebrow="Sua jornada de aprendizado"
         title={`Olá, ${firstName}!`}
-        description="Resumo leve ao entrar: continue de onde parou, veja seu progresso geral e acesse rapidamente turmas e fórum. Detalhes de pontos, ranking, exercícios e calendário ficam em páginas próprias — só carregam quando você abre."
+        description={hasWelcomeBanner ? undefined : STUDENT_DASHBOARD_DEFAULT_WELCOME_TEXT}
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
             <StudentMarketingCampaignModal autoPromptOnce={enrollments.length > 0} className="w-full sm:w-auto" />

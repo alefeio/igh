@@ -57,7 +57,7 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
 <li><strong>Inscreva-se (página)</strong> — página de captação / inscrição.</li>
 <li><strong>Contato (página)</strong> — edição da página de contato.</li>
 <li><strong>Menu do site</strong> — itens e ordem da navegação pública.</li>
-<li><strong>Banners</strong> e <strong>Banners (tablet)</strong> — destaques visuais no site e em vitrine tablet, se usados.</li>
+<li><strong>Banners</strong> e <strong>Banners (aluno)</strong> — destaques no site e no painel do aluno / vitrine tablet, se usados.</li>
 <li><strong>Projetos</strong>, <strong>Depoimentos</strong>, <strong>Parceiros</strong>, <strong>Notícias</strong>, <strong>FAQ</strong>, <strong>Transparência</strong> — seções de conteúdo conforme o projeto do site.</li>
 </ul>
 

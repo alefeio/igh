@@ -82,11 +82,30 @@ export const siteBannerSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+const tabletBannerLinkHref = z
+  .union([z.string().max(2048), z.literal("")])
+  .optional()
+  .transform((s) => {
+    if (s === undefined) return undefined;
+    const t = s.trim();
+    return t === "" ? null : t;
+  })
+  .refine(
+    (s) =>
+      s === undefined ||
+      s === null ||
+      /^https?:\/\//i.test(s) ||
+      s.startsWith("/") ||
+      s.startsWith("?"),
+    "Link: use https://…, um caminho começando com / (ex.: /dashboard?campanha=…) ou só a query (ex.: ?abrirCampanha=…).",
+  );
+
 // TabletBanner
 export const tabletBannerSchema = z.object({
   title: z.string().optional(),
   subtitle: z.string().optional(),
   imageUrl: z.string().url().optional().or(z.literal("")),
+  linkHref: tabletBannerLinkHref,
   order: z.number().int().min(0).optional(),
   isActive: z.boolean().optional(),
 });

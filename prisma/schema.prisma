@@ -800,6 +800,8 @@ model TabletBanner {
   title     String?
   subtitle  String?
   imageUrl  String?
+  /** URL absoluta (https://...) ou caminho interno (/rota). Opcional. */
+  linkHref  String?
   order     Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())

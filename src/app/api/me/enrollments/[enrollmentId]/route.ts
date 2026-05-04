@@ -137,3 +137,35 @@ export async function GET(
     },
   });
 }
+
+/** Cancela a matrícula do aluno na turma (status CANCELLED). Apenas STUDENT. */
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ enrollmentId: string }> },
+) {
+  const user = await requireRole("STUDENT");
+  const { enrollmentId } = await context.params;
+
+  const student = await prisma.student.findFirst({
+    where: { userId: user.id },
+    select: { id: true },
+  });
+  if (!student) {
+    return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
+  }
+
+  const enrollment = await prisma.enrollment.findFirst({
+    where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (!enrollment) {
+    return jsonErr("NOT_FOUND", "Matrícula não encontrada ou já cancelada.", 404);
+  }
+
+  await prisma.enrollment.update({
+    where: { id: enrollmentId },
+    data: { status: "CANCELLED" },
+  });
+
+  return jsonOk({ cancelled: true });
+}
