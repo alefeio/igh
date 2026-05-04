@@ -27,6 +27,8 @@ type ClassGroupOption = {
   status: string;
 };
 
+const EMPTY_TURMAS_INSCREVA_MSG = "No momento não há turmas abertas para inscrição.";
+
 function formatCpf(v: string): string {
   const d = v.replace(/\D/g, "").slice(0, 11);
   if (d.length <= 3) return d;
@@ -123,6 +125,8 @@ export function InscrevaForm() {
   const [registeredWithoutEmail, setRegisteredWithoutEmail] = useState(false);
   const [showSecretariatMessage, setShowSecretariatMessage] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
+  /** Cursos em que o aluno tem turma com status EM_ANDAMENTO (limite de 2 para novas inscrições). */
+  const [enrolledCourseIdsEmAndamento, setEnrolledCourseIdsEmAndamento] = useState<string[]>([]);
   const [enrollmentSuccessName, setEnrollmentSuccessName] = useState<string | null>(null);
 
   const load = useCallback(async (options?: { ignoreCourseId?: boolean }) => {
@@ -138,17 +142,20 @@ export function InscrevaForm() {
         fetch("/api/me/student"),
         fetch(cgUrl),
       ]);
-      const meJson = (await meRes.json()) as ApiResponse<{ student: StudentData | null; enrolledCourseIds?: string[] }>;
+      const meJson = (await meRes.json()) as ApiResponse<{
+        student: StudentData | null;
+        enrolledCourseIds?: string[];
+        enrolledCourseIdsEmAndamento?: string[];
+      }>;
       const cgJson = (await cgRes.json()) as ApiResponse<{ classGroups: ClassGroupOption[] }>;
       if (meJson?.ok) {
         setStudent(meJson.data.student ?? null);
         setEnrolledCourseIds(meJson.data.enrolledCourseIds ?? []);
+        setEnrolledCourseIdsEmAndamento(meJson.data.enrolledCourseIdsEmAndamento ?? []);
       }
       if (cgJson?.ok && cgJson.data.classGroups) {
-        // API já filtra vagas; inclui ABERTA e EM_ANDAMENTO com vagas.
-        setClassGroups(
-          cgJson.data.classGroups.filter((cg) => cg.status === "ABERTA" || cg.status === "EM_ANDAMENTO"),
-        );
+        // API retorna só PLANEJADA com vagas; mantém filtro defensivo.
+        setClassGroups(cgJson.data.classGroups.filter((cg) => cg.status === "PLANEJADA"));
       }
     } finally {
       setLoading(false);
@@ -218,27 +225,19 @@ export function InscrevaForm() {
   }
 
   const selectedClassGroups = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
-  /** Conjunto de courseIds já em uso: matrículas atuais + cursos das turmas selecionadas. */
-  const selectedCourseIds = new Set<string>([
-    ...enrolledCourseIds,
-    ...selectedClassGroups.map((c) => c.courseId),
-  ]);
-  const totalCoursesNow = selectedCourseIds.size;
 
   /**
    * Bloqueia turmas de cursos em que o usuário já está matriculado (uma turma por curso).
-   * Quando Cursos: 2/2, bloqueia todas as opções exceto as já selecionadas.
-   * Caso contrário: desabilita se já tem 2 turmas, sobreposição de horário ou passaria de 2 cursos.
+   * Limite “2 cursos” na inscrição pública aplica-se apenas a turmas em andamento (ver API + banner na página).
    */
   function isClassGroupOptionDisabled(cg: ClassGroupOption): boolean {
     if (selectedClassGroupIds.includes(cg.id)) return false;
     if (enrolledCourseIds.includes(cg.courseId)) return true;
-    if (totalCoursesNow >= 2) return true;
+    if (enrolledCourseIdsEmAndamento.length >= 2) return true;
     if (selectedClassGroupIds.length >= 2) return true;
     const selected = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
     if (selected.some((other) => doOverlap(other, cg))) return true;
-    const courseIdsIfWeAdd = new Set([...selectedCourseIds, cg.courseId]);
-    return courseIdsIfWeAdd.size > 2;
+    return false;
   }
 
   async function handleEnrollment(e: React.FormEvent) {
@@ -267,8 +266,8 @@ export function InscrevaForm() {
           setShowSecretariatMessage(true);
         } else {
           setEnrollmentSuccessName(student.name);
-          const newEnrolledIds = [...new Set([...enrolledCourseIds, ...selectedClassGroups.map((c) => c.courseId)])];
-          setEnrolledCourseIds(newEnrolledIds);
+          const newCourseIds = selectedClassGroups.map((c) => c.courseId);
+          setEnrolledCourseIds((prev) => [...new Set([...prev, ...newCourseIds])]);
         }
         setCadastroName("");
         setCadastroCpf("");
@@ -380,6 +379,50 @@ export function InscrevaForm() {
               Cadastrar-se
             </Button>
           </div>
+        </div>
+
+        <div className={cardClass}>
+          <h2 className="text-xl font-bold text-[var(--text-primary)] sm:text-2xl">Turmas disponíveis</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+            Para efetuar a pré-matrícula, use <strong>Fazer login</strong> ou{" "}
+            <strong>Cadastrar-se</strong> acima.
+          </p>
+          {classGroups.length === 0 ? (
+            <p className="mt-6 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-6 text-center text-sm text-[var(--text-secondary)]">
+              {EMPTY_TURMAS_INSCREVA_MSG}
+            </p>
+          ) : (
+            <div className="mt-6 max-h-[320px] space-y-2 overflow-y-auto rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] p-3">
+              {classGroups.map((cg) => {
+                const daysStr = Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? cg.daysOfWeek.join(", ") : null;
+                return (
+                  <div
+                    key={cg.id}
+                    className="flex w-full flex-col rounded-xl border-2 border-transparent bg-[var(--card-bg)] px-4 py-3.5 text-left text-[var(--text-primary)]"
+                  >
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold">{cg.courseName}</span>
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:bg-sky-900/40 dark:text-sky-100">
+                        Planejada · vagas
+                      </span>
+                    </span>
+                    <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                      Início {formatDateOnlyBR(cg.startDate)} · {cg.startTime}–{cg.endTime}
+                      {daysStr ? ` · ${daysStr}` : ""}
+                      {cg.location?.trim() ? ` · ${cg.location.trim()}` : ""}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {courseIdFromUrl && classGroups.length > 0 ? (
+            <p className="mt-3">
+              <a href="/inscreva" className="text-sm font-medium text-[var(--igh-primary)] hover:underline">
+                Ver todos os cursos
+              </a>
+            </p>
+          ) : null}
         </div>
 
         {showCadastro && (
@@ -604,11 +647,11 @@ export function InscrevaForm() {
 
       <div className={cardClass}>
         <h2 className="text-lg font-bold text-[var(--text-primary)]">Escolher turmas</h2>
-        {enrolledCourseIds.length >= 2 ? (
+        {enrolledCourseIdsEmAndamento.length >= 2 ? (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-5 dark:border-amber-800 dark:bg-amber-950/40">
             <p className="font-semibold text-[var(--text-primary)]">Limite de cursos atingido</p>
             <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-              Você já está inscrito em 2 cursos. Para se inscrever em outra turma, entre em contato com a secretaria ou aguarde o encerramento de alguma turma.
+              Você já está inscrito em 2 cursos com turmas em andamento. Para se inscrever em outro curso, entre em contato com a secretaria ou aguarde o encerramento de alguma turma.
             </p>
           </div>
         ) : (
@@ -616,25 +659,23 @@ export function InscrevaForm() {
             <div>
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <p className="text-sm font-medium text-[var(--text-primary)]">
-                  Selecione até 2 turmas (máximo 2 cursos no total; turmas no mesmo dia e horário não podem ser escolhidas juntas)
+                  Selecione até 2 turmas por envio (turmas no mesmo dia e horário não podem ser escolhidas juntas). O limite de 2 cursos vale para turmas em andamento.
                 </p>
                 <span
                   className="rounded-full bg-[var(--igh-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--text-primary)]"
-                  aria-label={`Cursos no total: ${totalCoursesNow} de 2`}
+                  aria-label={`Cursos em andamento: ${enrolledCourseIdsEmAndamento.length} de 2`}
                 >
-                  Cursos: {totalCoursesNow}/2
+                  Em andamento: {enrolledCourseIdsEmAndamento.length}/2
                 </span>
               </div>
               <p className={hintClass}>
-                {enrolledCourseIds.length >= 2
-                  ? "Você já está no limite de 2 cursos. Não é possível adicionar turmas de outro curso."
-                  : enrolledCourseIds.length === 1
-                    ? "Você já está em 1 curso. Pode adicionar turmas apenas do mesmo curso ou de mais 1 curso (máx. 2 no total)."
-                    : "Toque nas turmas desejadas. Máximo 2 cursos no total."}
+                {enrolledCourseIdsEmAndamento.length >= 1
+                  ? "O limite de 2 cursos aplica-se a turmas em andamento. Você pode se pré-matricular em novos cursos enquanto tiver menos de 2 turmas em andamento."
+                  : "Toque nas turmas desejadas. Você pode selecionar até 2 turmas por envio (sem sobreposição de horário)."}
               </p>
               {classGroups.length === 0 ? (
                 <div className="mt-4 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-8 text-center">
-                  <p className="text-sm text-[var(--text-muted)]">Nenhuma turma disponível no momento.</p>
+                  <p className="text-sm text-[var(--text-secondary)]">{EMPTY_TURMAS_INSCREVA_MSG}</p>
                 </div>
               ) : (
                 <div
@@ -664,11 +705,6 @@ export function InscrevaForm() {
                             return;
                           }
                           const newSelected = newIds.map((id) => classGroups.find((c) => c.id === id)).filter(Boolean) as ClassGroupOption[];
-                          const coursesUsed = new Set([...enrolledCourseIds, ...newSelected.map((c) => c.courseId)]);
-                          if (coursesUsed.size > 2) {
-                            toast.push("error", "O limite é de 2 cursos no total (você já está em " + enrolledCourseIds.length + "). Escolha turmas de no máximo mais " + (2 - enrolledCourseIds.length) + " curso(s).");
-                            return;
-                          }
                           for (let i = 0; i < newSelected.length; i++) {
                             for (let j = i + 1; j < newSelected.length; j++) {
                               if (doOverlap(newSelected[i], newSelected[j])) {
@@ -689,9 +725,9 @@ export function InscrevaForm() {
                       >
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold">{cg.courseName}</span>
-                          {cg.status === "EM_ANDAMENTO" ? (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
-                              Em andamento · vagas
+                          {cg.status === "PLANEJADA" ? (
+                            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:bg-sky-900/40 dark:text-sky-100">
+                              Planejada · vagas
                             </span>
                           ) : null}
                         </span>
@@ -719,12 +755,7 @@ export function InscrevaForm() {
             <Button
               type="submit"
               size="lg"
-              disabled={
-                submitting ||
-                selectedClassGroupIds.length === 0 ||
-                classGroups.length === 0 ||
-                totalCoursesNow > 2
-              }
+              disabled={submitting || selectedClassGroupIds.length === 0 || classGroups.length === 0}
               className="w-full sm:w-auto"
             >
               {submitting ? "Enviando..." : "Enviar pré-matrícula"}

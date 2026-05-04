@@ -147,6 +147,7 @@ export default function ClassGroupsPage() {
     return locationSuggestions.filter((s) => s.toLowerCase().includes(q));
   }, [locationSuggestions, location]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === courseId),
@@ -271,6 +272,17 @@ export default function ClassGroupsPage() {
     }
   }
 
+  async function refreshClassGroupsList() {
+    try {
+      const cgRes = await fetch("/api/class-groups");
+      const cgJson = await parseJsonSafe<{ classGroups: ClassGroup[] }>(cgRes);
+      if (!cgRes.ok || !cgJson?.ok) return;
+      setItems(cgJson.data.classGroups);
+    } catch {
+      /* lista já atualizada pelo modal */
+    }
+  }
+
   useEffect(() => {
     void loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -371,6 +383,24 @@ export default function ClassGroupsPage() {
     }
     toast.push("success", "Turma excluída.");
     await loadAll();
+  }
+
+  async function duplicateClassGroup(cg: ClassGroup) {
+    if (duplicatingId) return;
+    setDuplicatingId(cg.id);
+    try {
+      const res = await fetch(`/api/class-groups/${cg.id}/duplicate`, { method: "POST" });
+      const json = await parseJsonSafe<{ classGroup: ClassGroup }>(res);
+      if (!res.ok || !json?.ok) {
+        toast.push("error", apiErrorMessage(json, "Falha ao duplicar turma."));
+        return;
+      }
+      toast.push("success", "Turma duplicada.");
+      openEdit(json.data.classGroup);
+      void refreshClassGroupsList();
+    } finally {
+      setDuplicatingId(null);
+    }
   }
 
   const normalizeForSearch = (s: string) =>
@@ -539,6 +569,13 @@ export default function ClassGroupsPage() {
                       <>
                         <Button variant="secondary" onClick={() => openEdit(cg)}>
                           Editar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          disabled={duplicatingId != null}
+                          onClick={() => void duplicateClassGroup(cg)}
+                        >
+                          {duplicatingId === cg.id ? "Duplicando…" : "Duplicar"}
                         </Button>
                         {cg.status !== "CANCELADA" ? (
                           <Button

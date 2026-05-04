@@ -7,7 +7,7 @@ import { updateStudentSchema } from "@/lib/validators/students";
 export async function GET() {
   const user = await getSessionUserFromCookie();
   if (!user || user.role !== "STUDENT") {
-    return jsonOk({ student: null, enrolledCourseIds: [] });
+    return jsonOk({ student: null, enrolledCourseIds: [], enrolledCourseIdsEmAndamento: [] });
   }
 
   const student = await prisma.student.findFirst({
@@ -23,7 +23,7 @@ export async function GET() {
   });
 
   if (!student) {
-    return jsonOk({ student: null, enrolledCourseIds: [] });
+    return jsonOk({ student: null, enrolledCourseIds: [], enrolledCourseIdsEmAndamento: [] });
   }
 
   const ACTIVE_CLASS_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
@@ -36,9 +36,14 @@ export async function GET() {
         course: { status: "ACTIVE" },
       },
     },
-    select: { classGroup: { select: { courseId: true } } },
+    select: { classGroup: { select: { courseId: true, status: true } } },
   });
   const enrolledCourseIds = [...new Set(activeEnrollments.map((e) => e.classGroup.courseId))];
+  const enrolledCourseIdsEmAndamento = [
+    ...new Set(
+      activeEnrollments.filter((e) => e.classGroup.status === "EM_ANDAMENTO").map((e) => e.classGroup.courseId),
+    ),
+  ];
 
   return jsonOk({
     student: {
@@ -50,6 +55,7 @@ export async function GET() {
       email: student.email,
     },
     enrolledCourseIds,
+    enrolledCourseIdsEmAndamento,
   });
 }
 
