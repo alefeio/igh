@@ -62,6 +62,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     parsed.data.endTime !== undefined ||
     parsed.data.courseId !== undefined;
 
+  if (parsed.data.cycleId) {
+    const cycle = await prisma.cycle.findUnique({ where: { id: parsed.data.cycleId }, select: { id: true } });
+    if (!cycle) return jsonErr("INVALID_CYCLE", "Ciclo inválido.", 400);
+  }
+
   let updatedStartDate = existing.startDate;
   if (parsed.data.startDate) {
     try {
@@ -162,6 +167,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const updatedGroup = await tx.classGroup.update({
       where: { id },
       data: {
+        cycleId: parsed.data.cycleId ?? undefined,
         courseId: parsed.data.courseId ?? undefined,
         teacherId: parsed.data.teacherId ?? undefined,
         daysOfWeek: parsed.data.daysOfWeek ?? undefined,

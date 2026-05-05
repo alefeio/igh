@@ -37,6 +37,7 @@ const ALLOWED_CERT_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image
 type Student = { id: string; name: string; email: string | null; phone?: string | null };
 type Course = { id: string; name: string };
 type Teacher = { id: string; name: string };
+type Cycle = { id: string; cycle: number; year: number; isVisibleForEnrollments: boolean };
 type ClassGroup = {
   id: string;
   startDate: string;
@@ -47,6 +48,7 @@ type ClassGroup = {
   location?: string | null;
   course: Course;
   teacher?: Teacher;
+  cycle?: Cycle;
   status?: string;
   enrollmentsCount?: number;
 };
@@ -185,7 +187,10 @@ export default function EnrollmentsPage() {
   async function loadFormOptions() {
     const classGroupsRes = await fetch("/api/class-groups");
     const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
-    if (classGroupsJson?.ok) setClassGroups(classGroupsJson.data.classGroups);
+    if (classGroupsJson?.ok) {
+      // Apenas turmas em ciclos visíveis para matrículas
+      setClassGroups(classGroupsJson.data.classGroups.filter((cg) => cg.cycle?.isVisibleForEnrollments !== false));
+    }
   }
 
   const searchStudents = useCallback(

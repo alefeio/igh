@@ -6,6 +6,7 @@ const daysSchema = z
   .max(7, "Dias inválidos");
 
 export const createClassGroupSchema = z.object({
+  cycleId: z.string().uuid().optional(),
   courseId: z.string().uuid(),
   teacherId: z.string().uuid(),
   daysOfWeek: daysSchema,

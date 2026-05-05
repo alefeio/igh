@@ -7,6 +7,22 @@ datasource db {
   provider = "postgresql"
 }
 
+/// * Ciclo de matrículas (ex.: Ciclo 1 / 2026). Controla visibilidade para matrículas no painel e no site.
+model Cycle {
+  /// * ID fixo para o seed inicial (ciclo 1 / 2026) e defaults.
+  id                      String      @id @default(uuid())
+  cycle                   Int
+  year                    Int
+  isVisibleForEnrollments Boolean     @default(true)
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+
+  classGroups ClassGroup[]
+
+  @@unique([cycle, year])
+  @@index([year, cycle])
+}
+
 model User {
   id                           String                       @id @default(uuid())
   name                         String
@@ -426,6 +442,8 @@ model ClassGroup {
   id               String           @id @default(uuid())
   courseId         String
   teacherId        String
+  /// * Turma pertence a um ciclo (ex.: Ciclo 1 / 2026).
+  cycleId          String           @default("00000000-0000-0000-0000-000000000001")
   daysOfWeek       String[]
   startTime        String
   endTime          String
@@ -439,6 +457,7 @@ model ClassGroup {
   preventAutoClose Boolean          @default(false)
   course           Course           @relation(fields: [courseId], references: [id])
   teacher          Teacher          @relation(fields: [teacherId], references: [id])
+  cycle            Cycle            @relation(fields: [cycleId], references: [id])
   sessions         ClassSession[]
   enrollments      Enrollment[]
 }

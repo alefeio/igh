@@ -11,6 +11,7 @@ import {
   splitHolidaysForSchedule,
 } from "@/lib/schedule";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
+import { DEFAULT_CYCLE_ID } from "@/lib/cycles";
 
 export async function GET() {
   try {
@@ -35,6 +36,7 @@ export async function GET() {
       where: isTeacher && teacherId ? { teacherId } : undefined,
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       include: {
+        cycle: true,
         course: true,
         teacher: true,
         sessions: {
@@ -78,14 +80,19 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { courseId, teacherId, startDate, daysOfWeek, startTime, endTime, capacity, status, location } =
+  const { cycleId, courseId, teacherId, startDate, daysOfWeek, startTime, endTime, capacity, status, location } =
     parsed.data;
 
-  const [course, teacher] = await Promise.all([
+  const [cycle, course, teacher] = await Promise.all([
+    prisma.cycle.findUnique({
+      where: { id: cycleId ?? DEFAULT_CYCLE_ID },
+      select: { id: true },
+    }),
     prisma.course.findUnique({ where: { id: courseId }, select: { id: true, workloadHours: true } }),
     prisma.teacher.findUnique({ where: { id: teacherId }, select: { id: true, deletedAt: true } }),
   ]);
 
+  if (!cycle) return jsonErr("INVALID_CYCLE", "Ciclo inválido.", 400);
   if (!course) return jsonErr("INVALID_COURSE", "Curso inválido.", 400);
   if (!teacher || teacher.deletedAt) return jsonErr("INVALID_TEACHER", "Professor inválido.", 400);
 
@@ -166,6 +173,7 @@ export async function POST(request: Request) {
   const { classGroup } = await prisma.$transaction(async (tx) => {
     const created = await tx.classGroup.create({
       data: {
+        cycleId: cycle.id,
         courseId,
         teacherId,
         daysOfWeek,

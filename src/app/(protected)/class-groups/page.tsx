@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import { DEFAULT_CYCLE_ID } from "@/lib/cycles";
 
 function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): string {
   if (json && !json.ok) return json.error.message;
@@ -20,8 +21,16 @@ function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): s
 type Course = { id: string; name: string; workloadHours: number | null };
 type Teacher = { id: string; name: string };
 
+type Cycle = {
+  id: string;
+  cycle: number;
+  year: number;
+  isVisibleForEnrollments: boolean;
+};
+
 type ClassGroup = {
   id: string;
+  cycleId: string;
   courseId: string;
   teacherId: string;
   daysOfWeek: string[];
@@ -40,6 +49,7 @@ type ClassGroup = {
     | "EXTERNO";
   location: string | null;
   createdAt: string;
+  cycle: Cycle;
   course: Course;
   teacher: Teacher;
   sessions?: ClassSession[];
@@ -109,15 +119,20 @@ export default function ClassGroupsPage() {
   const canMutate = user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR";
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ClassGroup[]>([]);
+  const [cycles, setCycles] = useState<Cycle[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
 
   const [open, setOpen] = useState(false);
+  const [openCycle, setOpenCycle] = useState(false);
+  const [openCycleEdit, setOpenCycleEdit] = useState(false);
+  const [editingCycle, setEditingCycle] = useState<Cycle | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<ClassGroup["status"][]>([]);
   const [editing, setEditing] = useState<ClassGroup | null>(null);
 
+  const [cycleId, setCycleId] = useState(DEFAULT_CYCLE_ID);
   const [courseId, setCourseId] = useState("");
   const [teacherId, setTeacherId] = useState("");
   const [daysOfWeek, setDaysOfWeek] = useState<string[]>(["TER", "QUI"]);
@@ -132,6 +147,15 @@ export default function ClassGroupsPage() {
 
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const [cycleNumber, setCycleNumber] = useState("1");
+  const [cycleYear, setCycleYear] = useState(String(new Date().getFullYear()));
+  const [cycleVisible, setCycleVisible] = useState(true);
+  const [cycleSaving, setCycleSaving] = useState(false);
+
+  const [cycleEditNumber, setCycleEditNumber] = useState("1");
+  const [cycleEditYear, setCycleEditYear] = useState(String(new Date().getFullYear()));
+  const [cycleEditVisible, setCycleEditVisible] = useState(true);
 
   const locationSuggestions = useMemo(() => {
     const set = new Set<string>();
@@ -168,6 +192,7 @@ export default function ClassGroupsPage() {
   }, [courseId, teacherId, daysOfWeek, startDate, startTime, endTime, capacity, courseHasWorkload, editing]);
 
   function resetForm() {
+    setCycleId(DEFAULT_CYCLE_ID);
     setCourseId("");
     setTeacherId("");
     setDaysOfWeek(["TER", "QUI"]);
@@ -187,8 +212,17 @@ export default function ClassGroupsPage() {
     setOpen(true);
   }
 
+  function openEditCycle(c: Cycle) {
+    setEditingCycle(c);
+    setCycleEditNumber(String(c.cycle));
+    setCycleEditYear(String(c.year));
+    setCycleEditVisible(!!c.isVisibleForEnrollments);
+    setOpenCycleEdit(true);
+  }
+
   function openEdit(cg: ClassGroup) {
     setEditing(cg);
+    setCycleId(cg.cycleId);
     setCourseId(cg.courseId);
     setTeacherId(cg.teacherId);
     setDaysOfWeek(cg.daysOfWeek);
@@ -240,15 +274,17 @@ export default function ClassGroupsPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [cgRes, cRes, tRes, tsRes] = await Promise.all([
+      const [cgRes, cyclesRes, cRes, tRes, tsRes] = await Promise.all([
         fetch("/api/class-groups"),
+        fetch("/api/cycles"),
         fetch("/api/courses"),
         fetch("/api/teachers"),
         fetch("/api/time-slots?activeOnly=true"),
       ]);
 
-      const [cgJson, cJson, tJson, tsJson] = await Promise.all([
+      const [cgJson, cyclesJson, cJson, tJson, tsJson] = await Promise.all([
         parseJsonSafe<{ classGroups: ClassGroup[] }>(cgRes),
+        parseJsonSafe<{ cycles: Cycle[] }>(cyclesRes),
         parseJsonSafe<{ courses: Course[] }>(cRes),
         parseJsonSafe<{ teachers: Teacher[] }>(tRes),
         parseJsonSafe<{ timeSlots: TimeSlot[] }>(tsRes),
@@ -262,6 +298,7 @@ export default function ClassGroupsPage() {
         throw new Error(tJson && "error" in tJson ? tJson.error.message : "Falha ao carregar professores.");
 
       setItems(cgJson!.data.classGroups);
+      setCycles(cyclesJson?.ok ? cyclesJson.data.cycles : []);
       setCourses(cJson!.data.courses);
       setTeachers(tJson!.data.teachers);
       setTimeSlots(tsJson?.ok ? tsJson.data.timeSlots : []);
@@ -295,6 +332,7 @@ export default function ClassGroupsPage() {
     try {
       const isEditing = editing != null;
       const payload = {
+        cycleId,
         courseId,
         teacherId,
         daysOfWeek,
@@ -465,9 +503,14 @@ export default function ClassGroupsPage() {
         }
         rightSlot={
           canMutate ? (
-            <Button onClick={openCreate} className="w-full sm:w-auto">
-              Nova turma
-            </Button>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button variant="secondary" onClick={() => setOpenCycle(true)} className="w-full sm:w-auto">
+                Novo ciclo
+              </Button>
+              <Button onClick={openCreate} className="w-full sm:w-auto">
+                Nova turma
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -520,6 +563,7 @@ export default function ClassGroupsPage() {
         <TableShell>
           <thead>
             <tr>
+              <Th>Ciclo</Th>
               <Th>Curso</Th>
               <Th>Professor</Th>
               <Th>Local</Th>
@@ -535,6 +579,9 @@ export default function ClassGroupsPage() {
           <tbody>
             {visibleItems.map((cg) => (
               <tr key={cg.id}>
+                <Td className="whitespace-nowrap text-[var(--text-secondary)]">
+                  {cg.cycle ? `${cg.cycle.cycle}/${cg.cycle.year}` : "—"}
+                </Td>
                 <Td className="max-w-[14rem] whitespace-normal break-words font-medium text-[var(--text-primary)]">
                   {cg.course.name}
                 </Td>
@@ -607,7 +654,7 @@ export default function ClassGroupsPage() {
             ))}
             {visibleItems.length === 0 ? (
               <tr>
-                <Td colSpan={10}>
+                <Td colSpan={11}>
                   <span className="text-[var(--text-secondary)]">
                     {items.length === 0
                       ? "Nenhuma turma cadastrada."
@@ -621,12 +668,235 @@ export default function ClassGroupsPage() {
         )}
       </SectionCard>
 
+      <SectionCard
+        title="Ciclos"
+        description="Gerencie os ciclos (número, ano e visibilidade para matrículas no painel e no site)."
+      >
+        <TableShell>
+          <thead>
+            <tr>
+              <Th>Ciclo</Th>
+              <Th>Ano</Th>
+              <Th>Visível p/ matrículas</Th>
+              <Th />
+            </tr>
+          </thead>
+          <tbody>
+            {cycles.map((c) => (
+              <tr key={c.id}>
+                <Td className="whitespace-nowrap text-[var(--text-secondary)]">{c.cycle}</Td>
+                <Td className="whitespace-nowrap text-[var(--text-secondary)]">{c.year}</Td>
+                <Td className="whitespace-nowrap">
+                  <Badge tone={c.isVisibleForEnrollments ? "green" : "zinc"}>
+                    {c.isVisibleForEnrollments ? "Sim" : "Não"}
+                  </Badge>
+                </Td>
+                <Td>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => openEditCycle(c)}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={async () => {
+                        if (!canMutate) return;
+                        try {
+                          const res = await fetch(`/api/cycles/${c.id}`, {
+                            method: "PATCH",
+                            headers: { "content-type": "application/json" },
+                            body: JSON.stringify({ isVisibleForEnrollments: !c.isVisibleForEnrollments }),
+                          });
+                          const json = await parseJsonSafe<{ cycle: Cycle }>(res);
+                          if (!res.ok || !json?.ok) {
+                            toast.push("error", apiErrorMessage(json, "Falha ao atualizar ciclo."));
+                            return;
+                          }
+                          toast.push("success", "Ciclo atualizado.");
+                          await loadAll();
+                        } catch {
+                          toast.push("error", "Falha ao atualizar ciclo.");
+                        }
+                      }}
+                    >
+                      {c.isVisibleForEnrollments ? "Ocultar" : "Exibir"}
+                    </Button>
+                  </div>
+                </Td>
+              </tr>
+            ))}
+            {cycles.length === 0 ? (
+              <tr>
+                <Td colSpan={4}>
+                  <span className="text-[var(--text-secondary)]">Nenhum ciclo cadastrado.</span>
+                </Td>
+              </tr>
+            ) : null}
+          </tbody>
+        </TableShell>
+      </SectionCard>
+
+      <Modal
+        open={openCycleEdit}
+        title={editingCycle ? `Editar ciclo ${editingCycle.cycle}/${editingCycle.year}` : "Editar ciclo"}
+        onClose={() => { setOpenCycleEdit(false); setEditingCycle(null); }}
+      >
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!canMutate || cycleSaving || !editingCycle) return;
+            setCycleSaving(true);
+            try {
+              const payload = {
+                cycle: Number(cycleEditNumber),
+                year: Number(cycleEditYear),
+                isVisibleForEnrollments: cycleEditVisible,
+              };
+              const res = await fetch(`/api/cycles/${editingCycle.id}`, {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              const json = await parseJsonSafe<{ cycle: Cycle }>(res);
+              if (!res.ok || !json?.ok) {
+                toast.push("error", apiErrorMessage(json, "Falha ao atualizar ciclo."));
+                return;
+              }
+              toast.push("success", "Ciclo atualizado.");
+              setOpenCycleEdit(false);
+              setEditingCycle(null);
+              await loadAll();
+            } finally {
+              setCycleSaving(false);
+            }
+          }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Ciclo</label>
+              <div className="mt-1">
+                <Input value={cycleEditNumber} onChange={(e) => setCycleEditNumber(e.target.value)} inputMode="numeric" />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Ano</label>
+              <div className="mt-1">
+                <Input value={cycleEditYear} onChange={(e) => setCycleEditYear(e.target.value)} inputMode="numeric" />
+              </div>
+            </div>
+          </div>
+          <label className="mt-1 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={cycleEditVisible}
+              onChange={(e) => setCycleEditVisible(e.target.checked)}
+            />
+            Visível para matrículas (painel e site)
+          </label>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={() => { setOpenCycleEdit(false); setEditingCycle(null); }}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={cycleSaving}>
+              {cycleSaving ? "Salvando" : "Salvar"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={openCycle} title="Novo ciclo" onClose={() => setOpenCycle(false)}>
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!canMutate || cycleSaving) return;
+            setCycleSaving(true);
+            try {
+              const payload = {
+                cycle: Number(cycleNumber),
+                year: Number(cycleYear),
+                isVisibleForEnrollments: cycleVisible,
+              };
+              const res = await fetch("/api/cycles", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              const json = await parseJsonSafe<{ cycle: Cycle }>(res);
+              if (!res.ok || !json?.ok) {
+                toast.push("error", apiErrorMessage(json, "Falha ao criar ciclo."));
+                return;
+              }
+              toast.push("success", "Ciclo criado.");
+              setOpenCycle(false);
+              await loadAll();
+            } finally {
+              setCycleSaving(false);
+            }
+          }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Ciclo</label>
+              <div className="mt-1">
+                <Input value={cycleNumber} onChange={(e) => setCycleNumber(e.target.value)} inputMode="numeric" />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Ano</label>
+              <div className="mt-1">
+                <Input value={cycleYear} onChange={(e) => setCycleYear(e.target.value)} inputMode="numeric" />
+              </div>
+            </div>
+          </div>
+          <label className="mt-1 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={cycleVisible}
+              onChange={(e) => setCycleVisible(e.target.checked)}
+            />
+            Visível para matrículas (painel e site)
+          </label>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setOpenCycle(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={cycleSaving}>
+              {cycleSaving ? "Salvando" : "Salvar"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
       <Modal
         open={open}
         title={editing ? "Editar turma" : "Nova turma"}
         onClose={() => { setOpen(false); resetForm(); }}
       >
         <form className="flex flex-col gap-3" onSubmit={save}>
+          <div>
+            <label className="text-sm font-medium">Ciclo</label>
+            <div className="mt-1">
+              <select
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                value={cycleId}
+                onChange={(e) => setCycleId(e.target.value)}
+              >
+                {cycles.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {`Ciclo ${c.cycle} / ${c.year}`}{c.isVisibleForEnrollments ? "" : " (oculto)"}
+                  </option>
+                ))}
+                {cycles.length === 0 ? <option value={DEFAULT_CYCLE_ID}>Ciclo 1 / 2026</option> : null}
+              </select>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Só ciclos marcados como visíveis aparecem para matrículas no painel e no site.
+              </p>
+            </div>
+          </div>
           <div>
             <label className="text-sm font-medium">Curso</label>
             <div className="mt-1">
@@ -813,6 +1083,7 @@ export default function ClassGroupsPage() {
                     <li
                       key={s}
                       role="option"
+                      aria-selected={false}
                       className="cursor-pointer px-3 py-2 text-sm text-[var(--input-text)] hover:bg-[var(--igh-surface)]"
                       onMouseDown={(e) => {
                         e.preventDefault();

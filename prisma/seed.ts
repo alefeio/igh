@@ -14,9 +14,18 @@
  */
 import "./load-env";
 import { prisma } from "../src/lib/prisma";
+import { applyCyclesV1Seed } from "./seeds/apply-cycles-v1";
 import { applyLegalDocumentsV1Seed } from "./seeds/apply-legal-documents-v1";
 import { ONBOARDING_GUIDES, ONBOARDING_ROLES_ORDER } from "./seeds/onboarding-guides";
 import { upsertAllOnboardingGuidesFromRepo } from "./seeds/upsert-onboarding-from-repo";
+
+type SeedScope = "all" | "cycles" | "legal" | "onboarding";
+
+function getSeedScope(): SeedScope {
+  const raw = (process.env.SEED_SCOPE ?? "").trim().toLowerCase();
+  if (raw === "cycles" || raw === "legal" || raw === "onboarding") return raw;
+  return "all";
+}
 
 function shouldForceOnboardingFromRepo() {
   const v = process.env.UPDATE_ONBOARDING_SEED?.trim().toLowerCase();
@@ -62,8 +71,10 @@ async function seedOnboardingGuides() {
 
 async function main() {
   await prisma.$connect();
-  await applyLegalDocumentsV1Seed(prisma);
-  await seedOnboardingGuides();
+  const scope = getSeedScope();
+  if (scope === "all" || scope === "cycles") await applyCyclesV1Seed(prisma);
+  if (scope === "all" || scope === "legal") await applyLegalDocumentsV1Seed(prisma);
+  if (scope === "all" || scope === "onboarding") await seedOnboardingGuides();
 }
 
 main()

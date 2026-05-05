@@ -16,6 +16,7 @@ export async function GET(request: Request) {
         status: { in: [...PUBLIC_INSCREVA_STATUSES] },
         ...(courseId && { courseId }),
         course: { status: "ACTIVE" },
+        cycle: { isVisibleForEnrollments: true },
       },
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       select: {
