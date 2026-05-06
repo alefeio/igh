@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
@@ -384,6 +384,17 @@ export default function ProfessorApresentarAulaPage() {
     if (cur >= last) return;
     goToSlide(cur + 1);
   }, [goToSlide, hasMultiplePages, totalPages]);
+
+  /** Em tela cheia, ao mudar de slide, volta ao topo do painel (evita manter scroll do slide anterior). */
+  useLayoutEffect(() => {
+    if (!hasMultiplePages) return;
+    const wrap = contentWrapperRef.current;
+    if (!wrap || document.fullscreenElement !== wrap) return;
+    wrap.scrollTop = 0;
+    wrap.querySelectorAll(".overflow-auto, .overflow-y-auto").forEach((node) => {
+      (node as HTMLElement).scrollTop = 0;
+    });
+  }, [contentPageIndex, hasMultiplePages]);
 
   useEffect(() => {
     if (!hasMultiplePages) return;

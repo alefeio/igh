@@ -51,6 +51,7 @@ export async function GET() {
       },
       classGroup: {
         include: {
+          cycle: { select: { id: true, cycle: true, year: true, isVisibleForEnrollments: true } },
           course: { select: { id: true, name: true } },
           teacher: { select: { id: true, name: true } },
         },

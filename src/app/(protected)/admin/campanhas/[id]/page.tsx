@@ -43,12 +43,20 @@ export default async function AdminCampanhaDetalhePage(props: PageProps) {
         title={campaign.title}
         description={campaign.description ?? "Avaliações enviadas pelos alunos."}
         rightSlot={
-          <Link
-            href="/admin/campanhas"
-            className="inline-flex w-full items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium hover:opacity-90 sm:w-auto"
-          >
-            ← Voltar
-          </Link>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <a
+              href={`/api/admin/marketing-campaigns/${campaign.id}/export`}
+              className="inline-flex w-full items-center justify-center rounded-md bg-[var(--igh-primary)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 sm:w-auto"
+            >
+              Exportar avaliações
+            </a>
+            <Link
+              href="/admin/campanhas"
+              className="inline-flex w-full items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium hover:opacity-90 sm:w-auto"
+            >
+              ← Voltar
+            </Link>
+          </div>
         }
       />
 

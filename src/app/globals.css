@@ -384,9 +384,10 @@ body {
   font-size: calc(0.75rem * var(--presentation-font-scale)) !important;
 }
 .professor-presentation-text-scale .ProseMirror img {
-  max-width: 100% !important;
-  width: auto !important;
-  height: auto !important;
+  /* Respeita o tamanho definido no editor (data-width-style -> inline max-width). */
+  max-width: 100%;
+  width: auto;
+  height: auto;
   vertical-align: middle;
 }
 /* Tela cheia da apresentação: evita rolagem dupla (página + bloco). */

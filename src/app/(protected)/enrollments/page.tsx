@@ -34,12 +34,32 @@ const ENROLLMENT_STATUS_TONE: Record<string, "zinc" | "green" | "red" | "blue" |
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_CERT_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
 
+const DAY_ORDER = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"] as const;
+
+function formatDaysOrderedPt(days: string[] | undefined | null): string {
+  const raw = Array.isArray(days) ? days : [];
+  const normalized = raw
+    .map((d) => String(d ?? "").trim().toUpperCase())
+    .filter(Boolean);
+  if (normalized.length === 0) return "";
+
+  // Dedupe mantendo valores válidos
+  const unique = Array.from(new Set(normalized));
+  const idx = (d: string) => {
+    const i = DAY_ORDER.indexOf(d as (typeof DAY_ORDER)[number]);
+    return i >= 0 ? i : 999;
+  };
+  const sorted = [...unique].sort((a, b) => idx(a) - idx(b) || a.localeCompare(b, "pt-BR"));
+  return sorted.join(", ");
+}
+
 type Student = { id: string; name: string; email: string | null; phone?: string | null };
 type Course = { id: string; name: string };
 type Teacher = { id: string; name: string };
 type Cycle = { id: string; cycle: number; year: number; isVisibleForEnrollments: boolean };
 type ClassGroup = {
   id: string;
+  cycleId?: string;
   startDate: string;
   daysOfWeek: string[];
   startTime: string;
@@ -109,6 +129,7 @@ export default function EnrollmentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
+  const [cycles, setCycles] = useState<Cycle[]>([]);
   const [studentId, setStudentId] = useState("");
   const [classGroupId, setClassGroupId] = useState("");
   const [createCertFile, setCreateCertFile] = useState<File | null>(null);
@@ -153,6 +174,8 @@ export default function EnrollmentsPage() {
   const [turmaFilterId, setTurmaFilterId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [cycleFilterIds, setCycleFilterIds] = useState<string[]>([]);
+  const cycleFilterInitializedRef = useRef(false);
   const [showTeacherDetails, setShowTeacherDetails] = useState(false);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
   const toggleCourseDetails = useCallback((courseId: string) => {
@@ -167,18 +190,28 @@ export default function EnrollmentsPage() {
   async function load() {
     setLoading(true);
     try {
-      const [enrollmentsRes, teachersRes] = await Promise.all([
+      const [enrollmentsRes, teachersRes, cyclesRes] = await Promise.all([
         fetch("/api/enrollments", { cache: "no-store" }),
         fetch("/api/teachers?status=active", { cache: "no-store" }),
+        fetch("/api/cycles", { cache: "no-store" }),
       ]);
       const enrollmentsJson = await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes);
       const teachersJson = await parseJson<{ teachers: { id: string; name: string }[] }>(teachersRes);
+      const cyclesJson = await parseJson<{ cycles: Cycle[] }>(cyclesRes);
       if (enrollmentsRes.ok && enrollmentsJson?.ok) setItems(enrollmentsJson.data.enrollments);
       else toast.push("error", "Falha ao carregar matrículas.");
       const teachersList = teachersJson?.ok && Array.isArray(teachersJson.data?.teachers)
         ? teachersJson.data.teachers.map((t) => ({ id: t.id, name: t.name }))
         : [];
       setAllTeachers(teachersList);
+
+      const cyclesList = cyclesJson?.ok && Array.isArray(cyclesJson.data?.cycles) ? cyclesJson.data.cycles : [];
+      setCycles(cyclesList);
+      if (!cycleFilterInitializedRef.current) {
+        const defaults = cyclesList.filter((c) => c.isVisibleForEnrollments).map((c) => c.id);
+        setCycleFilterIds(defaults);
+        cycleFilterInitializedRef.current = true;
+      }
     } finally {
       setLoading(false);
     }
@@ -215,6 +248,7 @@ export default function EnrollmentsPage() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Busca de alunos (combobox): debounce para evitar rajadas ao digitar.
@@ -237,18 +271,31 @@ export default function EnrollmentsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterId, dateFrom, dateTo]);
+  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterId, dateFrom, dateTo, cycleFilterIds]);
 
   /** Matrículas no intervalo de datas (quando informado); senão todas. Usado em dashboard, listagem e exportações. */
   const itemsForView = useMemo(() => {
-    if (!dateFrom && !dateTo) return items;
-    return items.filter((e) => {
+    let list = items;
+    if (cycleFilterIds.length > 0) {
+      const allowed = new Set(cycleFilterIds);
+      list = list.filter((e) => {
+        const cid = (e.classGroup as unknown as { cycleId?: string; cycle?: { id: string } }).cycleId ?? e.classGroup.cycle?.id;
+        if (!cid) return false;
+        return allowed.has(cid);
+      });
+    } else {
+      // Nenhum ciclo selecionado = não exibe nada.
+      list = [];
+    }
+
+    if (!dateFrom && !dateTo) return list;
+    return list.filter((e) => {
       const d = new Date(e.enrolledAt).toISOString().slice(0, 10);
       if (dateFrom && d < dateFrom) return false;
       if (dateTo && d > dateTo) return false;
       return true;
     });
-  }, [items, dateFrom, dateTo]);
+  }, [items, dateFrom, dateTo, cycleFilterIds]);
 
   const dashboard = useMemo(() => {
     const list = itemsForView;
@@ -469,7 +516,7 @@ export default function EnrollmentsPage() {
               row["Curso"] = e.classGroup.course.name ?? "";
               break;
             case "cursoTurma":
-              row["Curso/Turma"] = `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${e.classGroup.daysOfWeek.join(", ")})` : ""}${e.classGroup.location ? ` — ${e.classGroup.location}` : ""}`;
+              row["Curso/Turma"] = `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${formatDaysOrderedPt(e.classGroup.daysOfWeek)})` : ""}${e.classGroup.location ? ` — ${e.classGroup.location}` : ""}`;
               break;
             case "telefone":
               row["Telefone"] = e.student.phone ?? "";
@@ -769,45 +816,6 @@ export default function EnrollmentsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          <SectionCard
-            id="enrollments-date-filter-heading"
-            title="Filtrar por data de matrícula"
-            description="O intervalo aplica-se a toda a página: resumo, gráficos, vagas por curso e listagem."
-            variant="elevated"
-          >
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <label htmlFor="enrollments-date-from" className="block text-xs font-medium text-[var(--text-muted)] mb-0.5">
-                  De
-                </label>
-                <Input
-                  id="enrollments-date-from"
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="min-w-[140px]"
-                />
-              </div>
-              <div>
-                <label htmlFor="enrollments-date-to" className="block text-xs font-medium text-[var(--text-muted)] mb-0.5">
-                  Até
-                </label>
-                <Input
-                  id="enrollments-date-to"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="min-w-[140px]"
-                />
-              </div>
-              {(dateFrom || dateTo) && (
-                <Button type="button" variant="secondary" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>
-                  Limpar datas
-                </Button>
-              )}
-            </div>
-          </SectionCard>
-
           {kpis.pre > 0 && isMaster && (
             <div
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30"
@@ -1045,7 +1053,7 @@ export default function EnrollmentsPage() {
                           ) : (
                             turmas.map(({ classGroup: cg, count }) => {
                               const start = formatDateOnly(cg.startDate).slice(0, 5);
-                              const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
+                              const days = Array.isArray(cg.daysOfWeek) ? formatDaysOrderedPt(cg.daysOfWeek) : "";
                               const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}${cg.location ? ` — ${cg.location}` : ""}`;
                               const cap = cg.capacity != null ? cg.capacity : 0;
                               const fechada = cap > 0 && count >= cap;
@@ -1181,7 +1189,7 @@ export default function EnrollmentsPage() {
                               <ul className="mt-1 list-none space-y-2">
                                 {courseTurmas.map(({ classGroup: cg, count }) => {
                                   const start = formatDateOnly(cg.startDate).slice(0, 5);
-                                  const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
+                                  const days = Array.isArray(cg.daysOfWeek) ? formatDaysOrderedPt(cg.daysOfWeek) : "";
                                   const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}${cg.location ? ` — ${cg.location}` : ""}`;
                                   return (
                                     <li key={cg.id} className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] p-2">
@@ -1243,11 +1251,36 @@ export default function EnrollmentsPage() {
                       setTurmaFilterId("");
                       setDateFrom("");
                       setDateTo("");
+                      setCycleFilterIds(cycles.filter((c) => c.isVisibleForEnrollments).map((c) => c.id));
                     }}
                   >
                     Limpar filtros
                   </Button>
                 )}
+                <div className="min-w-[140px]">
+                  <label htmlFor="enrollments-date-from" className="sr-only">
+                    Data de matrícula (de)
+                  </label>
+                  <Input
+                    id="enrollments-date-from"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="min-w-[140px]"
+                  />
+                </div>
+                <div className="min-w-[140px]">
+                  <label htmlFor="enrollments-date-to" className="sr-only">
+                    Data de matrícula (até)
+                  </label>
+                  <Input
+                    id="enrollments-date-to"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="min-w-[140px]"
+                  />
+                </div>
                 <div className="min-w-[200px]">
                   <label htmlFor="enrollments-list-filter" className="sr-only">
                     Buscar por nome, e-mail ou curso
@@ -1308,6 +1341,39 @@ export default function EnrollmentsPage() {
                         <option key={o.id} value={o.id}>{o.label}</option>
                       ))}
                     </select>
+                  </div>
+                )}
+                {cycles.length > 0 && (
+                  <div className="min-w-[min(100%,520px)] max-w-full">
+                    <div className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+                      <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+                        Ciclos
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-3">
+                        {cycles.map((c) => {
+                          const checked = cycleFilterIds.includes(c.id);
+                          return (
+                            <label key={c.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const nextChecked = e.target.checked;
+                                  setCycleFilterIds((prev) => {
+                                    if (nextChecked) return prev.includes(c.id) ? prev : [...prev, c.id];
+                                    return prev.filter((id) => id !== c.id);
+                                  });
+                                }}
+                              />
+                              {`Ciclo ${c.cycle}/${c.year}`}
+                              {!c.isVisibleForEnrollments ? (
+                                <span className="text-xs text-[var(--text-muted)]">(oculto)</span>
+                              ) : null}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
                 <div>
@@ -1372,7 +1438,7 @@ export default function EnrollmentsPage() {
                     <div className="text-xs text-[var(--text-muted)]">
                       {e.classGroup.startTime}–{e.classGroup.endTime}
                       {Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length
-                        ? ` • ${e.classGroup.daysOfWeek.join(", ")}`
+                        ? ` • ${formatDaysOrderedPt(e.classGroup.daysOfWeek)}`
                         : ""}
                     </div>
                     {e.classGroup.location && (
@@ -1536,6 +1602,7 @@ export default function EnrollmentsPage() {
                       <li
                         key={s.id}
                         role="option"
+                        aria-selected={false}
                         className="cursor-pointer px-3 py-2 text-sm hover:bg-[var(--igh-surface)]"
                         onMouseDown={(e) => {
                           e.preventDefault();
@@ -1589,7 +1656,7 @@ export default function EnrollmentsPage() {
                     cg.course.name,
                     `Início ${formatDateOnly(cg.startDate)}`,
                     `${cg.startTime}-${cg.endTime}`,
-                    Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? cg.daysOfWeek.join(", ") : null,
+                    Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? formatDaysOrderedPt(cg.daysOfWeek) : null,
                     cg.location || null,
                   ]
                     .filter(Boolean)
@@ -1668,7 +1735,7 @@ export default function EnrollmentsPage() {
                       cg.course.name,
                       `Início ${formatDateOnly(cg.startDate)}`,
                       `${cg.startTime}-${cg.endTime}`,
-                      Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? cg.daysOfWeek.join(", ") : null,
+                      Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? formatDaysOrderedPt(cg.daysOfWeek) : null,
                       cg.location || null,
                     ]
                       .filter(Boolean)
