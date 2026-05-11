@@ -127,7 +127,7 @@ export default function EnrollmentsPage() {
   const [editCertFile, setEditCertFile] = useState<File | null>(null);
   const [editRemovingCert, setEditRemovingCert] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
-  const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
+  const [allClassGroups, setAllClassGroups] = useState<ClassGroup[]>([]);
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [studentId, setStudentId] = useState("");
@@ -176,6 +176,8 @@ export default function EnrollmentsPage() {
   const [dateTo, setDateTo] = useState("");
   const [cycleFilterIds, setCycleFilterIds] = useState<string[]>([]);
   const cycleFilterInitializedRef = useRef(false);
+  /** No modal de matrícula (Master/Coord): incluir turmas de ciclos não visíveis, se marcados. */
+  const [extraModalCycleIds, setExtraModalCycleIds] = useState<string[]>([]);
   const [showTeacherDetails, setShowTeacherDetails] = useState(false);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
   const toggleCourseDetails = useCallback((courseId: string) => {
@@ -221,10 +223,26 @@ export default function EnrollmentsPage() {
     const classGroupsRes = await fetch("/api/class-groups");
     const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
     if (classGroupsJson?.ok) {
-      // Apenas turmas em ciclos visíveis para matrículas
-      setClassGroups(classGroupsJson.data.classGroups.filter((cg) => cg.cycle?.isVisibleForEnrollments !== false));
+      // Mantém todas: o filtro por ciclos no modal decide o que aparece no select.
+      setAllClassGroups(classGroupsJson.data.classGroups);
     }
   }
+
+  const visibleCycleIds = useMemo(() => cycles.filter((c) => c.isVisibleForEnrollments).map((c) => c.id), [cycles]);
+  const modalCycleIds = useMemo(() => {
+    const base = visibleCycleIds;
+    if (!canOverrideEnrollment) return base;
+    return Array.from(new Set([...base, ...extraModalCycleIds]));
+  }, [visibleCycleIds, extraModalCycleIds, canOverrideEnrollment]);
+
+  const classGroupsForModal = useMemo(() => {
+    if (modalCycleIds.length === 0) return [];
+    const allowed = new Set(modalCycleIds);
+    return allClassGroups.filter((cg) => {
+      const cid = cg.cycle?.id ?? cg.cycleId;
+      return !!cid && allowed.has(cid);
+    });
+  }, [allClassGroups, modalCycleIds]);
 
   const searchStudents = useCallback(
     async (q: string) => {
@@ -589,6 +607,7 @@ export default function EnrollmentsPage() {
     setStudentSearchQuery("");
     setStudentDropdownOpen(false);
     setCreateCertFile(null);
+    setExtraModalCycleIds([]);
     setOpen(true);
     void loadFormOptions();
   }
@@ -599,6 +618,13 @@ export default function EnrollmentsPage() {
     setEditClassGroupId(e.classGroup.id);
     setEditCertFile(null);
     setEditRemovingCert(false);
+    // Se a matrícula atual estiver em ciclo não visível, inclui por padrão para o select não "sumir".
+    const currentCycleId =
+      (e.classGroup as unknown as { cycleId?: string; cycle?: { id: string; isVisibleForEnrollments?: boolean } }).cycleId ??
+      e.classGroup.cycle?.id ??
+      "";
+    const isCurrentVisible = e.classGroup.cycle?.isVisibleForEnrollments !== false;
+    setExtraModalCycleIds(!isCurrentVisible && currentCycleId ? [currentCycleId] : []);
     setEditOpen(true);
     void loadFormOptions();
   }
@@ -678,7 +704,7 @@ export default function EnrollmentsPage() {
     e.preventDefault();
     if (!studentId || !classGroupId || submitting) return;
     if (!canOverrideEnrollment) {
-      const cg = classGroups.find((c) => c.id === classGroupId);
+      const cg = classGroupsForModal.find((c) => c.id === classGroupId);
       const count = cg?.enrollmentsCount ?? activeCountByClassGroup.get(classGroupId) ?? 0;
       const cap = cg?.capacity ?? 0;
       if (cap > 0 && count >= cap) {
@@ -1622,6 +1648,37 @@ export default function EnrollmentsPage() {
           {!studentId && (
             <p className="text-xs text-[var(--text-muted)]">Selecione um aluno da lista ao digitar.</p>
           )}
+          {canOverrideEnrollment && cycles.some((c) => !c.isVisibleForEnrollments) && (
+            <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)]/20 p-3">
+              <div className="text-sm font-medium text-[var(--text-primary)]">Incluir turmas de ciclos anteriores</div>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                Por padrão, o select mostra só turmas de ciclos visíveis para matrículas. Marque abaixo para incluir também outros ciclos.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {cycles
+                  .filter((c) => !c.isVisibleForEnrollments)
+                  .map((c) => {
+                    const checked = extraModalCycleIds.includes(c.id);
+                    return (
+                      <label key={c.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = e.target.checked;
+                            setExtraModalCycleIds((prev) => {
+                              if (next) return prev.includes(c.id) ? prev : [...prev, c.id];
+                              return prev.filter((id) => id !== c.id);
+                            });
+                          }}
+                        />
+                        {`Ciclo ${c.cycle}/${c.year}`}
+                      </label>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
           <div>
             <label className="text-sm font-medium">Turma</label>
             <select
@@ -1631,7 +1688,7 @@ export default function EnrollmentsPage() {
               required
             >
               <option value="">Selecione</option>
-              {classGroups
+              {classGroupsForModal
                 .filter((cg) => {
                   const permiteMatriculaPadrao =
                     cg.status === "PLANEJADA" ||
@@ -1701,6 +1758,37 @@ export default function EnrollmentsPage() {
               <p className="mt-0.5 font-medium">{editingEnrollment.student.name}</p>
               <p className="text-xs text-[var(--text-muted)]">{editingEnrollment.student.email ?? "-"}</p>
             </div>
+            {canOverrideEnrollment && cycles.some((c) => !c.isVisibleForEnrollments) && (
+              <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)]/20 p-3">
+                <div className="text-sm font-medium text-[var(--text-primary)]">Incluir turmas de ciclos anteriores</div>
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                  Marque ciclos adicionais para incluir suas turmas no select (além dos ciclos visíveis para matrículas).
+                </p>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  {cycles
+                    .filter((c) => !c.isVisibleForEnrollments)
+                    .map((c) => {
+                      const checked = extraModalCycleIds.includes(c.id);
+                      return (
+                        <label key={c.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = e.target.checked;
+                              setExtraModalCycleIds((prev) => {
+                                if (next) return prev.includes(c.id) ? prev : [...prev, c.id];
+                                return prev.filter((id) => id !== c.id);
+                              });
+                            }}
+                          />
+                          {`Ciclo ${c.cycle}/${c.year}`}
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium">Turma</label>
               <select
@@ -1708,7 +1796,7 @@ export default function EnrollmentsPage() {
                 onChange={(e) => setEditClassGroupId(e.target.value)}
                 className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
               >
-                {classGroups
+                {classGroupsForModal
                   .filter((cg) => {
                     const isCurrent = cg.id === editingEnrollment.classGroup.id;
                     const permiteMatriculaPadrao =

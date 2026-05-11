@@ -2,6 +2,7 @@ import Link from "next/link";
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ExportCampaignResponsesButtons } from "./ExportCampaignResponsesButtons";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -44,12 +45,7 @@ export default async function AdminCampanhaDetalhePage(props: PageProps) {
         description={campaign.description ?? "Avaliações enviadas pelos alunos."}
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            <a
-              href={`/api/admin/marketing-campaigns/${campaign.id}/export`}
-              className="inline-flex w-full items-center justify-center rounded-md bg-[var(--igh-primary)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 sm:w-auto"
-            >
-              Exportar avaliações
-            </a>
+            <ExportCampaignResponsesButtons campaignId={campaign.id} />
             <Link
               href="/admin/campanhas"
               className="inline-flex w-full items-center justify-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm font-medium hover:opacity-90 sm:w-auto"
