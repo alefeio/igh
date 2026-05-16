@@ -284,6 +284,9 @@ export async function getPublicMotherCampaignMessages(limit = 18): Promise<Mothe
           return { items: [], participationOpen: false };
         }
         const participationOpen = isMarketingCampaignActiveInWindow(campaign);
+        if (!participationOpen) {
+          return { items: [], participationOpen: false };
+        }
 
         const studentRows = await prisma.marketingCampaignResponse.findMany({
           where: { campaignId: campaign.id, comment: { not: null } },

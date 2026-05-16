@@ -1,3 +1,4 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -61,14 +62,30 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
   if (typeof body?.title === "string") data.title = body.title.trim() || undefined;
   if (typeof body?.description === "string") data.description = body.description.trim() || null;
   if (typeof body?.isActive === "boolean") data.isActive = body.isActive;
-  if (typeof body?.startsAt === "string") data.startsAt = body.startsAt ? new Date(body.startsAt) : null;
-  if (typeof body?.endsAt === "string") data.endsAt = body.endsAt ? new Date(body.endsAt) : null;
+  if (body && "startsAt" in body) {
+    data.startsAt =
+      typeof body.startsAt === "string" && body.startsAt
+        ? new Date(body.startsAt)
+        : body.startsAt === null
+          ? null
+          : undefined;
+  }
+  if (body && "endsAt" in body) {
+    data.endsAt =
+      typeof body.endsAt === "string" && body.endsAt
+        ? new Date(body.endsAt)
+        : body.endsAt === null
+          ? null
+          : undefined;
+  }
 
   const campaign = await prisma.marketingCampaign.update({
     where: { id },
     data: data as never,
     select: { id: true },
   });
+  revalidateTag("public-mothers-day-messages-v2", "max");
+  revalidatePath("/");
   return jsonOk({ id: campaign.id });
 }
 

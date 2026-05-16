@@ -20,7 +20,7 @@ export function MothersDayMessagesHomeSection({
   items: readonly MotherCampaignMessagePublic[];
   participationOpen: boolean;
 }) {
-  if (!participationOpen && items.length === 0) return null;
+  if (!participationOpen) return null;
 
   const [studentName, setStudentName] = useState<string | null>(null);
   const [studentHasResponded, setStudentHasResponded] = useState<boolean | null>(null);

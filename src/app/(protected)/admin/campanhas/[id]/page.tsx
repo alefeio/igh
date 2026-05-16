@@ -3,16 +3,27 @@ import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/D
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ExportCampaignResponsesButtons } from "./ExportCampaignResponsesButtons";
+import { MarketingCampaignManagePanel } from "../MarketingCampaignManagePanel";
 
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function AdminCampanhaDetalhePage(props: PageProps) {
-  await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+  const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+  const canManage = user.role === "MASTER" || user.role === "ADMIN";
   const { id } = await props.params;
 
   const campaign = await prisma.marketingCampaign.findUnique({
     where: { id },
-    select: { id: true, title: true, slug: true, description: true, isActive: true, createdAt: true },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      description: true,
+      isActive: true,
+      startsAt: true,
+      endsAt: true,
+      createdAt: true,
+    },
   });
   if (!campaign) {
     return (
@@ -37,6 +48,16 @@ export default async function AdminCampanhaDetalhePage(props: PageProps) {
     },
   });
 
+  const manageData = {
+    id: campaign.id,
+    slug: campaign.slug,
+    title: campaign.title,
+    description: campaign.description,
+    isActive: campaign.isActive,
+    startsAt: campaign.startsAt ? campaign.startsAt.toISOString() : null,
+    endsAt: campaign.endsAt ? campaign.endsAt.toISOString() : null,
+  };
+
   return (
     <div className="min-w-0 py-2 sm:py-4">
       <DashboardHero
@@ -55,6 +76,10 @@ export default async function AdminCampanhaDetalhePage(props: PageProps) {
           </div>
         }
       />
+
+      <div className="mb-6">
+        <MarketingCampaignManagePanel campaign={manageData} canManage={canManage} />
+      </div>
 
       <SectionCard title="Avaliações" description={`Slug: ${campaign.slug} · ${responses.length} respostas`} variant="elevated">
         <TableShell>
@@ -94,4 +119,3 @@ export default async function AdminCampanhaDetalhePage(props: PageProps) {
     </div>
   );
 }
-

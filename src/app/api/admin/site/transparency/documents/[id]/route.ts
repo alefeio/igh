@@ -1,42 +1,69 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
-import { jsonOk, jsonErr } from "@/lib/http";
-import { siteTransparencyCategorySchema, reorderSchema } from "@/lib/validators/site";
+import { jsonErr, jsonOk } from "@/lib/http";
+import { siteTransparencyDocumentUpdateSchema } from "@/lib/validators/site";
 
-export async function GET() {
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
-  const items = await prisma.siteTransparencyCategory.findMany({ orderBy: [{ order: "asc" }] });
-  return jsonOk({ items });
-}
+  const { id } = await context.params;
 
-export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const existing = await prisma.siteTransparencyDocument.findUnique({ where: { id } });
+  if (!existing) return jsonErr("NOT_FOUND", "Documento não encontrado.", 404);
+
   const body = await request.json().catch(() => null);
-  const parsed = siteTransparencyCategorySchema.safeParse(body);
-  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
-  const slugVal = parsed.data.slug || parsed.data.name.toLowerCase().replace(/\s+/g, "-");
-  const exists = await prisma.siteTransparencyCategory.findUnique({ where: { slug: slugVal } });
-  if (exists) return jsonErr("DUPLICATE_SLUG", "Slug em uso.", 409);
-  const max = await prisma.siteTransparencyCategory.aggregate({ _max: { order: true } });
-  const item = await prisma.siteTransparencyCategory.create({
-    data: {
-      name: parsed.data.name,
-      slug: slugVal,
-      order: parsed.data.order ?? (max._max.order ?? -1) + 1,
-      isActive: parsed.data.isActive ?? true,
-    },
+  const parsed = siteTransparencyDocumentUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
+  }
+
+  const d = parsed.data;
+  if (d.categoryId !== undefined) {
+    const category = await prisma.siteTransparencyCategory.findUnique({ where: { id: d.categoryId } });
+    if (!category) return jsonErr("NOT_FOUND", "Categoria nao encontrada.", 404);
+  }
+
+  const data: {
+    categoryId?: string;
+    title?: string;
+    description?: string | null;
+    date?: Date | null;
+    fileUrl?: string | null;
+    isActive?: boolean;
+  } = {};
+
+  if (d.categoryId !== undefined) data.categoryId = d.categoryId;
+  if (d.title !== undefined) data.title = d.title;
+  if (d.description !== undefined) data.description = d.description ?? null;
+  if (d.date !== undefined) data.date = d.date ? new Date(d.date) : null;
+  if (d.fileUrl !== undefined) data.fileUrl = d.fileUrl || null;
+  if (d.isActive !== undefined) data.isActive = d.isActive;
+
+  if (Object.keys(data).length === 0) {
+    return jsonErr("VALIDATION_ERROR", "Nenhum campo para atualizar.", 400);
+  }
+
+  const item = await prisma.siteTransparencyDocument.update({
+    where: { id },
+    data,
+    include: { category: true },
   });
-  return jsonOk({ item }, { status: 201 });
+
+  return jsonOk({ item });
 }
 
-export async function PATCH(request: Request) {
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
-  const body = await request.json().catch(() => null);
-  const parsed = reorderSchema.safeParse(body);
-  if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
-  await prisma.$transaction(
-    parsed.data.ids.map((id, i) => prisma.siteTransparencyCategory.update({ where: { id }, data: { order: i } }))
-  );
-  const items = await prisma.siteTransparencyCategory.findMany({ orderBy: [{ order: "asc" }] });
-  return jsonOk({ items });
+  const { id } = await context.params;
+
+  const existing = await prisma.siteTransparencyDocument.findUnique({ where: { id } });
+  if (!existing) return jsonErr("NOT_FOUND", "Documento não encontrado.", 404);
+
+  await prisma.siteTransparencyDocument.delete({ where: { id } });
+  return jsonOk({ deleted: true });
 }

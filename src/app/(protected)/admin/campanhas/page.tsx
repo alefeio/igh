@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
+import { Badge } from "@/components/ui/Badge";
 import { requireRole } from "@/lib/auth";
+import { marketingCampaignVisibilityLabel } from "@/lib/marketing-campaign-active";
 import { prisma } from "@/lib/prisma";
 
 type CampaignRow = {
@@ -56,7 +58,7 @@ export default async function AdminCampanhasPage() {
       <DashboardHero
         eyebrow="Administração"
         title="Campanhas (avaliações)"
-        description="Organize campanhas de marketing/pesquisa e consulte as avaliações enviadas pelos alunos."
+        description="Ative ou desative campanhas (ex.: Dia das Mães). Desativada, a campanha some da página inicial do site e do dashboard do aluno."
       />
 
       <SectionCard title="Campanhas" variant="elevated">
@@ -79,19 +81,28 @@ export default async function AdminCampanhasPage() {
                   </td>
                 </tr>
               ) : (
-                items.map((c) => (
-                  <tr key={c.id}>
-                    <td className="px-3 py-3 font-medium text-[var(--text-primary)]">{c.title}</td>
-                    <td className="px-3 py-3 text-[var(--text-muted)]">{c.slug}</td>
-                    <td className="px-3 py-3">{c.isActive ? "Ativa" : "Inativa"}</td>
-                    <td className="px-3 py-3">{c.responsesCount}</td>
-                    <td className="px-3 py-3 text-right">
-                      <Link href={`/admin/campanhas/${c.id}`} className="text-[var(--igh-primary)] hover:underline">
-                        Ver avaliações
-                      </Link>
-                    </td>
-                  </tr>
-                ))
+                items.map((c) => {
+                  const status = marketingCampaignVisibilityLabel({
+                    isActive: c.isActive,
+                    startsAt: c.startsAt ? new Date(c.startsAt) : null,
+                    endsAt: c.endsAt ? new Date(c.endsAt) : null,
+                  });
+                  return (
+                    <tr key={c.id}>
+                      <td className="px-3 py-3 font-medium text-[var(--text-primary)]">{c.title}</td>
+                      <td className="px-3 py-3 text-[var(--text-muted)]">{c.slug}</td>
+                      <td className="px-3 py-3">
+                        <Badge tone={status.tone}>{status.text}</Badge>
+                      </td>
+                      <td className="px-3 py-3">{c.responsesCount}</td>
+                      <td className="px-3 py-3 text-right">
+                        <Link href={`/admin/campanhas/${c.id}`} className="text-[var(--igh-primary)] hover:underline">
+                          Gerenciar
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

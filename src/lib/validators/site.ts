@@ -251,6 +251,8 @@ export const siteTransparencyDocumentSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+export const siteTransparencyDocumentUpdateSchema = siteTransparencyDocumentSchema.partial();
+
 // Reorder payloads
 export const reorderSchema = z.object({
   ids: z.array(z.string().uuid()),

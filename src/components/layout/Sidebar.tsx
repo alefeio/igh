@@ -101,7 +101,7 @@ const ITEMS: Item[] = [
     adminMasterOnly: true,
     category: "Comunicação",
   },
-  { href: "/admin/campanhas", label: "Campanhas (avaliações)", adminOrMaster: true, category: "Comunicação" },
+  { href: "/admin/campanhas", label: "Campanhas (site e alunos)", adminOrMaster: true, category: "Comunicação" },
 
   /* —— Site (CMS: geral → navegação → conteúdos → institucional) —— */
   { href: "/admin/site/configuracoes", label: "Configurações gerais", adminOrMaster: true, category: "Site" },
