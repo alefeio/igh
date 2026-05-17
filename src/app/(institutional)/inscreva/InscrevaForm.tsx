@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site";
@@ -29,6 +29,9 @@ type ClassGroupOption = {
 };
 
 const EMPTY_TURMAS_INSCREVA_MSG = "No momento não há turmas abertas para inscrição.";
+
+/** Âncora da seção «Cadastro rápido» em /inscreva */
+export const INSCREVA_CADASTRO_RAPIDO_ID = "cadastro-rapido";
 
 function formatCpf(v: string): string {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -185,6 +188,7 @@ export function InscrevaForm() {
   const [selectedClassGroupIds, setSelectedClassGroupIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [showCadastro, setShowCadastro] = useState(false);
+  const cadastroSectionRef = useRef<HTMLDivElement>(null);
   const [cadastroName, setCadastroName] = useState("");
   const [cadastroCpf, setCadastroCpf] = useState("");
   const [cadastroBirthDate, setCadastroBirthDate] = useState("");
@@ -247,6 +251,29 @@ export function InscrevaForm() {
 
   const cadastroAge = ageFromBirthDate(cadastroBirthDate);
   const isMinor = cadastroAge != null && cadastroAge < 18;
+
+  const openCadastroRapido = useCallback(() => {
+    setShowCadastro(true);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#${INSCREVA_CADASTRO_RAPIDO_ID}`);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showCadastro || !cadastroSectionRef.current) return;
+    const el = cadastroSectionRef.current;
+    const t = window.requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(t);
+  }, [showCadastro]);
+
+  useEffect(() => {
+    if (loading || student) return;
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== `#${INSCREVA_CADASTRO_RAPIDO_ID}`) return;
+    openCadastroRapido();
+  }, [loading, student, openCadastroRapido]);
 
   async function handleCadastro(e: React.FormEvent) {
     e.preventDefault();
@@ -486,7 +513,7 @@ export function InscrevaForm() {
               variant="secondary"
               size="lg"
               className="min-h-[52px] w-full"
-              onClick={() => setShowCadastro(true)}
+              onClick={openCadastroRapido}
             >
               Cadastrar-se
             </Button>
@@ -538,7 +565,13 @@ export function InscrevaForm() {
         </div>
 
         {showCadastro && (
-          <div className={cardClass} role="region" aria-labelledby="cadastro-title">
+          <div
+            id={INSCREVA_CADASTRO_RAPIDO_ID}
+            ref={cadastroSectionRef}
+            className={`scroll-mt-24 ${cardClass}`}
+            role="region"
+            aria-labelledby="cadastro-title"
+          >
             <h2 id="cadastro-title" className="text-xl font-bold text-[var(--text-primary)]">
               Cadastro rápido
             </h2>
@@ -669,7 +702,16 @@ export function InscrevaForm() {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => setShowCadastro(false)}
+                  onClick={() => {
+                    setShowCadastro(false);
+                    if (
+                      typeof window !== "undefined" &&
+                      window.location.hash === `#${INSCREVA_CADASTRO_RAPIDO_ID}`
+                    ) {
+                      const q = window.location.search;
+                      window.history.replaceState(null, "", `${window.location.pathname}${q}`);
+                    }
+                  }}
                 >
                   Cancelar
                 </Button>
