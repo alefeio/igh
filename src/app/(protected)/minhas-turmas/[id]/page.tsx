@@ -79,6 +79,9 @@ export default function MinhasTurmasDetailPage() {
   const user = useUser();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{ enrollment: EnrollmentDetail } | null>(null);
+  const [exams, setExams] = useState<
+    { id: string; title: string; canStart: boolean; attemptStatus: string | null; scorePercent: number | null }[]
+  >([]);
 
   useEffect(() => {
     if (!id) return;
@@ -95,6 +98,17 @@ export default function MinhasTurmasDetailPage() {
     }
     void load();
   }, [id, toast]);
+
+  useEffect(() => {
+    if (!id) return;
+    void (async () => {
+      const res = await fetch(`/api/me/enrollments/${id}/exams`, { credentials: "include" });
+      const json = (await res.json()) as ApiResponse<{
+        exams: { id: string; title: string; canStart: boolean; attemptStatus: string | null; scorePercent: number | null }[];
+      }>;
+      if (res.ok && json.ok) setExams(json.data.exams);
+    })();
+  }, [id]);
 
   const tutorialSteps: TutorialStep[] = useMemo(() => {
     if (!data) return [];
@@ -275,6 +289,43 @@ export default function MinhasTurmasDetailPage() {
                   {e.certificateFileName || "Ver certificado"}
                 </a>
               </p>
+            </section>
+          ) : null}
+
+          {exams.length > 0 ? (
+            <section aria-labelledby="provas-heading">
+              <h2 id="provas-heading" className="text-base font-semibold text-[var(--text-primary)]">
+                Provas
+              </h2>
+              <ul className="mt-3 space-y-2">
+                {exams.map((ex) => (
+                  <li
+                    key={ex.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--card-border)] px-4 py-3"
+                  >
+                    <span className="font-medium text-[var(--text-primary)]">{ex.title}</span>
+                    <span className="text-xs text-[var(--text-muted)]">
+                      {ex.attemptStatus === "SUBMITTED" || ex.attemptStatus === "ABANDONED" || ex.attemptStatus === "EXPIRED"
+                        ? ex.scorePercent != null
+                          ? `Encerrada · ${ex.scorePercent}%`
+                          : "Encerrada"
+                        : ex.attemptStatus === "IN_PROGRESS"
+                          ? "Em andamento"
+                          : ex.canStart
+                            ? "Disponível"
+                            : "Indisponível"}
+                    </span>
+                    {(ex.canStart || ex.attemptStatus === "IN_PROGRESS") && (
+                      <Link
+                        href={`/minhas-turmas/${e.id}/prova/${ex.id}`}
+                        className="text-sm font-medium text-[var(--igh-primary)] hover:underline"
+                      >
+                        {ex.attemptStatus === "IN_PROGRESS" ? "Continuar prova" : "Fazer prova"}
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </section>
           ) : null}
 

@@ -460,6 +460,112 @@ model ClassGroup {
   cycle            Cycle            @relation(fields: [cycleId], references: [id])
   sessions         ClassSession[]
   enrollments      Enrollment[]
+  exams            ClassGroupExam[]
+}
+
+enum ClassGroupExamStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum ClassGroupExamTimingMode {
+  FROM_STUDENT_START
+  FROM_EXAM_START
+}
+
+enum ClassGroupExamSelectionMode {
+  RANDOM
+  MANUAL
+}
+
+enum ClassGroupExamAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED
+  ABANDONED
+}
+
+/// * Prova formal da turma (questões do banco de exercícios do curso).
+model ClassGroupExam {
+  id                 String                      @id @default(uuid())
+  classGroupId       String
+  title              String
+  instructions       String?
+  status             ClassGroupExamStatus        @default(DRAFT)
+  availableFrom      DateTime
+  availableUntil     DateTime
+  durationMinutes    Int
+  timingMode         ClassGroupExamTimingMode    @default(FROM_STUDENT_START)
+  selectionMode      ClassGroupExamSelectionMode @default(RANDOM)
+  questionCount      Int
+  /// * IDs de exercícios escolhidos manualmente (ordem preservada).
+  manualExerciseIds  String[]                    @default([])
+  shuffleQuestions   Boolean                     @default(true)
+  shuffleOptions     Boolean                     @default(true)
+  maxAttempts        Int                         @default(1)
+  showScoreAfterSubmit Boolean                   @default(true)
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  classGroup         ClassGroup                  @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  attempts           ClassGroupExamAttempt[]
+
+  @@index([classGroupId])
+  @@index([classGroupId, status])
+}
+
+model ClassGroupExamAttempt {
+  id             String                      @id @default(uuid())
+  examId         String
+  enrollmentId   String
+  attemptNumber  Int                         @default(1)
+  status         ClassGroupExamAttemptStatus @default(IN_PROGRESS)
+  startedAt      DateTime
+  expiresAt      DateTime
+  submittedAt    DateTime?
+  scorePercent   Int?
+  correctCount   Int?
+  totalQuestions Int?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  exam           ClassGroupExam              @relation(fields: [examId], references: [id], onDelete: Cascade)
+  enrollment     Enrollment                  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  questions ClassGroupExamAttemptQuestion[]
+  answers   ClassGroupExamAnswer[]
+
+  @@unique([examId, enrollmentId, attemptNumber])
+  @@index([examId])
+  @@index([enrollmentId])
+}
+
+/// * Snapshot das questões da tentativa (gerado ao iniciar).
+model ClassGroupExamAttemptQuestion {
+  id              String   @id @default(uuid())
+  attemptId       String
+  order           Int
+  exerciseId      String
+  questionText    String
+  /// * [{ id, text, order }] — sem indicar qual é correta.
+  optionsJson     Json
+  correctOptionId String
+  attempt         ClassGroupExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  answer          ClassGroupExamAnswer?
+
+  @@index([attemptId])
+}
+
+model ClassGroupExamAnswer {
+  id                String   @id @default(uuid())
+  attemptId         String
+  attemptQuestionId String   @unique
+  selectedOptionId  String?
+  correct           Boolean?
+  answeredAt        DateTime?
+  attempt           ClassGroupExamAttempt         @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  attemptQuestion   ClassGroupExamAttemptQuestion @relation(fields: [attemptQuestionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, attemptQuestionId])
+  @@index([attemptId])
 }
 
 model ClassSession {
@@ -597,6 +703,7 @@ model Enrollment {
   questionReplies       EnrollmentLessonQuestionReply[]
   sessionAttendances    SessionAttendance[]
   verificationTokens    VerificationToken[]
+  examAttempts          ClassGroupExamAttempt[]
 }
 
 model EnrollmentLessonFavorite {

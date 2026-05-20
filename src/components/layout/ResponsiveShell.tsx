@@ -1,6 +1,7 @@
 "use client";
 
 import { Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useCallback, useLayoutEffect, useState } from "react";
 
 import { DashboardShell, sessionRoleToDashboardRole } from "@/components/dashboard/DashboardUI";
@@ -58,6 +59,9 @@ export function ResponsiveShell({
     if (!next) setDrawerOpen(false);
   }, []);
 
+  const pathname = usePathname();
+  const examFullscreen = Boolean(pathname?.includes("/prova/"));
+
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   const collapseSidebar = useCallback(() => setSidebarExpanded(false), [setSidebarExpanded]);
@@ -66,6 +70,10 @@ export function ResponsiveShell({
     setSidebarExpanded(true);
     setDrawerOpen(false);
   }, [setSidebarExpanded]);
+
+  if (examFullscreen) {
+    return <div className="min-h-screen w-full bg-[var(--background)]">{children}</div>;
+  }
 
   return (
     <div className="flex min-h-screen bg-[var(--background)]">

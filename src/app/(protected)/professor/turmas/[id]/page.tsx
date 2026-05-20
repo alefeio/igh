@@ -163,7 +163,7 @@ export default function ProfessorTurmaDetailPage() {
   const [exerciseByEnrollment, setExerciseByEnrollment] = useState<ExerciseByEnrollment[]>([]);
   const [lessonProgressByEnrollment, setLessonProgressByEnrollment] = useState<LessonProgressByEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas">("alunos");
+  const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [savingAttendance, setSavingAttendance] = useState(false);
@@ -570,6 +570,18 @@ export default function ProfessorTurmaDetailPage() {
         >
           Dúvidas (fórum)
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("provas")}
+          className={`rounded-lg px-3 py-2 text-sm font-medium ${
+            tab === "provas"
+              ? "bg-[var(--igh-primary)] text-white"
+              : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+          }`}
+          data-tour="pt-tab-provas"
+        >
+          Provas
+        </button>
       </nav>
 
       {tab === "alunos" && (
@@ -761,6 +773,21 @@ export default function ProfessorTurmaDetailPage() {
               })}
             </div>
           )}
+        </section>
+      )}
+
+      {tab === "provas" && (
+        <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-6">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">Provas da turma</h2>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            Crie provas com questões do banco de exercícios do curso, defina tempo e janela de disponibilidade.
+          </p>
+          <Link
+            href={`/professor/turmas/${id}/provas`}
+            className="mt-4 inline-flex items-center justify-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
+            Gerenciar provas
+          </Link>
         </section>
       )}
 
