@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
+import { examOptionLabel } from "@/lib/exam-option-labels";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
 const LEAVE_MSG =
@@ -294,34 +295,34 @@ export default function StudentExamPage() {
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-6">
-        <ol className="space-y-8">
+        <div className="space-y-8">
           {attempt?.questions.map((q, idx) => (
-            <li key={q.id} className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5">
+            <div key={q.id} className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5">
               <p className="text-sm font-semibold text-[var(--text-muted)]">Questão {idx + 1}</p>
               <p className="mt-2 text-base font-medium text-[var(--text-primary)]">{q.questionText}</p>
-              <ul className="mt-4 space-y-2">
-                {q.options.map((opt) => {
+              <div className="mt-4 flex flex-col gap-2">
+                {q.options.map((opt, optIdx) => {
                   const selected = selections[q.id] === opt.id;
                   return (
-                    <li key={opt.id}>
-                      <button
-                        type="button"
-                        onClick={() => void selectOption(q.id, opt.id)}
-                        className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm transition ${
-                          selected
-                            ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10 font-medium text-[var(--text-primary)]"
-                            : "border-[var(--card-border)] hover:border-[var(--igh-primary)]/40"
-                        }`}
-                      >
-                        {opt.text}
-                      </button>
-                    </li>
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => void selectOption(q.id, opt.id)}
+                      className={`w-full rounded-lg border px-3 py-2.5 text-left text-sm transition ${
+                        selected
+                          ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10 font-medium text-[var(--text-primary)]"
+                          : "border-[var(--card-border)] hover:border-[var(--igh-primary)]/40"
+                      }`}
+                    >
+                      <span className="font-semibold">{examOptionLabel(optIdx)} </span>
+                      <span>{opt.text}</span>
+                    </button>
                   );
                 })}
-              </ul>
-            </li>
+              </div>
+            </div>
           ))}
-        </ol>
+        </div>
 
         <div className="mt-8 flex justify-end pb-10">
           <Button
