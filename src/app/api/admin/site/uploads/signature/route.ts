@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth";
+import { authErrorResponse } from "@/lib/api-auth-guard";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getApimagesConfig } from "@/lib/apimages";
 import { z } from "zod";
@@ -35,32 +36,38 @@ const bodySchema = z
 
 /** Devolve URL e chave da API Apimages (fluxo análogo ao “assinado” Cloudinary: cliente envia só o arquivo para APIMG_UPLOAD_URL). */
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "TEACHER"]);
-
-  const body = await request.json().catch(() => null);
-  const parsed = bodySchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
-  }
-
-  const { kind, id } = parsed.data;
-  if (user.role === "TEACHER" && kind !== "formations") {
-    return jsonErr("FORBIDDEN", "Professores podem enviar apenas imagens de formações (aulas/cursos).", 403);
-  }
-  if (kind === "onboarding" && user.role !== "MASTER" && user.role !== "ADMIN") {
-    return jsonErr("FORBIDDEN", "Apenas Master ou Admin podem enviar imagens do onboarding.", 403);
-  }
-  if (kind === "legal" && !["MASTER", "ADMIN", "COORDINATOR"].includes(user.role)) {
-    return jsonErr("FORBIDDEN", "Apenas equipe autorizada pode enviar imagens dos documentos legais.", 403);
-  }
-  if (user.role === "TEACHER" && id) {
-    return jsonErr("FORBIDDEN", "Uso não permitido.", 403);
-  }
-
   try {
+    const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "TEACHER"]);
+
+    const body = await request.json().catch(() => null);
+    const parsed = bodySchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+    }
+
+    const { kind, id } = parsed.data;
+    if (user.role === "TEACHER" && kind !== "formations") {
+      return jsonErr(
+        "FORBIDDEN",
+        "Professores devem usar o upload de aulas em /courses (não o CMS do site).",
+        403
+      );
+    }
+    if (kind === "onboarding" && user.role !== "MASTER" && user.role !== "ADMIN") {
+      return jsonErr("FORBIDDEN", "Apenas Master ou Admin podem enviar imagens do onboarding.", 403);
+    }
+    if (kind === "legal" && !["MASTER", "ADMIN", "COORDINATOR"].includes(user.role)) {
+      return jsonErr("FORBIDDEN", "Apenas equipe autorizada podem enviar imagens dos documentos legais.", 403);
+    }
+    if (user.role === "TEACHER" && id) {
+      return jsonErr("FORBIDDEN", "Uso não permitido.", 403);
+    }
+
     const { apiKey, uploadUrl } = getApimagesConfig();
     return jsonOk({ uploadUrl, apiKey });
   } catch (e) {
+    const auth = authErrorResponse(e);
+    if (auth) return auth;
     const message = e instanceof Error ? e.message : "Erro ao preparar upload.";
     return jsonErr("CONFIG_ERROR", message, 500);
   }

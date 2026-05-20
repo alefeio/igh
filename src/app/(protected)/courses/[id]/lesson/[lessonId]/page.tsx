@@ -13,7 +13,14 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import type { ApiResponse } from "@/lib/api-types";
-import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import {
+  apimagesUploadHeaders,
+  buildApimagesUploadFormData,
+  COURSE_FORMATION_UPLOAD_SIGNATURE,
+  parseApimagesUploadJson,
+  readApiJson,
+  TEACHER_UPLOAD_SIGNATURE,
+} from "@/lib/apimages-upload";
 
 type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[]; attachmentNames?: string[]; lastEditedAt?: string | null; lastEditedByUserName?: string | null };
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
@@ -115,6 +122,13 @@ export default function LessonEditPage() {
   const [uploadingEditFile, setUploadingEditFile] = useState(false);
 
   useEffect(() => {
+    if (user.role === "STUDENT") {
+      toast.push("error", "Você não tem permissão para editar aulas.");
+      router.replace("/dashboard");
+    }
+  }, [user.role, router, toast]);
+
+  useEffect(() => {
     const onScroll = () => setShowBackToTop(window.scrollY > 400);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -122,17 +136,16 @@ export default function LessonEditPage() {
 
   // Arquivos da aula: por padrão, manter painel flutuante (desktop).
 
+  const lessonUploadSignatureUrl =
+    user.role === "TEACHER" ? TEACHER_UPLOAD_SIGNATURE : COURSE_FORMATION_UPLOAD_SIGNATURE;
+
   const uploadSupportFileAndAttach = useCallback(
     async (file: File) => {
       try {
-        const signRes = await fetch("/api/admin/site/uploads/signature", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: "formations" }),
-        });
-        const signJson = (await signRes.json()) as ApiResponse<{ uploadUrl: string; apiKey: string }>;
+        const signRes = await fetch(lessonUploadSignatureUrl, { method: "POST" });
+        const signJson = await readApiJson<{ uploadUrl: string; apiKey: string }>(signRes);
         if (!signRes.ok || !signJson.ok) {
-          toast.push("error", !signJson.ok ? signJson.error.message : "Falha ao preparar upload.");
+          toast.push("error", signJson.ok ? "Falha ao preparar upload." : signJson.error.message);
           return;
         }
 
@@ -159,17 +172,13 @@ export default function LessonEditPage() {
         toast.push("error", "Falha ao anexar arquivo.");
       }
     },
-    [toast],
+    [toast, lessonUploadSignatureUrl],
   );
 
   const uploadFileToApimages = useCallback(
     async (file: File): Promise<string | null> => {
-      const signRes = await fetch("/api/admin/site/uploads/signature", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "formations" }),
-      });
-      const signJson = (await signRes.json()) as ApiResponse<{ uploadUrl: string; apiKey: string }>;
+      const signRes = await fetch(lessonUploadSignatureUrl, { method: "POST" });
+      const signJson = await readApiJson<{ uploadUrl: string; apiKey: string }>(signRes);
       if (!signRes.ok || !signJson.ok) return null;
 
       const fd = buildApimagesUploadFormData(file);
@@ -183,7 +192,7 @@ export default function LessonEditPage() {
       if (!uploadRes.ok || parsed.errorMessage || !parsed.url) return null;
       return parsed.url;
     },
-    [],
+    [lessonUploadSignatureUrl],
   );
 
   const copyFileToClipboard = useCallback(
@@ -219,6 +228,8 @@ export default function LessonEditPage() {
           onUploaded={(url) => setLessonForm((f) => ({ ...f, imageUrls: [...(f.imageUrls ?? []), url] }))}
           label="Adicionar arquivo"
           multiple
+          uploadContext="course"
+          userRole={user.role}
         />
       </div>
 

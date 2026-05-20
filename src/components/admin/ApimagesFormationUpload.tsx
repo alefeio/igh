@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import {
+  apimagesUploadHeaders,
+  buildApimagesUploadFormData,
+  COURSE_FORMATION_UPLOAD_SIGNATURE,
+  parseApimagesUploadJson,
+  readApiJson,
+  SITE_UPLOAD_SIGNATURE,
+  TEACHER_UPLOAD_SIGNATURE,
+} from "@/lib/apimages-upload";
 
 const FORMATIONS_ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -13,6 +21,13 @@ type Props = {
   multiple?: boolean;
   /** Tipo para RBAC no backend (formations = aulas; onboarding = guia). O upload vai para APIMG_UPLOAD_URL. */
   siteKind?: "formations" | "onboarding";
+  /**
+   * `course` = planos de aula (/courses/.../lesson) — usa API de cursos.
+   * `site` = CMS / onboarding — usa API admin do site.
+   */
+  uploadContext?: "course" | "site";
+  /** Papel da sessão (para professor usar rota dedicada em contexto de curso). */
+  userRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
 };
 
 /**
@@ -24,32 +39,50 @@ export function ApimagesFormationUpload({
   accept = FORMATIONS_ACCEPT,
   multiple = true,
   siteKind = "formations",
+  uploadContext = "site",
+  userRole,
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const uploadOne = useCallback(async (file: File): Promise<string | null> => {
-    const signRes = await fetch("/api/admin/site/uploads/signature", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+  const resolveSignature = useCallback((): { url: string; body?: string } => {
+    if (uploadContext === "course") {
+      if (userRole === "TEACHER") {
+        return { url: TEACHER_UPLOAD_SIGNATURE };
+      }
+      return { url: COURSE_FORMATION_UPLOAD_SIGNATURE };
+    }
+    return {
+      url: SITE_UPLOAD_SIGNATURE,
       body: JSON.stringify({ kind: siteKind }),
+    };
+  }, [uploadContext, siteKind, userRole]);
+
+  const uploadOne = useCallback(async (file: File): Promise<string | null> => {
+    const { url, body } = resolveSignature();
+    const signRes = await fetch(url, {
+      method: "POST",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body,
     });
-    const signJson = await signRes.json();
-    if (!signRes.ok || !signJson.ok) return null;
-    const { uploadUrl, apiKey } = signJson.data as { uploadUrl: string; apiKey: string };
+    const signJson = await readApiJson<{ uploadUrl: string; apiKey: string }>(signRes);
+    if (!signRes.ok || !signJson.ok) {
+      throw new Error(signJson.ok ? "Falha ao preparar upload." : signJson.error.message);
+    }
 
     const formData = buildApimagesUploadFormData(file);
-
-    const uploadRes = await fetch(uploadUrl, {
+    const uploadRes = await fetch(signJson.data.uploadUrl, {
       method: "POST",
-      headers: apimagesUploadHeaders(apiKey),
+      headers: apimagesUploadHeaders(signJson.data.apiKey),
       body: formData,
     });
-    const uploadJson = await uploadRes.json();
+    const uploadJson = await uploadRes.json().catch(() => null);
     const parsed = parseApimagesUploadJson(uploadJson);
-    if (!uploadRes.ok || parsed.errorMessage || !parsed.url) return null;
+    if (!uploadRes.ok || parsed.errorMessage || !parsed.url) {
+      throw new Error(parsed.errorMessage ?? "Falha no upload.");
+    }
     return parsed.url;
-  }, [siteKind]);
+  }, [resolveSignature]);
 
   const handleFile = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,9 +94,13 @@ export function ApimagesFormationUpload({
       let lastError: string | null = null;
       try {
         for (const file of fileList) {
-          const url = await uploadOne(file);
-          if (url) onUploaded(url);
-          else lastError = lastError ?? "Falha no upload de algum arquivo.";
+          try {
+            const url = await uploadOne(file);
+            if (url) onUploaded(url);
+            else lastError = lastError ?? "Falha no upload de algum arquivo.";
+          } catch (err) {
+            lastError = err instanceof Error ? err.message : "Falha no upload.";
+          }
         }
         if (lastError) setError(lastError);
       } catch (err) {

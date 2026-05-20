@@ -1,3 +1,33 @@
+import type { ApiResponse } from "@/lib/api-types";
+
+/** Lê corpo JSON da API interna sem falhar em resposta vazia (ex.: exceção não tratada no servidor). */
+export async function readApiJson<T>(res: Response): Promise<ApiResponse<T>> {
+  const text = await res.text();
+  if (!text.trim()) {
+    return {
+      ok: false,
+      error: {
+        code: "EMPTY_RESPONSE",
+        message: res.ok
+          ? "Resposta vazia do servidor."
+          : `Erro ${res.status}: resposta vazia do servidor.`,
+      },
+    };
+  }
+  try {
+    return JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    return {
+      ok: false,
+      error: { code: "INVALID_JSON", message: "Resposta inválida (não é JSON)." },
+    };
+  }
+}
+
+export const COURSE_FORMATION_UPLOAD_SIGNATURE = "/api/courses/uploads/signature";
+export const SITE_UPLOAD_SIGNATURE = "/api/admin/site/uploads/signature";
+export const TEACHER_UPLOAD_SIGNATURE = "/api/teacher/uploads/apimages-signature";
+
 /**
  * Cliente e servidor: upload para a API Apimages (https://apimg.com.br — OpenAPI /v1/upload).
  * Corpo: multipart apenas com o campo `file`. Autenticação: cabeçalho `X-API-Key` (equivalente ao uso da API Key no fluxo Cloudinary, sem expor o segredo de assinatura no cliente).
