@@ -10,6 +10,25 @@ import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
 type PoolItem = { id: string; question: string; lessonTitle: string };
 
+type ReusableExam = {
+  id: string;
+  title: string;
+  classGroupLabel: string;
+  status: string;
+  questionCount: number;
+  durationMinutes: number;
+  timingMode: "FROM_STUDENT_START" | "FROM_EXAM_START";
+  selectionMode: "RANDOM" | "MANUAL";
+  instructions: string | null;
+  manualExerciseIds: string[];
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
+  maxAttempts: number;
+  showScoreAfterSubmit: boolean;
+  availableFrom: string;
+  availableUntil: string;
+};
+
 function toLocalInput(iso: string) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -43,6 +62,9 @@ export function ProfessorExamEditor({
   const [status, setStatus] = useState("DRAFT");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(!isNew);
+  const [reusableExams, setReusableExams] = useState<ReusableExam[]>([]);
+  const [selectedReuseId, setSelectedReuseId] = useState("");
+  const [replicating, setReplicating] = useState(false);
 
   const loadPool = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${classGroupId}/exams/pool`);
@@ -53,6 +75,54 @@ export function ProfessorExamEditor({
   useEffect(() => {
     void loadPool();
   }, [loadPool]);
+
+  useEffect(() => {
+    if (!isNew) return;
+    void (async () => {
+      const res = await fetch(`/api/teacher/class-groups/${classGroupId}/exams/reusable`);
+      const json = (await res.json()) as ApiResponse<{ items: ReusableExam[] }>;
+      if (res.ok && json.ok) setReusableExams(json.data.items);
+    })();
+  }, [isNew, classGroupId]);
+
+  function applyReusableTemplate(item: ReusableExam) {
+    setTitle(item.title);
+    setInstructions(item.instructions ?? "");
+    setAvailableFrom(toLocalInput(item.availableFrom));
+    setAvailableUntil(toLocalInput(item.availableUntil));
+    setDurationMinutes(item.durationMinutes);
+    setTimingMode(item.timingMode);
+    setSelectionMode(item.selectionMode);
+    setQuestionCount(item.questionCount);
+    setManualIds(item.manualExerciseIds ?? []);
+    setShuffleQuestions(item.shuffleQuestions);
+    setShuffleOptions(item.shuffleOptions);
+    toast.push("success", "Configuração carregada. Ajuste as datas para esta turma e salve.");
+  }
+
+  async function replicateAsDraft() {
+    if (!selectedReuseId) {
+      toast.push("error", "Selecione uma prova para reutilizar.");
+      return;
+    }
+    setReplicating(true);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${classGroupId}/exams/replicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceExamId: selectedReuseId }),
+      });
+      const json = (await res.json()) as ApiResponse<{ id: string }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao reutilizar.");
+        return;
+      }
+      toast.push("success", "Rascunho criado a partir da prova selecionada.");
+      router.push(`/professor/turmas/${classGroupId}/provas/${json.data.id}`);
+    } finally {
+      setReplicating(false);
+    }
+  }
 
   useEffect(() => {
     if (!examId) return;
@@ -152,6 +222,47 @@ export function ProfessorExamEditor({
       </Link>
 
       <h1 className="text-2xl font-bold text-[var(--text-primary)]">{isNew ? "Nova prova" : "Editar prova"}</h1>
+
+      {isNew && reusableExams.length > 0 && (
+        <section className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/50 p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">Reutilizar prova de outra turma</h2>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Mesmo curso, provas que você criou em outras turmas. Copie a configuração ou gere um rascunho nesta turma.
+          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <label className="text-sm font-medium">Prova modelo</label>
+              <select
+                className="theme-input mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                value={selectedReuseId}
+                onChange={(e) => setSelectedReuseId(e.target.value)}
+              >
+                <option value="">Selecione…</option>
+                {reusableExams.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.title} — {r.classGroupLabel} ({r.questionCount} questões)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!selectedReuseId}
+              onClick={() => {
+                const item = reusableExams.find((r) => r.id === selectedReuseId);
+                if (item) applyReusableTemplate(item);
+              }}
+            >
+              Preencher formulário
+            </Button>
+            <Button type="button" disabled={!selectedReuseId || replicating} onClick={() => void replicateAsDraft()}>
+              {replicating ? "Criando…" : "Criar rascunho aqui"}
+            </Button>
+          </div>
+        </section>
+      )}
+
       {readOnly && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40">
           Prova já publicada: só é possível ver resultados na lista de tentativas abaixo (edição bloqueada).

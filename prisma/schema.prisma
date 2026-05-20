@@ -341,6 +341,7 @@ model Teacher {
   photoUrl              String?
   classGroups           ClassGroup[]
   lessonQuestionReplies LessonQuestionTeacherReply[]
+  examsCreated          ClassGroupExam[]             @relation("ExamCreatedByTeacher")
   user                  User?                        @relation(fields: [userId], references: [id])
 }
 
@@ -505,13 +506,16 @@ model ClassGroupExam {
   shuffleOptions     Boolean                     @default(true)
   maxAttempts        Int                         @default(1)
   showScoreAfterSubmit Boolean                   @default(true)
+  createdByTeacherId String?
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
   classGroup         ClassGroup                  @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  createdByTeacher   Teacher?                    @relation("ExamCreatedByTeacher", fields: [createdByTeacherId], references: [id], onDelete: SetNull)
   attempts           ClassGroupExamAttempt[]
 
   @@index([classGroupId])
   @@index([classGroupId, status])
+  @@index([createdByTeacherId])
 }
 
 model ClassGroupExamAttempt {

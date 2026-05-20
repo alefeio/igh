@@ -69,6 +69,7 @@ export async function POST(request: Request, ctx: RouteCtx) {
   const exam = await prisma.classGroupExam.create({
     data: {
       classGroupId,
+      createdByTeacherId: access.teacher.id,
       title: d.title.trim(),
       instructions: d.instructions?.trim() || null,
       availableFrom: new Date(d.availableFrom),
