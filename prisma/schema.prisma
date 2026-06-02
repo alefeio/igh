@@ -70,6 +70,8 @@ model User {
   siteQrCodesCreated           SiteQrCode[]                 @relation("SiteQrCodeCreatedBy")
   marketingCampaignResponses       MarketingCampaignResponse[]
   marketingCampaignResponseLikes   MarketingCampaignResponseLike[]
+  ighCommunityTopicsModerated      IghCommunityTopic[]          @relation("IghCommunityTopicModeratedBy")
+  ighCommunityRepliesModerated     IghCommunityReply[]          @relation("IghCommunityReplyModeratedBy")
 }
 
 /// * Navegação na área logada — rota (pathname) por utilizador, para o Master acompanhar páginas vistas.
@@ -677,6 +679,8 @@ model Student {
   user                  User?               @relation(fields: [userId], references: [id])
   attachments           StudentAttachment[]
   verificationTokens    VerificationToken[]
+  ighCommunityTopics    IghCommunityTopic[]
+  ighCommunityReplies   IghCommunityReply[]
 }
 
 model Enrollment {
@@ -801,6 +805,59 @@ model LessonQuestionTeacherReply {
   @@index([questionId])
   @@index([teacherId])
   @@index([staffUserId])
+}
+
+/// * Comunidade IGH / PII — discussão transversal entre cursos (ideias, equipes, debate).
+enum IghCommunityTopicKind {
+  IDEA
+  TEAM
+  DISCUSSION
+}
+
+enum IghCommunityPostStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model IghCommunityTopic {
+  id                  String                   @id @default(uuid())
+  studentId           String
+  kind                IghCommunityTopicKind
+  title               String
+  content             String
+  status              IghCommunityPostStatus   @default(PENDING)
+  moderatedAt         DateTime?
+  moderatedByUserId   String?
+  moderationNote      String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  student             Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  moderatedBy         User?                    @relation("IghCommunityTopicModeratedBy", fields: [moderatedByUserId], references: [id])
+  replies             IghCommunityReply[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([studentId])
+  @@index([kind])
+}
+
+model IghCommunityReply {
+  id                  String                 @id @default(uuid())
+  topicId             String
+  studentId           String
+  content             String
+  status              IghCommunityPostStatus @default(PENDING)
+  moderatedAt         DateTime?
+  moderatedByUserId   String?
+  moderationNote      String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  topic               IghCommunityTopic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  student             Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  moderatedBy         User?                  @relation("IghCommunityReplyModeratedBy", fields: [moderatedByUserId], references: [id])
+
+  @@index([topicId, status, createdAt])
+  @@index([studentId])
 }
 
 /// * Resposta de um aluno ao comentário/dúvida de outro (em "Dúvidas sobre esta aula").

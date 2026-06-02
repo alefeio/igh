@@ -43,12 +43,14 @@ const ITEMS: Item[] = [
   { href: "/minhas-turmas", label: "Minhas turmas", studentOnly: true, category: "Aluno" },
   { href: "/minhas-turmas/evolucao", label: "Evolução e ranking", studentOnly: true, category: "Aluno" },
   { href: "/minhas-turmas/calendario", label: "Calendário de aulas", studentOnly: true, category: "Aluno" },
+  { href: "/comunidade", label: "Comunidade IGH (PII)", studentOnly: true, category: "Aluno" },
   { href: "/minhas-turmas/forum", label: "Fórum dos cursos", studentOnly: true, category: "Aluno" },
 
   /* —— Professor —— */
   { href: "/professor/turmas", label: "Turmas que leciono", teacherOnly: true, category: "Professor" },
   { href: "/professor/acompanhamento", label: "Acompanhamento", teacherOnly: true, category: "Professor" },
   { href: "/professor/calendario", label: "Calendário de aulas", teacherOnly: true, category: "Professor" },
+  { href: "/comunidade", label: "Comunidade IGH (PII)", teacherOnly: true, category: "Professor" },
   { href: "/professor/forum", label: "Fórum dos cursos", teacherOnly: true, category: "Professor" },
   { href: "/professor/frequencia", label: "Frequência", teacherOnly: true, category: "Professor" },
   { href: "/gamificacao", label: "Gamificação", teacherOnly: true, category: "Professor" },
@@ -86,6 +88,8 @@ const ITEMS: Item[] = [
     adminMasterOnly: true,
     category: "Administração",
   },
+  { href: "/admin/comunidade", label: "Comunidade IGH — moderação", adminOrMaster: true, category: "Administração" },
+  { href: "/comunidade", label: "Comunidade IGH (PII)", adminOrMaster: true, category: "Administração" },
   { href: "/admin/forum", label: "Fóruns — todos os cursos", adminOrMaster: true, category: "Administração" },
   { href: "/admin/frequencia", label: "Frequência — todas as turmas", adminOrMaster: true, category: "Administração" },
   { href: "/admin/avaliacoes-experiencia", label: "Avaliações de experiência", adminOrMaster: true, category: "Administração" },

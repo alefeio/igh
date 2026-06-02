@@ -67,6 +67,20 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Comunidade IGH / PII — alunos, professores e equipe
+  if (pathname.startsWith("/comunidade")) {
+    if (!["MASTER", "ADMIN", "COORDINATOR", "TEACHER", "STUDENT"].includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Moderação da comunidade
+  if (pathname.startsWith("/admin/comunidade")) {
+    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
   // Rotas apenas STUDENT (minhas turmas)
   if (pathname.startsWith("/minhas-turmas")) {
     if (role !== "STUDENT") {
@@ -106,6 +120,8 @@ export const config = {
     "/enrollments/:path*",
     "/students/:path*",
     "/minhas-turmas/:path*",
+    "/comunidade/:path*",
+    "/admin/comunidade/:path*",
     "/admin/site/:path*",
     "/approvacoes/:path*",
     "/backup/:path*",

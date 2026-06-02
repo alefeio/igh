@@ -12,6 +12,7 @@ import {
   PieChart,
   PlayCircle,
   School,
+  Sparkles,
   Star,
   Trophy,
   UserCircle,
@@ -964,6 +965,13 @@ function DashboardStudent({
               description: "Sessões, feriados e eventos",
               icon: CalendarDays,
               accent: "from-violet-500 to-fuchsia-600",
+            },
+            {
+              href: "/comunidade",
+              label: "Comunidade IGH (PII)",
+              description: "Ideias de projeto, equipes e debate entre todos os cursos",
+              icon: Sparkles,
+              accent: "from-[var(--igh-primary)] to-cyan-600",
             },
             {
               href: "/minhas-turmas/forum",

@@ -1,10 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
+
+const NINA_IMAGE = "/images/nina.png";
+const NINA_IMAGE_SCROLLED = "/images/nina2.png";
 
 const FALLBACK_LINKS: MenuItemPublic[] = [
   { id: "1", label: "Início", href: "/", order: 0, isExternal: false, children: [] },
@@ -62,19 +66,46 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
       {scrolled && headerHeight > 0 && <div aria-hidden className="shrink-0" style={{ height: headerHeight }} />}
       <header
         ref={headerRef}
-        className={`z-40 border-b border-[var(--igh-border)] bg-[var(--background)] backdrop-blur transition-shadow ${scrolled ? "fixed left-0 right-0 top-0 shadow-md" : "sticky top-0"}`}
+        className={`z-40 overflow-visible border-b border-[var(--igh-border)] bg-[var(--background)] backdrop-blur transition-shadow ${scrolled ? "fixed left-0 right-0 top-0 shadow-md" : "sticky top-0"}`}
       >
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8" aria-label="Menu principal">
-        <Link href="/" className="flex shrink-0 items-center rounded focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2">
-          {logoUrl ? (
-            <span className={`inline-block rounded-lg bg-white transition-[padding] ${scrolled ? "p-1" : "p-2"}`}>
-              <img src={logoUrl} alt={settings?.siteName ?? "Logo"} className={`w-auto object-contain transition-[height] ${scrolled ? "h-7 sm:h-8" : "h-10 sm:h-12"}`} />
-            </span>
-          ) : (
-            <span className="text-xl font-bold text-[var(--igh-primary)]">IGH</span>
-          )}
-        </Link>
-        <div className="hidden md:flex md:items-center md:gap-1">
+      <nav
+        className="mx-auto flex max-w-6xl items-center justify-between gap-2 overflow-visible px-4 py-2 sm:gap-3 sm:px-6 sm:py-2.5 lg:px-8"
+        aria-label="Menu principal"
+      >
+        <div className="flex min-w-0 flex-1 items-end gap-1 overflow-visible sm:gap-2 md:flex-none md:gap-3">
+          <Link
+            href="/"
+            className="mb-0.5 flex shrink-0 items-center self-center rounded focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2 sm:mb-1"
+          >
+            {logoUrl ? (
+              <span className={`inline-block rounded-lg bg-white transition-[padding] ${scrolled ? "p-1" : "p-2"}`}>
+                <img
+                  src={logoUrl}
+                  alt={settings?.siteName ?? "Logo"}
+                  className={`w-auto object-contain transition-[height] ${scrolled ? "h-7 sm:h-8" : "h-10 sm:h-12"}`}
+                />
+              </span>
+            ) : (
+              <span className="text-xl font-bold text-[var(--igh-primary)]">IGH</span>
+            )}
+          </Link>
+          <div
+            className="pointer-events-none relative z-40 w-fit max-w-[calc(100vw-6.5rem)] shrink-0 -translate-x-4 -mb-[3.75rem] sm:-translate-x-5 sm:max-w-[calc(100vw-7rem)] sm:-mb-[3.125rem] md:z-50 md:translate-x-0 md:w-auto md:max-w-none md:-mb-21 lg:-mb-22"
+            aria-hidden
+          >
+            <Image
+              key={scrolled ? "nina-scrolled" : "nina-top"}
+              src={scrolled ? NINA_IMAGE_SCROLLED : NINA_IMAGE}
+              alt=""
+              width={280}
+              height={280}
+              sizes="(max-width: 767px) min(87vw, calc(100vw - 6.5rem)), 240px"
+              className="h-auto max-h-[7.125rem] w-[min(87vw,calc(100vw-6.5rem))] max-w-[21rem] object-contain object-bottom sm:max-h-[7.875rem] sm:max-w-[22.5rem] md:h-auto md:w-auto md:max-h-[8.5rem] md:max-w-[11.5rem] lg:max-h-[10rem] lg:max-w-[14rem] xl:max-h-[11rem] xl:max-w-[15.5rem]"
+              priority={false}
+            />
+          </div>
+        </div>
+        <div className="hidden shrink-0 md:flex md:items-center md:gap-1">
           {links.map((l) => (
             l.children && l.children.length > 0 ? (
               <div key={l.id} className="relative">
@@ -136,7 +167,12 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
             </Link>
           )}
         </div>
-        <button type="button" className="md:hidden rounded p-2 text-[var(--igh-secondary)]" onClick={() => setOpen(!open)} aria-label={open ? "Fechar menu" : "Abrir menu"}>
+        <button
+          type="button"
+          className="relative z-[60] ml-1 shrink-0 rounded bg-[var(--background)] p-2 text-[var(--igh-secondary)] md:hidden"
+          onClick={() => setOpen(!open)}
+          aria-label={open ? "Fechar menu" : "Abrir menu"}
+        >
           {open ? "✕" : "☰"}
         </button>
       </nav>
