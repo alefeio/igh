@@ -1,3 +1,4 @@
+import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -59,6 +60,8 @@ export async function GET() {
     },
   });
 
+  const attendanceMap = await getEnrollmentAttendanceSummaries(enrollments.map((e) => e.id));
+
   return jsonOk({
     enrollments: enrollments.map((e) => {
       const hasIdDoc = e.student.attachments.some((a) => a.type === "ID_DOCUMENT");
@@ -72,6 +75,7 @@ export async function GET() {
         );
       const studentDataComplete = hasIdDoc && hasAddrProof && hasAddress;
       const { attachments: _a, ...studentRest } = e.student;
+      const attendance = attendanceMap.get(e.id);
       return {
         id: e.id,
         studentId: e.studentId,
@@ -85,6 +89,9 @@ export async function GET() {
         student: { ...studentRest },
         classGroup: e.classGroup,
         studentDataComplete,
+        attendancePresentCount: attendance?.presentCount ?? 0,
+        attendanceTotalSessions: attendance?.totalSessions ?? 0,
+        attendancePercent: attendance?.percent ?? null,
       };
     }),
   });

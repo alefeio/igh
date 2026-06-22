@@ -1,3 +1,4 @@
+import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -47,28 +48,7 @@ export async function GET(
   });
 
   const enrollmentIds = enrollments.map((e) => e.id);
-  const liberadaSessions = await prisma.classSession.findMany({
-    where: { classGroupId, status: "LIBERADA" },
-    select: { id: true },
-  });
-  const liberadaSessionIds = liberadaSessions.map((s) => s.id);
-  const attendanceTotalSessions = liberadaSessionIds.length;
-
-  const presentByEnrollment = new Map<string, number>();
-  if (enrollmentIds.length > 0 && liberadaSessionIds.length > 0) {
-    const grouped = await prisma.sessionAttendance.groupBy({
-      by: ["enrollmentId"],
-      where: {
-        enrollmentId: { in: enrollmentIds },
-        classSessionId: { in: liberadaSessionIds },
-        present: true,
-      },
-      _count: { id: true },
-    });
-    for (const row of grouped) {
-      presentByEnrollment.set(row.enrollmentId, row._count.id);
-    }
-  }
+  const summaries = await getEnrollmentAttendanceSummaries(enrollmentIds);
 
   function isDataComplete(st: {
     name: string | null;
@@ -111,6 +91,7 @@ export async function GET(
         bd != null
           ? `${bd.getUTCFullYear()}-${String(bd.getUTCMonth() + 1).padStart(2, "0")}-${String(bd.getUTCDate()).padStart(2, "0")}`
           : null;
+      const attendance = summaries.get(e.id);
       return {
         id: e.id,
         enrolledAt: e.enrolledAt,
@@ -120,9 +101,9 @@ export async function GET(
         studentEmail: st.email,
         studentPhone: st.phone?.trim() ? st.phone.trim() : null,
         studentBirthDate,
-        /** Presenças em sessões LIBERADA / total de sessões liberadas (frequência). */
-        attendancePresentCount: presentByEnrollment.get(e.id) ?? 0,
-        attendanceTotalSessions,
+        /** Presenças em aulas da turma (até hoje) / total de aulas elegíveis. */
+        attendancePresentCount: attendance?.presentCount ?? 0,
+        attendanceTotalSessions: attendance?.totalSessions ?? 0,
         documentationAlert: docsMissing ? (dataComplete ? "yellow" : "red") : null,
       };
     }),

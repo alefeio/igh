@@ -83,6 +83,9 @@ type Enrollment = {
   student: Student;
   classGroup: ClassGroup;
   studentDataComplete?: boolean;
+  attendancePresentCount?: number;
+  attendanceTotalSessions?: number;
+  attendancePercent?: number | null;
 };
 
 async function parseJson<T>(res: Response): Promise<ApiResponse<T> | null> {
@@ -147,7 +150,8 @@ export default function EnrollmentsPage() {
     | "email"
     | "professor"
     | "status"
-    | "dataMatricula";
+    | "dataMatricula"
+    | "frequencia";
 
   const [excelColumns, setExcelColumns] = useState<Record<ExcelColumnKey, boolean>>({
     aluno: true,
@@ -158,6 +162,7 @@ export default function EnrollmentsPage() {
     professor: false,
     status: false,
     dataMatricula: true,
+    frequencia: false,
   });
 
   const [openNewStudent, setOpenNewStudent] = useState(false);
@@ -509,7 +514,7 @@ export default function EnrollmentsPage() {
 
   const PIE_COLORS = ["#0066b3", "#1a365d", "#e87500", "#0d9488", "#7c3aed", "#dc2626", "#65a30d", "#ca8a04"];
 
-  function exportToExcel() {
+  async function exportToExcel() {
     if (exportingExcel) return;
     if (filteredItems.length === 0) return;
 
@@ -522,6 +527,29 @@ export default function EnrollmentsPage() {
     setExportingExcel(true);
     try {
       const sorted = [...filteredItems].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
+
+      type AttendanceSummary = {
+        presentCount: number;
+        totalSessions: number;
+        percent: number | null;
+      };
+      const attendanceByEnrollment = new Map<string, AttendanceSummary>();
+
+      if (selectedKeys.includes("frequencia")) {
+        const res = await fetch("/api/enrollments/attendance-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enrollmentIds: sorted.map((e) => e.id) }),
+        });
+        const json = await parseJson<{ summaries: Record<string, AttendanceSummary> }>(res);
+        if (!res.ok || !json?.ok) {
+          toast.push("error", json && "error" in json ? json.error.message : "Falha ao carregar frequência.");
+          return;
+        }
+        for (const [id, summary] of Object.entries(json.data.summaries)) {
+          attendanceByEnrollment.set(id, summary);
+        }
+      }
 
       const rows = sorted.map((e) => {
         const row: Record<string, string> = {};
@@ -551,6 +579,17 @@ export default function EnrollmentsPage() {
             case "dataMatricula":
               row["Data de início da turma"] = formatDateOnly(e.classGroup.startDate);
               break;
+            case "frequencia": {
+              const summary = attendanceByEnrollment.get(e.id);
+              if (!summary) {
+                row["Frequência"] = "—";
+              } else if (summary.totalSessions === 0) {
+                row["Frequência"] = `${summary.presentCount}/0`;
+              } else {
+                row["Frequência"] = `${summary.presentCount}/${summary.totalSessions} (${summary.percent}%)`;
+              }
+              break;
+            }
           }
         }
         return row;
@@ -1429,7 +1468,7 @@ export default function EnrollmentsPage() {
               <Th>Curso / Turma</Th>
               <Th>Início da turma</Th>
               <Th>Status</Th>
-              <Th>Dados completos</Th>
+              <Th>Frequência</Th>
               <Th>Ações</Th>
             </tr>
           </thead>
@@ -1484,13 +1523,20 @@ export default function EnrollmentsPage() {
                   </span>
                 </Td>
                 <Td>
-                  {e.studentDataComplete === true ? (
-                    <Badge tone="green">Sim</Badge>
-                  ) : e.studentDataComplete === false ? (
-                    <Badge tone="zinc">Não</Badge>
-                  ) : (
-                    "—"
-                  )}
+                  {(() => {
+                    const present = e.attendancePresentCount ?? 0;
+                    const total = e.attendanceTotalSessions ?? 0;
+                    if (total === 0) {
+                      return <span className="text-[var(--text-muted)]">{present}/0</span>;
+                    }
+                    const pct = e.attendancePercent ?? Math.round((present / total) * 100);
+                    return (
+                      <span title="Presenças registradas / aulas da turma até hoje (exceto canceladas)">
+                        {present}/{total}
+                        <span className="text-xs text-[var(--text-muted)]"> ({pct}%)</span>
+                      </span>
+                    );
+                  })()}
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-2">
@@ -1978,6 +2024,14 @@ export default function EnrollmentsPage() {
                 onChange={(e) => setExcelColumns((p) => ({ ...p, dataMatricula: e.target.checked }))}
               />
               Data de início da turma
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={excelColumns.frequencia}
+                onChange={(e) => setExcelColumns((p) => ({ ...p, frequencia: e.target.checked }))}
+              />
+              Frequência (presenças / aulas até hoje)
             </label>
           </div>
 
