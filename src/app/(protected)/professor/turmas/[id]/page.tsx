@@ -28,6 +28,7 @@ type Enrollment = {
   studentPhone?: string | null;
   /** Data de nascimento no formato YYYY-MM-DD (só data). */
   studentBirthDate?: string | null;
+  status?: "ACTIVE" | "SUSPENDED" | "CANCELLED" | "COMPLETED";
   /** Presenças em sessões liberadas / total de sessões liberadas. */
   attendancePresentCount?: number;
   attendanceTotalSessions?: number;
@@ -57,6 +58,7 @@ type Session = {
 
 type AttendanceRow = {
   enrollmentId: string;
+  enrollmentStatus?: "ACTIVE" | "SUSPENDED";
   studentName: string;
   present: boolean;
   /** Texto livre quando ausente; vazio ou null se não houver justificativa. */
@@ -376,11 +378,32 @@ export default function ProfessorTurmaDetailPage() {
           }),
         }
       );
-      const json = (await res.json()) as ApiResponse<{ attendance: AttendanceRow[] }>;
+      const json = (await res.json()) as ApiResponse<{
+        attendance: AttendanceRow[];
+        suspendedEnrollmentIds?: string[];
+        reactivatedEnrollmentIds?: string[];
+      }>;
       if (res.ok && json?.ok) {
         if (json.data?.attendance) setAttendance(json.data.attendance);
-        toast.push("success", "Frequência salva.");
+        const suspended = json.data?.suspendedEnrollmentIds ?? [];
+        const reactivated = json.data?.reactivatedEnrollmentIds ?? [];
+        if (suspended.length > 0) {
+          toast.push(
+            "success",
+            `${suspended.length} matrícula(s) suspensa(s) automaticamente por 3 faltas consecutivas sem justificativa.`
+          );
+        }
+        if (reactivated.length > 0) {
+          toast.push(
+            "success",
+            `${reactivated.length} matrícula(s) reativada(s) após presença registrada.`
+          );
+        }
+        if (suspended.length === 0 && reactivated.length === 0) {
+          toast.push("success", "Frequência salva.");
+        }
         void loadSessions();
+        void loadEnrollments();
       }
       else {
         const msg =
@@ -608,7 +631,14 @@ export default function ProfessorTurmaDetailPage() {
                       </span>
                     )}
                     <div className="min-w-0">
-                      <p className="font-medium text-[var(--text-primary)]">{e.studentName}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-[var(--text-primary)]">{e.studentName}</p>
+                        {e.status === "SUSPENDED" && (
+                          <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-200">
+                            Suspensa
+                          </span>
+                        )}
+                      </div>
                       {e.studentEmail && (
                         <p className="text-xs text-[var(--text-muted)]">{e.studentEmail}</p>
                       )}
@@ -880,7 +910,7 @@ export default function ProfessorTurmaDetailPage() {
                 if (!sum || total === 0) {
                   statusEl = (
                     <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${isSelected ? "bg-white/20 text-white" : "bg-[var(--igh-surface)] text-[var(--text-muted)]"}`}>
-                      Sem matrículas ativas
+                      Sem matrículas ativas ou suspensas
                     </span>
                   );
                 } else if (complete) {
@@ -933,7 +963,7 @@ export default function ProfessorTurmaDetailPage() {
                     {sum && total > 0 && (
                       <span
                         className={`text-lg font-bold tabular-nums leading-tight ${isSelected ? "text-white" : "text-[var(--text-primary)]"}`}
-                        title="Presentes de alunos com matrícula ativa"
+                        title="Presentes de alunos com matrícula ativa ou suspensa"
                       >
                         {present} de {total} presentes
                       </span>
@@ -984,7 +1014,7 @@ export default function ProfessorTurmaDetailPage() {
                     </span>
                     <span className="text-[var(--text-muted)]">
                       {" "}
-                      (total de {attendanceListStats.total} aluno{attendanceListStats.total === 1 ? "" : "s"} com matrícula ativa)
+                      (total de {attendanceListStats.total} aluno{attendanceListStats.total === 1 ? "" : "s"} com matrícula ativa ou suspensa)
                     </span>
                   </p>
                   <p className="mt-2 text-xs text-[var(--text-muted)]">
@@ -1023,6 +1053,11 @@ export default function ProfessorTurmaDetailPage() {
                           </span>
                         )}
                         <span className="text-sm font-medium text-[var(--text-primary)] truncate">{row.studentName}</span>
+                        {row.enrollmentStatus === "SUSPENDED" && (
+                          <span className="inline-flex shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-200">
+                            Suspensa
+                          </span>
+                        )}
                       </div>
                       <button
                         type="button"

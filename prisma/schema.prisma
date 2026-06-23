@@ -315,6 +315,32 @@ model SentEmail {
   performedByUser   User?    @relation("SentEmailPerformedBy", fields: [performedByUserId], references: [id])
 }
 
+/// Fila de e-mails transacionais quando a cota diária do Resend (ex.: 100/dia) estiver esgotada.
+model EmailOutbox {
+  id                String            @id @default(uuid())
+  to                String
+  subject           String
+  html              String
+  emailType         String
+  entityType        String?
+  entityId          String?
+  performedByUserId String?
+  status            EmailOutboxStatus @default(PENDING)
+  attempts          Int               @default(0)
+  errorMessage      String?
+  createdAt         DateTime          @default(now())
+  sentAt            DateTime?
+
+  @@index([status, createdAt])
+  @@index([emailType, entityType, entityId])
+}
+
+enum EmailOutboxStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 model VerificationToken {
   id           String                @id @default(cuid())
   userId       String

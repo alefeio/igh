@@ -1,3 +1,5 @@
+import { applyAttendanceSuspensionRules } from "@/lib/enrollment-attendance-suspension";
+import { processEmailOutboxBatch } from "@/lib/email/outbox";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -62,10 +64,11 @@ export async function GET(
   if (!result) return jsonErr("NOT_FOUND", "Sessão não encontrada.", 404);
 
   const enrollments = await prisma.enrollment.findMany({
-    where: { classGroupId, status: "ACTIVE" },
+    where: { classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
     orderBy: { student: { name: "asc" } },
     select: {
       id: true,
+      status: true,
       student: {
         select: {
           id: true,
@@ -100,6 +103,7 @@ export async function GET(
       const row = byEnrollment.get(e.id);
       return {
         enrollmentId: e.id,
+        enrollmentStatus: e.status,
         studentName: st.name,
         studentId: st.id,
         present: row?.present ?? false,
@@ -145,16 +149,16 @@ export async function PATCH(
 
   const enrollmentIds = await prisma.enrollment
     .findMany({
-      where: { classGroupId, status: "ACTIVE" },
+      where: { classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
       select: { id: true },
     })
     .then((r) => r.map((e) => e.id));
   const allowed = new Set(enrollmentIds);
 
+  const savedRows = parsed.filter((x) => allowed.has(x.enrollmentId));
+
   await prisma.$transaction(
-    parsed
-      .filter((x) => allowed.has(x.enrollmentId))
-      .map((x) =>
+    savedRows.map((x) =>
         prisma.sessionAttendance.upsert({
           where: {
             classSessionId_enrollmentId: {
@@ -176,16 +180,27 @@ export async function PATCH(
       )
   );
 
+  const { reactivatedIds, suspendedIds } = await applyAttendanceSuspensionRules({
+    classGroupId,
+    rows: savedRows,
+    performedByUserId: user.id,
+  });
+
+  if (suspendedIds.length > 0) {
+    await processEmailOutboxBatch(Math.min(25, suspendedIds.length));
+  }
+
   const attendances = await prisma.sessionAttendance.findMany({
     where: { classSessionId: sessionId },
     select: { enrollmentId: true, present: true, absenceJustification: true },
   });
   const byEnrollment = new Map(attendances.map((a) => [a.enrollmentId, a]));
   const enrollmentsAfter = await prisma.enrollment.findMany({
-    where: { classGroupId, status: "ACTIVE" },
+    where: { classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
     orderBy: { student: { name: "asc" } },
     select: {
       id: true,
+      status: true,
       student: {
         select: {
           name: true,
@@ -203,6 +218,8 @@ export async function PATCH(
   });
 
   return jsonOk({
+    suspendedEnrollmentIds: suspendedIds,
+    reactivatedEnrollmentIds: reactivatedIds,
     attendance: enrollmentsAfter.map((e) => {
       const st = e.student;
       const hasIdDocument = st.attachments.some((a) => a.type === "ID_DOCUMENT");
@@ -213,6 +230,7 @@ export async function PATCH(
       const row = byEnrollment.get(e.id);
       return {
         enrollmentId: e.id,
+        enrollmentStatus: e.status,
         studentName: st.name,
         present: row?.present ?? false,
         absenceJustification: row?.absenceJustification ?? null,

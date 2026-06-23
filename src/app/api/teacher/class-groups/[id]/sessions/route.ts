@@ -53,7 +53,7 @@ export async function GET(
       },
     }),
     prisma.enrollment.count({
-      where: { classGroupId, status: "ACTIVE" },
+      where: { classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
     }),
   ]);
 

@@ -23,7 +23,7 @@ export async function GET(
   if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
 
   const enrollments = await prisma.enrollment.findMany({
-    where: { classGroupId, status: "ACTIVE" },
+    where: { classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
     orderBy: { student: { name: "asc" } },
     select: {
       id: true,

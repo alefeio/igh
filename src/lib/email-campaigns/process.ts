@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getResendDailyEmailRemaining } from "@/lib/email/daily-quota";
 import type { EmailAudienceFilters } from "./audience";
 import {
   buildPlaceholderDataForCampaignSend,
@@ -56,8 +57,11 @@ export async function processEmailCampaignBatch(
     orderBy: { createdAt: "asc" },
   });
 
+  let quotaRemaining = await getResendDailyEmailRemaining();
+  const sendable = pending.slice(0, Math.min(pending.length, quotaRemaining));
+
   // Conta "disparos" como execuções de processamento que de fato tentam enviar (ex.: clique em "Processar lote").
-  if (pending.length > 0) {
+  if (sendable.length > 0) {
     await prisma.emailCampaign.update({
       where: { id: campaignId },
       data: { dispatchCount: { increment: 1 } },
@@ -77,7 +81,8 @@ export async function processEmailCampaignBatch(
 
   const provider = getEmailProvider();
 
-  for (const rec of pending) {
+  for (const rec of sendable) {
+    if (quotaRemaining <= 0) break;
     let html = rec.renderedHtmlContent;
     let text = rec.renderedTextContent;
     let subj = rec.renderedSubject;
@@ -119,6 +124,7 @@ export async function processEmailCampaignBatch(
         sentAt: result.success ? new Date() : undefined,
       },
     });
+    if (result.success) quotaRemaining -= 1;
   }
 
   const remaining = await prisma.emailCampaignRecipient.count({
@@ -131,7 +137,7 @@ export async function processEmailCampaignBatch(
 
   return {
     campaignId,
-    processed: pending.length,
+    processed: sendable.length,
     remaining,
     done: remaining === 0,
   };

@@ -10,3 +10,14 @@ export function getEndOfTodayBrazil(): Date {
   const d = brazilMoment.getUTCDate();
   return new Date(Date.UTC(y, m, d, 23 + BRAZIL_UTC_OFFSET_HOURS, 59, 59, 999));
 }
+
+/** Início do dia de hoje no fuso do Brasil (meia-noite BRT = 03:00 UTC). */
+export function getStartOfTodayBrazil(): Date {
+  const BRAZIL_UTC_OFFSET_HOURS = 3;
+  const now = new Date();
+  const brazilMoment = new Date(now.getTime() - BRAZIL_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+  const y = brazilMoment.getUTCFullYear();
+  const m = brazilMoment.getUTCMonth();
+  const d = brazilMoment.getUTCDate();
+  return new Date(Date.UTC(y, m, d, BRAZIL_UTC_OFFSET_HOURS, 0, 0, 0));
+}

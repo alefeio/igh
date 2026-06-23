@@ -443,6 +443,43 @@ export function templateCoordinatorReportReplyToReporter(params: {
   return { subject: `Coordenação — Resposta ao reporte ${escapeHtml(protocolNumber)}`, html: wrapHtml(body) };
 }
 
+/** Matrícula suspensa por 3 faltas consecutivas sem justificativa na frequência. */
+export function templateEnrollmentSuspendedAttendance(params: {
+  name: string;
+  courseName: string;
+  classGroupLabel: string;
+  supportUrl: string;
+  loginUrl: string;
+}): { subject: string; html: string } {
+  const { name, courseName, classGroupLabel, supportUrl, loginUrl } = params;
+  const body = `
+<h2>Acesso ao portal bloqueado — matrícula suspensa</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Informamos que sua matrícula no curso <strong>${escapeHtml(courseName)}</strong> foi <strong>suspensa</strong> porque você acumulou <strong>três faltas consecutivas sem justificativa</strong> na frequência da turma.</p>
+<p>Por esse motivo, o <strong>acesso ao conteúdo e às atividades online</strong> do portal está temporariamente bloqueado.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="background: #fffbeb; border-radius: 8px; margin: 16px 0; border: 1px solid #fcd34d;">
+  <tr><td style="padding: 16px;">
+    <p style="margin: 0 0 8px; font-size: 12px; color: #92400e;">Turma</p>
+    <p style="margin: 0; font-weight: 600; color: #78350f;">${escapeHtml(classGroupLabel)}</p>
+  </td></tr>
+</table>
+<h3 style="font-size: 16px; margin: 24px 0 8px;">Como liberar o acesso novamente</h3>
+<ul>
+  <li><strong>Volte a frequentar as aulas presenciais</strong> e peça ao professor que registre sua <strong>presença</strong> na frequência — a matrícula será reativada automaticamente.</li>
+  <li>Se a falta foi justificada ou você precisa de orientação, <strong>fale com o professor ou com a coordenação da turma</strong>.</li>
+</ul>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding: 12px 0;">
+  <a href="${escapeHtml(loginUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; margin-right: 8px;">Acessar o portal</a>
+  <a href="${escapeHtml(supportUrl)}" style="display: inline-block; background: #f3f4f6; color: #1f2937 !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Falar com o suporte</a>
+</td></tr></table>
+<p style="font-size: 13px; color: #6b7280; margin-top: 20px;">Se você acredita que houve um engano no registro de frequência, entre em contato com a secretaria ou com a coordenação do IGH.</p>
+`;
+  return {
+    subject: "Matrícula suspensa — acesso ao portal bloqueado",
+    html: wrapHtml(body),
+  };
+}
+
 export { TERMS_VERSION };
 
 function escapeHtml(s: string): string {

@@ -4,9 +4,11 @@ import { PageVisitTracker } from "@/components/activity/PageVisitTracker";
 import { ToastProvider } from "@/components/feedback/ToastProvider";
 import { LegalConsentBanner } from "@/components/site/LegalConsentBanner";
 import { RequireChangePassword } from "@/components/layout/RequireChangePassword";
+import { StudentSuspensionGate } from "@/components/layout/StudentSuspensionGate";
 import { ResponsiveShell } from "@/components/layout/ResponsiveShell";
 import { UserProvider } from "@/components/layout/UserProvider";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { getStudentSuspensionInfo } from "@/lib/student-suspension";
 import { getSiteSettings } from "@/lib/site-data";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -37,12 +39,17 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     availableRoles,
   };
 
+  const studentSuspension =
+    user.role === "STUDENT" ? await getStudentSuspensionInfo(user.id) : null;
+
   return (
     <ToastProvider>
       <UserProvider user={sessionUser}>
         <PageVisitTracker />
         <RequireChangePassword>
-          <ResponsiveShell user={shellUser} logoUrl={settings?.logoUrl ?? null}>{children}</ResponsiveShell>
+          <ResponsiveShell user={shellUser} logoUrl={settings?.logoUrl ?? null}>
+            <StudentSuspensionGate suspension={studentSuspension}>{children}</StudentSuspensionGate>
+          </ResponsiveShell>
           <LegalConsentBanner />
         </RequireChangePassword>
       </UserProvider>

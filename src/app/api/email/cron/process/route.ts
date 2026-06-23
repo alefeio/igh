@@ -1,4 +1,5 @@
 import { jsonErr, jsonOk } from "@/lib/http";
+import { processEmailOutboxBatch } from "@/lib/email/outbox";
 import {
   startDueScheduledEmailCampaigns,
   processEmailCampaignBatch,
@@ -6,10 +7,10 @@ import {
 
 /**
  * Endpoint para Vercel Cron (ou outro job): inicia campanhas de e-mail agendadas e processa um lote de cada campanha em PROCESSING.
- * Protegido por EMAIL_CRON_SECRET (header Authorization: Bearer <secret> ou query ?secret=).
+ * Protegido por EMAIL_CRON_SECRET ou CRON_SECRET (header Authorization: Bearer <secret> ou query ?secret=).
  */
 export async function GET(request: Request) {
-  const secret = process.env.EMAIL_CRON_SECRET;
+  const secret = process.env.EMAIL_CRON_SECRET ?? process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
   const bearer = authHeader?.startsWith("Bearer ")
     ? authHeader.slice(7)
@@ -21,6 +22,9 @@ export async function GET(request: Request) {
   }
 
   const started = await startDueScheduledEmailCampaigns();
+
+  const outbox = await processEmailOutboxBatch(25);
+
   const results: {
     campaignId: string;
     processed: number;
@@ -52,5 +56,5 @@ export async function GET(request: Request) {
     });
   }
 
-  return jsonOk({ started, results });
+  return jsonOk({ outbox, started, results });
 }
