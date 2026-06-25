@@ -3,6 +3,8 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { ensureLessonReleasedNotifications } from "@/lib/lesson-release-notifications";
+import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
+import { ensureClassSessionsLiberatedForStudent } from "@/lib/student-lesson-liberation";
 
 function getTodayUtcDate(): Date {
   const now = new Date();
@@ -26,7 +28,7 @@ export async function GET(
   }
 
   const enrollment = await prisma.enrollment.findFirst({
-    where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
+    where: { id: enrollmentId, studentId: student.id, status: { in: [...STUDENT_VISIBLE_ENROLLMENT_STATUSES] } },
     include: {
       student: { select: { userId: true } },
       classGroup: {
@@ -46,14 +48,7 @@ export async function GET(
   const g = enrollment.classGroup;
   const today = getTodayUtcDate();
 
-  await prisma.classSession.updateMany({
-    where: {
-      classGroupId: g.id,
-      status: "SCHEDULED",
-      sessionDate: { lte: today },
-    },
-    data: { status: "LIBERADA" },
-  });
+  await ensureClassSessionsLiberatedForStudent(g.id, g.status);
 
   await ensureLessonReleasedNotifications(g.id, enrollmentId, enrollment.student.userId ?? null, today);
 
@@ -98,6 +93,7 @@ export async function GET(
   return jsonOk({
     enrollment: {
       id: enrollmentWithUpdatedSessions.id,
+      enrollmentStatus: enrollmentWithUpdatedSessions.status,
       classGroupId: g2.id,
       course: {
         name: course.name,
@@ -155,7 +151,7 @@ export async function DELETE(
   }
 
   const enrollment = await prisma.enrollment.findFirst({
-    where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
+    where: { id: enrollmentId, studentId: student.id, status: { in: ["ACTIVE", "COMPLETED"] } },
     select: { id: true },
   });
   if (!enrollment) {

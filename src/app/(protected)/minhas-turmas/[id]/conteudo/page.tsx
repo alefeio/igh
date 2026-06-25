@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { StudentEnrollmentSuspensionBanner } from "@/components/student/StudentEnrollmentSuspensionBanner";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { QuickActionGrid, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -66,6 +67,7 @@ type ExerciseStats = {
 };
 
 type CourseContentData = {
+  enrollmentSuspended?: boolean;
   courseName: string;
   courseImageUrl?: string | null;
   teacherName: string;
@@ -315,6 +317,10 @@ export default function ConteudoPage() {
             Voltar à turma
           </Link>
         </nav>
+
+        {data.enrollmentSuspended && (
+          <StudentEnrollmentSuspensionBanner courseName={data.courseName} />
+        )}
 
         <section
           data-tour="conteudo-foto-curso"

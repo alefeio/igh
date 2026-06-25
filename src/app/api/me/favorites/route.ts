@@ -16,7 +16,7 @@ export async function GET() {
 
   const favorites = await prisma.enrollmentLessonFavorite.findMany({
     where: {
-      enrollment: { studentId: student.id, status: "ACTIVE" },
+      enrollment: { studentId: student.id, status: { in: ["ACTIVE", "COMPLETED"] } },
     },
     orderBy: { createdAt: "desc" },
     include: {

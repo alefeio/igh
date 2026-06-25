@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 
 /** Lista turmas que o professor leciona (apenas TEACHER). */
@@ -15,7 +16,7 @@ export async function GET() {
     return jsonOk({ classGroups: [] });
   }
   const classGroups = await prisma.classGroup.findMany({
-    where: { teacherId: teacher.id },
+    where: classGroupTeacherAccessWhere(teacher.id),
     orderBy: [{ startDate: "asc" }, { startTime: "asc" }],
     select: {
       id: true,

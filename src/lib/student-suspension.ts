@@ -1,15 +1,17 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import {
+  STUDENT_SUSPENSION_BLOCK_DETAIL,
+  STUDENT_SUSPENSION_BLOCK_MESSAGE,
+} from "@/lib/student-suspension-messages";
 
-export const STUDENT_SUSPENSION_BLOCK_MESSAGE =
-  "Sua matrícula está suspensa porque você acumulou três faltas consecutivas sem justificativa na frequência da turma. O acesso ao conteúdo online fica bloqueado até a regularização.";
-
-export const STUDENT_SUSPENSION_BLOCK_DETAIL =
-  "Para voltar a acessar o portal, compareça à aula presencial e peça ao professor que registre sua presença na frequência. Se a falta foi justificada, procure a secretaria do IGH.";
+export {
+  STUDENT_SUSPENSION_BLOCK_DETAIL,
+  STUDENT_SUSPENSION_BLOCK_MESSAGE,
+} from "@/lib/student-suspension-messages";
 
 export type StudentSuspensionInfo = {
-  blocked: boolean;
   enrollments: {
     id: string;
     courseName: string;
@@ -22,7 +24,7 @@ export async function getStudentSuspensionInfo(userId: string): Promise<StudentS
     where: { userId },
     select: { id: true },
   });
-  if (!student) return { blocked: false, enrollments: [] };
+  if (!student) return { enrollments: [] };
 
   const rows = await prisma.enrollment.findMany({
     where: { studentId: student.id, status: "SUSPENDED" },
@@ -41,10 +43,7 @@ export async function getStudentSuspensionInfo(userId: string): Promise<StudentS
     orderBy: { enrolledAt: "desc" },
   });
 
-  if (rows.length === 0) return { blocked: false, enrollments: [] };
-
   return {
-    blocked: true,
     enrollments: rows.map((e) => {
       const cg = e.classGroup;
       const date = cg.startDate.toISOString().slice(0, 10).split("-").reverse().join("/");

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
@@ -20,7 +21,7 @@ export async function GET(
   if (!teacher) return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
 
   const cg = await prisma.classGroup.findFirst({
-    where: { id: classGroupId, teacherId: teacher.id },
+    where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
     select: {
       id: true,
       courseId: true,

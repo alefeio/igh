@@ -368,6 +368,7 @@ model Teacher {
   userId                String?                      @unique
   photoUrl              String?
   classGroups           ClassGroup[]
+  classGroupTeachers    ClassGroupTeacher[]
   lessonQuestionReplies LessonQuestionTeacherReply[]
   examsCreated          ClassGroupExam[]             @relation("ExamCreatedByTeacher")
   user                  User?                        @relation(fields: [userId], references: [id])
@@ -486,10 +487,23 @@ model ClassGroup {
   preventAutoClose Boolean          @default(false)
   course           Course           @relation(fields: [courseId], references: [id])
   teacher          Teacher          @relation(fields: [teacherId], references: [id])
+  classGroupTeachers ClassGroupTeacher[]
   cycle            Cycle            @relation(fields: [cycleId], references: [id])
   sessions         ClassSession[]
   enrollments      Enrollment[]
   exams            ClassGroupExam[]
+}
+
+model ClassGroupTeacher {
+  id           String     @id @default(uuid())
+  classGroupId String
+  teacherId    String
+  createdAt    DateTime   @default(now())
+  classGroup   ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  teacher      Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([classGroupId, teacherId])
+  @@index([teacherId])
 }
 
 enum ClassGroupExamStatus {

@@ -24,7 +24,7 @@ export async function GET(
   if (!student) return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
 
   const enrollment = await prisma.enrollment.findFirst({
-    where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
+    where: { id: enrollmentId, studentId: student.id, status: { in: ["ACTIVE", "COMPLETED"] } },
     include: {
       classGroup: {
         include: {
@@ -143,7 +143,7 @@ export async function POST(
   if (!student) return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
 
   const enrollment = await prisma.enrollment.findFirst({
-    where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
+    where: { id: enrollmentId, studentId: student.id, status: { in: ["ACTIVE", "COMPLETED"] } },
     include: {
       classGroup: {
         include: {

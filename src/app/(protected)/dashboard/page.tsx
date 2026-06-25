@@ -21,6 +21,7 @@ import {
   Users2,
 } from "lucide-react";
 
+import { StudentEnrollmentSuspensionBanner } from "@/components/student/StudentEnrollmentSuspensionBanner";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import {
   DashboardHero,
@@ -605,28 +606,53 @@ const STUDENT_DASHBOARD_DEFAULT_WELCOME_TEXT =
   "Resumo leve ao entrar: continue de onde parou, veja seu progresso geral e acesse rapidamente turmas e fórum. Detalhes de pontos, ranking, exercícios e calendário ficam em páginas próprias — só carregam quando você abre.";
 
 function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
+  const isSuspended = enrollment.enrollmentStatus === "SUSPENDED";
   const percent =
     enrollment.lessonsTotal > 0
       ? Math.round((enrollment.lessonsCompleted / enrollment.lessonsTotal) * 100)
       : 0;
   const hasProgress = enrollment.lessonsTotal > 0;
   const isComplete = hasProgress && enrollment.lessonsCompleted >= enrollment.lessonsTotal;
+  const href = isSuspended ? `/minhas-turmas/${enrollment.id}` : `/minhas-turmas/${enrollment.id}/conteudo`;
 
   return (
     <Link
-      href={`/minhas-turmas/${enrollment.id}/conteudo`}
-      className="group flex flex-col rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-sm ring-1 ring-black/[0.02] transition duration-300 hover:-translate-y-1 hover:border-[var(--igh-primary)]/45 hover:shadow-lg hover:shadow-[var(--igh-primary)]/10 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 dark:ring-white/[0.03]"
+      href={href}
+      className={`group flex flex-col rounded-2xl border bg-[var(--card-bg)] p-5 shadow-sm ring-1 ring-black/[0.02] transition duration-300 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 dark:ring-white/[0.03] ${
+        isSuspended
+          ? "border-amber-300/80 hover:border-amber-400 hover:shadow-md"
+          : "border-[var(--card-border)] hover:-translate-y-1 hover:border-[var(--igh-primary)]/45 hover:shadow-lg hover:shadow-[var(--igh-primary)]/10"
+      }`}
     >
       <div className="flex flex-1 flex-col gap-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--igh-primary)]/20 to-violet-500/15 text-[var(--igh-primary)] shadow-inner">
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-inner ${
+                isSuspended
+                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                  : "bg-gradient-to-br from-[var(--igh-primary)]/20 to-violet-500/15 text-[var(--igh-primary)]"
+              }`}
+            >
               <BookOpen className="h-5 w-5" aria-hidden />
             </div>
             <div className="min-w-0">
-              <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-[var(--igh-primary)]">
-                {enrollment.courseName}
-              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3
+                  className={`font-semibold ${
+                    isSuspended
+                      ? "text-amber-950 dark:text-amber-100"
+                      : "text-[var(--text-primary)] group-hover:text-[var(--igh-primary)]"
+                  }`}
+                >
+                  {enrollment.courseName}
+                </h3>
+                {isSuspended && (
+                  <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:text-amber-200">
+                    Aulas bloqueadas
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-xs font-normal text-[var(--text-muted)]/85">
                 Prof. {enrollment.teacherName}
               </p>
@@ -634,25 +660,31 @@ function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
           </div>
           <ChevronRight className="h-5 w-5 shrink-0 text-[var(--text-muted)] transition group-hover:translate-x-0.5 group-hover:text-[var(--igh-primary)]" aria-hidden />
         </div>
-        {hasProgress && (
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <span className="text-[var(--text-muted)]">Progresso</span>
-              <span className="font-medium text-[var(--text-primary)]">
-                {enrollment.lessonsCompleted} / {enrollment.lessonsTotal} aulas
-                {percent > 0 && ` · ${percent}%`}
-              </span>
+        {isSuspended ? (
+          <p className="text-xs leading-relaxed text-amber-900 dark:text-amber-100/90">
+            Três faltas consecutivas sem justificativa. Volte às aulas presenciais ou fale com o professor/coordenação.
+          </p>
+        ) : (
+          hasProgress && (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-[var(--text-muted)]">Progresso</span>
+                <span className="font-medium text-[var(--text-primary)]">
+                  {enrollment.lessonsCompleted} / {enrollment.lessonsTotal} aulas
+                  {percent > 0 && ` · ${percent}%`}
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--igh-surface)]">
+                <div
+                  className="h-full rounded-full bg-[var(--igh-primary)] transition-all duration-300"
+                  style={{ width: `${percent}%` }}
+                />
+              </div>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-[var(--igh-surface)]">
-              <div
-                className="h-full rounded-full bg-[var(--igh-primary)] transition-all duration-300"
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-          </div>
+          )
         )}
-        <p className="mt-auto text-sm font-medium text-[var(--igh-primary)]">
-          {isComplete ? "Curso concluído" : hasProgress ? "Abrir conteúdo" : "Começar o curso"}
+        <p className={`mt-auto text-sm font-medium ${isSuspended ? "text-amber-800 dark:text-amber-200" : "text-[var(--igh-primary)]"}`}>
+          {isSuspended ? "Ver detalhes da turma" : isComplete ? "Curso concluído" : hasProgress ? "Abrir conteúdo" : "Começar o curso"}
         </p>
       </div>
     </Link>
@@ -734,6 +766,8 @@ function DashboardStudent({
   const globalPercent =
     totalLessonsTotal > 0 ? Math.round((totalLessonsCompleted / totalLessonsTotal) * 100) : 0;
 
+  const suspendedEnrollments = enrollments.filter((e) => e.enrollmentStatus === "SUSPENDED");
+
   const continueBlock =
     enrollments.length > 0 && continueLink && continueLabel ? (
       <section aria-labelledby="continuar-heading">
@@ -803,6 +837,14 @@ function DashboardStudent({
       />
 
       <div className="min-w-0">{continueBlock}</div>
+
+      {suspendedEnrollments.length > 0 && (
+        <div className="space-y-3" aria-label="Turmas com acesso às aulas bloqueado">
+          {suspendedEnrollments.map((e) => (
+            <StudentEnrollmentSuspensionBanner key={e.id} courseName={e.courseName} compact />
+          ))}
+        </div>
+      )}
 
       {enrollments.length > 0 && (
         <SectionCard

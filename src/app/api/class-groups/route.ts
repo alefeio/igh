@@ -12,6 +12,7 @@ import {
 } from "@/lib/schedule";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import { DEFAULT_CYCLE_ID } from "@/lib/cycles";
+import { classGroupTeacherAccessWhere, syncClassGroupTeachers, validateTeacherIds } from "@/lib/class-group-teachers";
 
 export async function GET() {
   try {
@@ -33,12 +34,13 @@ export async function GET() {
     }
 
     const classGroups = await prisma.classGroup.findMany({
-      where: isTeacher && teacherId ? { teacherId } : undefined,
+      where: isTeacher && teacherId ? classGroupTeacherAccessWhere(teacherId) : undefined,
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       include: {
         cycle: true,
         course: true,
         teacher: true,
+        classGroupTeachers: { include: { teacher: { select: { id: true, name: true } } } },
         sessions: {
           orderBy: { sessionDate: "asc" },
         },
@@ -47,7 +49,7 @@ export async function GET() {
     });
 
     const classGroupsWithTotals = classGroups.map((cg) => {
-      const { enrollments, sessions, ...rest } = cg;
+      const { enrollments, sessions, classGroupTeachers, ...rest } = cg;
       let totalHours = 0;
       try {
         for (const s of sessions) {
@@ -58,6 +60,8 @@ export async function GET() {
       }
       return {
         ...rest,
+        teacherIds: cg.classGroupTeachers.map((row) => row.teacherId),
+        teachers: cg.classGroupTeachers.map((row) => row.teacher),
         totalSessions: sessions.length,
         totalHours: Math.round(totalHours * 100) / 100,
         enrollmentsCount: enrollments.length,
@@ -80,21 +84,23 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { cycleId, courseId, teacherId, startDate, daysOfWeek, startTime, endTime, capacity, status, location } =
+  const { cycleId, courseId, teacherIds, startDate, daysOfWeek, startTime, endTime, capacity, status, location } =
     parsed.data;
 
-  const [cycle, course, teacher] = await Promise.all([
+  const teacherValidation = await validateTeacherIds(teacherIds);
+  if (!teacherValidation.ok) return jsonErr("INVALID_TEACHER", teacherValidation.message, 400);
+  const primaryTeacherId = teacherIds[0]!;
+
+  const [cycle, course] = await Promise.all([
     prisma.cycle.findUnique({
       where: { id: cycleId ?? DEFAULT_CYCLE_ID },
       select: { id: true },
     }),
     prisma.course.findUnique({ where: { id: courseId }, select: { id: true, workloadHours: true } }),
-    prisma.teacher.findUnique({ where: { id: teacherId }, select: { id: true, deletedAt: true } }),
   ]);
 
   if (!cycle) return jsonErr("INVALID_CYCLE", "Ciclo inválido.", 400);
   if (!course) return jsonErr("INVALID_COURSE", "Curso inválido.", 400);
-  if (!teacher || teacher.deletedAt) return jsonErr("INVALID_TEACHER", "Professor inválido.", 400);
 
   const normalizedLocation = (location && location.trim()) || null;
   const locationFilter =
@@ -175,7 +181,7 @@ export async function POST(request: Request) {
       data: {
         cycleId: cycle.id,
         courseId,
-        teacherId,
+        teacherId: primaryTeacherId,
         daysOfWeek,
         startDate: startDateValue,
         endDate,
@@ -186,6 +192,8 @@ export async function POST(request: Request) {
         location: location || null,
       },
     });
+
+    await syncClassGroupTeachers(created.id, teacherIds, tx);
 
     if (dates.length > 0) {
       await tx.classSession.createMany({

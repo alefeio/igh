@@ -12,6 +12,7 @@ import {
   titleScheduleChange,
 } from "@/lib/class-schedule-notification-text";
 import { createUserNotificationIfNew } from "@/lib/user-notifications";
+import { syncClassGroupTeachers, validateTeacherIds } from "@/lib/class-group-teachers";
 import {
   generateSessionsByWorkload,
   parseDateOnly,
@@ -46,21 +47,31 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (parsed.data.courseId && !courseForWorkload) {
     return jsonErr("INVALID_COURSE", "Curso inválido.", 400);
   }
-  if (parsed.data.teacherId) {
-    const teacher = await prisma.teacher.findUnique({
-      where: { id: parsed.data.teacherId },
-      select: { id: true, deletedAt: true },
-    });
-    if (!teacher || teacher.deletedAt)
-      return jsonErr("INVALID_TEACHER", "Professor inválido.", 400);
+  if (parsed.data.teacherIds) {
+    const teacherValidation = await validateTeacherIds(parsed.data.teacherIds);
+    if (!teacherValidation.ok) return jsonErr("INVALID_TEACHER", teacherValidation.message, 400);
   }
 
-  const shouldRegenerate =
-    parsed.data.startDate !== undefined ||
-    parsed.data.daysOfWeek !== undefined ||
-    parsed.data.startTime !== undefined ||
-    parsed.data.endTime !== undefined ||
-    parsed.data.courseId !== undefined;
+  const normDays = (d: string[]) => [...d].sort().join(",");
+
+  let parsedStartDate: Date | null = null;
+  if (parsed.data.startDate) {
+    try {
+      parsedStartDate = parseDateOnly(parsed.data.startDate);
+    } catch {
+      return jsonErr("INVALID_START_DATE", "Data de início inválida.", 400);
+    }
+  }
+
+  const scheduleChanged =
+    (parsedStartDate != null && parsedStartDate.getTime() !== existing.startDate.getTime()) ||
+    (parsed.data.daysOfWeek !== undefined &&
+      normDays(parsed.data.daysOfWeek) !== normDays(existing.daysOfWeek)) ||
+    (parsed.data.startTime !== undefined && parsed.data.startTime !== existing.startTime) ||
+    (parsed.data.endTime !== undefined && parsed.data.endTime !== existing.endTime) ||
+    (parsed.data.courseId !== undefined && parsed.data.courseId !== existing.courseId);
+
+  const shouldRegenerate = scheduleChanged;
 
   if (parsed.data.cycleId) {
     const cycle = await prisma.cycle.findUnique({ where: { id: parsed.data.cycleId }, select: { id: true } });
@@ -68,12 +79,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   let updatedStartDate = existing.startDate;
-  if (parsed.data.startDate) {
-    try {
-      updatedStartDate = parseDateOnly(parsed.data.startDate);
-    } catch {
-      return jsonErr("INVALID_START_DATE", "Data de início inválida.", 400);
-    }
+  if (parsedStartDate) {
+    updatedStartDate = parsedStartDate;
   }
 
   const daysForGeneration = parsed.data.daysOfWeek ?? existing.daysOfWeek;
@@ -169,7 +176,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       data: {
         cycleId: parsed.data.cycleId ?? undefined,
         courseId: parsed.data.courseId ?? undefined,
-        teacherId: parsed.data.teacherId ?? undefined,
+        teacherId: parsed.data.teacherIds?.[0] ?? undefined,
         daysOfWeek: parsed.data.daysOfWeek ?? undefined,
         startDate: parsed.data.startDate ? updatedStartDate : undefined,
         endDate: shouldRegenerate ? computedEndDate : undefined,
@@ -181,6 +188,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         ...(preventAutoCloseValue !== undefined && { preventAutoClose: preventAutoCloseValue }),
       },
     });
+
+    if (parsed.data.teacherIds) {
+      await syncClassGroupTeachers(id, parsed.data.teacherIds, tx);
+    }
 
     if (shouldRegenerate) {
       await tx.classSession.deleteMany({ where: { classGroupId: id } });
@@ -207,7 +218,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     };
   });
 
-  const normDays = (d: string[]) => [...d].sort().join(",");
   const scheduleOrPlaceChanged =
     normDays(existing.daysOfWeek) !== normDays(updated.daysOfWeek) ||
     existing.startTime !== updated.startTime ||

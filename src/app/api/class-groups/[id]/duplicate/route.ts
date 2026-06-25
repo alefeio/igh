@@ -3,6 +3,7 @@ import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAuditLog } from "@/lib/audit";
 import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
+import { syncClassGroupTeachers } from "@/lib/class-group-teachers";
 import {
   generateSessionsByWorkload,
   parseDateOnly,
@@ -71,6 +72,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       include: {
         course: { select: { id: true, workloadHours: true } },
         teacher: { select: { id: true, deletedAt: true } },
+        classGroupTeachers: { select: { teacherId: true } },
       },
     });
     if (!source) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
@@ -149,11 +151,16 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       }
     }
 
+    const sourceTeacherIds =
+      source.classGroupTeachers.length > 0
+        ? source.classGroupTeachers.map((row) => row.teacherId)
+        : [source.teacherId];
+
     const { classGroup: created } = await prisma.$transaction(async (tx) => {
       const createdRow = await tx.classGroup.create({
         data: {
           courseId: source.courseId,
-          teacherId: source.teacherId,
+          teacherId: sourceTeacherIds[0]!,
           daysOfWeek: source.daysOfWeek,
           startDate: startDateValue,
           endDate,
@@ -164,6 +171,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
           location: chosenLocation,
         },
       });
+
+      await syncClassGroupTeachers(createdRow.id, sourceTeacherIds, tx);
 
       if (dates.length > 0) {
         await tx.classSession.createMany({

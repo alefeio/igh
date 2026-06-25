@@ -170,7 +170,7 @@ export async function GET(
   }
 
   const enrollment = await prisma.enrollment.findFirst({
-    where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
+    where: { id: enrollmentId, studentId: student.id, status: { in: ["ACTIVE", "COMPLETED"] } },
     include: { classGroup: { select: { courseId: true } } },
   });
   if (!enrollment) {

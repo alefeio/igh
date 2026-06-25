@@ -1,9 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { getCourseLessonIdsInOrder, getModulesWithLessonsByCourseId } from "@/lib/course-modules";
-import { getEndOfTodayBrazil } from "@/lib/brazil-today";
+import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { unstable_cache } from "next/cache";
+import {
+  STUDENT_VISIBLE_ENROLLMENT_STATUSES,
+} from "@/lib/student-enrollment-access";
+import { getLiberatedLessonIdsForEnrollment } from "@/lib/student-lesson-liberation";
 
 export const dynamic = "force-dynamic";
 
@@ -57,12 +60,15 @@ export async function GET(
   if (!student) return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
 
   const enrollment = await prisma.enrollment.findFirst({
-    where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
+    where: { id: enrollmentId, studentId: student.id, status: { in: [...STUDENT_VISIBLE_ENROLLMENT_STATUSES] } },
     select: {
       id: true,
+      status: true,
       classGroup: {
         select: {
           id: true,
+          status: true,
+          endDate: true,
           courseId: true,
           course: { select: { name: true, imageUrl: true } },
           teacher: { select: { name: true, photoUrl: true } },
@@ -72,30 +78,17 @@ export async function GET(
   });
   if (!enrollment) return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
 
-  // Liberação automática (mantém comportamento atual), mas sem refetch duplicado de enrollment.
-  const endOfTodayBrazil = getEndOfTodayBrazil();
-  await prisma.classSession.updateMany({
-    where: {
-      classGroupId: enrollment.classGroup.id,
-      status: "SCHEDULED",
-      sessionDate: { lte: endOfTodayBrazil },
-    },
-    data: { status: "LIBERADA" },
-  });
+  const enrollmentSuspended = enrollment.status === "SUSPENDED";
+  const cg = enrollment.classGroup;
+  const courseId = cg.courseId;
 
-  const courseId = enrollment.classGroup.courseId;
-
-  const liberadaSessionsOrdered = await prisma.classSession.findMany({
-    where: { classGroupId: enrollment.classGroup.id, status: "LIBERADA" },
-    orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
-    select: { lessonId: true },
-  });
-  const courseLessonIdsInOrder = await getCourseLessonIdsInOrder(courseId);
-
-  const liberadaLessonIds = new Set<string>();
-  liberadaSessionsOrdered.forEach((session, index) => {
-    if (session.lessonId) liberadaLessonIds.add(session.lessonId);
-    else if (courseLessonIdsInOrder[index]) liberadaLessonIds.add(courseLessonIdsInOrder[index]);
+  const liberadaLessonIds = await getLiberatedLessonIdsForEnrollment({
+    enrollmentId: enrollment.id,
+    enrollmentStatus: enrollment.status,
+    classGroupId: cg.id,
+    classGroupStatus: cg.status,
+    classGroupEndDate: cg.endDate,
+    courseId,
   });
 
   const getModulesCached = unstable_cache(
@@ -105,7 +98,7 @@ export async function GET(
   );
   const modules = await getModulesCached(courseId);
 
-  const courseImageUrl = resolveCourseImageUrl(enrollment.classGroup.course.imageUrl ?? null, modules);
+  const courseImageUrl = resolveCourseImageUrl(cg.course.imageUrl ?? null, modules);
 
   const lessonIds = modules.flatMap((m) => m.lessons.map((l) => l.id));
   const progressList = await prisma.enrollmentLessonProgress.findMany({
@@ -130,7 +123,7 @@ export async function GET(
       order: lesson.order,
       durationMinutes: lesson.durationMinutes,
       videoUrl: lesson.videoUrl ?? null,
-      isLiberada: liberadaLessonIds.has(lesson.id),
+      isLiberada: enrollmentSuspended ? false : liberadaLessonIds.has(lesson.id),
       completed: completedByLessonId.get(lesson.id) ?? false,
       lastContentPageIndex: lastContentPageIndexByLessonId.get(lesson.id) ?? null,
     })),
@@ -138,6 +131,7 @@ export async function GET(
 
   const t = enrollment.classGroup.teacher;
   return jsonOk({
+    enrollmentSuspended,
     courseName: enrollment.classGroup.course.name,
     courseImageUrl,
     teacherName: t?.name ?? "",
@@ -145,4 +139,3 @@ export async function GET(
     modules: modulesOutline,
   });
 }
-

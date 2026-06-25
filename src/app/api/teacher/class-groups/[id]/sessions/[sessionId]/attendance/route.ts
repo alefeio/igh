@@ -1,3 +1,4 @@
+import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { applyAttendanceSuspensionRules } from "@/lib/enrollment-attendance-suspension";
 import { processEmailOutboxBatch } from "@/lib/email/outbox";
 import { prisma } from "@/lib/prisma";
@@ -15,12 +16,12 @@ async function getTeacherAndSession(
   });
   if (!teacher) return null;
   const session = await prisma.classSession.findFirst({
-    where: { id: sessionId, classGroupId },
+    where: { id: sessionId, classGroupId, classGroup: classGroupTeacherAccessWhere(teacher.id) },
     include: {
       classGroup: { select: { teacherId: true } },
     },
   });
-  if (!session || session.classGroup.teacherId !== teacher.id) return null;
+  if (!session) return null;
   return { teacher, session };
 }
 

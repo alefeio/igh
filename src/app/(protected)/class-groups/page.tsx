@@ -33,6 +33,7 @@ type ClassGroup = {
   cycleId: string;
   courseId: string;
   teacherId: string;
+  teacherIds?: string[];
   daysOfWeek: string[];
   startDate?: string;
   endDate?: string | null;
@@ -52,6 +53,7 @@ type ClassGroup = {
   cycle: Cycle;
   course: Course;
   teacher: Teacher;
+  teachers?: Teacher[];
   sessions?: ClassSession[];
   totalSessions?: number;
   totalHours?: number;
@@ -134,7 +136,7 @@ export default function ClassGroupsPage() {
 
   const [cycleId, setCycleId] = useState(DEFAULT_CYCLE_ID);
   const [courseId, setCourseId] = useState("");
-  const [teacherId, setTeacherId] = useState("");
+  const [teacherIds, setTeacherIds] = useState<string[]>([]);
   const [daysOfWeek, setDaysOfWeek] = useState<string[]>(["TER", "QUI"]);
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("08:00");
@@ -182,19 +184,25 @@ export default function ClassGroupsPage() {
   const canSubmit = useMemo(() => {
     const base =
       courseId.length > 0 &&
-      teacherId.length > 0 &&
+      teacherIds.length > 0 &&
       daysOfWeek.length > 0 &&
       startDate.trim().length > 0 &&
       startTime.trim().length > 0 &&
       endTime.trim().length > 0 &&
       Number(capacity) > 0;
     return base && (editing != null || courseHasWorkload);
-  }, [courseId, teacherId, daysOfWeek, startDate, startTime, endTime, capacity, courseHasWorkload, editing]);
+  }, [courseId, teacherIds, daysOfWeek, startDate, startTime, endTime, capacity, courseHasWorkload, editing]);
+
+  function toggleTeacher(id: string) {
+    setTeacherIds((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    );
+  }
 
   function resetForm() {
     setCycleId(DEFAULT_CYCLE_ID);
     setCourseId("");
-    setTeacherId("");
+    setTeacherIds([]);
     setDaysOfWeek(["TER", "QUI"]);
     setStartDate("");
     setStartTime("08:00");
@@ -224,7 +232,13 @@ export default function ClassGroupsPage() {
     setEditing(cg);
     setCycleId(cg.cycleId);
     setCourseId(cg.courseId);
-    setTeacherId(cg.teacherId);
+    setTeacherIds(
+      cg.teacherIds && cg.teacherIds.length > 0
+        ? cg.teacherIds
+        : cg.teachers && cg.teachers.length > 0
+          ? cg.teachers.map((t) => t.id)
+          : [cg.teacherId]
+    );
     setDaysOfWeek(cg.daysOfWeek);
     setStartDate(cg.startDate ? String(cg.startDate).slice(0, 10) : "");
     setStartTime(cg.startTime);
@@ -334,7 +348,7 @@ export default function ClassGroupsPage() {
       const payload = {
         cycleId,
         courseId,
-        teacherId,
+        teacherIds,
         daysOfWeek,
         startDate,
         startTime,
@@ -565,7 +579,7 @@ export default function ClassGroupsPage() {
             <tr>
               <Th>Ciclo</Th>
               <Th>Curso</Th>
-              <Th>Professor</Th>
+              <Th>Professor(es)</Th>
               <Th>Local</Th>
               <Th>Início</Th>
               <Th>Dias da semana</Th>
@@ -586,7 +600,10 @@ export default function ClassGroupsPage() {
                   {cg.course.name}
                 </Td>
                 <Td className="max-w-[10rem] whitespace-normal break-words text-[var(--text-secondary)]">
-                  {cg.teacher.name}
+                  {(cg.teachers && cg.teachers.length > 0
+                    ? cg.teachers.map((t) => t.name)
+                    : [cg.teacher.name]
+                  ).join(", ")}
                 </Td>
                 <Td className="max-w-[12rem] whitespace-normal break-words text-[var(--text-secondary)]">
                   {cg.location?.trim() ? cg.location : "—"}
@@ -923,21 +940,27 @@ export default function ClassGroupsPage() {
             )}
           </div>
           <div>
-            <label className="text-sm font-medium">Professor</label>
-            <div className="mt-1">
-              <select
-                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
-                value={teacherId}
-                onChange={(e) => setTeacherId(e.target.value)}
-              >
-                <option value="">Selecione...</option>
-                {teachers.map((t) => (
-                  <option key={t.id} value={t.id}>
+            <label className="text-sm font-medium">Professor(es)</label>
+            <div className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-md border border-[var(--card-border)] p-3">
+              {teachers.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">Nenhum professor cadastrado.</p>
+              ) : (
+                teachers.map((t) => (
+                  <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-primary)]">
+                    <input
+                      type="checkbox"
+                      checked={teacherIds.includes(t.id)}
+                      onChange={() => toggleTeacher(t.id)}
+                      className="h-4 w-4 rounded border-[var(--card-border)] text-[var(--igh-primary)] focus:ring-[var(--igh-primary)]"
+                    />
                     {t.name}
-                  </option>
-                ))}
-              </select>
+                  </label>
+                ))
+              )}
             </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Selecione um ou mais professores responsáveis pela turma.
+            </p>
           </div>
 
           <div>

@@ -1,9 +1,13 @@
 import "server-only";
 
+import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr } from "@/lib/http";
-import { STUDENT_SUSPENSION_BLOCK_MESSAGE } from "@/lib/student-suspension";
+import { STUDENT_SUSPENSION_BLOCK_MESSAGE } from "@/lib/student-suspension-messages";
+import {
+  STUDENT_CONTENT_ENROLLMENT_STATUSES,
+} from "@/lib/student-enrollment-access";
 
 export async function requireTeacherClassGroup(classGroupId: string) {
   const user = await requireRole(["TEACHER"]);
@@ -13,8 +17,8 @@ export async function requireTeacherClassGroup(classGroupId: string) {
   });
   if (!teacher) return { error: jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403) as never };
 
-  const cg = await prisma.classGroup.findUnique({
-    where: { id: classGroupId, teacherId: teacher.id },
+  const cg = await prisma.classGroup.findFirst({
+    where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
     select: { id: true, courseId: true },
   });
   if (!cg) return { error: jsonErr("NOT_FOUND", "Turma não encontrada.", 404) as never };
@@ -41,7 +45,7 @@ export async function requireStudentEnrollment(enrollmentId: string) {
       error: jsonErr("ENROLLMENT_SUSPENDED", STUDENT_SUSPENSION_BLOCK_MESSAGE, 403) as never,
     };
   }
-  if (enrollment.status !== "ACTIVE") {
+  if (!(STUDENT_CONTENT_ENROLLMENT_STATUSES as readonly string[]).includes(enrollment.status)) {
     return { error: jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404) as never };
   }
   return { student, enrollment, user };

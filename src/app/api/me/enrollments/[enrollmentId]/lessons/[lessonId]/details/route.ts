@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
-import { getEndOfTodayBrazil } from "@/lib/brazil-today";
+import { STUDENT_CONTENT_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
+import { getLiberatedLessonIdsForEnrollment } from "@/lib/student-lesson-liberation";
 
 export const dynamic = "force-dynamic";
 
@@ -20,27 +20,24 @@ export async function GET(
   if (!student) return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
 
   const enrollment = await prisma.enrollment.findFirst({
-    where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
+    where: {
+      id: enrollmentId,
+      studentId: student.id,
+      status: { in: [...STUDENT_CONTENT_ENROLLMENT_STATUSES] },
+    },
     select: {
       id: true,
-      classGroup: { select: { id: true, courseId: true } },
+      status: true,
+      classGroup: {
+        select: { id: true, status: true, endDate: true, courseId: true },
+      },
     },
   });
   if (!enrollment) return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
 
-  const endOfTodayBrazil = getEndOfTodayBrazil();
-  await prisma.classSession.updateMany({
-    where: {
-      classGroupId: enrollment.classGroup.id,
-      status: "SCHEDULED",
-      sessionDate: { lte: endOfTodayBrazil },
-    },
-    data: { status: "LIBERADA" },
-  });
+  const cg = enrollment.classGroup;
+  const courseId = cg.courseId;
 
-  const courseId = enrollment.classGroup.courseId;
-
-  // Confere se a aula pertence ao curso da matrícula.
   const lesson = await prisma.courseLesson.findFirst({
     where: { id: lessonId, module: { courseId } },
     select: {
@@ -59,16 +56,13 @@ export async function GET(
   });
   if (!lesson) return jsonErr("NOT_FOUND", "Aula não encontrada.", 404);
 
-  const liberadaSessionsOrdered = await prisma.classSession.findMany({
-    where: { classGroupId: enrollment.classGroup.id, status: "LIBERADA" },
-    orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
-    select: { lessonId: true },
-  });
-  const courseLessonIdsInOrder = await getCourseLessonIdsInOrder(courseId);
-  const liberadaLessonIds = new Set<string>();
-  liberadaSessionsOrdered.forEach((session, index) => {
-    if (session.lessonId) liberadaLessonIds.add(session.lessonId);
-    else if (courseLessonIdsInOrder[index]) liberadaLessonIds.add(courseLessonIdsInOrder[index]);
+  const liberadaLessonIds = await getLiberatedLessonIdsForEnrollment({
+    enrollmentId: enrollment.id,
+    enrollmentStatus: enrollment.status,
+    classGroupId: cg.id,
+    classGroupStatus: cg.status,
+    classGroupEndDate: cg.endDate,
+    courseId,
   });
 
   const progress = await prisma.enrollmentLessonProgress.findUnique({
@@ -79,17 +73,9 @@ export async function GET(
   return jsonOk({
     lesson: {
       ...lesson,
-      videoUrl: lesson.videoUrl ?? null,
-      contentRich: lesson.contentRich ?? null,
-      summary: lesson.summary ?? null,
-      imageUrls: lesson.imageUrls ?? [],
-      pdfUrl: lesson.pdfUrl ?? null,
-      attachmentUrls: lesson.attachmentUrls ?? [],
-      attachmentNames: lesson.attachmentNames ?? [],
-      isLiberada: liberadaLessonIds.has(lesson.id),
+      isLiberada: liberadaLessonIds.has(lessonId),
       completed: progress?.completed ?? false,
       lastContentPageIndex: progress?.lastContentPageIndex ?? null,
     },
   });
 }
-

@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
 
+import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { prisma } from "@/lib/prisma";
 
 /** Resumo agregado por turma (sem uma linha por aula). */
@@ -48,14 +49,14 @@ type SummaryConfig = {
 function classGroupWhere(config: SummaryConfig) {
   return {
     ...(config.classGroupId ? { id: config.classGroupId } : {}),
-    ...(config.teacherId ? { teacherId: config.teacherId } : {}),
+    ...(config.teacherId ? classGroupTeacherAccessWhere(config.teacherId) : {}),
   };
 }
 
 function sessionWhere(config: SummaryConfig) {
   return {
     ...(config.classGroupId ? { classGroupId: config.classGroupId } : {}),
-    ...(config.teacherId ? { classGroup: { teacherId: config.teacherId } } : {}),
+    ...(config.teacherId ? { classGroup: classGroupTeacherAccessWhere(config.teacherId) } : {}),
   };
 }
 
@@ -63,7 +64,7 @@ function attendanceWhere(config: SummaryConfig) {
   return {
     classSession: {
       ...(config.classGroupId ? { classGroupId: config.classGroupId } : {}),
-      ...(config.teacherId ? { classGroup: { teacherId: config.teacherId } } : {}),
+      ...(config.teacherId ? { classGroup: classGroupTeacherAccessWhere(config.teacherId) } : {}),
     },
   };
 }

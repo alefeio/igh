@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { StudentEnrollmentSuspensionBanner } from "@/components/student/StudentEnrollmentSuspensionBanner";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
@@ -14,6 +15,7 @@ import type { ApiResponse } from "@/lib/api-types";
 
 type EnrollmentDetail = {
   id: string;
+  enrollmentStatus?: "ACTIVE" | "SUSPENDED" | "CANCELLED" | "COMPLETED";
   classGroupId: string;
   course: { name: string; description: string | null; workloadHours: number | null };
   teacher: string;
@@ -182,6 +184,7 @@ export default function MinhasTurmasDetailPage() {
   }
 
   const e = data.enrollment;
+  const isSuspended = e.enrollmentStatus === "SUSPENDED";
   const hasConteudo = e.sessions.some((s) => s.status === "LIBERADA");
 
   return (
@@ -196,6 +199,8 @@ export default function MinhasTurmasDetailPage() {
           Voltar às turmas
         </Link>
       </nav>
+
+      {isSuspended && <StudentEnrollmentSuspensionBanner courseName={e.course.name} />}
 
       <div className="card">
         <header className="card-header" data-tour="mt-header">
@@ -329,7 +334,7 @@ export default function MinhasTurmasDetailPage() {
             </section>
           ) : null}
 
-          {hasConteudo ? (
+          {hasConteudo && !isSuspended ? (
             <div>
               <Link
                 data-tour="mt-acessar-conteudo"
@@ -339,6 +344,10 @@ export default function MinhasTurmasDetailPage() {
                 Acessar conteúdo do curso
               </Link>
             </div>
+          ) : isSuspended ? (
+            <p className="text-sm text-amber-900 dark:text-amber-100/90">
+              O acesso às aulas online desta turma está bloqueado. Volte às aulas presenciais ou fale com o professor/coordenação.
+            </p>
           ) : null}
 
           <section aria-labelledby="aulas-heading" data-tour="mt-aulas">

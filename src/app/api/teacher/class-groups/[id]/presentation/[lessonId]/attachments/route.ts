@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { z } from "zod";
@@ -22,7 +23,7 @@ export async function POST(
   if (!teacher) return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
 
   const cg = await prisma.classGroup.findFirst({
-    where: { id: classGroupId, teacherId: teacher.id },
+    where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
     select: { courseId: true },
   });
   if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);

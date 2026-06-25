@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { getModulesWithLessonsByCourseId, getCourseLessonIdsInOrder } from "@/lib/course-modules";
-import { getEndOfTodayBrazil } from "@/lib/brazil-today";
+import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
+import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
+import { getLiberatedLessonIdsForEnrollment } from "@/lib/student-lesson-liberation";
 
 export const dynamic = "force-dynamic";
 
@@ -41,16 +42,12 @@ export async function GET(
   }
 
   const enrollment = await prisma.enrollment.findFirst({
-    where: { id: enrollmentId, studentId: student.id, status: "ACTIVE" },
+    where: { id: enrollmentId, studentId: student.id, status: { in: [...STUDENT_VISIBLE_ENROLLMENT_STATUSES] } },
     include: {
       classGroup: {
         include: {
           course: { select: { id: true, name: true, imageUrl: true } },
-          sessions: {
-            where: { status: "LIBERADA" },
-            orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
-            select: { lessonId: true },
-          },
+          teacher: { select: { name: true, photoUrl: true } },
         },
       },
     },
@@ -60,48 +57,17 @@ export async function GET(
     return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
   }
 
-  const endOfTodayBrazil = getEndOfTodayBrazil();
-  await prisma.classSession.updateMany({
-    where: {
-      classGroupId: enrollment.classGroup.id,
-      status: "SCHEDULED",
-      sessionDate: { lte: endOfTodayBrazil },
-    },
-    data: { status: "LIBERADA" },
-  });
+  const enrollmentSuspended = enrollment.status === "SUSPENDED";
+  const cg = enrollment.classGroup;
+  const courseId = cg.courseId;
 
-  const enrollmentAfterUpdate = await prisma.enrollment.findFirst({
-    where: { id: enrollmentId },
-    include: {
-      classGroup: {
-        include: {
-          course: { select: { id: true, name: true, imageUrl: true } },
-          teacher: { select: { name: true, photoUrl: true } },
-          sessions: {
-            where: { status: "LIBERADA" },
-            orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
-            select: { lessonId: true },
-          },
-        },
-      },
-    },
-  });
-
-  if (!enrollmentAfterUpdate) {
-    return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
-  }
-
-  const courseId = enrollmentAfterUpdate.classGroup.courseId;
-  const liberadaSessionsOrdered = enrollmentAfterUpdate.classGroup.sessions;
-  const courseLessonIdsInOrder = await getCourseLessonIdsInOrder(courseId);
-
-  const liberadaLessonIds = new Set<string>();
-  liberadaSessionsOrdered.forEach((session, index) => {
-    if (session.lessonId) {
-      liberadaLessonIds.add(session.lessonId);
-    } else if (courseLessonIdsInOrder[index]) {
-      liberadaLessonIds.add(courseLessonIdsInOrder[index]);
-    }
+  const liberadaLessonIds = await getLiberatedLessonIdsForEnrollment({
+    enrollmentId: enrollment.id,
+    enrollmentStatus: enrollment.status,
+    classGroupId: cg.id,
+    classGroupStatus: cg.status,
+    classGroupEndDate: cg.endDate,
+    courseId,
   });
 
   const modules = await getModulesWithLessonsByCourseId(courseId);
@@ -238,7 +204,7 @@ export async function GET(
       pdfUrl: lesson.pdfUrl,
       attachmentUrls: lesson.attachmentUrls ?? [],
       attachmentNames: lesson.attachmentNames ?? [],
-      isLiberada: liberadaLessonIds.has(lesson.id),
+      isLiberada: enrollmentSuspended ? false : liberadaLessonIds.has(lesson.id),
       completed: completedByLessonId.get(lesson.id) ?? false,
       lastContentPageIndex: lastContentPageIndexByLessonId.get(lesson.id) ?? null,
       previousLessonExercisesComplete:
@@ -246,9 +212,10 @@ export async function GET(
     })),
   }));
 
-  const t = enrollmentAfterUpdate.classGroup.teacher;
+  const t = enrollment.classGroup.teacher;
   return jsonOk({
-    courseName: enrollmentAfterUpdate.classGroup.course.name,
+    enrollmentSuspended,
+    courseName: enrollment.classGroup.course.name,
     courseImageUrl,
     teacherName: t.name,
     teacherPhotoUrl: t.photoUrl ?? null,

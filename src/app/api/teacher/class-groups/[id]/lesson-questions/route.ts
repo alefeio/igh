@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { requireRole } from "@/lib/auth";
 import { mapStaffOrTeacherReplyName } from "@/lib/course-forum-reply-display";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -10,7 +11,7 @@ async function assertTeacherOwnsClassGroup(userId: string, classGroupId: string)
   });
   if (!teacher) return null;
   const cg = await prisma.classGroup.findFirst({
-    where: { id: classGroupId, teacherId: teacher.id },
+    where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
     select: { courseId: true, course: { select: { name: true } } },
   });
   if (!cg) return null;

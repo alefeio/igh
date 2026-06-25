@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ensurePendingDocumentRemindersForStudent } from "@/lib/document-reminder-notifications";
+import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
@@ -200,6 +201,8 @@ export type StudentEnrollmentSummary = {
   courseId: string;
   courseName: string;
   teacherName: string;
+  /** Status da matrícula do aluno (ACTIVE ou SUSPENDED por faltas). */
+  enrollmentStatus: "ACTIVE" | "SUSPENDED" | "CANCELLED" | "COMPLETED";
   startDate: Date;
   status: string;
   location: string | null;
@@ -280,7 +283,7 @@ export async function loadStudentDashboardMetrics(
   roleLabel: string,
 ): Promise<DashboardDataStudent> {
   const enrollmentsRaw = await prisma.enrollment.findMany({
-    where: { studentId: studentRecordId, status: "ACTIVE" },
+    where: { studentId: studentRecordId, status: { in: [...STUDENT_VISIBLE_ENROLLMENT_STATUSES] } },
     orderBy: { enrolledAt: "desc" },
     include: {
       classGroup: {
@@ -388,6 +391,7 @@ export async function loadStudentDashboardMetrics(
       courseId,
       courseName: e.classGroup.course.name,
       teacherName: e.classGroup.teacher.name,
+      enrollmentStatus: e.status as StudentEnrollmentSummary["enrollmentStatus"],
       startDate: e.classGroup.startDate,
       status: e.classGroup.status,
       location: e.classGroup.location,
@@ -409,7 +413,11 @@ export async function loadStudentDashboardMetrics(
   const forumQuestionsCount = forumQuestionsByEnrollment.reduce((s, r) => s + r._count.id, 0);
   const forumRepliesCount = forumRepliesByEnrollment.reduce((s, r) => s + r._count.id, 0);
   const recommended = enrollments.find(
-    (e) => e.lessonsTotal > 0 && e.lessonsCompleted > 0 && e.lessonsCompleted < e.lessonsTotal
+    (e) =>
+      e.enrollmentStatus === "ACTIVE" &&
+      e.lessonsTotal > 0 &&
+      e.lessonsCompleted > 0 &&
+      e.lessonsCompleted < e.lessonsTotal
   );
 
   const lastViewedProgress = await prisma.enrollmentLessonProgress.findFirst({
@@ -435,7 +443,8 @@ export async function loadStudentDashboardMetrics(
     lastViewedProgress != null
       ? (() => {
           const enrollment = enrollmentById.get(lastViewedProgress.enrollmentId);
-          const courseName = enrollment?.classGroup.course.name ?? "";
+          if (!enrollment || enrollment.status !== "ACTIVE") return null;
+          const courseName = enrollment.classGroup.course.name ?? "";
           return {
             enrollmentId: lastViewedProgress.enrollmentId,
             lessonId: lastViewedProgress.lessonId,
@@ -459,7 +468,7 @@ export async function loadStudentDashboardMetrics(
   return {
     role: "STUDENT",
     roleLabel,
-    activeEnrollmentsCount: enrollments.length,
+    activeEnrollmentsCount: enrollments.filter((e) => e.enrollmentStatus === "ACTIVE").length,
     enrollments,
     totalLessonsCompleted,
     totalLessonsTotal,

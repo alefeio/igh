@@ -23,7 +23,7 @@ export async function DELETE(
       id: passageId,
       enrollmentId,
       lessonId,
-      enrollment: { studentId: student.id, status: "ACTIVE" },
+      enrollment: { studentId: student.id, status: { in: ["ACTIVE", "COMPLETED"] } },
     },
   });
   if (!passage) {
