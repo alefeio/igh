@@ -31,10 +31,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { DashboardHero, QuickActionGrid, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { ForumPostBody } from "@/components/forum/ForumPostBody";
+import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
 import { useUser } from "@/components/layout/UserProvider";
 import { HighlightableContentViewer, type LessonPassage } from "@/components/lesson/HighlightableContentViewer";
 import { LessonVideoPlayer } from "@/components/lesson/LessonVideoPlayer";
 import type { ApiResponse } from "@/lib/api-types";
+import { isForumPostEmpty } from "@/lib/forum-question-content";
 
 type LessonProgress = {
   completed: boolean;
@@ -204,6 +207,7 @@ export default function AulaConteudoPage() {
   type LessonQuestion = {
     id: string;
     content: string;
+    imageUrls?: string[];
     createdAt: string;
     updatedAt?: string;
     enrollmentId: string;
@@ -213,10 +217,12 @@ export default function AulaConteudoPage() {
   };
   const [questions, setQuestions] = useState<LessonQuestion[]>([]);
   const [questionContent, setQuestionContent] = useState("");
+  const [questionImageUrls, setQuestionImageUrls] = useState<string[]>([]);
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [removingQuestionId, setRemovingQuestionId] = useState<string | null>(null);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [editQuestionContent, setEditQuestionContent] = useState("");
+  const [editQuestionImageUrls, setEditQuestionImageUrls] = useState<string[]>([]);
   const [savingEditQuestionId, setSavingEditQuestionId] = useState<string | null>(null);
   const [replyingToQuestionId, setReplyingToQuestionId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
@@ -1406,9 +1412,8 @@ export default function AulaConteudoPage() {
   };
 
   const handleSendQuestion = async () => {
-    const content = questionContent.trim();
-    if (!content) {
-      toast.push("error", "Digite sua dúvida.");
+    if (isForumPostEmpty(questionContent, questionImageUrls)) {
+      toast.push("error", "Digite uma mensagem ou adicione fotos.");
       return;
     }
     setSavingQuestion(true);
@@ -1418,13 +1423,14 @@ export default function AulaConteudoPage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ content: questionContent, imageUrls: questionImageUrls }),
         }
       );
       const json = (await res.json()) as ApiResponse<LessonQuestion>;
       if (res.ok && json?.ok) {
         setQuestions((prev) => [...prev, json.data]);
         setQuestionContent("");
+        setQuestionImageUrls([]);
         toast.push("success", "Dúvida enviada.");
       } else {
         toast.push("error", json && "error" in json ? json.error.message : "Não foi possível enviar.");
@@ -1457,18 +1463,19 @@ export default function AulaConteudoPage() {
   const startEditQuestion = (q: LessonQuestion) => {
     setEditingQuestionId(q.id);
     setEditQuestionContent(q.content);
+    setEditQuestionImageUrls(q.imageUrls ?? []);
   };
 
   const cancelEditQuestion = () => {
     setEditingQuestionId(null);
     setEditQuestionContent("");
+    setEditQuestionImageUrls([]);
   };
 
   const handleSaveEditQuestion = async () => {
     if (!editingQuestionId) return;
-    const content = editQuestionContent.trim();
-    if (!content) {
-      toast.push("error", "Digite o conteúdo.");
+    if (isForumPostEmpty(editQuestionContent, editQuestionImageUrls)) {
+      toast.push("error", "Digite o conteúdo ou mantenha ao menos uma foto.");
       return;
     }
     setSavingEditQuestionId(editingQuestionId);
@@ -1478,13 +1485,22 @@ export default function AulaConteudoPage() {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ content: editQuestionContent, imageUrls: editQuestionImageUrls }),
         }
       );
       const json = (await res.json()) as ApiResponse<LessonQuestion>;
       if (res.ok && json?.ok) {
         setQuestions((prev) =>
-          prev.map((q) => (q.id === editingQuestionId ? { ...q, content: json.data!.content, updatedAt: json.data!.updatedAt } : q))
+          prev.map((q) =>
+            q.id === editingQuestionId
+              ? {
+                  ...q,
+                  content: json.data!.content,
+                  imageUrls: json.data!.imageUrls ?? [],
+                  updatedAt: json.data!.updatedAt,
+                }
+              : q
+          )
         );
         cancelEditQuestion();
         toast.push("success", "Comentário atualizado.");
@@ -2397,24 +2413,22 @@ export default function AulaConteudoPage() {
 
               {openSection === "duvidas" && (
                 <div>
-                  <h2 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">Dúvidas sobre esta aula</h2>
-                  <p className="mb-3 text-xs text-[var(--text-muted)]">Envie sua dúvida ou comente sobre a aula. Você pode editar seus próprios comentários. Qualquer aluno pode responder a um comentário.</p>
-                  <div className="mb-4 flex flex-col gap-2">
-                    <textarea
-                      value={questionContent}
-                      onChange={(e) => setQuestionContent(e.target.value)}
-                      placeholder="Enviar dúvida sobre esta aula..."
-                      rows={3}
-                      className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                  <h2 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">Fórum desta aula</h2>
+                  <p className="mb-3 text-xs text-[var(--text-muted)]">
+                    Envie sua dúvida ou comente sobre a aula. Use formatação de texto (opcional) e anexe até 10 fotos por
+                    publicação. Você pode editar seus próprios comentários. Qualquer aluno pode responder.
+                  </p>
+                  <div className="mb-4">
+                    <ForumPostComposer
+                      content={questionContent}
+                      onContentChange={setQuestionContent}
+                      imageUrls={questionImageUrls}
+                      onImageUrlsChange={setQuestionImageUrls}
+                      onSubmit={() => void handleSendQuestion()}
+                      submitting={savingQuestion}
+                      submitLabel="Enviar dúvida"
+                      placeholder="Enviar dúvida sobre esta aula…"
                     />
-                    <button
-                      type="button"
-                      onClick={handleSendQuestion}
-                      disabled={savingQuestion || !questionContent.trim()}
-                      className="self-start rounded bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
-                    >
-                      {savingQuestion ? "Enviando..." : "Enviar dúvida"}
-                    </button>
                   </div>
                   {loadedSections.duvidas ? (
                     questions.length === 0 ? (
@@ -2432,24 +2446,32 @@ export default function AulaConteudoPage() {
                                 </div>
                                 {editingQuestionId === q.id ? (
                                   <div className="space-y-2">
-                                    <textarea
-                                      value={editQuestionContent}
-                                      onChange={(e) => setEditQuestionContent(e.target.value)}
-                                      rows={3}
-                                      className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
-                                      placeholder="Editar comentário..."
+                                    <ForumPostComposer
+                                      content={editQuestionContent}
+                                      onContentChange={setEditQuestionContent}
+                                      imageUrls={editQuestionImageUrls}
+                                      onImageUrlsChange={setEditQuestionImageUrls}
+                                      onSubmit={() => void handleSaveEditQuestion()}
+                                      submitting={savingEditQuestionId === q.id}
+                                      submitLabel="Salvar"
+                                      placeholder="Editar comentário…"
+                                      minEditorHeight="120px"
                                     />
-                                    <div className="flex gap-2">
-                                      <button type="button" onClick={handleSaveEditQuestion} disabled={savingEditQuestionId === q.id || !editQuestionContent.trim()} className="rounded bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60">
-                                        {savingEditQuestionId === q.id ? "Salvando..." : "Salvar"}
-                                      </button>
-                                      <button type="button" onClick={cancelEditQuestion} disabled={savingEditQuestionId === q.id} className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60">
-                                        Cancelar
-                                      </button>
-                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={cancelEditQuestion}
+                                      disabled={savingEditQuestionId === q.id}
+                                      className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
+                                    >
+                                      Cancelar
+                                    </button>
                                   </div>
                                 ) : (
-                                  <p className="whitespace-pre-wrap text-[var(--text-primary)]">{q.content}</p>
+                                  <ForumPostBody
+                                    content={q.content}
+                                    imageUrls={q.imageUrls}
+                                    altPrefix={`Foto de ${q.authorName}`}
+                                  />
                                 )}
                               </div>
                               {editingQuestionId !== q.id && q.enrollmentId === enrollmentId && (

@@ -3,20 +3,31 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
+import {
+  isTeacherClassGroupTab,
+  statusesForTeacherClassGroupTab,
+} from "@/lib/teacher-class-group-tabs";
 
-/** Lista turmas que o professor leciona (apenas TEACHER). */
-export async function GET() {
+/** Lista turmas que o professor leciona (apenas TEACHER). Query: ?tab=em_andamento|planejadas|encerradas|canceladas */
+export async function GET(request: Request) {
   const user = await requireRole(["TEACHER"]);
   await applyClassGroupAutomaticStatusUpdatesCached();
+
+  const tab = new URL(request.url).searchParams.get("tab") ?? "em_andamento";
+  const statuses = isTeacherClassGroupTab(tab) ? statusesForTeacherClassGroupTab(tab)! : statusesForTeacherClassGroupTab("em_andamento")!;
+
   const teacher = await prisma.teacher.findFirst({
     where: { userId: user.id, deletedAt: null },
     select: { id: true },
   });
   if (!teacher) {
-    return jsonOk({ classGroups: [] });
+    return jsonOk({ classGroups: [], tab });
   }
   const classGroups = await prisma.classGroup.findMany({
-    where: classGroupTeacherAccessWhere(teacher.id),
+    where: {
+      ...classGroupTeacherAccessWhere(teacher.id),
+      status: { in: statuses },
+    },
     orderBy: [{ startDate: "asc" }, { startTime: "asc" }],
     select: {
       id: true,
@@ -33,6 +44,7 @@ export async function GET() {
     },
   });
   return jsonOk({
+    tab,
     classGroups: classGroups.map((cg) => ({
       id: cg.id,
       courseId: cg.course.id,

@@ -1,7 +1,12 @@
 import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
-import { mapStaffOrTeacherReplyName } from "@/lib/course-forum-reply-display";
+import { serializeForumQuestion } from "@/lib/forum-question-serialize";
+import {
+  isForumPostEmpty,
+  parseForumImageUrls,
+  stripRichTextToPlain,
+} from "@/lib/forum-question-content";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { notifyTeacherOfNewForumQuestion } from "@/lib/forum-user-notifications";
 import { captureMilestoneSnapshot, notifyMilestoneDiff } from "@/lib/student-milestone-notifications";
@@ -84,6 +89,7 @@ export async function GET(
   type QuestionRow = {
     id: string;
     content: string;
+    imageUrls?: string[];
     createdAt: Date;
     updatedAt: Date;
     enrollmentId: string;
@@ -103,29 +109,7 @@ export async function GET(
       staffUser: { name: string } | null;
     }>;
   };
-  return jsonOk(
-    (questions as QuestionRow[]).map((q) => ({
-      id: q.id,
-      content: q.content,
-      createdAt: q.createdAt.toISOString(),
-      updatedAt: (q as { updatedAt?: Date }).updatedAt?.toISOString() ?? q.createdAt.toISOString(),
-      enrollmentId: q.enrollmentId,
-      authorName: q.enrollment.student.name,
-      replies: (q.replies ?? []).map((r) => ({
-        id: r.id,
-        content: r.content,
-        createdAt: r.createdAt.toISOString(),
-        enrollmentId: r.enrollmentId,
-        authorName: r.enrollment.student.name,
-      })),
-      teacherReplies: (q.teacherReplies ?? []).map((r) => ({
-        id: r.id,
-        content: r.content,
-        createdAt: r.createdAt.toISOString(),
-        teacherName: mapStaffOrTeacherReplyName(r),
-      })),
-    }))
-  );
+  return jsonOk((questions as QuestionRow[]).map((q) => serializeForumQuestion(q)));
 }
 
 /** Envia dúvida sobre a aula. Body: { content: string }. Apenas STUDENT. */
@@ -175,20 +159,28 @@ export async function POST(
   });
   if (!liberadaIds.has(lessonId)) return jsonErr("FORBIDDEN", "Aula não liberada.", 403);
 
-  let body: { content?: string } = {};
+  let body: { content?: string; imageUrls?: unknown } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return jsonErr("BAD_REQUEST", "JSON inválido.", 400);
   }
-  const content = typeof body.content === "string" ? body.content.trim() : "";
-  if (!content) return jsonErr("BAD_REQUEST", "Digite sua dúvida.", 400);
+  const content = typeof body.content === "string" ? body.content : "";
+  const imageUrls = parseForumImageUrls(body.imageUrls);
+  if (isForumPostEmpty(content, imageUrls)) {
+    return jsonErr("BAD_REQUEST", "Escreva uma mensagem ou anexe ao menos uma foto.", 400);
+  }
 
   const milestoneBefore = await captureMilestoneSnapshot(student.id);
 
   const question = await enrollmentLessonQuestion.create({
-    data: { enrollmentId, lessonId, content },
-    select: { id: true, content: true, createdAt: true },
+    data: {
+      enrollmentId,
+      lessonId,
+      content: stripRichTextToPlain(content).length > 0 ? content : "",
+      imageUrls,
+    },
+    select: { id: true, content: true, imageUrls: true, createdAt: true },
   });
 
   await notifyTeacherOfNewForumQuestion(question.id);
@@ -202,6 +194,7 @@ export async function POST(
   return jsonOk({
     id: question.id,
     content: question.content,
+    imageUrls: question.imageUrls ?? [],
     createdAt: question.createdAt.toISOString(),
     updatedAt: question.createdAt.toISOString(),
     enrollmentId,

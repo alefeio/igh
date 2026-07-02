@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import {
+  isForumPostEmpty,
+  parseForumImageUrls,
+  stripRichTextToPlain,
+} from "@/lib/forum-question-content";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 const enrollmentLessonQuestion = prisma.enrollmentLessonQuestion;
@@ -58,19 +63,25 @@ export async function PATCH(
   });
   if (!question) return jsonErr("NOT_FOUND", "Dúvida não encontrada ou você não pode editá-la.", 404);
 
-  let body: { content?: string } = {};
+  let body: { content?: string; imageUrls?: unknown } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return jsonErr("BAD_REQUEST", "JSON inválido.", 400);
   }
-  const content = typeof body.content === "string" ? body.content.trim() : "";
-  if (!content) return jsonErr("BAD_REQUEST", "Digite o conteúdo.", 400);
+  const content = typeof body.content === "string" ? body.content : "";
+  const imageUrls = parseForumImageUrls(body.imageUrls);
+  if (isForumPostEmpty(content, imageUrls)) {
+    return jsonErr("BAD_REQUEST", "Escreva uma mensagem ou anexe ao menos uma foto.", 400);
+  }
 
   const updated = await enrollmentLessonQuestion.update({
     where: { id: questionId },
-    data: { content },
-    select: { id: true, content: true, createdAt: true },
+    data: {
+      content: stripRichTextToPlain(content).length > 0 ? content : "",
+      imageUrls,
+    },
+    select: { id: true, content: true, imageUrls: true, createdAt: true, updatedAt: true },
   });
 
   const studentName = await prisma.student.findUnique({
@@ -78,13 +89,12 @@ export async function PATCH(
     select: { name: true },
   });
 
-  const updatedAt = "updatedAt" in updated ? (updated as { updatedAt: Date }).updatedAt : updated.createdAt;
-
   return jsonOk({
     id: updated.id,
     content: updated.content,
+    imageUrls: updated.imageUrls ?? [],
     createdAt: updated.createdAt.toISOString(),
-    updatedAt: updatedAt.toISOString(),
+    updatedAt: updated.updatedAt.toISOString(),
     enrollmentId,
     authorName: studentName?.name ?? "Aluno",
   });

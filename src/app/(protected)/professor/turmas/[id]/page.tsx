@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
+import { AttendanceGrid } from "@/components/professor/AttendanceGrid";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
-import { AlertCircle, Cake, CheckCircle2, Presentation } from "lucide-react";
+import { AlertCircle, Cake, Presentation } from "lucide-react";
 
 type ClassGroup = {
   id: string;
@@ -54,16 +55,6 @@ type Session = {
   lessonTitle: string | null;
   canTakeAttendance: boolean;
   attendanceSummary: SessionAttendanceSummary | null;
-};
-
-type AttendanceRow = {
-  enrollmentId: string;
-  enrollmentStatus?: "ACTIVE" | "SUSPENDED";
-  studentName: string;
-  present: boolean;
-  /** Texto livre quando ausente; vazio ou null se não houver justificativa. */
-  absenceJustification: string | null;
-  documentationAlert: "yellow" | "red" | null;
 };
 
 type ExerciseByEnrollment = {
@@ -166,9 +157,6 @@ export default function ProfessorTurmaDetailPage() {
   const [lessonProgressByEnrollment, setLessonProgressByEnrollment] = useState<LessonProgressByEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
-  const [savingAttendance, setSavingAttendance] = useState(false);
 
   type ProfLessonQuestion = {
     id: string;
@@ -184,28 +172,6 @@ export default function ProfessorTurmaDetailPage() {
   const [loadingDuvidas, setLoadingDuvidas] = useState(false);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
-
-  const attendanceSorted = useMemo(
-    () =>
-      [...attendance].sort((a, b) =>
-        a.studentName.localeCompare(b.studentName, "pt-BR", { sensitivity: "base" })
-      ),
-    [attendance]
-  );
-
-  /** Totais da sessão selecionada (lista atual), sem contar manualmente. */
-  const attendanceListStats = useMemo(() => {
-    if (attendance.length === 0) return null;
-    const present = attendance.filter((r) => r.present).length;
-    const absent = attendance.length - present;
-    return { present, absent, total: attendance.length };
-  }, [attendance]);
-
-  const selectedSession = useMemo(
-    () => sessions.find((s) => s.id === selectedSessionId && s.canTakeAttendance) ?? null,
-    [sessions, selectedSessionId],
-  );
-  const selectedAttendanceSummary = selectedSession?.attendanceSummary ?? null;
 
   const loadClassGroup = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${id}`);
@@ -250,16 +216,6 @@ export default function ProfessorTurmaDetailPage() {
     }
   }, [id]);
 
-  const loadAttendance = useCallback(
-    async (sessionId: string) => {
-      const res = await fetch(`/api/teacher/class-groups/${id}/sessions/${sessionId}/attendance`);
-      const json = (await res.json()) as ApiResponse<{ attendance: AttendanceRow[] }>;
-      if (res.ok && json?.ok) setAttendance(json.data.attendance ?? []);
-      else setAttendance([]);
-    },
-    [id]
-  );
-
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -275,11 +231,6 @@ export default function ProfessorTurmaDetailPage() {
       cancelled = true;
     };
   }, [loadClassGroup, loadEnrollments, loadSessions, loadExerciseAnswers]);
-
-  useEffect(() => {
-    if (selectedSessionId) loadAttendance(selectedSessionId);
-    else setAttendance([]);
-  }, [selectedSessionId, loadAttendance]);
 
   useEffect(() => {
     if (tab === "aulas") loadLessonProgress();
@@ -340,86 +291,6 @@ export default function ProfessorTurmaDetailPage() {
     }
   };
 
-  const handleTogglePresent = (enrollmentId: string) => {
-    setAttendance((prev) =>
-      prev.map((r) => {
-        if (r.enrollmentId !== enrollmentId) return r;
-        const nextPresent = !r.present;
-        return {
-          ...r,
-          present: nextPresent,
-          absenceJustification: nextPresent ? null : r.absenceJustification,
-        };
-      })
-    );
-  };
-
-  const handleAbsenceJustificationChange = (enrollmentId: string, value: string) => {
-    setAttendance((prev) =>
-      prev.map((r) => (r.enrollmentId === enrollmentId ? { ...r, absenceJustification: value } : r))
-    );
-  };
-
-  const handleSaveAttendance = async () => {
-    if (!selectedSessionId) return;
-    setSavingAttendance(true);
-    try {
-      const res = await fetch(
-        `/api/teacher/class-groups/${id}/sessions/${selectedSessionId}/attendance`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            attendance: attendance.map((r) => ({
-              enrollmentId: r.enrollmentId,
-              present: r.present,
-              absenceJustification: r.present ? null : r.absenceJustification,
-            })),
-          }),
-        }
-      );
-      const json = (await res.json()) as ApiResponse<{
-        attendance: AttendanceRow[];
-        suspendedEnrollmentIds?: string[];
-        reactivatedEnrollmentIds?: string[];
-      }>;
-      if (res.ok && json?.ok) {
-        if (json.data?.attendance) setAttendance(json.data.attendance);
-        const suspended = json.data?.suspendedEnrollmentIds ?? [];
-        const reactivated = json.data?.reactivatedEnrollmentIds ?? [];
-        if (suspended.length > 0) {
-          toast.push(
-            "success",
-            `${suspended.length} matrícula(s) suspensa(s) automaticamente por 3 faltas consecutivas sem justificativa.`
-          );
-        }
-        if (reactivated.length > 0) {
-          toast.push(
-            "success",
-            `${reactivated.length} matrícula(s) reativada(s) após presença registrada.`
-          );
-        }
-        if (suspended.length === 0 && reactivated.length === 0) {
-          toast.push("success", "Frequência salva.");
-        }
-        void loadSessions();
-        void loadEnrollments();
-      }
-      else {
-        const msg =
-          json && "error" in json
-            ? ((json.error as { message?: string }).message ?? "Erro ao salvar.")
-            : "Erro ao salvar.";
-        toast.push("error", msg);
-        if (res.status === 403) {
-          toast.push("error", "Essa sessão ainda não está com aula liberada (status diferente de LIBERADA).");
-        }
-      }
-    } finally {
-      setSavingAttendance(false);
-    }
-  };
-
   const tutorialSteps: TutorialStep[] = useMemo(() => {
     if (!classGroup) return [];
     return [
@@ -465,7 +336,7 @@ export default function ProfessorTurmaDetailPage() {
         target: "[data-tour=\"pt-tab-frequencia\"]",
         title: "Frequência",
         content:
-          "Na lista de aulas liberadas, cada card mostra quantos presentes de quantos alunos (X de Y) e se a frequência já foi concluída ou não. Ao abrir a aula, o resumo em destaque repete os totais sem contar um a um. Marque cada aluno, use justificativa opcional para ausências e salve.",
+          "Grade com todos os alunos e aulas liberadas. Clique em cada célula para alternar P (presente), F (falta) e J (justificado). A coluna de frequência é atualizada automaticamente.",
       },
       {
         target: "[data-tour=\"pt-tab-duvidas\"]",
@@ -499,8 +370,12 @@ export default function ProfessorTurmaDetailPage() {
     );
   }
 
-  // Sessão "com aula liberada" = tem lessonId (API expõe como canTakeAttendance)
-  const sessionsWithLesson = sessions.filter((s) => s.canTakeAttendance);
+  const attendanceGridTitle = [
+    classGroup.courseName,
+    classGroup.startTime && classGroup.endTime ? `${classGroup.startTime} às ${classGroup.endTime}` : null,
+  ]
+    .filter(Boolean)
+    .join(" — ");
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -882,230 +757,18 @@ export default function ProfessorTurmaDetailPage() {
       )}
 
       {tab === "frequencia" && (
-        <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] overflow-hidden">
+        <section className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)]">
           <h2 className="border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">
             Frequência (aulas liberadas)
           </h2>
-          <p className="px-4 py-2 text-xs text-[var(--text-muted)]">
-            Em cada aula liberada você vê de imediato <strong className="text-[var(--text-secondary)]">quantos presentes</strong> de quantos alunos (X de Y) e se a frequência já foi salva no sistema. Ao abrir a aula, o quadro
-            abaixo repete o total sem precisar contar aluno por aluno.
-          </p>
-          <div className="flex flex-wrap gap-2 p-4">
-            {sessionsWithLesson.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">
-                Nenhuma sessão com aula liberada ainda.
-              </p>
-            ) : (
-              sessionsWithLesson.map((s) => {
-                const sum = s.attendanceSummary;
-                const total = sum?.enrollmentTotal ?? 0;
-                const present = sum?.presentCount ?? 0;
-                const saved = sum?.hasAttendanceSaved;
-                const complete = sum?.isAttendanceComplete;
-                const isSelected = selectedSessionId === s.id;
-                const muted = isSelected ? "text-white/85" : "text-[var(--text-muted)]";
-                const strong = isSelected ? "text-white" : "text-[var(--text-primary)]";
-
-                let statusEl: ReactNode;
-                if (!sum || total === 0) {
-                  statusEl = (
-                    <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${isSelected ? "bg-white/20 text-white" : "bg-[var(--igh-surface)] text-[var(--text-muted)]"}`}>
-                      Sem matrículas ativas ou suspensas
-                    </span>
-                  );
-                } else if (complete) {
-                  statusEl = (
-                    <span
-                      className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                        isSelected ? "bg-white/25 text-white" : "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
-                      }`}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      Frequência concluída
-                    </span>
-                  );
-                } else if (saved) {
-                  statusEl = (
-                    <span
-                      className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                        isSelected ? "bg-amber-400/30 text-white" : "bg-amber-500/15 text-amber-900 dark:text-amber-200"
-                      }`}
-                    >
-                      Lançamento parcial
-                    </span>
-                  );
-                } else {
-                  statusEl = (
-                    <span
-                      className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                        isSelected ? "bg-white/20 text-white" : "bg-zinc-500/10 text-[var(--text-muted)]"
-                      }`}
-                    >
-                      Frequência não lançada
-                    </span>
-                  );
-                }
-
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setSelectedSessionId(s.id)}
-                    className={`flex max-w-[min(100%,22rem)] flex-col items-start gap-1.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                      isSelected
-                        ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] shadow-sm"
-                        : "border-[var(--card-border)] bg-[var(--card-bg)] hover:bg-[var(--igh-surface)]"
-                    }`}
-                  >
-                    <span className={`text-sm font-medium ${strong}`}>
-                      {formatDate(s.sessionDate)} — {s.lessonTitle ?? "Aula"}
-                    </span>
-                    {sum && total > 0 && (
-                      <span
-                        className={`text-lg font-bold tabular-nums leading-tight ${isSelected ? "text-white" : "text-[var(--text-primary)]"}`}
-                        title="Presentes de alunos com matrícula ativa ou suspensa"
-                      >
-                        {present} de {total} presentes
-                      </span>
-                    )}
-                    {sum && total === 0 && (
-                      <span className={`text-sm ${muted}`}>—</span>
-                    )}
-                    {statusEl}
-                  </button>
-                );
-              })
-            )}
-          </div>
-          {selectedSessionId && attendance.length > 0 && (
-            <div className="border-t border-[var(--card-border)] p-4">
-              {attendanceListStats && (
-                <div
-                  className="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/50 px-4 py-3"
-                  role="status"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="font-semibold text-[var(--text-primary)]">Resumo desta aula</p>
-                    {selectedAttendanceSummary?.isAttendanceComplete ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        Salva para todos os alunos
-                      </span>
-                    ) : selectedAttendanceSummary?.hasAttendanceSaved ? (
-                      <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-900 dark:text-amber-200">
-                        Frequência iniciada (parcial)
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-zinc-500/10 px-2.5 py-1 text-xs font-medium text-[var(--text-muted)]">
-                        Ainda sem lançamento salvo
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-2 text-2xl font-bold tabular-nums text-[var(--text-primary)]">
-                    {attendanceListStats.present} de {attendanceListStats.total} presentes
-                  </p>
-                  <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                    <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                      {attendanceListStats.present} presente{attendanceListStats.present === 1 ? "" : "s"}
-                    </span>
-                    {" · "}
-                    <span className="font-medium text-rose-700 dark:text-rose-400">
-                      {attendanceListStats.absent} ausente{attendanceListStats.absent === 1 ? "" : "s"}
-                    </span>
-                    <span className="text-[var(--text-muted)]">
-                      {" "}
-                      (total de {attendanceListStats.total} aluno{attendanceListStats.total === 1 ? "" : "s"} com matrícula ativa ou suspensa)
-                    </span>
-                  </p>
-                  <p className="mt-2 text-xs text-[var(--text-muted)]">
-                    Os totais em destaque refletem a lista abaixo (inclui alterações que ainda não foram salvas).
-                  </p>
-                  {selectedAttendanceSummary &&
-                    attendanceListStats &&
-                    (selectedAttendanceSummary.presentCount !== attendanceListStats.present ||
-                      selectedAttendanceSummary.enrollmentTotal !== attendanceListStats.total) && (
-                      <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-200">
-                        Você alterou a lista — salve para atualizar o registro no sistema.
-                      </p>
-                    )}
-                </div>
-              )}
-              <p className="mb-3 text-sm font-medium text-[var(--text-primary)]">
-                Marque presença (presente / ausente)
-              </p>
-              <ul className="space-y-3">
-                {attendanceSorted.map((row) => (
-                  <li
-                    key={row.enrollmentId}
-                    className="rounded-lg border border-[var(--card-border)] px-3 py-2"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {row.documentationAlert && (
-                          <span
-                            title={row.documentationAlert === "red" ? "Dados incompletos e documentação faltando" : "Documentação incompleta (identidade e/ou comprovante de residência)"}
-                            className="inline-flex shrink-0"
-                          >
-                            <AlertCircle
-                              className={`h-5 w-5 ${row.documentationAlert === "red" ? "text-red-600" : "text-amber-500"}`}
-                              aria-hidden
-                            />
-                          </span>
-                        )}
-                        <span className="text-sm font-medium text-[var(--text-primary)] truncate">{row.studentName}</span>
-                        {row.enrollmentStatus === "SUSPENDED" && (
-                          <span className="inline-flex shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-200">
-                            Suspensa
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePresent(row.enrollmentId)}
-                        className={`shrink-0 rounded px-3 py-1 text-sm font-medium ${
-                          row.present
-                            ? "bg-green-600 text-white"
-                            : "bg-[var(--igh-surface)] text-[var(--text-muted)]"
-                        }`}
-                      >
-                        {row.present ? "Presente" : "Ausente"}
-                      </button>
-                    </div>
-                    {!row.present && (
-                      <div className="mt-2 border-t border-[var(--card-border)] pt-2">
-                        <label
-                          htmlFor={`absence-${row.enrollmentId}`}
-                          className="text-xs font-medium text-[var(--text-muted)]"
-                        >
-                          Justificativa da ausência (opcional)
-                        </label>
-                        <textarea
-                          id={`absence-${row.enrollmentId}`}
-                          value={row.absenceJustification ?? ""}
-                          onChange={(e) =>
-                            handleAbsenceJustificationChange(row.enrollmentId, e.target.value)
-                          }
-                          rows={2}
-                          maxLength={2000}
-                          placeholder="Ex.: faltou por motivo de saúde, trabalho…"
-                          className="mt-1 w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
-                        />
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-4">
-                <Button
-                  onClick={handleSaveAttendance}
-                  disabled={savingAttendance}
-                  className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm text-white"
-                >
-                  {savingAttendance ? "Salvando..." : "Salvar frequência"}
-                </Button>
-              </div>
-            </div>
-          )}
+          <AttendanceGrid
+            classGroupId={id}
+            title={attendanceGridTitle}
+            onEnrollmentChange={() => {
+              void loadEnrollments();
+              void loadSessions();
+            }}
+          />
         </section>
       )}
     </div>

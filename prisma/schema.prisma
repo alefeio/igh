@@ -817,6 +817,8 @@ model EnrollmentLessonQuestion {
   enrollmentId   String
   lessonId       String
   content        String
+  /// * Fotos anexadas à publicação no fórum da aula (URLs no Apimages).
+  imageUrls      String[]                        @default([])
   createdAt      DateTime                        @default(now())
   updatedAt      DateTime                        @updatedAt
   enrollment     Enrollment                      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)

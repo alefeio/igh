@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
-import { mapStaffOrTeacherReplyName } from "@/lib/course-forum-reply-display";
+import { serializeForumQuestion } from "@/lib/forum-question-serialize";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 async function assertTeacherTeachesCourse(userId: string, courseId: string) {
@@ -63,27 +63,7 @@ export async function GET(
     return jsonOk({
       lessonTitle: lesson.title,
       moduleTitle: lesson.module.title,
-      topics: questions.map((q) => ({
-        id: q.id,
-        content: q.content,
-        createdAt: q.createdAt.toISOString(),
-        updatedAt: q.updatedAt.toISOString(),
-        enrollmentId: q.enrollmentId,
-        authorName: q.enrollment.student.name,
-        replies: q.replies.map((r) => ({
-          id: r.id,
-          content: r.content,
-          createdAt: r.createdAt.toISOString(),
-          enrollmentId: r.enrollmentId,
-          authorName: r.enrollment.student.name,
-        })),
-        teacherReplies: q.teacherReplies.map((r) => ({
-          id: r.id,
-          content: r.content,
-          createdAt: r.createdAt.toISOString(),
-          teacherName: mapStaffOrTeacherReplyName(r),
-        })),
-      })),
+      topics: questions.map((q) => serializeForumQuestion(q)),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

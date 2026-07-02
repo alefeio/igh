@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
+import { ForumPostBody } from "@/components/forum/ForumPostBody";
+import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
 import type { ApiResponse } from "@/lib/api-types";
+import { isForumPostEmpty } from "@/lib/forum-question-content";
 
 type LessonQuestionReply = {
   id: string;
@@ -16,6 +19,7 @@ type LessonTeacherReply = { id: string; content: string; createdAt: string; teac
 type LessonQuestion = {
   id: string;
   content: string;
+  imageUrls?: string[];
   createdAt: string;
   updatedAt?: string;
   enrollmentId: string;
@@ -56,10 +60,12 @@ export function StudentLessonForumPanel({
   );
   const [questions, setQuestions] = useState<LessonQuestion[]>([]);
   const [questionContent, setQuestionContent] = useState("");
+  const [questionImageUrls, setQuestionImageUrls] = useState<string[]>([]);
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [removingQuestionId, setRemovingQuestionId] = useState<string | null>(null);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [editQuestionContent, setEditQuestionContent] = useState("");
+  const [editQuestionImageUrls, setEditQuestionImageUrls] = useState<string[]>([]);
   const [savingEditQuestionId, setSavingEditQuestionId] = useState<string | null>(null);
   const [replyingToQuestionId, setReplyingToQuestionId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
@@ -100,9 +106,8 @@ export function StudentLessonForumPanel({
   }, [loadTopics]);
 
   const handleSendQuestion = async () => {
-    const content = questionContent.trim();
-    if (!content) {
-      toast.push("error", "Digite sua mensagem.");
+    if (isForumPostEmpty(questionContent, questionImageUrls)) {
+      toast.push("error", "Digite uma mensagem ou adicione fotos.");
       return;
     }
     if (!enrollmentId) return;
@@ -111,12 +116,13 @@ export function StudentLessonForumPanel({
       const res = await fetch(`/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/questions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content: questionContent, imageUrls: questionImageUrls }),
       });
       const json = (await res.json()) as ApiResponse<LessonQuestion>;
       if (res.ok && json?.ok) {
         setQuestions((prev) => [...prev, json.data]);
         setQuestionContent("");
+        setQuestionImageUrls([]);
         toast.push("success", "Publicado! Colegas e professores podem ver e responder.");
       } else {
         toast.push("error", json && "error" in json ? json.error.message : "Não foi possível enviar.");
@@ -149,9 +155,8 @@ export function StudentLessonForumPanel({
 
   const handleSaveEditQuestion = async () => {
     if (!editingQuestionId || !enrollmentId) return;
-    const content = editQuestionContent.trim();
-    if (!content) {
-      toast.push("error", "Digite o conteúdo.");
+    if (isForumPostEmpty(editQuestionContent, editQuestionImageUrls)) {
+      toast.push("error", "Digite o conteúdo ou mantenha ao menos uma foto.");
       return;
     }
     setSavingEditQuestionId(editingQuestionId);
@@ -161,7 +166,7 @@ export function StudentLessonForumPanel({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ content: editQuestionContent, imageUrls: editQuestionImageUrls }),
         }
       );
       const json = (await res.json()) as ApiResponse<LessonQuestion>;
@@ -169,12 +174,18 @@ export function StudentLessonForumPanel({
         setQuestions((prev) =>
           prev.map((q) =>
             q.id === editingQuestionId
-              ? { ...q, content: json.data!.content, updatedAt: json.data!.updatedAt }
+              ? {
+                  ...q,
+                  content: json.data!.content,
+                  imageUrls: json.data!.imageUrls ?? [],
+                  updatedAt: json.data!.updatedAt,
+                }
               : q
           )
         );
         setEditingQuestionId(null);
         setEditQuestionContent("");
+        setEditQuestionImageUrls([]);
         toast.push("success", "Atualizado.");
       } else {
         toast.push("error", json && "error" in json ? json.error.message : "Não foi possível atualizar.");
@@ -250,23 +261,16 @@ export function StudentLessonForumPanel({
           <p className="mb-2 text-xs text-[var(--text-muted)]">
             Pergunte, compartilhe um insight ou elogie a participação de alguém — pequenos gestos mantêm o fórum vivo.
           </p>
-          <div className="flex flex-col gap-2">
-            <textarea
-              value={questionContent}
-              onChange={(e) => setQuestionContent(e.target.value)}
-              placeholder="Ex.: Alguém mais teve dúvida no exercício 3? Vamos trocar ideias…"
-              rows={3}
-              className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
-            />
-            <button
-              type="button"
-              onClick={handleSendQuestion}
-              disabled={savingQuestion || !questionContent.trim()}
-              className="self-start rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
-            >
-              {savingQuestion ? "Publicando…" : "Publicar no fórum"}
-            </button>
-          </div>
+          <ForumPostComposer
+            content={questionContent}
+            onContentChange={setQuestionContent}
+            imageUrls={questionImageUrls}
+            onImageUrlsChange={setQuestionImageUrls}
+            onSubmit={() => void handleSendQuestion()}
+            submitting={savingQuestion}
+            submitLabel="Publicar no fórum"
+            placeholder="Ex.: Alguém mais teve dúvida no exercício 3? Vamos trocar ideias…"
+          />
         </div>
       )}
 
@@ -293,36 +297,35 @@ export function StudentLessonForumPanel({
                     </div>
                     {editingQuestionId === q.id ? (
                       <div className="space-y-2">
-                        <textarea
-                          value={editQuestionContent}
-                          onChange={(e) => setEditQuestionContent(e.target.value)}
-                          rows={3}
-                          className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                        <ForumPostComposer
+                          content={editQuestionContent}
+                          onContentChange={setEditQuestionContent}
+                          imageUrls={editQuestionImageUrls}
+                          onImageUrlsChange={setEditQuestionImageUrls}
+                          onSubmit={() => void handleSaveEditQuestion()}
+                          submitting={savingEditQuestionId === q.id}
+                          submitLabel="Salvar"
+                          minEditorHeight="120px"
                         />
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={handleSaveEditQuestion}
-                            disabled={savingEditQuestionId === q.id || !editQuestionContent.trim()}
-                            className="rounded bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
-                          >
-                            {savingEditQuestionId === q.id ? "Salvando…" : "Salvar"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingQuestionId(null);
-                              setEditQuestionContent("");
-                            }}
-                            disabled={savingEditQuestionId === q.id}
-                            className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingQuestionId(null);
+                            setEditQuestionContent("");
+                            setEditQuestionImageUrls([]);
+                          }}
+                          disabled={savingEditQuestionId === q.id}
+                          className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
+                        >
+                          Cancelar
+                        </button>
                       </div>
                     ) : (
-                      <p className="whitespace-pre-wrap text-[var(--text-primary)]">{q.content}</p>
+                      <ForumPostBody
+                        content={q.content}
+                        imageUrls={q.imageUrls}
+                        altPrefix={`Foto de ${q.authorName}`}
+                      />
                     )}
                   </div>
                   {editingQuestionId !== q.id && q.enrollmentId === enrollmentId && (
@@ -332,6 +335,7 @@ export function StudentLessonForumPanel({
                         onClick={() => {
                           setEditingQuestionId(q.id);
                           setEditQuestionContent(q.content);
+                          setEditQuestionImageUrls(q.imageUrls ?? []);
                         }}
                         className="rounded px-2 py-1 text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)]"
                       >
