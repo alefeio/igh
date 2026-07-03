@@ -5,9 +5,12 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { ForumPostBody } from "@/components/forum/ForumPostBody";
+import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
 import { HighlightableContentViewer, type LessonPassage } from "@/components/lesson/HighlightableContentViewer";
 import { LessonVideoPlayer } from "@/components/lesson/LessonVideoPlayer";
 import type { ApiResponse } from "@/lib/api-types";
+import { isForumPostEmpty } from "@/lib/forum-question-content";
 import { splitContentByH1 } from "@/lib/lesson-slides";
 import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 import { hostedRawUrlForDownload } from "@/lib/hosted-file-url";
@@ -59,11 +62,14 @@ type ExercisePayload = {
 type LessonQuestion = {
   id: string;
   content: string;
+  imageUrls?: string[];
   createdAt: string;
   updatedAt: string;
   authorName: string;
   teacherReplies: { id: string; content: string; createdAt: string; teacherName: string }[];
 };
+
+const TEACHER_FORUM_UPLOAD = "/api/teacher/uploads/apimages-signature";
 
 type TeacherNote = { id: string; content: string; createdAt: string };
 
@@ -96,6 +102,7 @@ export default function ProfessorApresentarAulaPage() {
   const [questions, setQuestions] = useState<LessonQuestion[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [replyContentByQuestionId, setReplyContentByQuestionId] = useState<Record<string, string>>({});
+  const [replyImageUrlsByQuestionId, setReplyImageUrlsByQuestionId] = useState<Record<string, string[]>>({});
   const [replyingQuestionId, setReplyingQuestionId] = useState<string | null>(null);
 
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
@@ -224,14 +231,15 @@ export default function ProfessorApresentarAulaPage() {
 
   const handleReply = useCallback(
     async (questionId: string) => {
-      const content = (replyContentByQuestionId[questionId] ?? "").trim();
-      if (content.length < 2) return;
+      const content = replyContentByQuestionId[questionId] ?? "";
+      const imageUrls = replyImageUrlsByQuestionId[questionId] ?? [];
+      if (isForumPostEmpty(content, imageUrls)) return;
       setReplyingQuestionId(questionId);
       try {
         const res = await fetch(`/api/teacher/class-groups/${classGroupId}/lesson-questions/${questionId}/reply`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ content, imageUrls }),
         });
         const json = (await res.json()) as ApiResponse<{ id: string; content: string; createdAt: string; teacherName: string }>;
         if (!res.ok || !json.ok) {
@@ -239,6 +247,7 @@ export default function ProfessorApresentarAulaPage() {
           return;
         }
         setReplyContentByQuestionId((prev) => ({ ...prev, [questionId]: "" }));
+        setReplyImageUrlsByQuestionId((prev) => ({ ...prev, [questionId]: [] }));
         setQuestions((prev) =>
           prev.map((q) =>
             q.id === questionId
@@ -250,7 +259,7 @@ export default function ProfessorApresentarAulaPage() {
         setReplyingQuestionId(null);
       }
     },
-    [classGroupId, replyContentByQuestionId, toast]
+    [classGroupId, replyContentByQuestionId, replyImageUrlsByQuestionId, toast]
   );
 
   const handleUploadAttachment = useCallback(
@@ -863,38 +872,43 @@ export default function ProfessorApresentarAulaPage() {
                 <p className="text-xs font-semibold text-[var(--text-muted)]">
                   {q.authorName} · {new Date(q.createdAt).toLocaleString("pt-BR")}
                 </p>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--text-primary)]">{q.content}</p>
+                <ForumPostBody
+                  content={q.content}
+                  imageUrls={q.imageUrls}
+                  altPrefix={`Foto de ${q.authorName}`}
+                  className="mt-2"
+                />
 
                 {q.teacherReplies?.length > 0 && (
-                  <div className="mt-3 space-y-2 border-l border-[var(--card-border)] pl-3">
+                  <div className="mt-3 space-y-3 border-l border-[var(--card-border)] pl-3">
                     {q.teacherReplies.map((r) => (
-                      <div key={r.id} className="text-sm">
+                      <div key={r.id}>
                         <p className="text-xs text-[var(--text-muted)]">
                           {r.teacherName} · {new Date(r.createdAt).toLocaleString("pt-BR")}
                         </p>
-                        <p className="whitespace-pre-wrap text-[var(--text-secondary)]">{r.content}</p>
+                        <ForumPostBody content={r.content} altPrefix={`Foto de ${r.teacherName}`} className="mt-1" />
                       </div>
                     ))}
                   </div>
                 )}
 
-                <div className="mt-4 flex flex-col gap-2">
-                  <textarea
-                    value={replyContentByQuestionId[q.id] ?? ""}
-                    onChange={(e) => setReplyContentByQuestionId((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                    placeholder="Responder..."
-                    className="min-h-[80px] w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm text-[var(--text-primary)]"
+                <div className="mt-4">
+                  <ForumPostComposer
+                    content={replyContentByQuestionId[q.id] ?? ""}
+                    onContentChange={(value) =>
+                      setReplyContentByQuestionId((prev) => ({ ...prev, [q.id]: value }))
+                    }
+                    imageUrls={replyImageUrlsByQuestionId[q.id] ?? []}
+                    onImageUrlsChange={(urls) =>
+                      setReplyImageUrlsByQuestionId((prev) => ({ ...prev, [q.id]: urls }))
+                    }
+                    onSubmit={() => void handleReply(q.id)}
+                    submitting={replyingQuestionId === q.id}
+                    submitLabel="Responder"
+                    placeholder="Sua resposta (rich text, opcional)…"
+                    minEditorHeight="120px"
+                    uploadSignaturePath={TEACHER_FORUM_UPLOAD}
                   />
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleReply(q.id)}
-                      disabled={replyingQuestionId === q.id || (replyContentByQuestionId[q.id] ?? "").trim().length < 2}
-                      className="inline-flex w-fit items-center justify-center rounded-md bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-60"
-                    >
-                      {replyingQuestionId === q.id ? "Enviando…" : "Responder"}
-                    </button>
-                  </div>
                 </div>
               </div>
             ))}

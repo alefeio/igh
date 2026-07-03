@@ -7,8 +7,10 @@ import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/Das
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { AttendanceGrid } from "@/components/professor/AttendanceGrid";
-import { Button } from "@/components/ui/Button";
+import { ForumPostBody } from "@/components/forum/ForumPostBody";
+import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
 import type { ApiResponse } from "@/lib/api-types";
+import { isForumPostEmpty } from "@/lib/forum-question-content";
 import { AlertCircle, Cake, Presentation } from "lucide-react";
 
 type ClassGroup = {
@@ -164,6 +166,7 @@ export default function ProfessorTurmaDetailPage() {
     lessonTitle: string;
     moduleTitle: string;
     content: string;
+    imageUrls?: string[];
     createdAt: string;
     authorName: string;
     teacherReplies: { id: string; content: string; createdAt: string; teacherName: string }[];
@@ -171,7 +174,10 @@ export default function ProfessorTurmaDetailPage() {
   const [lessonQuestions, setLessonQuestions] = useState<ProfLessonQuestion[]>([]);
   const [loadingDuvidas, setLoadingDuvidas] = useState(false);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [replyImageDrafts, setReplyImageDrafts] = useState<Record<string, string[]>>({});
   const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
+
+  const TEACHER_FORUM_UPLOAD = "/api/teacher/uploads/apimages-signature";
 
   const loadClassGroup = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${id}`);
@@ -241,9 +247,10 @@ export default function ProfessorTurmaDetailPage() {
   }, [tab, loadLessonQuestions]);
 
   const handleSendTeacherReply = async (questionId: string) => {
-    const content = (replyDrafts[questionId] ?? "").trim();
-    if (!content) {
-      toast.push("error", "Digite a resposta.");
+    const content = replyDrafts[questionId] ?? "";
+    const imageUrls = replyImageDrafts[questionId] ?? [];
+    if (isForumPostEmpty(content, imageUrls)) {
+      toast.push("error", "Digite a resposta ou anexe ao menos uma foto.");
       return;
     }
     setSavingReplyQuestionId(questionId);
@@ -251,7 +258,7 @@ export default function ProfessorTurmaDetailPage() {
       const res = await fetch(`/api/teacher/class-groups/${id}/lesson-questions/${questionId}/reply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, imageUrls }),
       });
       const json = (await res.json()) as ApiResponse<{
         id: string;
@@ -262,6 +269,7 @@ export default function ProfessorTurmaDetailPage() {
       if (res.ok && json?.ok && json.data) {
         toast.push("success", "Resposta publicada.");
         setReplyDrafts((d) => ({ ...d, [questionId]: "" }));
+        setReplyImageDrafts((d) => ({ ...d, [questionId]: [] }));
         setLessonQuestions((prev) =>
           prev.map((q) =>
             q.id === questionId
@@ -719,35 +727,39 @@ export default function ProfessorTurmaDetailPage() {
                   <p className="mt-1 text-xs text-[var(--text-muted)]">
                     {q.authorName} · {formatDateTime(q.createdAt)}
                   </p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--text-primary)]">{q.content}</p>
+                  <ForumPostBody
+                    content={q.content}
+                    imageUrls={q.imageUrls}
+                    altPrefix={`Foto de ${q.authorName}`}
+                    className="mt-2"
+                  />
                   {q.teacherReplies.length > 0 && (
                     <div className="mt-3 rounded-md border border-[var(--igh-primary)]/30 bg-[var(--igh-primary)]/5 p-2">
                       <p className="text-xs font-semibold text-[var(--igh-primary)]">Suas respostas</p>
                       {q.teacherReplies.map((r) => (
-                        <div key={r.id} className="mt-2 text-xs">
-                          <span className="font-medium text-[var(--text-primary)]">{r.teacherName}</span>
-                          <span className="ml-2 text-[var(--text-muted)]">{formatDateTime(r.createdAt)}</span>
-                          <p className="mt-1 whitespace-pre-wrap text-[var(--text-secondary)]">{r.content}</p>
+                        <div key={r.id} className="mt-2">
+                          <p className="text-xs text-[var(--text-muted)]">
+                            <span className="font-medium text-[var(--text-primary)]">{r.teacherName}</span>
+                            <span className="ml-2">{formatDateTime(r.createdAt)}</span>
+                          </p>
+                          <ForumPostBody content={r.content} altPrefix={`Foto de ${r.teacherName}`} className="mt-1" />
                         </div>
                       ))}
                     </div>
                   )}
                   <div className="mt-3">
-                    <textarea
-                      value={replyDrafts[q.id] ?? ""}
-                      onChange={(e) => setReplyDrafts((d) => ({ ...d, [q.id]: e.target.value }))}
-                      rows={3}
-                      placeholder="Responder como professor..."
-                      className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                    <ForumPostComposer
+                      content={replyDrafts[q.id] ?? ""}
+                      onContentChange={(value) => setReplyDrafts((d) => ({ ...d, [q.id]: value }))}
+                      imageUrls={replyImageDrafts[q.id] ?? []}
+                      onImageUrlsChange={(urls) => setReplyImageDrafts((d) => ({ ...d, [q.id]: urls }))}
+                      onSubmit={() => void handleSendTeacherReply(q.id)}
+                      submitting={savingReplyQuestionId === q.id}
+                      submitLabel="Publicar resposta"
+                      placeholder="Responder como professor…"
+                      minEditorHeight="120px"
+                      uploadSignaturePath={TEACHER_FORUM_UPLOAD}
                     />
-                    <Button
-                      type="button"
-                      className="mt-2"
-                      onClick={() => void handleSendTeacherReply(q.id)}
-                      disabled={savingReplyQuestionId === q.id}
-                    >
-                      {savingReplyQuestionId === q.id ? "Enviando..." : "Publicar resposta"}
-                    </Button>
                   </div>
                 </li>
               ))}

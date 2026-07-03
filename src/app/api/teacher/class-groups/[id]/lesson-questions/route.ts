@@ -75,6 +75,7 @@ export async function GET(
         lessonTitle: les?.title ?? "Aula",
         moduleTitle: les?.module.title ?? "",
         content: q.content,
+        imageUrls: q.imageUrls ?? [],
         createdAt: q.createdAt.toISOString(),
         updatedAt: q.updatedAt.toISOString(),
         authorName: q.enrollment.student.name,

@@ -3,6 +3,11 @@ import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { notifyParticipantsAfterTeacherForumReply } from "@/lib/forum-user-notifications";
+import {
+  isForumPostEmpty,
+  mergeForumImagesIntoHtml,
+  parseForumImageUrls,
+} from "@/lib/forum-question-content";
 
 export async function POST(
   request: Request,
@@ -39,14 +44,18 @@ export async function POST(
     return jsonErr("NOT_FOUND", "Dúvida não encontrada neste curso.", 404);
   }
 
-  let body: { content?: string } = {};
+  let body: { content?: string; imageUrls?: unknown } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return jsonErr("BAD_REQUEST", "JSON inválido.", 400);
   }
-  const content = typeof body.content === "string" ? body.content.trim() : "";
-  if (content.length < 2) return jsonErr("BAD_REQUEST", "Digite a resposta.", 400);
+  const rawContent = typeof body.content === "string" ? body.content.trim() : "";
+  const imageUrls = parseForumImageUrls(body.imageUrls);
+  if (isForumPostEmpty(rawContent, imageUrls)) {
+    return jsonErr("BAD_REQUEST", "Digite a resposta ou anexe ao menos uma foto.", 400);
+  }
+  const content = mergeForumImagesIntoHtml(rawContent, imageUrls);
 
   const reply = await prisma.lessonQuestionTeacherReply.create({
     data: {

@@ -50,3 +50,16 @@ export function parseForumImageUrls(raw: unknown, max = MAX_FORUM_QUESTION_IMAGE
 export function contentLooksLikeHtml(content: string): boolean {
   return /<[a-z][\s\S]*>/i.test(content.trim());
 }
+
+/** Anexa imagens do fórum ao HTML da publicação (usado em respostas de professor sem coluna imageUrls). */
+export function mergeForumImagesIntoHtml(content: string, imageUrls: string[]): string {
+  const imgs =
+    imageUrls.length > 0
+      ? imageUrls.map((url) => `<p><img src="${url}" alt="" /></p>`).join("")
+      : "";
+  const trimmed = (content || "").trim();
+  if (!trimmed && !imgs) return "";
+  if (!imgs) return trimmed;
+  if (!trimmed) return imgs;
+  return `${trimmed}${imgs}`;
+}

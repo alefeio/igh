@@ -15,6 +15,8 @@ type ForumImageUploadProps = {
   onChange: (urls: string[]) => void;
   disabled?: boolean;
   maxImages?: number;
+  /** Rota POST para assinatura de upload (padrão: aluno). */
+  uploadSignaturePath?: string;
 };
 
 export function ForumImageUpload({
@@ -22,12 +24,13 @@ export function ForumImageUpload({
   onChange,
   disabled = false,
   maxImages = MAX_FORUM_QUESTION_IMAGES,
+  uploadSignaturePath = "/api/me/uploads/apimages-signature",
 }: ForumImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const uploadOne = useCallback(async (file: File): Promise<string | null> => {
-    const signRes = await fetch("/api/me/uploads/apimages-signature", {
+    const signRes = await fetch(uploadSignaturePath, {
       method: "POST",
       credentials: "include",
     });
@@ -45,7 +48,7 @@ export function ForumImageUpload({
     const parsed = parseApimagesUploadJson(uploadJson);
     if (!uploadRes.ok || parsed.errorMessage || !parsed.url) return null;
     return parsed.url;
-  }, []);
+  }, [uploadSignaturePath]);
 
   const handleFiles = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {

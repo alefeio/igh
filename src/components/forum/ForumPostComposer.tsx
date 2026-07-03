@@ -16,6 +16,7 @@ type ForumPostComposerProps = {
   placeholder?: string;
   minEditorHeight?: string;
   disabled?: boolean;
+  uploadSignaturePath?: string;
 };
 
 export function ForumPostComposer({
@@ -29,6 +30,7 @@ export function ForumPostComposer({
   placeholder = "Escreva sua mensagem (opcional)…",
   minEditorHeight = "140px",
   disabled = false,
+  uploadSignaturePath,
 }: ForumPostComposerProps) {
   const canSubmit = !disabled && !submitting && !isForumPostEmpty(content, imageUrls);
 
@@ -47,6 +49,7 @@ export function ForumPostComposer({
         imageUrls={imageUrls}
         onChange={onImageUrlsChange}
         disabled={disabled || submitting}
+        uploadSignaturePath={uploadSignaturePath}
       />
       <button
         type="button"
