@@ -16,6 +16,7 @@ import {
   StudentRankingShowcase,
   PlatformExperienceHomeSection,
   MothersDayMessagesHomeSection,
+  CommunityCtaHomeSection,
 } from "@/components/site";
 import { statsImpact } from "@/content";
 import {
@@ -133,6 +134,7 @@ export default async function HomePage({ searchParams }: Props) {
       )}
 
       <HomeAudiencePathsStrip />
+      <CommunityCtaHomeSection />
       <HomePublicRatingStrip block={platformExperienceBlock} />
 
       {/* Prova de impacto */}

@@ -72,6 +72,8 @@ model User {
   marketingCampaignResponseLikes   MarketingCampaignResponseLike[]
   ighCommunityTopicsModerated      IghCommunityTopic[]          @relation("IghCommunityTopicModeratedBy")
   ighCommunityRepliesModerated     IghCommunityReply[]          @relation("IghCommunityReplyModeratedBy")
+  ighCommunityTopicsAuthored       IghCommunityTopic[]          @relation("IghCommunityTopicAuthor")
+  ighCommunityRepliesAuthored      IghCommunityReply[]          @relation("IghCommunityReplyAuthor")
 }
 
 /// * Navegação na área logada — rota (pathname) por utilizador, para o Master acompanhar páginas vistas.
@@ -862,44 +864,70 @@ enum IghCommunityPostStatus {
   REJECTED
 }
 
+model IghCommunityTag {
+  id        String                 @id @default(uuid())
+  name      String                 @unique
+  createdAt DateTime               @default(now())
+  topics    IghCommunityTopicTag[]
+
+  @@index([name])
+}
+
+model IghCommunityTopicTag {
+  topicId String
+  tagId   String
+  topic   IghCommunityTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  tag     IghCommunityTag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([topicId, tagId])
+  @@index([tagId])
+}
+
 model IghCommunityTopic {
   id                  String                   @id @default(uuid())
-  studentId           String
+  authorUserId        String
+  studentId           String?
   kind                IghCommunityTopicKind
   title               String
   content             String
-  status              IghCommunityPostStatus   @default(PENDING)
+  status              IghCommunityPostStatus   @default(APPROVED)
   moderatedAt         DateTime?
   moderatedByUserId   String?
   moderationNote      String?
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
-  student             Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author              User                     @relation("IghCommunityTopicAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  student             Student?                 @relation(fields: [studentId], references: [id], onDelete: SetNull)
   moderatedBy         User?                    @relation("IghCommunityTopicModeratedBy", fields: [moderatedByUserId], references: [id])
   replies             IghCommunityReply[]
+  tags                IghCommunityTopicTag[]
 
   @@index([status, createdAt(sort: Desc)])
   @@index([studentId])
+  @@index([authorUserId])
   @@index([kind])
 }
 
 model IghCommunityReply {
   id                  String                 @id @default(uuid())
   topicId             String
-  studentId           String
+  authorUserId        String
+  studentId           String?
   content             String
-  status              IghCommunityPostStatus @default(PENDING)
+  status              IghCommunityPostStatus @default(APPROVED)
   moderatedAt         DateTime?
   moderatedByUserId   String?
   moderationNote      String?
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
   topic               IghCommunityTopic      @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  student             Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  author              User                   @relation("IghCommunityReplyAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  student             Student?               @relation(fields: [studentId], references: [id], onDelete: SetNull)
   moderatedBy         User?                  @relation("IghCommunityReplyModeratedBy", fields: [moderatedByUserId], references: [id])
 
   @@index([topicId, status, createdAt])
   @@index([studentId])
+  @@index([authorUserId])
 }
 
 /// * Resposta de um aluno ao comentário/dúvida de outro (em "Dúvidas sobre esta aula").

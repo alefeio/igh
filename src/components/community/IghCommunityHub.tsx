@@ -4,6 +4,7 @@ import { Lightbulb, MessageSquare, Users } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { CommunityTagInput } from "@/components/community/CommunityTagInput";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
@@ -18,31 +19,26 @@ const KIND_OPTIONS = [
   { value: "DISCUSSION", label: "Discussão geral" },
 ] as const;
 
-function statusBadgeClass(status: string) {
-  if (status === "APPROVED") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300";
-  if (status === "PENDING") return "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200";
-  return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300";
-}
-
-export function IghCommunityHub({ readOnly = false }: { readOnly?: boolean }) {
+export function IghCommunityHub({ canCreateTopics = false }: { canCreateTopics?: boolean }) {
   const toast = useToast();
   const user = useUser();
   const isStudent = user.role === "STUDENT";
-  const canPost = isStudent && !readOnly;
 
   const [loading, setLoading] = useState(true);
   const [kindFilter, setKindFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [topics, setTopics] = useState<CommunityTopicView[]>([]);
   const [canParticipate, setCanParticipate] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formKind, setFormKind] = useState<"IDEA" | "TEAM" | "DISCUSSION">("IDEA");
   const [formTitle, setFormTitle] = useState("");
   const [formContent, setFormContent] = useState("");
+  const [formTags, setFormTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const listUrl = isStudent
-    ? `/api/me/igh-community/topics${kindFilter ? `?kind=${kindFilter}` : ""}`
-    : `/api/igh-community/topics${kindFilter ? `?kind=${kindFilter}` : ""}`;
+    ? `/api/me/igh-community/topics${kindFilter ? `?kind=${kindFilter}` : ""}${tagFilter ? `${kindFilter ? "&" : "?"}tag=${encodeURIComponent(tagFilter)}` : ""}`
+    : `/api/igh-community/topics${kindFilter ? `?kind=${kindFilter}` : ""}${tagFilter ? `${kindFilter ? "&" : "?"}tag=${encodeURIComponent(tagFilter)}` : ""}`;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,14 +73,15 @@ export function IghCommunityHub({ readOnly = false }: { readOnly?: boolean }) {
       const res = await fetch("/api/me/igh-community/topics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: formKind, title: formTitle, content: formContent }),
+        body: JSON.stringify({ kind: formKind, title: formTitle, content: formContent, tags: formTags }),
       });
       const json = (await res.json()) as ApiResponse<{ message?: string }>;
       if (res.ok && json.ok) {
-        toast.push("success", json.data.message ?? "Enviado para moderação.");
+        toast.push("success", json.data.message ?? "Publicado.");
         setShowForm(false);
         setFormTitle("");
         setFormContent("");
+        setFormTags([]);
         void load();
       } else {
         toast.push("error", json.ok ? "Falha ao publicar." : json.error.message);
@@ -93,6 +90,8 @@ export function IghCommunityHub({ readOnly = false }: { readOnly?: boolean }) {
       setSaving(false);
     }
   };
+
+  const allTags = [...new Set(topics.flatMap((t) => t.tags))].sort();
 
   return (
     <div className="flex flex-col gap-6">
@@ -119,7 +118,7 @@ export function IghCommunityHub({ readOnly = false }: { readOnly?: boolean }) {
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm font-medium text-[var(--text-secondary)]">
-          Filtrar
+          Tipo
           <select
             className="ml-2 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2 py-1.5 text-sm"
             value={kindFilter}
@@ -132,23 +131,38 @@ export function IghCommunityHub({ readOnly = false }: { readOnly?: boolean }) {
             ))}
           </select>
         </label>
-        {canPost && canParticipate && (
+        {allTags.length > 0 && (
+          <label className="text-sm font-medium text-[var(--text-secondary)]">
+            Tag
+            <select
+              className="ml-2 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2 py-1.5 text-sm"
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
+            >
+              <option value="">Todas</option>
+              {allTags.map((tag) => (
+                <option key={tag} value={tag}>
+                  #{tag}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {canCreateTopics && canParticipate && (
           <Button type="button" onClick={() => setShowForm((v) => !v)}>
             {showForm ? "Cancelar" : "Nova publicação"}
           </Button>
         )}
-        {canPost && !canParticipate && (
-          <p className="text-sm text-amber-700 dark:text-amber-300">
-            Matrícula ativa necessária para publicar.
-          </p>
+        {canCreateTopics && !canParticipate && (
+          <p className="text-sm text-amber-700 dark:text-amber-300">Conta inativa para publicar.</p>
         )}
       </div>
 
-      {showForm && canPost && (
+      {showForm && canCreateTopics && (
         <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Nova publicação</h2>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Sua mensagem será revisada pela equipe antes de aparecer para todos.
+            Sua mensagem será publicada imediatamente para toda a comunidade.
           </p>
           <div className="mt-4 flex flex-col gap-3">
             <label className="text-sm">
@@ -172,6 +186,7 @@ export function IghCommunityHub({ readOnly = false }: { readOnly?: boolean }) {
                 placeholder="Resumo da sua ideia ou pergunta"
               />
             </label>
+            <CommunityTagInput value={formTags} onChange={setFormTags} />
             <label className="text-sm font-medium text-[var(--text-secondary)]">
               Mensagem
               <textarea
@@ -182,7 +197,7 @@ export function IghCommunityHub({ readOnly = false }: { readOnly?: boolean }) {
               />
             </label>
             <Button type="button" disabled={saving} onClick={() => void submitTopic()}>
-              {saving ? "Enviando…" : "Enviar para moderação"}
+              {saving ? "Publicando…" : "Publicar"}
             </Button>
           </div>
         </div>
@@ -194,7 +209,7 @@ export function IghCommunityHub({ readOnly = false }: { readOnly?: boolean }) {
         <p className="text-sm text-[var(--text-muted)]">
           {isStudent
             ? "Nenhuma publicação ainda. Seja o primeiro a compartilhar uma ideia!"
-            : "Nenhuma publicação aprovada no momento."}
+            : "Nenhuma publicação no momento."}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -208,16 +223,19 @@ export function IghCommunityHub({ readOnly = false }: { readOnly?: boolean }) {
                   <span className="rounded-full bg-[var(--igh-primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--igh-primary)]">
                     {t.kindLabel}
                   </span>
-                  {(t.isOwn || t.status !== "APPROVED") && (
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(t.status)}`}>
-                      {t.statusLabel}
+                  {t.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    >
+                      #{tag}
                     </span>
-                  )}
+                  ))}
                 </div>
                 <h3 className="mt-2 font-semibold text-[var(--text-primary)]">{t.title}</h3>
                 <p className="mt-1 line-clamp-2 text-sm text-[var(--text-secondary)]">{t.content}</p>
                 <p className="mt-2 text-xs text-[var(--text-muted)]">
-                  {t.authorName} · {t.replyCount} resposta{t.replyCount !== 1 ? "s" : ""} ·{" "}
+                  {t.authorName} · {t.authorRoleLabel} · {t.replyCount} resposta{t.replyCount !== 1 ? "s" : ""} ·{" "}
                   {new Date(t.createdAt).toLocaleDateString("pt-BR")}
                 </p>
               </Link>

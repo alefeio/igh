@@ -1,8 +1,9 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireRole } from "@/lib/auth";
 import {
-  IGH_COMMUNITY_STATUS_LABELS,
   IGH_COMMUNITY_TOPIC_KIND_LABELS,
+  authorRoleFromUserRole,
+  authorRoleLabel,
   isCommunityModerator,
 } from "@/lib/igh-community";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -14,45 +15,45 @@ export async function GET(request: Request) {
     if (!isCommunityModerator(user)) return jsonErr("FORBIDDEN", "Sem permissão.", 403);
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") ?? "PENDING";
+    const q = searchParams.get("q")?.trim();
 
-    const validStatus = ["PENDING", "APPROVED", "REJECTED", "ALL"] as const;
-    if (!validStatus.includes(status as (typeof validStatus)[number])) {
-      return jsonErr("VALIDATION_ERROR", "Status inválido.", 400);
-    }
-
-    const [topics, replies, pendingTopics, pendingReplies] = await Promise.all([
+    const [topics, replies] = await Promise.all([
       prisma.ighCommunityTopic.findMany({
-        where: status === "ALL" ? {} : { status: status as "PENDING" | "APPROVED" | "REJECTED" },
-        orderBy: { createdAt: "desc" },
-        take: 80,
-        include: { student: { select: { name: true } } },
-      }),
-      prisma.ighCommunityReply.findMany({
-        where: status === "ALL" ? {} : { status: status as "PENDING" | "APPROVED" | "REJECTED" },
+        where: q
+          ? {
+              OR: [
+                { title: { contains: q, mode: "insensitive" } },
+                { content: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {},
         orderBy: { createdAt: "desc" },
         take: 80,
         include: {
-          student: { select: { name: true } },
+          author: { select: { name: true, role: true } },
+          tags: { include: { tag: { select: { name: true } } } },
+        },
+      }),
+      prisma.ighCommunityReply.findMany({
+        where: q ? { content: { contains: q, mode: "insensitive" } } : {},
+        orderBy: { createdAt: "desc" },
+        take: 80,
+        include: {
+          author: { select: { name: true, role: true } },
           topic: { select: { id: true, title: true } },
         },
       }),
-      prisma.ighCommunityTopic.count({ where: { status: "PENDING" } }),
-      prisma.ighCommunityReply.count({ where: { status: "PENDING" } }),
     ]);
 
     return jsonOk({
-      pendingTopics,
-      pendingReplies,
       topics: topics.map((t) => ({
         id: t.id,
-        kind: t.kind,
         kindLabel: IGH_COMMUNITY_TOPIC_KIND_LABELS[t.kind],
         title: t.title,
         content: t.content,
-        status: t.status,
-        statusLabel: IGH_COMMUNITY_STATUS_LABELS[t.status],
-        authorName: t.student.name,
+        authorName: t.author.name,
+        authorRoleLabel: authorRoleLabel(authorRoleFromUserRole(t.author.role)),
+        tags: t.tags.map((x) => x.tag.name),
         createdAt: t.createdAt.toISOString(),
       })),
       replies: replies.map((r) => ({
@@ -60,9 +61,8 @@ export async function GET(request: Request) {
         topicId: r.topicId,
         topicTitle: r.topic.title,
         content: r.content,
-        status: r.status,
-        statusLabel: IGH_COMMUNITY_STATUS_LABELS[r.status],
-        authorName: r.student.name,
+        authorName: r.author.name,
+        authorRoleLabel: authorRoleLabel(authorRoleFromUserRole(r.author.role)),
         createdAt: r.createdAt.toISOString(),
       })),
     });

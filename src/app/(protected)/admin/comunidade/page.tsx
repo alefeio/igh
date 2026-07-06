@@ -9,7 +9,7 @@ export default function AdminComunidadePage() {
       <DashboardHero
         eyebrow="Comunidade IGH · PII"
         title="Moderação da comunidade"
-        description="Revise publicações dos alunos antes de liberar para toda a comunidade. Você pode editar o texto para adequar tom e remover dados sensíveis."
+        description="Exclua tópicos ou comentários inadequados. As publicações entram ao vivo — não há fila de aprovação prévia."
       />
       <div className="mt-6">
         <AdminIghCommunityModeration />

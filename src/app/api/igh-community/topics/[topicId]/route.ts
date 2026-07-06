@@ -1,6 +1,6 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireRole } from "@/lib/auth";
-import { canReadCommunity, IGH_COMMUNITY_STATUS_LABELS, mapTopicRow } from "@/lib/igh-community";
+import { canReadCommunity, mapReplyRow, mapTopicRow, replyInclude, topicInclude } from "@/lib/igh-community";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
@@ -15,28 +15,21 @@ export async function GET(_request: Request, ctx: RouteCtx) {
     const topic = await prisma.ighCommunityTopic.findFirst({
       where: { id: topicId, status: "APPROVED" },
       include: {
-        student: { select: { name: true } },
-        replies: {
-          where: { status: "APPROVED" },
-          orderBy: { createdAt: "asc" },
-          include: { student: { select: { name: true } } },
-        },
+        ...topicInclude,
+        _count: { select: { replies: true } },
       },
     });
     if (!topic) return jsonErr("NOT_FOUND", "Tópico não encontrado.", 404);
 
+    const replies = await prisma.ighCommunityReply.findMany({
+      where: { topicId, status: "APPROVED" },
+      orderBy: { createdAt: "asc" },
+      include: replyInclude,
+    });
+
     return jsonOk({
-      topic: mapTopicRow({ ...topic, _count: { replies: topic.replies.length } }, null),
-      replies: topic.replies.map((r) => ({
-        id: r.id,
-        content: r.content,
-        status: r.status,
-        statusLabel: IGH_COMMUNITY_STATUS_LABELS[r.status],
-        authorName: r.student.name,
-        authorStudentId: r.studentId,
-        isOwn: false,
-        createdAt: r.createdAt.toISOString(),
-      })),
+      topic: mapTopicRow(topic, user.id),
+      replies: replies.map((r) => mapReplyRow(r, user.id)),
     });
   } catch (e) {
     const auth = authErrorResponse(e);

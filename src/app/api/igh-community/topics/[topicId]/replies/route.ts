@@ -1,11 +1,6 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireRole } from "@/lib/auth";
-import {
-  getStudentForCommunityUser,
-  mapReplyRow,
-  replyInclude,
-  userCanParticipateInCommunity,
-} from "@/lib/igh-community";
+import { mapReplyRow, replyInclude, userCanReplyAsStaff } from "@/lib/igh-community";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { createIghCommunityReplySchema } from "@/lib/validators/igh-community";
@@ -14,13 +9,10 @@ type RouteCtx = { params: Promise<{ topicId: string }> };
 
 export async function POST(request: Request, ctx: RouteCtx) {
   try {
-    const user = await requireRole("STUDENT");
+    const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR", "TEACHER"]);
+    if (!userCanReplyAsStaff(user)) return jsonErr("FORBIDDEN", "Sem permissão.", 403);
+
     const { topicId } = await ctx.params;
-
-    if (!userCanParticipateInCommunity(user)) {
-      return jsonErr("FORBIDDEN", "Sua conta não está ativa para responder.", 403);
-    }
-
     const topic = await prisma.ighCommunityTopic.findFirst({
       where: { id: topicId, status: "APPROVED" },
       select: { id: true },
@@ -33,12 +25,10 @@ export async function POST(request: Request, ctx: RouteCtx) {
       return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos.", 400);
     }
 
-    const student = await getStudentForCommunityUser(user.id);
     const reply = await prisma.ighCommunityReply.create({
       data: {
         topicId,
         authorUserId: user.id,
-        studentId: student?.id ?? null,
         content: parsed.data.content,
         status: "APPROVED",
       },

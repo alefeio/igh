@@ -101,7 +101,9 @@ async function main() {
   const pdf = await PDFDocument.create();
   const title = baseName.includes("complemento")
     ? "Complemento para Valuation - CadastroCursos IGH"
-    : "Levantamento de Recursos - CadastroCursos IGH";
+    : baseName.includes("professores")
+      ? "Guia de Apresentacao - Portal IGH para Professores"
+      : "Levantamento de Recursos - CadastroCursos IGH";
   pdf.setTitle(title);
   pdf.setAuthor("CadastroCursos");
   pdf.setSubject("Inventario de funcionalidades do sistema");
