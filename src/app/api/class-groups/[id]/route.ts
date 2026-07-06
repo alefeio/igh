@@ -13,6 +13,7 @@ import {
 } from "@/lib/class-schedule-notification-text";
 import { createUserNotificationIfNew } from "@/lib/user-notifications";
 import { syncClassGroupTeachers, validateTeacherIds } from "@/lib/class-group-teachers";
+import { applyClassGroupSessionSchedule } from "@/lib/class-group-session-resync";
 import {
   generateSessionsByWorkload,
   parseDateOnly,
@@ -193,26 +194,28 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       await syncClassGroupTeachers(id, parsed.data.teacherIds, tx);
     }
 
-    if (shouldRegenerate) {
-      await tx.classSession.deleteMany({ where: { classGroupId: id } });
-
-      if (dates.length > 0) {
-        await tx.classSession.createMany({
-          data: dates.map((d, i) => ({
-            classGroupId: id,
-            sessionDate: d,
-            startTime: startTimeForGeneration,
-            endTime: endTimeForGeneration,
-            status: "SCHEDULED",
-            lessonId: lessonIds[i] ?? null,
-          })),
-        });
-      }
+    let syncedSessionsCount = 0;
+    if (shouldRegenerate && result) {
+      const sync = await applyClassGroupSessionSchedule(tx, {
+        classGroupId: id,
+        existingSessions: existing.sessions.map((s) => ({
+          id: s.id,
+          sessionDate: s.sessionDate,
+          lessonId: s.lessonId,
+          status: s.status,
+        })),
+        newDates: dates,
+        lessonIds,
+        startTime: startTimeForGeneration,
+        endTime: endTimeForGeneration,
+        endDate: computedEndDate,
+      });
+      syncedSessionsCount = sync.sessionsCount;
     }
 
     return {
       updated: updatedGroup,
-      sessionsCount: shouldRegenerate ? dates.length : 0,
+      sessionsCount: shouldRegenerate ? syncedSessionsCount : 0,
       endDate: computedEndDate,
       totalHours: result?.totalHours ?? 0,
     };
