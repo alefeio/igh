@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Sparkles, Ticket } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Sparkles, Ticket } from "lucide-react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site/Button";
@@ -24,6 +23,22 @@ function pad2(n: number) {
 type SessionUser = { name: string; email: string; role: string } | null;
 
 type RegistrationKey = `${string}:${string}`;
+
+function timeToMinutes(hm: string | null): number {
+  if (!hm) return -1;
+  const [h, m] = hm.slice(0, 5).split(":").map((x) => parseInt(x, 10));
+  if (Number.isNaN(h) || Number.isNaN(m)) return -1;
+  return h * 60 + m;
+}
+
+function sortCalendarItems(items: PublicCalendarItem[]): PublicCalendarItem[] {
+  return [...items].sort((a, b) => {
+    const aMin = timeToMinutes(a.startTime);
+    const bMin = timeToMinutes(b.startTime);
+    if (aMin !== bMin) return aMin - bMin;
+    return a.name.localeCompare(b.name, "pt-BR");
+  });
+}
 
 export function PublicIghCalendar({
   sessionUser,
@@ -114,6 +129,9 @@ export function PublicIghCalendar({
       list.push(item);
       m.set(item.date, list);
     }
+    for (const [date, list] of m) {
+      m.set(date, sortCalendarItems(list));
+    }
     return m;
   }, [items]);
 
@@ -155,8 +173,14 @@ export function PublicIghCalendar({
   };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-      <div>
+    <div
+      className={
+        selectedYmd
+          ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_min(100%,22rem)] lg:items-start"
+          : "w-full"
+      }
+    >
+      <div className="w-full min-w-0">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <button
@@ -211,11 +235,10 @@ export function PublicIghCalendar({
         {loading ? (
           <p className="py-12 text-center text-sm text-[var(--igh-muted)]">Carregando calendário…</p>
         ) : (
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
             {cells.map((cell, idx) => {
-              if (!cell.inMonth) return <div key={`empty-${idx}`} className="min-h-[4.5rem]" />;
+              if (!cell.inMonth) return <div key={`empty-${idx}`} className="min-h-[5.5rem] sm:min-h-[6.5rem]" />;
               const dayItems = byDate.get(cell.ymd) ?? [];
-              const hasRegistration = dayItems.some((i) => i.allowsRegistration);
               const isSelected = selectedYmd === cell.ymd;
               return (
                 <button
@@ -225,31 +248,34 @@ export function PublicIghCalendar({
                     setSelectedYmd(cell.ymd);
                     setFocusedItem(dayItems[0] ?? null);
                   }}
-                  className={`min-h-[4.5rem] rounded-lg border p-1.5 text-left transition ${
+                  className={`flex min-h-[5.5rem] flex-col rounded-lg border p-1.5 text-left transition sm:min-h-[6.5rem] sm:p-2 ${
                     isSelected
                       ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10 ring-2 ring-[var(--igh-primary)]/30"
                       : "border-[var(--igh-border)] bg-white hover:border-[var(--igh-primary)]/40"
                   }`}
                 >
                   <span className="text-sm font-semibold text-[var(--igh-secondary)]">{cell.day}</span>
-                  <div className="mt-1 flex flex-wrap gap-0.5">
-                    {dayItems.slice(0, 3).map((item) => (
-                      <span
-                        key={item.id}
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          item.allowsRegistration
-                            ? "bg-[var(--igh-primary)]"
-                            : item.kind === "event"
-                              ? "bg-amber-500"
-                              : "bg-slate-400"
-                        }`}
-                        aria-hidden
-                      />
-                    ))}
-                  </div>
-                  {hasRegistration && (
-                    <span className="mt-1 block text-[10px] font-medium text-[var(--igh-primary)]">Inscrições</span>
-                  )}
+                  <ul className="mt-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+                    {dayItems.length === 0 ? (
+                      <li className="flex-1" aria-hidden />
+                    ) : (
+                      dayItems.map((item) => (
+                        <li
+                          key={item.id}
+                          className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight sm:text-[11px] ${
+                            item.allowsRegistration
+                              ? "bg-[var(--igh-primary)]/15 font-medium text-[var(--igh-primary)]"
+                              : item.kind === "event"
+                                ? "bg-amber-50 font-medium text-amber-900"
+                                : "bg-slate-100 text-slate-700"
+                          }`}
+                          title={item.name}
+                        >
+                          {item.name}
+                        </li>
+                      ))
+                    )}
+                  </ul>
                 </button>
               );
             })}
@@ -257,24 +283,32 @@ export function PublicIghCalendar({
         )}
       </div>
 
-      <aside className="rounded-2xl border border-[var(--igh-border)] bg-white p-5 shadow-sm">
-        {!selectedYmd ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center text-[var(--igh-muted)]">
-            <CalendarDays className="mb-3 h-10 w-10 opacity-50" aria-hidden />
-            <p className="text-sm">Selecione um dia no calendário para ver feriados e eventos.</p>
-          </div>
-        ) : selectedItems.length === 0 ? (
-          <p className="text-sm text-[var(--igh-muted)]">Nenhum feriado ou evento neste dia.</p>
-        ) : (
+      {selectedYmd ? (
+        <aside className="rounded-2xl border border-[var(--igh-border)] bg-white p-5 shadow-sm lg:sticky lg:top-4">
+          {selectedItems.length === 0 ? (
+            <p className="text-sm text-[var(--igh-muted)]">Nenhum feriado ou evento neste dia.</p>
+          ) : (
           <div className="flex flex-col gap-4">
-            <h3 className="text-lg font-semibold text-[var(--igh-secondary)]">
-              {new Date(selectedYmd + "T12:00:00").toLocaleDateString("pt-BR", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-            </h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-lg font-semibold capitalize text-[var(--igh-secondary)]">
+                {new Date(selectedYmd + "T12:00:00").toLocaleDateString("pt-BR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </h3>
+              <button
+                type="button"
+                className="shrink-0 text-xs text-[var(--igh-muted)] underline hover:text-[var(--igh-secondary)]"
+                onClick={() => {
+                  setSelectedYmd(null);
+                  setFocusedItem(null);
+                }}
+              >
+                Fechar
+              </button>
+            </div>
             <ul className="flex flex-col gap-3">
               {selectedItems.map((item) => {
                 const active = focusedItem?.id === item.id;
@@ -382,12 +416,13 @@ export function PublicIghCalendar({
           </div>
         )}
 
-        {sessionUser && (
-          <p className="mt-6 border-t border-[var(--igh-border)] pt-4 text-xs text-[var(--igh-muted)]">
-            Conectado como <strong>{sessionUser.name}</strong>
-          </p>
-        )}
-      </aside>
+          {sessionUser && (
+            <p className="mt-6 border-t border-[var(--igh-border)] pt-4 text-xs text-[var(--igh-muted)]">
+              Conectado como <strong>{sessionUser.name}</strong>
+            </p>
+          )}
+        </aside>
+      ) : null}
     </div>
   );
 }

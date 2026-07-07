@@ -100,6 +100,7 @@ export default function HolidaysPage() {
   const [allowsRegistration, setAllowsRegistration] = useState(false);
   const [publicDescription, setPublicDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [sendingNotify, setSendingNotify] = useState(false);
   /** Resumo visível após salvar feriado/evento, recalcular ou aviso em massa. */
@@ -124,6 +125,7 @@ export default function HolidaysPage() {
     setAllowsRegistration(false);
     setPublicDescription("");
     setEditing(null);
+    setIsDuplicating(false);
   }
 
   function openCreate(presetKind: "holiday" | "event" = "holiday") {
@@ -134,6 +136,7 @@ export default function HolidaysPage() {
   }
 
   function openEdit(h: Holiday) {
+    setIsDuplicating(false);
     setEditing(h);
     setRecurring(h.recurring);
     setDate(formatDate(h.date));
@@ -146,6 +149,44 @@ export default function HolidaysPage() {
     setAllowsRegistration(h.allowsRegistration);
     setPublicDescription(h.publicDescription ?? "");
     setOpen(true);
+  }
+
+  function openDuplicatePrefill(h: Holiday) {
+    resetForm();
+    setIsDuplicating(true);
+    setRecurring(h.recurring);
+    setDate(formatDate(h.date));
+    setName(h.name?.trim() ? `${h.name.trim()} (cópia)` : "Cópia");
+    setIsActive(true);
+    const ev = isTimedEvent(h);
+    setKind(ev ? "event" : "holiday");
+    setEventStartTime(ev ? formatHm(h.eventStartTime) : "08:00");
+    setEventEndTime(ev ? formatHm(h.eventEndTime) : "11:00");
+    setAllowsRegistration(h.allowsRegistration);
+    setPublicDescription(h.publicDescription ?? "");
+    setOpen(true);
+  }
+
+  async function duplicateHoliday(h: Holiday) {
+    const res = await fetch(`/api/holidays/${h.id}/duplicate`, { method: "POST" });
+    const json = await parseApiJson<{ holiday: Holiday }>(res);
+    if (res.ok && json?.ok) {
+      toast.push("success", "Cópia criada como inativa. Revise os dados e salve para ativar.");
+      await load();
+      openEdit(json.data.holiday);
+      return;
+    }
+    if (res.status === 409) {
+      toast.push(
+        "error",
+        json && !json.ok
+          ? json.error.message
+          : "Conflito de data/horário. Ajuste no formulário e salve."
+      );
+      openDuplicatePrefill(h);
+      return;
+    }
+    toast.push("error", json && !json.ok ? json.error.message : "Falha ao duplicar.");
   }
 
   async function load() {
@@ -595,6 +636,9 @@ export default function HolidaysPage() {
                   </Td>
                   <Td>
                     <div className="flex flex-wrap justify-end gap-2">
+                      <Button variant="secondary" onClick={() => void duplicateHoliday(h)}>
+                        Duplicar
+                      </Button>
                       <Button variant="secondary" onClick={() => openEdit(h)}>
                         Editar
                       </Button>
@@ -641,9 +685,13 @@ export default function HolidaysPage() {
         title={
           editing
             ? "Editar feriado ou evento"
-            : kind === "event"
-              ? "Novo evento"
-              : "Novo feriado"
+            : isDuplicating
+              ? kind === "event"
+                ? "Duplicar evento"
+                : "Duplicar feriado"
+              : kind === "event"
+                ? "Novo evento"
+                : "Novo feriado"
         }
         onClose={() => {
           setOpen(false);
@@ -651,6 +699,12 @@ export default function HolidaysPage() {
         }}
       >
         <form className="flex flex-col gap-3" onSubmit={save}>
+          {isDuplicating && !editing ? (
+            <p className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/60 px-3 py-2 text-xs text-[var(--text-secondary)]">
+              Revise os dados da cópia e ajuste <strong>data ou horário</strong> se já existir um registro igual. Salve
+              para criar o novo item.
+            </p>
+          ) : null}
           <div>
             <label className="text-sm font-medium">Tipo</label>
             <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:gap-6">
@@ -819,7 +873,13 @@ export default function HolidaysPage() {
               Cancelar
             </Button>
             <Button type="submit" disabled={!canSubmit || saving}>
-              {saving ? "Processando…" : "Salvar"}
+              {saving
+                ? "Processando…"
+                : editing
+                  ? "Salvar"
+                  : isDuplicating
+                    ? "Salvar cópia"
+                    : "Salvar"}
             </Button>
           </div>
         </form>
