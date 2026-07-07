@@ -31,9 +31,65 @@ export function formatHm(value: string | null): string {
   return s.length >= 5 ? s.slice(0, 5) : s;
 }
 
+export type PublicCalendarUrlState = {
+  date: string | null;
+  eventId: string | null;
+  subtitle: string | null;
+};
+
+export function normalizeCalendarSubtitle(value: string | null | undefined): string | null {
+  const s = value?.trim();
+  return s ? s : null;
+}
+
+export function subtitlesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const na = normalizeCalendarSubtitle(a);
+  const nb = normalizeCalendarSubtitle(b);
+  if (!na || !nb) return false;
+  return na.localeCompare(nb, "pt-BR", { sensitivity: "accent" }) === 0;
+}
+
 export function publicCalendarRegisterPath(holidayId: string, occurrenceDate: string): string {
-  const params = new URLSearchParams({ event: holidayId, date: occurrenceDate });
-  return `/calendario?${params.toString()}`;
+  return buildPublicCalendarPath({ date: occurrenceDate, eventId: holidayId, subtitle: null });
+}
+
+export function buildPublicCalendarPath(state: PublicCalendarUrlState): string;
+export function buildPublicCalendarPath(date?: string | null, eventId?: string | null): string;
+export function buildPublicCalendarPath(
+  stateOrDate?: PublicCalendarUrlState | string | null,
+  eventId?: string | null
+): string {
+  const state: PublicCalendarUrlState =
+    typeof stateOrDate === "object" && stateOrDate !== null
+      ? stateOrDate
+      : {
+          date: typeof stateOrDate === "string" ? stateOrDate : null,
+          eventId: eventId ?? null,
+          subtitle: null,
+        };
+
+  const params = new URLSearchParams();
+  const subtitle = normalizeCalendarSubtitle(state.subtitle);
+  if (subtitle) params.set("subtitle", subtitle);
+  if (state.date) params.set("date", state.date);
+  if (state.date && state.eventId) params.set("event", state.eventId);
+  const qs = params.toString();
+  return qs ? `/calendario?${qs}` : "/calendario";
+}
+
+export function parsePublicCalendarSearchParams(
+  searchParams: URLSearchParams | { get: (k: string) => string | null }
+): PublicCalendarUrlState {
+  const date = searchParams.get("date");
+  const event = searchParams.get("event");
+  const subtitle = searchParams.get("subtitle");
+  const validDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+  const validEvent = validDate && event?.trim() ? event.trim() : null;
+  return {
+    date: validDate,
+    eventId: validEvent,
+    subtitle: normalizeCalendarSubtitle(subtitle),
+  };
 }
 
 export function publicCalendarLoginPath(holidayId: string, occurrenceDate: string): string {

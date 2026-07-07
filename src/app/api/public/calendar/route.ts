@@ -36,5 +36,22 @@ export async function GET(request: Request) {
   }
   items.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
 
-  return jsonOk({ year: y, month: m, items });
+  const subtitleRows = await prisma.holiday.findMany({
+    where: {
+      isActive: true,
+      subtitle: { not: null },
+      eventStartTime: { not: null },
+      eventEndTime: { not: null },
+    },
+    select: { subtitle: true },
+  });
+  const subtitleTags = [
+    ...new Set(
+      subtitleRows
+        .map((r) => r.subtitle?.trim())
+        .filter((s): s is string => !!s)
+    ),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  return jsonOk({ year: y, month: m, items, subtitleTags });
 }

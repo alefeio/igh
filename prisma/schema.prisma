@@ -682,6 +682,18 @@ model Holiday {
   registrations      HolidayEventRegistration[]
 }
 
+/// * Banner horizontal de destaque na página pública /calendario (singleton).
+model HolidayCalendarBanner {
+  id        String   @id @default("singleton")
+  title     String?
+  subtitle  String?
+  ctaLabel  String?
+  ctaHref   String?
+  imageUrl  String?
+  isActive  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
 /// * Inscrição de usuário em uma ocorrência de evento institucional (data concreta).
 model HolidayEventRegistration {
   id                      String    @id @default(uuid())

@@ -1,6 +1,11 @@
+import { Suspense } from "react";
+
 import { Container, PageHeader } from "@/components/site";
+import { PublicCalendarHighlightBanner } from "@/components/site/PublicCalendarHighlightBanner";
 import { PublicIghCalendar } from "@/components/site/PublicIghCalendar";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { getActiveHolidayCalendarBanner } from "@/lib/holiday-calendar-banner";
+import { parsePublicCalendarSearchParams } from "@/lib/public-calendar-shared";
 
 export const metadata = {
   title: "Calendário IGH",
@@ -9,12 +14,17 @@ export const metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ event?: string; date?: string }>;
+  searchParams: Promise<{ event?: string; date?: string; subtitle?: string }>;
 };
 
 export default async function CalendarioPublicoPage({ searchParams }: Props) {
   const session = await getSessionUserFromCookie();
-  const { event: initialHolidayId, date: initialDate } = await searchParams;
+  const raw = await searchParams;
+  const { date: initialDate, eventId: initialHolidayId } = parsePublicCalendarSearchParams({
+    get: (key) =>
+      key === "date" ? raw.date ?? null : key === "event" ? raw.event ?? null : key === "subtitle" ? raw.subtitle ?? null : null,
+  });
+  const banner = await getActiveHolidayCalendarBanner();
 
   return (
     <>
@@ -24,11 +34,14 @@ export default async function CalendarioPublicoPage({ searchParams }: Props) {
       />
       <section className="pb-16 pt-4">
         <Container>
-          <PublicIghCalendar
-            sessionUser={session ? { name: session.name, email: session.email, role: session.role } : null}
-            initialHolidayId={initialHolidayId}
-            initialDate={initialDate}
-          />
+          <PublicCalendarHighlightBanner banner={banner} />
+          <Suspense fallback={<p className="text-sm text-[var(--igh-muted)]">Carregando calendário…</p>}>
+            <PublicIghCalendar
+              sessionUser={session ? { name: session.name, email: session.email, role: session.role } : null}
+              initialHolidayId={initialHolidayId ?? undefined}
+              initialDate={initialDate ?? undefined}
+            />
+          </Suspense>
         </Container>
       </section>
     </>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
+import { HolidayCalendarBannerEditor } from "@/components/holidays/HolidayCalendarBannerEditor";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -550,6 +551,8 @@ export default function HolidaysPage() {
           )}
         </div>
       ) : null}
+
+      <HolidayCalendarBannerEditor />
 
       <SectionCard
         title="Como funciona"

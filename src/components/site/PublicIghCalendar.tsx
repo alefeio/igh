@@ -1,17 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Clock, Sparkles, Ticket } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ChevronLeft, ChevronRight, Clock, Share2, Sparkles, Ticket, X } from "lucide-react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site/Button";
 import type { ApiResponse } from "@/lib/api-types";
 import type { PublicCalendarItem } from "@/lib/public-calendar-shared";
 import {
+  buildPublicCalendarPath,
   formatHm,
   formatPublicCalendarDate,
+  parsePublicCalendarSearchParams,
   publicCalendarLoginPath,
   publicCalendarSignupPath,
+  subtitlesMatch,
+  type PublicCalendarUrlState,
 } from "@/lib/public-calendar-shared";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -40,7 +45,15 @@ function sortCalendarItems(items: PublicCalendarItem[]): PublicCalendarItem[] {
   });
 }
 
-function ItemTitleBlock({ item, size = "card" }: { item: PublicCalendarItem; size?: "card" | "detail" }) {
+function ItemTitleBlock({
+  item,
+  size = "card",
+  onSubtitleClick,
+}: {
+  item: PublicCalendarItem;
+  size?: "card" | "detail";
+  onSubtitleClick?: (subtitle: string) => void;
+}) {
   return (
     <div>
       <p
@@ -53,7 +66,17 @@ function ItemTitleBlock({ item, size = "card" }: { item: PublicCalendarItem; siz
         {item.name}
       </p>
       {item.subtitle ? (
-        <p className="mt-0.5 text-xs font-normal text-[var(--igh-muted)]">{item.subtitle}</p>
+        onSubtitleClick ? (
+          <button
+            type="button"
+            onClick={() => onSubtitleClick(item.subtitle!)}
+            className="mt-1 inline-flex max-w-full rounded-full border border-[var(--igh-border)] bg-[var(--igh-surface)] px-2 py-0.5 text-left text-xs font-normal text-[var(--igh-muted)] transition hover:border-[var(--igh-primary)]/50 hover:text-[var(--igh-primary)]"
+          >
+            {item.subtitle}
+          </button>
+        ) : (
+          <p className="mt-0.5 text-xs font-normal text-[var(--igh-muted)]">{item.subtitle}</p>
+        )
       ) : null}
     </div>
   );
@@ -65,16 +88,18 @@ function CalendarItemDetail({
   registered,
   registering,
   onRegister,
+  onSubtitleClick,
 }: {
   item: PublicCalendarItem;
   sessionUser: SessionUser;
   registered: boolean;
   registering: boolean;
   onRegister: (item: PublicCalendarItem) => void;
+  onSubtitleClick?: (subtitle: string) => void;
 }) {
   return (
     <div className="rounded-xl border border-dashed border-[var(--igh-border)] bg-[var(--igh-surface)]/60 p-4">
-      <ItemTitleBlock item={item} size="detail" />
+      <ItemTitleBlock item={item} size="detail" onSubtitleClick={onSubtitleClick} />
       <p className="mt-2 text-xs text-[var(--igh-muted)]">
         {formatPublicCalendarDate(item.date, item.recurring)}
         {item.startTime && item.endTime ? ` · ${formatHm(item.startTime)} – ${formatHm(item.endTime)}` : ""}
@@ -158,20 +183,120 @@ export function PublicIghCalendar({
   initialDate?: string;
 }) {
   const toast = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlFromParams = parsePublicCalendarSearchParams(searchParams);
+  const bootDate =
+    urlFromParams.date ??
+    (initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : null);
+  const bootEventId = urlFromParams.eventId ?? initialHolidayId ?? null;
+  const subtitleFilter = urlFromParams.subtitle;
+
   const [view, setView] = useState(() => {
-    if (initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate)) {
-      const [y, m] = initialDate.split("-").map(Number);
+    if (bootDate) {
+      const [y, m] = bootDate.split("-").map(Number);
       return new Date(y, m - 1, 1);
     }
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
   const [items, setItems] = useState<PublicCalendarItem[]>([]);
+  const [subtitleTags, setSubtitleTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedYmd, setSelectedYmd] = useState<string | null>(initialDate ?? null);
+  const [selectedYmd, setSelectedYmd] = useState<string | null>(bootDate);
   const [focusedItem, setFocusedItem] = useState<PublicCalendarItem | null>(null);
   const [myRegistrations, setMyRegistrations] = useState<Set<RegistrationKey>>(new Set());
   const [registering, setRegistering] = useState(false);
+  const [sharing, setSharing] = useState(false);
+
+  const readUrlState = useCallback(
+    (): PublicCalendarUrlState => parsePublicCalendarSearchParams(searchParams),
+    [searchParams]
+  );
+
+  const updateUrl = useCallback(
+    (patch: Partial<PublicCalendarUrlState>) => {
+      const next: PublicCalendarUrlState = { ...readUrlState(), ...patch };
+      const path = buildPublicCalendarPath(next);
+      const currentQs = searchParams.toString();
+      const current = currentQs ? `${pathname}?${currentQs}` : pathname;
+      if (path !== current) router.replace(path, { scroll: false });
+    },
+    [pathname, router, readUrlState, searchParams]
+  );
+
+  const clearDaySelection = useCallback(() => {
+    setSelectedYmd(null);
+    setFocusedItem(null);
+    const { subtitle } = readUrlState();
+    updateUrl({ date: null, eventId: null, subtitle });
+  }, [readUrlState, updateUrl]);
+
+  const clearSubtitleFilter = useCallback(() => {
+    updateUrl({ subtitle: null, date: null, eventId: null });
+    setSelectedYmd(null);
+    setFocusedItem(null);
+  }, [updateUrl]);
+
+  const toggleSubtitleFilter = useCallback(
+    (tag: string) => {
+      const { subtitle } = readUrlState();
+      const nextSubtitle = subtitlesMatch(subtitle, tag) ? null : tag;
+      setSelectedYmd(null);
+      setFocusedItem(null);
+      updateUrl({ subtitle: nextSubtitle, date: null, eventId: null });
+    },
+    [readUrlState, updateUrl]
+  );
+
+  const selectDay = useCallback(
+    (ymd: string, dayItems: PublicCalendarItem[], preferredHolidayId?: string | null) => {
+      setSelectedYmd(ymd);
+      const match = preferredHolidayId
+        ? dayItems.find((i) => i.holidayId === preferredHolidayId) ?? dayItems[0] ?? null
+        : dayItems[0] ?? null;
+      setFocusedItem(match);
+      const { subtitle } = readUrlState();
+      updateUrl({ date: ymd, eventId: match?.holidayId ?? null, subtitle });
+    },
+    [readUrlState, updateUrl]
+  );
+
+  const selectEvent = useCallback(
+    (item: PublicCalendarItem) => {
+      setSelectedYmd(item.date);
+      setFocusedItem(item);
+      const { subtitle } = readUrlState();
+      updateUrl({ date: item.date, eventId: item.holidayId, subtitle });
+    },
+    [readUrlState, updateUrl]
+  );
+
+  const shareCalendar = async () => {
+    setSharing(true);
+    try {
+      const url = window.location.href;
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: "Calendário IGH",
+            text: "Confira o calendário de eventos do Instituto Gustavo Hessel.",
+            url,
+          });
+          return;
+        } catch (err) {
+          if (err instanceof Error && err.name === "AbortError") return;
+        }
+      }
+      await navigator.clipboard.writeText(url);
+      toast.push("success", "Link do calendário copiado para a área de transferência.");
+    } catch {
+      toast.push("error", "Não foi possível copiar o link. Copie a URL da barra de endereços.");
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const year = view.getFullYear();
   const month = view.getMonth() + 1;
@@ -180,9 +305,14 @@ export function PublicIghCalendar({
     setLoading(true);
     try {
       const res = await fetch(`/api/public/calendar?year=${year}&month=${month}`);
-      const json = (await res.json()) as ApiResponse<{ items: PublicCalendarItem[] }>;
-      if (res.ok && json.ok) setItems(json.data.items);
-      else setItems([]);
+      const json = (await res.json()) as ApiResponse<{ items: PublicCalendarItem[]; subtitleTags?: string[] }>;
+      if (res.ok && json.ok) {
+        setItems(json.data.items);
+        setSubtitleTags(json.data.subtitleTags ?? []);
+      } else {
+        setItems([]);
+        setSubtitleTags([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -221,18 +351,14 @@ export function PublicIghCalendar({
     void loadRegistrations();
   }, [loadRegistrations]);
 
-  useEffect(() => {
-    if (!initialHolidayId || !initialDate || items.length === 0) return;
-    const match = items.find((i) => i.holidayId === initialHolidayId && i.date === initialDate);
-    if (match) {
-      setSelectedYmd(initialDate);
-      setFocusedItem(match);
-    }
-  }, [initialHolidayId, initialDate, items]);
+  const filteredItems = useMemo(() => {
+    if (!subtitleFilter) return items;
+    return items.filter((item) => subtitlesMatch(item.subtitle, subtitleFilter));
+  }, [items, subtitleFilter]);
 
   const byDate = useMemo(() => {
     const m = new Map<string, PublicCalendarItem[]>();
-    for (const item of items) {
+    for (const item of filteredItems) {
       const list = m.get(item.date) ?? [];
       list.push(item);
       m.set(item.date, list);
@@ -241,7 +367,27 @@ export function PublicIghCalendar({
       m.set(date, sortCalendarItems(list));
     }
     return m;
-  }, [items]);
+  }, [filteredItems]);
+
+  useEffect(() => {
+    const { date, eventId } = parsePublicCalendarSearchParams(searchParams);
+    if (!date) {
+      setSelectedYmd(null);
+      setFocusedItem(null);
+      return;
+    }
+    const [y, m] = date.split("-").map(Number);
+    setView((prev) => {
+      const next = new Date(y, m - 1, 1);
+      return prev.getFullYear() === next.getFullYear() && prev.getMonth() === next.getMonth() ? prev : next;
+    });
+    setSelectedYmd(date);
+    const dayItems = byDate.get(date) ?? [];
+    const match = eventId
+      ? dayItems.find((i) => i.holidayId === eventId) ?? dayItems[0] ?? null
+      : dayItems[0] ?? null;
+    setFocusedItem(match);
+  }, [searchParams, byDate]);
 
   const firstDow = new Date(year, month - 1, 1).getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -253,17 +399,14 @@ export function PublicIghCalendar({
   while (cells.length % 7 !== 0) cells.push({ day: 0, inMonth: false, ymd: "" });
 
   const monthLabel = view.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const visibleSubtitleTags = useMemo(() => {
+    if (!subtitleFilter) return subtitleTags;
+    const has = subtitleTags.some((t) => subtitlesMatch(t, subtitleFilter));
+    if (has) return subtitleTags;
+    return [...subtitleTags, subtitleFilter].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [subtitleTags, subtitleFilter]);
   const selectedItems = selectedYmd ? (byDate.get(selectedYmd) ?? []) : [];
   const activeItem = focusedItem ?? selectedItems[0] ?? null;
-
-  useEffect(() => {
-    if (!selectedYmd) return;
-    const dayItems = byDate.get(selectedYmd) ?? [];
-    setFocusedItem((prev) => {
-      if (prev && dayItems.some((i) => i.id === prev.id)) return prev;
-      return dayItems[0] ?? null;
-    });
-  }, [selectedYmd, byDate]);
 
   const isRegistered = (item: PublicCalendarItem) =>
     myRegistrations.has(`${item.holidayId}:${item.date}` as RegistrationKey);
@@ -307,8 +450,7 @@ export function PublicIghCalendar({
               aria-label="Mês anterior"
               onClick={() => {
                 setView((v) => new Date(v.getFullYear(), v.getMonth() - 1, 1));
-                setSelectedYmd(null);
-                setFocusedItem(null);
+                clearDaySelection();
               }}
             >
               <ChevronLeft className="h-5 w-5" />
@@ -322,14 +464,25 @@ export function PublicIghCalendar({
               aria-label="Próximo mês"
               onClick={() => {
                 setView((v) => new Date(v.getFullYear(), v.getMonth() + 1, 1));
-                setSelectedYmd(null);
-                setFocusedItem(null);
+                clearDaySelection();
               }}
             >
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
-          <div className="flex flex-wrap gap-3 text-xs text-[var(--igh-muted)]">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={sharing}
+              onClick={() => void shareCalendar()}
+              className="inline-flex items-center gap-1.5"
+            >
+              <Share2 className="h-4 w-4" aria-hidden />
+              {sharing ? "Copiando…" : "Compartilhar"}
+            </Button>
+            <div className="flex flex-wrap gap-3 text-xs text-[var(--igh-muted)]">
             <span className="inline-flex items-center gap-1">
               <span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Feriado
             </span>
@@ -339,8 +492,54 @@ export function PublicIghCalendar({
             <span className="inline-flex items-center gap-1">
               <span className="h-2.5 w-2.5 rounded-full bg-[var(--igh-primary)]" /> Inscrições abertas
             </span>
+            </div>
           </div>
         </div>
+
+        {(visibleSubtitleTags.length > 0 || subtitleFilter) ? (
+          <div className="mb-4 rounded-xl border border-[var(--igh-border)] bg-white p-3 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--igh-muted)]">
+                Filtrar por subtítulo
+              </p>
+              {subtitleFilter ? (
+                <button
+                  type="button"
+                  onClick={clearSubtitleFilter}
+                  className="inline-flex items-center gap-1 text-xs text-[var(--igh-primary)] hover:underline"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                  Limpar filtro
+                </button>
+              ) : null}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {visibleSubtitleTags.map((tag) => {
+                const active = subtitlesMatch(subtitleFilter, tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => toggleSubtitleFilter(tag)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                      active
+                        ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                        : "border-[var(--igh-border)] bg-[var(--igh-surface)] text-[var(--igh-secondary)] hover:border-[var(--igh-primary)]/50"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+            {subtitleFilter ? (
+              <p className="mt-2 text-xs text-[var(--igh-muted)]">
+                Exibindo apenas dias com eventos com o subtítulo{" "}
+                <strong className="text-[var(--igh-secondary)]">{subtitleFilter}</strong>.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-[var(--igh-muted)]">
           {WEEKDAYS.map((d) => (
@@ -362,10 +561,7 @@ export function PublicIghCalendar({
                 <button
                   key={cell.ymd}
                   type="button"
-                  onClick={() => {
-                    setSelectedYmd(cell.ymd);
-                    setFocusedItem(dayItems[0] ?? null);
-                  }}
+                  onClick={() => selectDay(cell.ymd, dayItems)}
                   className={`flex min-h-[5.5rem] flex-col rounded-lg border p-1.5 text-left transition sm:min-h-[6.5rem] sm:p-2 ${
                     isSelected
                       ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10 ring-2 ring-[var(--igh-primary)]/30"
@@ -387,9 +583,14 @@ export function PublicIghCalendar({
                                 ? "bg-amber-50 font-medium text-amber-900"
                                 : "bg-slate-100 text-slate-700"
                           }`}
-                          title={item.name}
+                          title={item.subtitle ? `${item.name} — ${item.subtitle}` : item.name}
                         >
-                          {item.name}
+                          <span className="block truncate">{item.name}</span>
+                          {item.subtitle ? (
+                            <span className="mt-0.5 block truncate rounded bg-white/60 px-1 text-[9px] font-normal opacity-90 sm:text-[10px]">
+                              {item.subtitle}
+                            </span>
+                          ) : null}
                         </li>
                       ))
                     )}
@@ -419,10 +620,7 @@ export function PublicIghCalendar({
                 <button
                   type="button"
                   className="shrink-0 text-xs text-[var(--igh-muted)] underline hover:text-[var(--igh-secondary)]"
-                  onClick={() => {
-                    setSelectedYmd(null);
-                    setFocusedItem(null);
-                  }}
+                  onClick={clearDaySelection}
                 >
                   Fechar
                 </button>
@@ -435,6 +633,7 @@ export function PublicIghCalendar({
                   registered={isRegistered(activeItem)}
                   registering={registering}
                   onRegister={(item) => void register(item)}
+                  onSubtitleClick={toggleSubtitleFilter}
                 />
               ) : null}
 
@@ -451,7 +650,7 @@ export function PublicIghCalendar({
                         <li key={item.id}>
                           <button
                             type="button"
-                            onClick={() => setFocusedItem(item)}
+                            onClick={() => selectEvent(item)}
                             className={`w-full rounded-xl border p-3 text-left transition ${
                               active
                                 ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/5"
@@ -481,7 +680,7 @@ export function PublicIghCalendar({
                               )}
                             </div>
                             <div className="mt-2">
-                              <ItemTitleBlock item={item} />
+                              <ItemTitleBlock item={item} onSubtitleClick={toggleSubtitleFilter} />
                             </div>
                             {item.startTime && item.endTime && (
                               <p className="mt-1 flex items-center gap-1 text-xs text-[var(--igh-muted)]">

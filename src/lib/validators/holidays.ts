@@ -78,6 +78,15 @@ export const updateHolidaySchema = z.object({
   subtitle: z.string().max(300).optional().nullable(),
 });
 
+export const holidayCalendarBannerSchema = z.object({
+  title: z.string().max(200).optional().nullable(),
+  subtitle: z.string().max(500).optional().nullable(),
+  ctaLabel: z.string().max(80).optional().nullable(),
+  ctaHref: z.string().max(500).optional().nullable(),
+  imageUrl: z.string().max(2000).optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
 /** Normaliza "8:00" → "08:00" para armazenamento. */
 export function normalizeHolidayTimeHm(s: string): string {
   const parts = s.trim().split(":");
