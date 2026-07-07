@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { expandHolidayDateStringsInRange } from "@/lib/schedule";
-import { isTimedHolidayEvent } from "@/lib/public-calendar";
+import { isTimedHolidayEvent } from "@/lib/public-calendar-shared";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import {
   templateHolidayEventConfirmation,

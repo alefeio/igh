@@ -5,15 +5,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Sparkles, Ticket } from "lucide-react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/site/Button";
 import type { ApiResponse } from "@/lib/api-types";
-import type { PublicCalendarItem } from "@/lib/public-calendar";
+import type { PublicCalendarItem } from "@/lib/public-calendar-shared";
 import {
   formatHm,
   formatPublicCalendarDate,
   publicCalendarLoginPath,
   publicCalendarSignupPath,
-} from "@/lib/public-calendar";
+} from "@/lib/public-calendar-shared";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
