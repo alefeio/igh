@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireStaffWrite } from "@/lib/auth";
+import { requireMaster } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAuditLog } from "@/lib/audit";
 
@@ -13,7 +13,7 @@ export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireStaffWrite();
+  const user = await requireMaster();
   const { id } = await context.params;
 
   const source = await prisma.holiday.findUnique({ where: { id } });

@@ -100,6 +100,13 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Inscrições em eventos / feriados: Master, Admin ou Coordenador
+  if (pathname.startsWith("/holidays")) {
+    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
   return NextResponse.next();
 }
 

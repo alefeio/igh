@@ -93,6 +93,7 @@ const ITEMS: Item[] = [
   { href: "/admin/forum", label: "Fóruns — todos os cursos", adminOrMaster: true, category: "Administração" },
   { href: "/admin/frequencia", label: "Frequência — todas as turmas", adminOrMaster: true, category: "Administração" },
   { href: "/admin/avaliacoes-experiencia", label: "Avaliações de experiência", adminOrMaster: true, category: "Administração" },
+  { href: "/holidays", label: "Inscrições em eventos", adminOrMaster: true, category: "Administração" },
   { href: "/gamificacao", label: "Gamificação", adminOrMaster: true, category: "Administração" },
   { href: "/ranking-alunos", label: "Ranking dos alunos", adminOrMaster: true, category: "Administração" },
 
@@ -128,7 +129,6 @@ const ITEMS: Item[] = [
 
   /* —— Configurações (sistema / infra) —— */
   { href: "/time-slots", label: "Horários (cadastro)", masterOnly: true, category: "Configurações" },
-  { href: "/holidays", label: "Eventos e feriados", masterOnly: true, category: "Configurações" },
   { href: "/backup", label: "Backup do banco", masterOnly: true, category: "Configurações" },
 ];
 

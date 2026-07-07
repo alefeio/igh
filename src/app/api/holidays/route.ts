@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole, requireStaffWrite } from "@/lib/auth";
+import { requireMaster, requireStaffRead } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createHolidaySchema, normalizeHolidayTimeHm } from "@/lib/validators/holidays";
 import { createAuditLog } from "@/lib/audit";
@@ -7,7 +7,7 @@ import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-
 import { SENTINEL_YEAR_RECURRING } from "@/lib/schedule";
 
 export async function GET(request: Request) {
-  await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+  await requireStaffRead();
 
   const { searchParams } = new URL(request.url);
   const activeOnly = searchParams.get("activeOnly");
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireStaffWrite();
+  const user = await requireMaster();
 
   const body = await request.json().catch(() => null);
   const parsed = createHolidaySchema.safeParse(body);

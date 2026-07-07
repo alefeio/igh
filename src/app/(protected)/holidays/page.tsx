@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { HolidayCalendarBannerEditor } from "@/components/holidays/HolidayCalendarBannerEditor";
+import { HolidayEventRegistrationsPanel } from "@/components/holidays/HolidayEventRegistrationsPanel";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -86,11 +89,15 @@ async function parseApiJson<T>(res: Response): Promise<ApiResponse<T> | null> {
 
 export default function HolidaysPage() {
   const toast = useToast();
+  const user = useUser();
+  const isMaster = user.role === "MASTER";
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Holiday[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Holiday | null>(null);
   const [showInactive, setShowInactive] = useState(false);
+  const [showEventsCatalog, setShowEventsCatalog] = useState(isMaster);
+  const [registrationFocus, setRegistrationFocus] = useState<{ holidayId: string } | null>(null);
 
   const [kind, setKind] = useState<"holiday" | "event">("holiday");
   const [recurring, setRecurring] = useState(true);
@@ -432,267 +439,381 @@ export default function HolidaysPage() {
   }
 
   const visibleItems = showInactive ? items : items.filter((h) => h.isActive);
+  const readOnlyEvents = useMemo(
+    () =>
+      visibleItems.filter((h) => isTimedEvent(h) && h.allowsRegistration),
+    [visibleItems]
+  );
+
+  function focusRegistrations(holidayId: string) {
+    setRegistrationFocus({ holidayId });
+    setShowEventsCatalog(false);
+    window.setTimeout(() => {
+      document.getElementById("holiday-registrations-panel")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-6 sm:gap-8">
       <DashboardHero
-        eyebrow="Cadastros"
-        title="Eventos e Feriados"
-        description="Feriados de dia inteiro não geram aula nesse dia; as aulas são remarcadas para os próximos dias de aula da turma. Eventos com horário só afetam turmas cujo horário cruza o intervalo. Vários eventos podem ocorrer no mesmo dia e horário. Ao salvar, o sistema recalcula automaticamente as sessões de todas as turmas (qualquer status)."
+        eyebrow="Calendário público"
+        title={isMaster ? "Inscrições e gestão de eventos" : "Inscrições em eventos"}
+        description={
+          isMaster
+            ? "Acompanhe quem se inscreveu nos eventos do calendário público. A criação e edição de feriados e eventos é exclusiva do perfil Master."
+            : "Consulte quem se inscreveu nos eventos com inscrições abertas no calendário público. A listagem de feriados e eventos cadastrados fica disponível abaixo, para consulta."
+        }
         rightSlot={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full sm:w-auto"
-              disabled={recalculating}
-              onClick={() => void recalculateScheduleOnly()}
-            >
-              {recalculating ? "Recalculando…" : "Recalcular calendário das turmas"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full sm:w-auto"
-              disabled={sendingNotify}
-              onClick={() => void notifyStudentsScheduleBroadcast()}
-            >
-              {sendingNotify ? "Enviando…" : "Aviso no sino (quem ainda não recebeu)"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full sm:w-auto"
-              onClick={() => setShowInactive((prev) => !prev)}
-            >
-              {showInactive ? "Ocultar inativos" : "Exibir inativos"}
-            </Button>
-            <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => openCreate("holiday")}>
-                Novo feriado
+          isMaster ? (
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto"
+                disabled={recalculating}
+                onClick={() => void recalculateScheduleOnly()}
+              >
+                {recalculating ? "Recalculando…" : "Recalcular calendário das turmas"}
               </Button>
-              <Button type="button" className="w-full sm:w-auto" onClick={() => openCreate("event")}>
-                Novo evento
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full sm:w-auto"
+                disabled={sendingNotify}
+                onClick={() => void notifyStudentsScheduleBroadcast()}
+              >
+                {sendingNotify ? "Enviando…" : "Aviso no sino (quem ainda não recebeu)"}
               </Button>
             </div>
-          </div>
+          ) : undefined
         }
       />
 
-      {lastFeedback ? (
-        <div
-          className={`rounded-xl border px-4 py-3 sm:px-5 ${
-            lastFeedback.tag === "schedule" &&
-            (lastFeedback.data.notifyTurmaFailures ?? 0) > 0
-              ? "border-amber-500/40 bg-amber-500/10"
-              : "border-[var(--igh-primary)]/25 bg-[var(--igh-surface)]"
-          }`}
-          role="status"
-          aria-live="polite"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <h2 className="text-base font-semibold text-[var(--text-primary)]">
-              {lastFeedback.tag === "schedule"
-                ? "Processamento de calendário e notificações"
-                : "Envio de avisos no sino"}
-            </h2>
-            <Button type="button" variant="secondary" className="shrink-0 text-sm" onClick={() => setLastFeedback(null)}>
-              Fechar
-            </Button>
-          </div>
-          {lastFeedback.tag === "schedule" ? (
-            <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
-              <p>
-                <strong className="text-[var(--text-primary)]">Turmas analisadas</strong> (todas):{" "}
-                {lastFeedback.data.classGroupsProcessed}
-              </p>
-              <p>
-                <strong className="text-[var(--text-primary)]">Turmas com datas de aulas alteradas</strong>:{" "}
-                {lastFeedback.data.classGroupsUpdated}
-              </p>
-              <p>
-                <strong className="text-[var(--text-primary)]">Notificações criadas no sino</strong> (alunos com
-                conta): {lastFeedback.data.notificationsSent ?? 0}
-              </p>
-              <p>
-                <strong className="text-[var(--text-primary)]">Matrículas ignoradas no envio</strong> (sem conta
-                ligada ou duplicata interna): {lastFeedback.data.notificationsSkipped ?? 0}
-              </p>
-              {(lastFeedback.data.notifyTurmaFailures ?? 0) > 0 ? (
-                <p className="text-amber-800 dark:text-amber-200">
-                  <strong>Atenção:</strong> falha ao enviar avisos em {lastFeedback.data.notifyTurmaFailures}{" "}
-                  turma(s). As datas podem ter sido atualizadas mesmo assim — use &quot;Aviso no sino&quot; para
-                  quem faltou.
-                </p>
-              ) : null}
-              {lastFeedback.data.classGroupsUpdated === 0 && lastFeedback.data.classGroupsProcessed > 0 ? (
-                <p className="text-[var(--text-muted)]">
-                  Nenhuma turma precisou mudar datas: o feriado/evento pode não afetar o horário de nenhuma turma
-                  aberta (ex.: evento com horário que não cruza com o da turma), ou o calendário já estava
-                  coerente.
-                </p>
-              ) : null}
-            </div>
-          ) : (
-            <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
-              <p>
-                <strong className="text-[var(--text-primary)]">Avisos enviados</strong>:{" "}
-                {lastFeedback.notificationsSent}
-              </p>
-              <p>
-                <strong className="text-[var(--text-primary)]">Ignorados</strong> (já tinham aviso ou sem conta):{" "}
-                {lastFeedback.notificationsSkipped}
-              </p>
-              <p>
-                <strong className="text-[var(--text-primary)]">Turmas abertas consideradas</strong>:{" "}
-                {lastFeedback.classGroupsNotified}
-              </p>
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      <HolidayCalendarBannerEditor />
+      <div id="holiday-registrations-panel">
+        <HolidayEventRegistrationsPanel
+          focusHolidayId={registrationFocus?.holidayId ?? null}
+          onClearFocus={() => setRegistrationFocus(null)}
+        />
+      </div>
 
       <SectionCard
-        title="Como funciona"
-        description="Resumo do impacto no calendário das turmas (mesma lógica da criação de turma)."
-        variant="elevated"
-      >
-        <ul className="list-disc space-y-2 pl-5 text-sm text-[var(--text-secondary)]">
-          <li>
-            <strong>Feriado (dia inteiro)</strong>: não há aula nessa data. O sistema gera as sessões
-            saltando esse dia e usando apenas os <strong>dias da semana</strong> da turma até completar a carga
-            horária do curso (equivalente à lógica de criação da turma).
-          </li>
-          <li>
-            <strong>Evento (com horário)</strong>: só são adiadas as aulas em que o horário da turma (início–fim){" "}
-            <strong>cruza</strong> o intervalo do evento. Ex.: evento 08:00–11:00 não altera turmas só à tarde ou
-            que começam depois do fim do evento.
-          </li>
-          <li>
-            Ao criar, editar, inativar ou excluir um registro ativo, o calendário de todas as turmas é
-            recalculado automaticamente.
-          </li>
-          <li>
-            <strong>Vários eventos no mesmo horário</strong> são permitidos (cada um com nome e configurações próprias).
-          </li>
-          <li>
-            Se o cadastro de <strong>feriado</strong> falhou depois de avisar duplicata, o registro pode ter sido
-            salvo mesmo assim: use <strong>Recalcular calendário das turmas</strong> acima ou edite na lista e salve
-            de novo.
-          </li>
-          <li>
-            Depois de cada turma ter o calendário atualizado, o sistema tenta enviar o aviso no sino na hora. Se
-            algo falhar só nessa etapa, as datas podem mudar sem notificação — use{" "}
-            <strong>Aviso no sino (quem ainda não recebeu)</strong>: só envia para alunos com conta que ainda não
-            tinham o aviso de alteração de calendário por feriado/evento naquela matrícula.
-          </li>
-        </ul>
-      </SectionCard>
-
-      <SectionCard
-        title="Listagem"
+        title={isMaster ? "Gestão de eventos e feriados" : "Eventos e feriados cadastrados"}
         description={
-          loading
-            ? "Carregando…"
-            : `${visibleItems.length} ${visibleItems.length === 1 ? "registro" : "registros"} exibidos.`
+          isMaster
+            ? "Cadastro, banner do calendário público e impacto no cronograma das turmas."
+            : "Consulta somente leitura. Para criar ou alterar eventos, solicite ao Master."
         }
         variant="elevated"
       >
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-14" role="status">
-            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
-            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
-          </div>
-        ) : (
-          <TableShell>
-            <thead>
-              <tr>
-                <Th>Data</Th>
-                <Th>Tipo</Th>
-                <Th>Horário</Th>
-                <Th>Nome</Th>
-                <Th>Inscrições</Th>
-                <Th>Status</Th>
-                <Th />
-              </tr>
-            </thead>
-            <tbody>
-              {visibleItems.map((h) => (
-                <tr key={h.id}>
-                  <Td>{formatDateDisplay(h.date, h.recurring)}</Td>
-                  <Td>
-                    {isTimedEvent(h) ? (
-                      <Badge tone="amber">Evento</Badge>
-                    ) : (
-                      <Badge tone="zinc">Feriado</Badge>
-                    )}
-                  </Td>
-                  <Td className="text-[var(--text-secondary)]">
-                    {isTimedEvent(h)
-                      ? `${formatHm(h.eventStartTime)} – ${formatHm(h.eventEndTime)}`
-                      : "—"}
-                  </Td>
-                  <Td>{h.name ?? "—"}</Td>
-                  <Td className="text-[var(--text-secondary)]">
-                    {isTimedEvent(h) && h.allowsRegistration
-                      ? `${h._count?.registrations ?? 0} inscrito(s)`
-                      : "—"}
-                  </Td>
-                  <Td>
-                    {h.isActive ? (
-                      <Badge tone="green">Ativo</Badge>
-                    ) : (
-                      <Badge tone="red">Inativo</Badge>
-                    )}
-                  </Td>
-                  <Td>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button variant="secondary" onClick={() => void duplicateHoliday(h)}>
-                        Duplicar
+        <button
+          type="button"
+          onClick={() => setShowEventsCatalog((prev) => !prev)}
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/40 px-4 py-3 text-left transition hover:bg-[var(--igh-surface)]/80"
+          aria-expanded={showEventsCatalog}
+        >
+          <span className="text-sm font-medium text-[var(--text-primary)]">
+            {showEventsCatalog
+              ? "Ocultar listagem de eventos e feriados"
+              : isMaster
+                ? "Abrir gestão de eventos e feriados"
+                : "Abrir consulta de eventos e feriados"}
+          </span>
+          {showEventsCatalog ? (
+            <ChevronDown className="h-5 w-5 shrink-0 text-[var(--text-muted)]" aria-hidden />
+          ) : (
+            <ChevronRight className="h-5 w-5 shrink-0 text-[var(--text-muted)]" aria-hidden />
+          )}
+        </button>
+
+        {showEventsCatalog ? (
+          <div className="mt-6 flex flex-col gap-6">
+            {isMaster ? (
+              <>
+                {lastFeedback ? (
+                  <div
+                    className={`rounded-xl border px-4 py-3 sm:px-5 ${
+                      lastFeedback.tag === "schedule" &&
+                      (lastFeedback.data.notifyTurmaFailures ?? 0) > 0
+                        ? "border-amber-500/40 bg-amber-500/10"
+                        : "border-[var(--igh-primary)]/25 bg-[var(--igh-surface)]"
+                    }`}
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <h2 className="text-base font-semibold text-[var(--text-primary)]">
+                        {lastFeedback.tag === "schedule"
+                          ? "Processamento de calendário e notificações"
+                          : "Envio de avisos no sino"}
+                      </h2>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="shrink-0 text-sm"
+                        onClick={() => setLastFeedback(null)}
+                      >
+                        Fechar
                       </Button>
-                      <Button variant="secondary" onClick={() => openEdit(h)}>
-                        Editar
-                      </Button>
-                      {h.isActive ? (
-                        <Button
-                          variant="secondary"
-                          onClick={() => inactivateHoliday(h)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          Inativar
-                        </Button>
-                      ) : (
-                        <>
-                          <Button variant="secondary" onClick={() => reactivateHoliday(h)}>
-                            Reativar
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            onClick={() => deleteHoliday(h)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            Excluir
-                          </Button>
-                        </>
-                      )}
                     </div>
-                  </Td>
-                </tr>
-              ))}
-              {visibleItems.length === 0 ? (
-                <tr>
-                  <Td colSpan={7} className="text-[var(--text-secondary)]">
-                    {showInactive ? "Nenhum registro encontrado." : "Nenhum registro ativo."}
-                  </Td>
-                </tr>
-              ) : null}
-            </tbody>
-          </TableShell>
-        )}
+                    {lastFeedback.tag === "schedule" ? (
+                      <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                        <p>
+                          <strong className="text-[var(--text-primary)]">Turmas analisadas</strong> (todas):{" "}
+                          {lastFeedback.data.classGroupsProcessed}
+                        </p>
+                        <p>
+                          <strong className="text-[var(--text-primary)]">Turmas com datas de aulas alteradas</strong>:{" "}
+                          {lastFeedback.data.classGroupsUpdated}
+                        </p>
+                        <p>
+                          <strong className="text-[var(--text-primary)]">Notificações criadas no sino</strong> (alunos
+                          com conta): {lastFeedback.data.notificationsSent ?? 0}
+                        </p>
+                        <p>
+                          <strong className="text-[var(--text-primary)]">Matrículas ignoradas no envio</strong> (sem
+                          conta ligada ou duplicata interna): {lastFeedback.data.notificationsSkipped ?? 0}
+                        </p>
+                        {(lastFeedback.data.notifyTurmaFailures ?? 0) > 0 ? (
+                          <p className="text-amber-800 dark:text-amber-200">
+                            <strong>Atenção:</strong> falha ao enviar avisos em{" "}
+                            {lastFeedback.data.notifyTurmaFailures} turma(s). As datas podem ter sido atualizadas mesmo
+                            assim — use &quot;Aviso no sino&quot; para quem faltou.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                        <p>
+                          <strong className="text-[var(--text-primary)]">Avisos enviados</strong>:{" "}
+                          {lastFeedback.notificationsSent}
+                        </p>
+                        <p>
+                          <strong className="text-[var(--text-primary)]">Ignorados</strong> (já tinham aviso ou sem
+                          conta): {lastFeedback.notificationsSkipped}
+                        </p>
+                        <p>
+                          <strong className="text-[var(--text-primary)]">Turmas abertas consideradas</strong>:{" "}
+                          {lastFeedback.classGroupsNotified}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" onClick={() => setShowInactive((prev) => !prev)}>
+                    {showInactive ? "Ocultar inativos" : "Exibir inativos"}
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => openCreate("holiday")}>
+                    Novo feriado
+                  </Button>
+                  <Button type="button" onClick={() => openCreate("event")}>
+                    Novo evento
+                  </Button>
+                </div>
+
+                <HolidayCalendarBannerEditor />
+
+                <SectionCard
+                  title="Como funciona"
+                  description="Resumo do impacto no calendário das turmas (mesma lógica da criação de turma)."
+                  variant="elevated"
+                >
+                  <ul className="list-disc space-y-2 pl-5 text-sm text-[var(--text-secondary)]">
+                    <li>
+                      <strong>Feriado (dia inteiro)</strong>: não há aula nessa data. O sistema gera as sessões
+                      saltando esse dia e usando apenas os <strong>dias da semana</strong> da turma até completar a
+                      carga horária do curso.
+                    </li>
+                    <li>
+                      <strong>Evento (com horário)</strong>: só são adiadas as aulas em que o horário da turma{" "}
+                      <strong>cruza</strong> o intervalo do evento.
+                    </li>
+                    <li>
+                      Ao criar, editar, inativar ou excluir um registro ativo, o calendário de todas as turmas é
+                      recalculado automaticamente.
+                    </li>
+                  </ul>
+                </SectionCard>
+
+                <SectionCard
+                  title="Listagem"
+                  description={
+                    loading
+                      ? "Carregando…"
+                      : `${visibleItems.length} ${visibleItems.length === 1 ? "registro" : "registros"} exibidos.`
+                  }
+                  variant="elevated"
+                >
+                  {loading ? (
+                    <div className="flex flex-col items-center justify-center py-14" role="status">
+                      <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+                      <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+                    </div>
+                  ) : (
+                    <TableShell>
+                      <thead>
+                        <tr>
+                          <Th>Data</Th>
+                          <Th>Tipo</Th>
+                          <Th>Horário</Th>
+                          <Th>Nome</Th>
+                          <Th>Inscrições</Th>
+                          <Th>Status</Th>
+                          <Th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleItems.map((h) => (
+                          <tr key={h.id}>
+                            <Td>{formatDateDisplay(h.date, h.recurring)}</Td>
+                            <Td>
+                              {isTimedEvent(h) ? (
+                                <Badge tone="amber">Evento</Badge>
+                              ) : (
+                                <Badge tone="zinc">Feriado</Badge>
+                              )}
+                            </Td>
+                            <Td className="text-[var(--text-secondary)]">
+                              {isTimedEvent(h)
+                                ? `${formatHm(h.eventStartTime)} – ${formatHm(h.eventEndTime)}`
+                                : "—"}
+                            </Td>
+                            <Td>{h.name ?? "—"}</Td>
+                            <Td className="text-[var(--text-secondary)]">
+                              {isTimedEvent(h) && h.allowsRegistration ? (
+                                <button
+                                  type="button"
+                                  className="text-[var(--igh-primary)] underline hover:no-underline"
+                                  onClick={() => focusRegistrations(h.id)}
+                                >
+                                  {h._count?.registrations ?? 0} inscrito(s)
+                                </button>
+                              ) : (
+                                "—"
+                              )}
+                            </Td>
+                            <Td>
+                              {h.isActive ? (
+                                <Badge tone="green">Ativo</Badge>
+                              ) : (
+                                <Badge tone="red">Inativo</Badge>
+                              )}
+                            </Td>
+                            <Td>
+                              <div className="flex flex-wrap justify-end gap-2">
+                                <Button variant="secondary" onClick={() => void duplicateHoliday(h)}>
+                                  Duplicar
+                                </Button>
+                                <Button variant="secondary" onClick={() => openEdit(h)}>
+                                  Editar
+                                </Button>
+                                {h.isActive ? (
+                                  <Button
+                                    variant="secondary"
+                                    onClick={() => inactivateHoliday(h)}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    Inativar
+                                  </Button>
+                                ) : (
+                                  <>
+                                    <Button variant="secondary" onClick={() => reactivateHoliday(h)}>
+                                      Reativar
+                                    </Button>
+                                    <Button
+                                      variant="secondary"
+                                      onClick={() => deleteHoliday(h)}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      Excluir
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </Td>
+                          </tr>
+                        ))}
+                        {visibleItems.length === 0 ? (
+                          <tr>
+                            <Td colSpan={7} className="text-[var(--text-secondary)]">
+                              {showInactive ? "Nenhum registro encontrado." : "Nenhum registro ativo."}
+                            </Td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </TableShell>
+                  )}
+                </SectionCard>
+              </>
+            ) : (
+              <>
+                {loading ? (
+                  <div className="flex flex-col items-center justify-center py-14" role="status">
+                    <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+                    <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+                  </div>
+                ) : (
+                  <TableShell>
+                    <thead>
+                      <tr>
+                        <Th>Data</Th>
+                        <Th>Horário</Th>
+                        <Th>Nome</Th>
+                        <Th>Inscrições</Th>
+                        <Th>Status</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {readOnlyEvents.map((h) => (
+                        <tr key={h.id}>
+                          <Td>{formatDateDisplay(h.date, h.recurring)}</Td>
+                          <Td className="text-[var(--text-secondary)]">
+                            {formatHm(h.eventStartTime)} – {formatHm(h.eventEndTime)}
+                          </Td>
+                          <Td>{h.name ?? "—"}</Td>
+                          <Td>
+                            <button
+                              type="button"
+                              className="font-medium text-[var(--igh-primary)] underline hover:no-underline"
+                              onClick={() => focusRegistrations(h.id)}
+                            >
+                              {h._count?.registrations ?? 0} inscrito(s)
+                            </button>
+                          </Td>
+                          <Td>
+                            {h.isActive ? (
+                              <Badge tone="green">Ativo</Badge>
+                            ) : (
+                              <Badge tone="red">Inativo</Badge>
+                            )}
+                          </Td>
+                        </tr>
+                      ))}
+                      {readOnlyEvents.length === 0 ? (
+                        <tr>
+                          <Td colSpan={5} className="text-[var(--text-secondary)]">
+                            Nenhum evento com inscrições abertas no momento.
+                          </Td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </TableShell>
+                )}
+                <p className="text-xs text-[var(--text-muted)]">
+                  Feriados e eventos sem inscrição pública não aparecem nesta consulta. Apenas o Master pode
+                  cadastrar ou alterar registros.
+                </p>
+              </>
+            )}
+          </div>
+        ) : null}
       </SectionCard>
 
+      {isMaster ? (
       <Modal
         open={open}
         title={
@@ -918,6 +1039,7 @@ export default function HolidaysPage() {
           </div>
         </form>
       </Modal>
+      ) : null}
     </div>
   );
 }

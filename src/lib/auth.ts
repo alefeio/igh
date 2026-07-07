@@ -153,3 +153,8 @@ export async function requireStaffRead(): Promise<SessionUser> {
 export async function requireStaffWrite(): Promise<SessionUser> {
   return requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
 }
+
+/** Operações exclusivas do Master (ex.: feriados, eventos, backup). */
+export async function requireMaster(): Promise<SessionUser> {
+  return requireRole("MASTER");
+}

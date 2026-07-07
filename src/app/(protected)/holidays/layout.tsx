@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 export const metadata = {
-  title: "Eventos e Feriados",
+  title: "Inscrições em eventos",
 };
 
 export default function HolidaysLayout({ children }: { children: ReactNode }) {

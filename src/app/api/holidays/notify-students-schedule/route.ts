@@ -1,4 +1,4 @@
-import { requireStaffWrite } from "@/lib/auth";
+import { requireMaster } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { notifyStudentsAfterHolidayScheduleResync } from "@/lib/holiday-schedule-notifications";
@@ -10,7 +10,7 @@ import { notifyStudentsAfterHolidayScheduleResync } from "@/lib/holiday-schedule
  */
 export async function POST(request: Request) {
   try {
-    await requireStaffWrite();
+    await requireMaster();
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg === "UNAUTHENTICATED") {

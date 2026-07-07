@@ -1,4 +1,4 @@
-import { requireStaffWrite } from "@/lib/auth";
+import { requireMaster } from "@/lib/auth";
 import {
   getOrCreateHolidayCalendarBanner,
   mapHolidayCalendarBannerAdmin,
@@ -8,13 +8,13 @@ import { prisma } from "@/lib/prisma";
 import { holidayCalendarBannerSchema } from "@/lib/validators/holidays";
 
 export async function GET() {
-  await requireStaffWrite();
+  await requireMaster();
   const row = await getOrCreateHolidayCalendarBanner();
   return jsonOk({ banner: mapHolidayCalendarBannerAdmin(row) });
 }
 
 export async function PATCH(request: Request) {
-  await requireStaffWrite();
+  await requireMaster();
   const body = await request.json().catch(() => null);
   const parsed = holidayCalendarBannerSchema.safeParse(body);
   if (!parsed.success) {

@@ -1,4 +1,4 @@
-import { requireStaffWrite } from "@/lib/auth";
+import { requireMaster } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-sessions-holiday-resync";
 
@@ -8,7 +8,7 @@ import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-
  */
 export async function POST() {
   try {
-    await requireStaffWrite();
+    await requireMaster();
     const scheduleRecalculation = await recalculateAllClassGroupSessionsAfterHolidayChange();
     return jsonOk({ scheduleRecalculation });
   } catch (e: unknown) {
