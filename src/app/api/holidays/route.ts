@@ -72,6 +72,7 @@ export async function POST(request: Request) {
       eventEndTime,
       allowsRegistration: isEvent ? (parsed.data.allowsRegistration ?? false) : false,
       publicDescription: parsed.data.publicDescription?.trim() || null,
+      subtitle: isEvent ? parsed.data.subtitle?.trim() || null : null,
     },
   });
 

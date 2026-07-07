@@ -103,6 +103,9 @@ export async function PATCH(
       ...(parsed.data.publicDescription !== undefined
         ? { publicDescription: parsed.data.publicDescription?.trim() || null }
         : {}),
+      ...(parsed.data.subtitle !== undefined || parsed.data.eventStartTime !== undefined || parsed.data.eventEndTime !== undefined
+        ? { subtitle: isEvent ? (parsed.data.subtitle !== undefined ? parsed.data.subtitle?.trim() || null : existing.subtitle) : null }
+        : {}),
     },
   });
 

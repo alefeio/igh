@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       eventEndTime: true,
       allowsRegistration: true,
       publicDescription: true,
+      subtitle: true,
     },
   });
 

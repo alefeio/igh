@@ -12,6 +12,7 @@ export function mapHolidayToPublicCalendarItems(
   row: {
     id: string;
     name: string | null;
+    subtitle: string | null;
     date: Date;
     recurring: boolean;
     eventStartTime: string | null;
@@ -32,6 +33,7 @@ export function mapHolidayToPublicCalendarItems(
     date: dateStr,
     kind: timed ? "event" : "holiday",
     name: label,
+    subtitle: timed ? row.subtitle?.trim() || null : null,
     startTime: timed ? row.eventStartTime : null,
     endTime: timed ? row.eventEndTime : null,
     allowsRegistration: timed && row.allowsRegistration,

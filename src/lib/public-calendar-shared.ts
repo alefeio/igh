@@ -4,6 +4,7 @@ export type PublicCalendarItem = {
   date: string;
   kind: "holiday" | "event";
   name: string;
+  subtitle: string | null;
   startTime: string | null;
   endTime: string | null;
   allowsRegistration: boolean;

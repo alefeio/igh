@@ -677,6 +677,8 @@ model Holiday {
   allowsRegistration Boolean                    @default(false)
   /// * Texto extra exibido no calendário público (opcional).
   publicDescription  String?
+  /// * Subtítulo discreto abaixo do nome no calendário público (eventos).
+  subtitle           String?
   registrations      HolidayEventRegistration[]
 }
 

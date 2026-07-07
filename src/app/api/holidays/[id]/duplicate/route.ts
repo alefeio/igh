@@ -68,6 +68,7 @@ export async function POST(
       eventEndTime,
       allowsRegistration: isEvent ? source.allowsRegistration : false,
       publicDescription: source.publicDescription,
+      subtitle: isEvent ? source.subtitle : null,
     },
   });
 

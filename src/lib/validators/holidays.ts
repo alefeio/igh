@@ -49,6 +49,7 @@ export const createHolidaySchema = z
     eventEndTime: z.string().max(8).optional().nullable(),
     allowsRegistration: z.boolean().optional(),
     publicDescription: z.string().max(2000).optional().nullable(),
+    subtitle: z.string().max(300).optional().nullable(),
   })
   .superRefine(hmRefine)
   .superRefine((data, ctx) => {
@@ -74,6 +75,7 @@ export const updateHolidaySchema = z.object({
   eventEndTime: z.string().max(8).optional().nullable(),
   allowsRegistration: z.boolean().optional(),
   publicDescription: z.string().max(2000).optional().nullable(),
+  subtitle: z.string().max(300).optional().nullable(),
 });
 
 /** Normaliza "8:00" → "08:00" para armazenamento. */

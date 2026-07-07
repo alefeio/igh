@@ -22,6 +22,7 @@ type Holiday = {
   eventEndTime: string | null;
   allowsRegistration: boolean;
   publicDescription: string | null;
+  subtitle: string | null;
   _count?: { registrations: number };
 };
 
@@ -99,6 +100,7 @@ export default function HolidaysPage() {
   const [eventEndTime, setEventEndTime] = useState("11:00");
   const [allowsRegistration, setAllowsRegistration] = useState(false);
   const [publicDescription, setPublicDescription] = useState("");
+  const [subtitle, setSubtitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
@@ -124,6 +126,7 @@ export default function HolidaysPage() {
     setEventEndTime("11:00");
     setAllowsRegistration(false);
     setPublicDescription("");
+    setSubtitle("");
     setEditing(null);
     setIsDuplicating(false);
   }
@@ -148,6 +151,7 @@ export default function HolidaysPage() {
     setEventEndTime(ev ? formatHm(h.eventEndTime) : "11:00");
     setAllowsRegistration(h.allowsRegistration);
     setPublicDescription(h.publicDescription ?? "");
+    setSubtitle(h.subtitle ?? "");
     setOpen(true);
   }
 
@@ -164,6 +168,7 @@ export default function HolidaysPage() {
     setEventEndTime(ev ? formatHm(h.eventEndTime) : "11:00");
     setAllowsRegistration(h.allowsRegistration);
     setPublicDescription(h.publicDescription ?? "");
+    setSubtitle(h.subtitle ?? "");
     setOpen(true);
   }
 
@@ -311,11 +316,13 @@ export default function HolidaysPage() {
         payload.eventEndTime = eventEndTime.trim();
         payload.allowsRegistration = allowsRegistration;
         payload.publicDescription = publicDescription.trim() || null;
+        payload.subtitle = subtitle.trim() || null;
       } else {
         payload.eventStartTime = null;
         payload.eventEndTime = null;
         payload.allowsRegistration = false;
         payload.publicDescription = null;
+        payload.subtitle = null;
       }
 
       if (editing) {
@@ -848,6 +855,21 @@ export default function HolidaysPage() {
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
           </div>
+          {kind === "event" ? (
+            <div>
+              <label className="text-sm font-medium">Subtítulo (opcional)</label>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                Aparece de forma discreta abaixo do nome no calendário público.
+              </p>
+              <div className="mt-1">
+                <Input
+                  value={subtitle}
+                  onChange={(e) => setSubtitle(e.target.value)}
+                  placeholder="Ex.: Workshop presencial · auditório principal"
+                />
+              </div>
+            </div>
+          ) : null}
           {editing ? (
             <div>
               <label className="text-sm font-medium">Ativo</label>
