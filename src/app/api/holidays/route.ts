@@ -17,6 +17,9 @@ export async function GET(request: Request) {
   const holidays = await prisma.holiday.findMany({
     where,
     orderBy: { date: "asc" },
+    include: {
+      _count: { select: { registrations: true } },
+    },
   });
 
   return jsonOk({ holidays });
@@ -67,6 +70,8 @@ export async function POST(request: Request) {
       isActive: parsed.data.isActive ?? true,
       eventStartTime,
       eventEndTime,
+      allowsRegistration: isEvent ? (parsed.data.allowsRegistration ?? false) : false,
+      publicDescription: parsed.data.publicDescription?.trim() || null,
     },
   });
 

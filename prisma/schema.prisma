@@ -74,6 +74,7 @@ model User {
   ighCommunityRepliesModerated     IghCommunityReply[]          @relation("IghCommunityReplyModeratedBy")
   ighCommunityTopicsAuthored       IghCommunityTopic[]          @relation("IghCommunityTopicAuthor")
   ighCommunityRepliesAuthored      IghCommunityReply[]          @relation("IghCommunityReplyAuthor")
+  holidayEventRegistrations          HolidayEventRegistration[]
 }
 
 /// * Navegação na área logada — rota (pathname) por utilizador, para o Master acompanhar páginas vistas.
@@ -662,16 +663,40 @@ model TimeSlot {
 }
 
 model Holiday {
-  id             String   @id @default(uuid())
-  date           DateTime @db.Date
-  name           String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  recurring      Boolean  @default(false)
+  id                 String                     @id @default(uuid())
+  date               DateTime                   @db.Date
+  name               String?
+  isActive           Boolean                    @default(true)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  recurring          Boolean                    @default(false)
   /// * Se preenchidos (HH:mm), é evento: só turmas cujo horário cruza este intervalo são adiadas neste dia.
-  eventStartTime String?
-  eventEndTime   String?
+  eventStartTime     String?
+  eventEndTime       String?
+  /// * Eventos com horário podem aceitar inscrição pública (portal).
+  allowsRegistration Boolean                    @default(false)
+  /// * Texto extra exibido no calendário público (opcional).
+  publicDescription  String?
+  registrations      HolidayEventRegistration[]
+}
+
+/// * Inscrição de usuário em uma ocorrência de evento institucional (data concreta).
+model HolidayEventRegistration {
+  id                      String    @id @default(uuid())
+  holidayId               String
+  userId                  String
+  /// * Data da ocorrência (YYYY-MM-DD), importante para eventos recorrentes.
+  occurrenceDate          String
+  createdAt               DateTime  @default(now())
+  confirmationEmailSentAt DateTime?
+  reminderEmailSentAt     DateTime?
+  holiday                 Holiday   @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([holidayId, userId, occurrenceDate])
+  @@index([occurrenceDate])
+  @@index([userId])
+  @@index([holidayId, occurrenceDate])
 }
 
 model AuditLog {

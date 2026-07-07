@@ -47,8 +47,23 @@ export const createHolidaySchema = z
     isActive: z.boolean().optional(),
     eventStartTime: z.string().max(8).optional().nullable(),
     eventEndTime: z.string().max(8).optional().nullable(),
+    allowsRegistration: z.boolean().optional(),
+    publicDescription: z.string().max(2000).optional().nullable(),
   })
-  .superRefine(hmRefine);
+  .superRefine(hmRefine)
+  .superRefine((data, ctx) => {
+    if (data.allowsRegistration) {
+      const s = data.eventStartTime?.trim();
+      const e = data.eventEndTime?.trim();
+      if (!s || !e) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Inscrições só estão disponíveis em eventos com horário de início e fim.",
+          path: ["allowsRegistration"],
+        });
+      }
+    }
+  });
 
 export const updateHolidaySchema = z.object({
   recurring: z.boolean().optional(),
@@ -57,6 +72,8 @@ export const updateHolidaySchema = z.object({
   isActive: z.boolean().optional(),
   eventStartTime: z.string().max(8).optional().nullable(),
   eventEndTime: z.string().max(8).optional().nullable(),
+  allowsRegistration: z.boolean().optional(),
+  publicDescription: z.string().max(2000).optional().nullable(),
 });
 
 /** Normaliza "8:00" → "08:00" para armazenamento. */

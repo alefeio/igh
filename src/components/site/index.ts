@@ -25,3 +25,4 @@ export { HomeStudentJourneySection } from "./HomeStudentJourneySection";
 export { HeroBannerCarousel } from "./HeroBannerCarousel";
 export { ImageCarousel } from "./ImageCarousel";
 export { CommunityCtaHomeSection } from "./CommunityCtaHomeSection";
+export { PublicIghCalendar } from "./PublicIghCalendar";

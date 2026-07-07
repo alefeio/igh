@@ -61,6 +61,15 @@ export function CommunityCtaHomeSection() {
               >
                 Já tenho conta — entrar
               </Button>
+              <Button
+                as="link"
+                href="/calendario"
+                variant="outline"
+                size="lg"
+                className="border-white text-white hover:bg-white/10"
+              >
+                Ver calendário de eventos
+              </Button>
             </div>
           </div>
 

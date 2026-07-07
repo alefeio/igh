@@ -480,6 +480,56 @@ export function templateEnrollmentSuspendedAttendance(params: {
   };
 }
 
+export function templateHolidayEventConfirmation(params: {
+  name: string;
+  eventName: string;
+  occurrenceDateLabel: string;
+  startTime: string;
+  endTime: string;
+  publicDescription?: string | null;
+}): { subject: string; html: string } {
+  const calendarUrl = getAppUrl("/calendario");
+  const extra = params.publicDescription?.trim()
+    ? `<p>${escapeHtml(params.publicDescription.trim())}</p>`
+    : "";
+  const body = `
+<h2>Inscrição confirmada</h2>
+<p>Olá, <strong>${escapeHtml(params.name)}</strong>.</p>
+<p>Sua inscrição no evento abaixo foi confirmada:</p>
+<ul>
+  <li><strong>Evento:</strong> ${escapeHtml(params.eventName)}</li>
+  <li><strong>Data:</strong> ${escapeHtml(params.occurrenceDateLabel)}</li>
+  <li><strong>Horário:</strong> ${escapeHtml(params.startTime)} – ${escapeHtml(params.endTime)}</li>
+</ul>
+${extra}
+<p>No dia do evento você receberá um lembrete por e-mail pela manhã.</p>
+<p><a href="${escapeHtml(calendarUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Ver calendário IGH</a></p>
+`;
+  return { subject: `Inscrição confirmada — ${params.eventName}`, html: wrapHtml(body) };
+}
+
+export function templateHolidayEventReminder(params: {
+  name: string;
+  eventName: string;
+  occurrenceDateLabel: string;
+  startTime: string;
+  endTime: string;
+}): { subject: string; html: string } {
+  const calendarUrl = getAppUrl("/calendario");
+  const body = `
+<h2>É hoje!</h2>
+<p>Olá, <strong>${escapeHtml(params.name)}</strong>.</p>
+<p>Lembrete: você está inscrito no evento <strong>${escapeHtml(params.eventName)}</strong>.</p>
+<ul>
+  <li><strong>Data:</strong> ${escapeHtml(params.occurrenceDateLabel)}</li>
+  <li><strong>Horário:</strong> ${escapeHtml(params.startTime)} – ${escapeHtml(params.endTime)}</li>
+</ul>
+<p>Contamos com a sua participação!</p>
+<p><a href="${escapeHtml(calendarUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Abrir calendário</a></p>
+`;
+  return { subject: `Lembrete: ${params.eventName} é hoje`, html: wrapHtml(body) };
+}
+
 export { TERMS_VERSION };
 
 function escapeHtml(s: string): string {

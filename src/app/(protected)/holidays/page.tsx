@@ -20,6 +20,9 @@ type Holiday = {
   createdAt: string;
   eventStartTime: string | null;
   eventEndTime: string | null;
+  allowsRegistration: boolean;
+  publicDescription: string | null;
+  _count?: { registrations: number };
 };
 
 type ScheduleRecalculation = {
@@ -94,6 +97,8 @@ export default function HolidaysPage() {
   const [isActive, setIsActive] = useState(true);
   const [eventStartTime, setEventStartTime] = useState("08:00");
   const [eventEndTime, setEventEndTime] = useState("11:00");
+  const [allowsRegistration, setAllowsRegistration] = useState(false);
+  const [publicDescription, setPublicDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [sendingNotify, setSendingNotify] = useState(false);
@@ -116,6 +121,8 @@ export default function HolidaysPage() {
     setIsActive(true);
     setEventStartTime("08:00");
     setEventEndTime("11:00");
+    setAllowsRegistration(false);
+    setPublicDescription("");
     setEditing(null);
   }
 
@@ -136,6 +143,8 @@ export default function HolidaysPage() {
     setKind(ev ? "event" : "holiday");
     setEventStartTime(ev ? formatHm(h.eventStartTime) : "08:00");
     setEventEndTime(ev ? formatHm(h.eventEndTime) : "11:00");
+    setAllowsRegistration(h.allowsRegistration);
+    setPublicDescription(h.publicDescription ?? "");
     setOpen(true);
   }
 
@@ -259,9 +268,13 @@ export default function HolidaysPage() {
       if (kind === "event") {
         payload.eventStartTime = eventStartTime.trim();
         payload.eventEndTime = eventEndTime.trim();
+        payload.allowsRegistration = allowsRegistration;
+        payload.publicDescription = publicDescription.trim() || null;
       } else {
         payload.eventStartTime = null;
         payload.eventEndTime = null;
+        payload.allowsRegistration = false;
+        payload.publicDescription = null;
       }
 
       if (editing) {
@@ -546,6 +559,7 @@ export default function HolidaysPage() {
                 <Th>Tipo</Th>
                 <Th>Horário</Th>
                 <Th>Nome</Th>
+                <Th>Inscrições</Th>
                 <Th>Status</Th>
                 <Th />
               </tr>
@@ -567,6 +581,11 @@ export default function HolidaysPage() {
                       : "—"}
                   </Td>
                   <Td>{h.name ?? "—"}</Td>
+                  <Td className="text-[var(--text-secondary)]">
+                    {isTimedEvent(h) && h.allowsRegistration
+                      ? `${h._count?.registrations ?? 0} inscrito(s)`
+                      : "—"}
+                  </Td>
                   <Td>
                     {h.isActive ? (
                       <Badge tone="green">Ativo</Badge>
@@ -607,7 +626,7 @@ export default function HolidaysPage() {
               ))}
               {visibleItems.length === 0 ? (
                 <tr>
-                  <Td colSpan={6} className="text-[var(--text-secondary)]">
+                  <Td colSpan={7} className="text-[var(--text-secondary)]">
                     {showInactive ? "Nenhum registro encontrado." : "Nenhum registro ativo."}
                   </Td>
                 </tr>
@@ -726,6 +745,39 @@ export default function HolidaysPage() {
                 Turmas com horário que não cruza este intervalo mantêm aula normalmente neste dia.
               </p>
             </div>
+          ) : null}
+          {kind === "event" ? (
+            <>
+              <label className="flex items-start gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/40 p-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={allowsRegistration}
+                  onChange={(e) => setAllowsRegistration(e.target.checked)}
+                />
+                <span>
+                  <strong className="text-[var(--text-primary)]">Permitir inscrição de usuários</strong>
+                  <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                    O evento aparecerá no{" "}
+                    <a href="/calendario" className="text-[var(--igh-primary)] underline" target="_blank" rel="noreferrer">
+                      calendário público
+                    </a>{" "}
+                    com botão de inscrição. O participante recebe e-mail de confirmação e lembrete no dia do evento (6h).
+                  </span>
+                </span>
+              </label>
+              {allowsRegistration ? (
+                <div>
+                  <label className="text-sm font-medium">Descrição pública (opcional)</label>
+                  <textarea
+                    className="mt-1 min-h-[80px] w-full rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
+                    value={publicDescription}
+                    onChange={(e) => setPublicDescription(e.target.value)}
+                    placeholder="Informações extras exibidas no calendário público (local, o que levar, etc.)"
+                  />
+                </div>
+              ) : null}
+            </>
           ) : null}
           <div>
             <label className="text-sm font-medium">Nome (opcional)</label>

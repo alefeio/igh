@@ -97,6 +97,12 @@ export async function PATCH(
       ...(parsed.data.eventStartTime !== undefined || parsed.data.eventEndTime !== undefined
         ? { eventStartTime, eventEndTime }
         : {}),
+      ...(parsed.data.allowsRegistration !== undefined || parsed.data.eventStartTime !== undefined || parsed.data.eventEndTime !== undefined
+        ? { allowsRegistration: isEvent ? (parsed.data.allowsRegistration ?? existing.allowsRegistration) : false }
+        : {}),
+      ...(parsed.data.publicDescription !== undefined
+        ? { publicDescription: parsed.data.publicDescription?.trim() || null }
+        : {}),
     },
   });
 
