@@ -42,7 +42,7 @@ export function CommunityCtaHomeSection({
             <ul className="mt-6 space-y-2 text-sm text-white/85">
               <li className="flex items-start gap-2">
                 <MessageCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                Fórum aberto para quem tem cadastro no portal
+                Fórum aberto para leitura de todos; publicar exige cadastro no portal
               </li>
               <li className="flex items-start gap-2">
                 <Users className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -86,7 +86,7 @@ export function CommunityCtaHomeSection({
                   </Button>
                   <Button
                     as="link"
-                    href="/login?from=%2Fcomunidade"
+                    href="/comunidade"
                     variant="outline"
                     size="lg"
                     className="border-white text-white hover:bg-white/10"
@@ -137,7 +137,7 @@ export function CommunityCtaHomeSection({
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
                     2
                   </span>
-                  <span>Acesse a Comunidade IGH no menu após o login.</span>
+                  <span>Explore as discussões publicamente ou cadastre-se para participar.</span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">

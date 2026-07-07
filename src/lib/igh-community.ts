@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { IghCommunityPostStatus, IghCommunityTopicKind } from "@/generated/prisma/client";
-import type { CommunityAuthorRole, CommunityReplyView, CommunityTopicView } from "@/lib/igh-community-types";
+import type { CommunityAuthorRole, CommunityReplyView, CommunityTopicView, CommunityViewerCapabilities } from "@/lib/igh-community-types";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
 
@@ -68,6 +68,66 @@ export function isCommunityModerator(user: SessionUser): boolean {
 
 export function canReadCommunity(user: SessionUser): boolean {
   return userCanParticipateInCommunity(user) || userCanReplyAsStaff(user) || isCommunityModerator(user);
+}
+
+export function getCommunityViewerCapabilities(user: SessionUser | null): CommunityViewerCapabilities {
+  if (!user) {
+    return {
+      canCreateTopics: false,
+      canReply: false,
+      canModerate: false,
+      isStudent: false,
+      isTeacher: false,
+      isStaff: false,
+    };
+  }
+  const canCreateTopics = userCanParticipateInCommunity(user);
+  const canReply = canCreateTopics || userCanReplyAsStaff(user);
+  return {
+    canCreateTopics,
+    canReply,
+    canModerate: isCommunityModerator(user),
+    isStudent: user.role === "STUDENT",
+    isTeacher: user.role === "TEACHER",
+    isStaff: isCommunityModerator(user),
+  };
+}
+
+export const topicInclude = {
+  author: { select: { name: true, role: true } },
+  tags: { include: { tag: { select: { name: true } } } },
+} as const;
+
+export const replyInclude = {
+  author: { select: { name: true, role: true } },
+} as const;
+
+export function communityTopicsListWhere(kind: string | null, tag: string | null) {
+  return {
+    status: "APPROVED" as const,
+    ...(kind && ["IDEA", "TEAM", "DISCUSSION"].includes(kind)
+      ? { kind: kind as "IDEA" | "TEAM" | "DISCUSSION" }
+      : {}),
+    ...(tag
+      ? {
+          tags: {
+            some: { tag: { name: tag } },
+          },
+        }
+      : {}),
+  };
+}
+
+export async function listApprovedCommunityTopics(kind: string | null, tag: string | null) {
+  return prisma.ighCommunityTopic.findMany({
+    where: communityTopicsListWhere(kind, tag),
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      ...topicInclude,
+      replies: { where: { status: "APPROVED" }, select: { id: true } },
+    },
+  });
 }
 
 export async function upsertCommunityTags(tagNames: string[]) {
@@ -151,12 +211,3 @@ export function mapReplyRow(
     createdAt: row.createdAt.toISOString(),
   };
 }
-
-export const topicInclude = {
-  author: { select: { name: true, role: true } },
-  tags: { include: { tag: { select: { name: true } } } },
-} as const;
-
-export const replyInclude = {
-  author: { select: { name: true, role: true } },
-} as const;

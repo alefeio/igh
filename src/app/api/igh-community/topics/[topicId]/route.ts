@@ -1,39 +1,40 @@
-import { authErrorResponse } from "@/lib/api-auth-guard";
-import { requireRole } from "@/lib/auth";
-import { canReadCommunity, mapReplyRow, mapTopicRow, replyInclude, topicInclude } from "@/lib/igh-community";
+import { getSessionUserFromCookie } from "@/lib/auth";
+import {
+  getCommunityViewerCapabilities,
+  mapReplyRow,
+  mapTopicRow,
+  replyInclude,
+  topicInclude,
+} from "@/lib/igh-community";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
 type RouteCtx = { params: Promise<{ topicId: string }> };
 
+/** Detalhe público de um tópico aprovado. */
 export async function GET(_request: Request, ctx: RouteCtx) {
-  try {
-    const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR", "TEACHER"]);
-    if (!canReadCommunity(user)) return jsonErr("FORBIDDEN", "Sem permissão.", 403);
+  const user = await getSessionUserFromCookie();
+  const caps = getCommunityViewerCapabilities(user);
+  const { topicId } = await ctx.params;
 
-    const { topicId } = await ctx.params;
-    const topic = await prisma.ighCommunityTopic.findFirst({
-      where: { id: topicId, status: "APPROVED" },
-      include: {
-        ...topicInclude,
-        _count: { select: { replies: true } },
-      },
-    });
-    if (!topic) return jsonErr("NOT_FOUND", "Tópico não encontrado.", 404);
+  const topic = await prisma.ighCommunityTopic.findFirst({
+    where: { id: topicId, status: "APPROVED" },
+    include: {
+      ...topicInclude,
+      _count: { select: { replies: true } },
+    },
+  });
+  if (!topic) return jsonErr("NOT_FOUND", "Tópico não encontrado.", 404);
 
-    const replies = await prisma.ighCommunityReply.findMany({
-      where: { topicId, status: "APPROVED" },
-      orderBy: { createdAt: "asc" },
-      include: replyInclude,
-    });
+  const replies = await prisma.ighCommunityReply.findMany({
+    where: { topicId, status: "APPROVED" },
+    orderBy: { createdAt: "asc" },
+    include: replyInclude,
+  });
 
-    return jsonOk({
-      topic: mapTopicRow(topic, user.id),
-      replies: replies.map((r) => mapReplyRow(r, user.id)),
-    });
-  } catch (e) {
-    const auth = authErrorResponse(e);
-    if (auth) return auth;
-    throw e;
-  }
+  return jsonOk({
+    viewer: caps,
+    topic: mapTopicRow(topic, user?.id ?? null),
+    replies: replies.map((r) => mapReplyRow(r, user?.id ?? null)),
+  });
 }

@@ -4,39 +4,54 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
-import { useUser } from "@/components/layout/UserProvider";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/site/Button";
 import type { ApiResponse } from "@/lib/api-types";
-import type { CommunityReplyView, CommunityTopicView } from "@/lib/igh-community-types";
+import type {
+  CommunityReplyView,
+  CommunityTopicView,
+  CommunityViewer,
+  CommunityViewerCapabilities,
+} from "@/lib/igh-community-types";
 
-export function IghCommunityTopicDetail({ topicId }: { topicId: string }) {
+const DEFAULT_VIEWER: CommunityViewerCapabilities = {
+  canCreateTopics: false,
+  canReply: false,
+  canModerate: false,
+  isStudent: false,
+  isTeacher: false,
+  isStaff: false,
+};
+
+export function IghCommunityTopicDetail({
+  topicId,
+  sessionUser = null,
+}: {
+  topicId: string;
+  sessionUser?: CommunityViewer | null;
+}) {
   const toast = useToast();
-  const user = useUser();
-  const isStudent = user.role === "STUDENT";
-  const canReplyAsStaff = ["MASTER", "ADMIN", "COORDINATOR", "TEACHER"].includes(user.role);
 
   const [loading, setLoading] = useState(true);
   const [topic, setTopic] = useState<CommunityTopicView | null>(null);
   const [replies, setReplies] = useState<CommunityReplyView[]>([]);
+  const [viewer, setViewer] = useState<CommunityViewerCapabilities>(DEFAULT_VIEWER);
   const [replyContent, setReplyContent] = useState("");
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [savingReply, setSavingReply] = useState(false);
 
-  const detailUrl = isStudent
-    ? `/api/me/igh-community/topics/${topicId}`
-    : `/api/igh-community/topics/${topicId}`;
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(detailUrl);
+      const res = await fetch(`/api/igh-community/topics/${topicId}`);
       const json = (await res.json()) as ApiResponse<{
         topic: CommunityTopicView;
         replies: CommunityReplyView[];
+        viewer?: CommunityViewerCapabilities;
       }>;
       if (res.ok && json.ok) {
         setTopic(json.data.topic);
         setReplies(json.data.replies);
+        setViewer(json.data.viewer ?? DEFAULT_VIEWER);
       } else {
         setTopic(null);
         toast.push("error", json.ok ? "Erro." : json.error.message);
@@ -46,21 +61,22 @@ export function IghCommunityTopicDetail({ topicId }: { topicId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [detailUrl, toast]);
+  }, [topicId, toast]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const submitReply = async () => {
-    if (!replyContent.trim()) return;
+    if (!replyContent.trim() || !sessionUser) return;
     setSavingReply(true);
     try {
-      const url = isStudent
+      const url = viewer.isStudent
         ? `/api/me/igh-community/topics/${topicId}/replies`
         : `/api/igh-community/topics/${topicId}/replies`;
       const res = await fetch(url, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: replyContent }),
       });
@@ -78,38 +94,36 @@ export function IghCommunityTopicDetail({ topicId }: { topicId: string }) {
     }
   };
 
-  if (loading) return <p className="text-sm text-[var(--text-muted)]">Carregando…</p>;
-  if (!topic) return <p className="text-sm text-[var(--text-muted)]">Tópico não encontrado.</p>;
+  if (loading) return <p className="text-sm text-[var(--igh-muted)]">Carregando…</p>;
+  if (!topic) return <p className="text-sm text-[var(--igh-muted)]">Tópico não encontrado.</p>;
 
-  const canReply = isStudent || canReplyAsStaff;
+  const canReply = viewer.canReply;
+  const canReplyAsStaff = viewer.isTeacher || viewer.isStaff;
 
   return (
     <div className="flex flex-col gap-6">
-      <article className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5">
+      <article className="rounded-xl border border-[var(--igh-border)] bg-white p-5">
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full bg-[var(--igh-primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--igh-primary)]">
             {topic.kindLabel}
           </span>
           {topic.tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-            >
+            <span key={tag} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
               #{tag}
             </span>
           ))}
         </div>
-        <h1 className="mt-3 text-xl font-bold text-[var(--text-primary)]">{topic.title}</h1>
-        <p className="mt-1 text-xs text-[var(--text-muted)]">
+        <h1 className="mt-3 text-xl font-bold text-[var(--igh-secondary)]">{topic.title}</h1>
+        <p className="mt-1 text-xs text-[var(--igh-muted)]">
           {topic.authorName} · {topic.authorRoleLabel} · {new Date(topic.createdAt).toLocaleString("pt-BR")}
         </p>
-        <p className="mt-4 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">{topic.content}</p>
+        <p className="mt-4 whitespace-pre-wrap text-sm text-[var(--igh-muted)]">{topic.content}</p>
       </article>
 
       <section>
-        <h2 className="text-sm font-semibold text-[var(--text-primary)]">Respostas ({replies.length})</h2>
+        <h2 className="text-sm font-semibold text-[var(--igh-secondary)]">Respostas ({replies.length})</h2>
         {replies.length === 0 ? (
-          <p className="mt-2 text-sm text-[var(--text-muted)]">Nenhuma resposta ainda.</p>
+          <p className="mt-2 text-sm text-[var(--igh-muted)]">Nenhuma resposta ainda.</p>
         ) : (
           <ul className="mt-3 space-y-3">
             {replies.map((r) => (
@@ -118,38 +132,57 @@ export function IghCommunityTopicDetail({ topicId }: { topicId: string }) {
                 className={`rounded-lg border px-4 py-3 ${
                   r.authorRole === "TEACHER" || r.authorRole === "STAFF"
                     ? "border-[var(--igh-primary)]/30 bg-[var(--igh-primary)]/5"
-                    : "border-[var(--card-border)] bg-[var(--igh-surface)]/40"
+                    : "border-[var(--igh-border)] bg-[var(--igh-surface)]/40"
                 }`}
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-[var(--text-primary)]">{r.authorName}</span>
+                  <span className="text-sm font-medium text-[var(--igh-secondary)]">{r.authorName}</span>
                   <span className="rounded-full bg-[var(--igh-primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--igh-primary)]">
                     {r.authorRoleLabel}
                   </span>
-                  <span className="text-xs text-[var(--text-muted)]">
+                  <span className="text-xs text-[var(--igh-muted)]">
                     {new Date(r.createdAt).toLocaleString("pt-BR")}
                   </span>
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--text-secondary)]">{r.content}</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--igh-muted)]">{r.content}</p>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      {canReply && !showReplyForm && (
+      {!sessionUser ? (
+        <div className="rounded-xl border border-[var(--igh-border)] bg-[var(--igh-surface)] p-4 text-sm text-[var(--igh-muted)]">
+          <p>Para responder nesta conversa, entre ou crie sua conta no portal.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button as="link" href={`/login?from=${encodeURIComponent(`/comunidade/${topicId}`)}`} size="sm">
+              Entrar
+            </Button>
+            <Button
+              as="link"
+              href={`/cadastro?from=${encodeURIComponent(`/comunidade/${topicId}`)}`}
+              variant="secondary"
+              size="sm"
+            >
+              Criar conta gratuita
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {sessionUser && canReply && !showReplyForm && (
         <Button type="button" onClick={() => setShowReplyForm(true)}>
           {canReplyAsStaff ? "Participar da conversa" : "Responder"}
         </Button>
       )}
 
-      {canReply && showReplyForm && (
-        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
-          <h3 className="text-sm font-semibold">
+      {sessionUser && canReply && showReplyForm && (
+        <div className="rounded-xl border border-[var(--igh-border)] bg-white p-4">
+          <h3 className="text-sm font-semibold text-[var(--igh-secondary)]">
             {canReplyAsStaff ? "Sua resposta como equipe IGH" : "Sua resposta"}
           </h3>
           <textarea
-            className="mt-2 min-h-[100px] w-full rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
+            className="mt-2 min-h-[100px] w-full rounded-md border border-[var(--igh-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
             value={replyContent}
             onChange={(e) => setReplyContent(e.target.value)}
             placeholder={

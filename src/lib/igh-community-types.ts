@@ -1,6 +1,21 @@
 export type IghCommunityTopicKind = "IDEA" | "TEAM" | "DISCUSSION";
 export type IghCommunityPostStatus = "PENDING" | "APPROVED" | "REJECTED";
 
+export type CommunityViewer = {
+  id: string;
+  name: string;
+  role: string;
+};
+
+export type CommunityViewerCapabilities = {
+  canCreateTopics: boolean;
+  canReply: boolean;
+  canModerate: boolean;
+  isStudent: boolean;
+  isTeacher: boolean;
+  isStaff: boolean;
+};
+
 export type CommunityAuthorRole = "STUDENT" | "TEACHER" | "STAFF";
 
 export type CommunityTopicView = {

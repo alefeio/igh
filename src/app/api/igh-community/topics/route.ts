@@ -1,50 +1,25 @@
-import { authErrorResponse } from "@/lib/api-auth-guard";
-import { requireRole } from "@/lib/auth";
-import { canReadCommunity, mapTopicRow, topicInclude } from "@/lib/igh-community";
-import { jsonErr, jsonOk } from "@/lib/http";
-import { prisma } from "@/lib/prisma";
+import { getSessionUserFromCookie } from "@/lib/auth";
+import {
+  getCommunityViewerCapabilities,
+  listApprovedCommunityTopics,
+  mapTopicRow,
+} from "@/lib/igh-community";
+import { jsonOk } from "@/lib/http";
 
-/** Leitura da comunidade para professor e equipe. */
+/** Leitura pública da comunidade (visitantes e usuários logados). */
 export async function GET(request: Request) {
-  try {
-    const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR", "TEACHER"]);
-    if (!canReadCommunity(user)) return jsonErr("FORBIDDEN", "Sem permissão.", 403);
+  const user = await getSessionUserFromCookie();
+  const caps = getCommunityViewerCapabilities(user);
 
-    const { searchParams } = new URL(request.url);
-    const kind = searchParams.get("kind");
-    const tag = searchParams.get("tag")?.trim().toLowerCase();
+  const { searchParams } = new URL(request.url);
+  const kind = searchParams.get("kind");
+  const tag = searchParams.get("tag")?.trim().toLowerCase() ?? null;
 
-    const topics = await prisma.ighCommunityTopic.findMany({
-      where: {
-        status: "APPROVED",
-        ...(kind && ["IDEA", "TEAM", "DISCUSSION"].includes(kind)
-          ? { kind: kind as "IDEA" | "TEAM" | "DISCUSSION" }
-          : {}),
-        ...(tag
-          ? {
-              tags: {
-                some: { tag: { name: tag } },
-              },
-            }
-          : {}),
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-      include: {
-        ...topicInclude,
-        replies: { where: { status: "APPROVED" }, select: { id: true } },
-      },
-    });
+  const topics = await listApprovedCommunityTopics(kind, tag);
 
-    return jsonOk({
-      canParticipate: true,
-      topics: topics.map((t) =>
-        mapTopicRow({ ...t, _count: { replies: t.replies.length } }, user.id)
-      ),
-    });
-  } catch (e) {
-    const auth = authErrorResponse(e);
-    if (auth) return auth;
-    throw e;
-  }
+  return jsonOk({
+    viewer: caps,
+    canParticipate: caps.canCreateTopics,
+    topics: topics.map((t) => mapTopicRow({ ...t, _count: { replies: t.replies.length } }, user?.id ?? null)),
+  });
 }
