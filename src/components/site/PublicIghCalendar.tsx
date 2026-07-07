@@ -173,6 +173,85 @@ function CalendarItemDetail({
   );
 }
 
+function formatDayHeading(ymd: string): string {
+  return new Date(ymd + "T12:00:00").toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function FilteredEventListItem({
+  item,
+  active,
+  registered,
+  sessionUser,
+  registering,
+  onSelect,
+  onRegister,
+  onSubtitleClick,
+}: {
+  item: PublicCalendarItem;
+  active: boolean;
+  registered: boolean;
+  sessionUser: SessionUser;
+  registering: boolean;
+  onSelect: () => void;
+  onRegister: (item: PublicCalendarItem) => void;
+  onSubtitleClick: (subtitle: string) => void;
+}) {
+  return (
+    <li className="flex flex-col gap-3">
+      <button
+        type="button"
+        onClick={onSelect}
+        className={`w-full rounded-xl border p-4 text-left transition ${
+          active
+            ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/5"
+            : "border-[var(--igh-border)] bg-white hover:border-[var(--igh-primary)]/40"
+        }`}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              item.allowsRegistration
+                ? "bg-[var(--igh-primary)]/10 text-[var(--igh-primary)]"
+                : "bg-amber-100 text-amber-800"
+            }`}
+          >
+            {item.allowsRegistration ? "Evento · inscrições" : "Evento"}
+          </span>
+          {registered && (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+              Inscrito
+            </span>
+          )}
+          {item.startTime && item.endTime ? (
+            <span className="inline-flex items-center gap-1 text-xs text-[var(--igh-muted)]">
+              <Clock className="h-3.5 w-3.5" />
+              {formatHm(item.startTime)} – {formatHm(item.endTime)}
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-2">
+          <ItemTitleBlock item={item} onSubtitleClick={onSubtitleClick} />
+        </div>
+      </button>
+      {active ? (
+        <CalendarItemDetail
+          item={item}
+          sessionUser={sessionUser}
+          registered={registered}
+          registering={registering}
+          onRegister={onRegister}
+          onSubtitleClick={onSubtitleClick}
+        />
+      ) : null}
+    </li>
+  );
+}
+
 export function PublicIghCalendar({
   sessionUser,
   initialHolidayId,
@@ -301,10 +380,15 @@ export function PublicIghCalendar({
   const year = view.getFullYear();
   const month = view.getMonth() + 1;
 
+  const isListMode = !!subtitleFilter;
+
   const loadCalendar = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/public/calendar?year=${year}&month=${month}`);
+      const url = isListMode
+        ? `/api/public/calendar?subtitle=${encodeURIComponent(subtitleFilter!)}`
+        : `/api/public/calendar?year=${year}&month=${month}`;
+      const res = await fetch(url);
       const json = (await res.json()) as ApiResponse<{ items: PublicCalendarItem[]; subtitleTags?: string[] }>;
       if (res.ok && json.ok) {
         setItems(json.data.items);
@@ -316,16 +400,21 @@ export function PublicIghCalendar({
     } finally {
       setLoading(false);
     }
-  }, [year, month]);
+  }, [year, month, isListMode, subtitleFilter]);
 
   const loadRegistrations = useCallback(async () => {
     if (!sessionUser) {
       setMyRegistrations(new Set());
       return;
     }
-    const from = `${year}-${pad2(month)}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const to = `${year}-${pad2(month)}-${pad2(lastDay)}`;
+    const now = new Date();
+    const from = isListMode
+      ? `${now.getFullYear() - 1}-01-01`
+      : `${year}-${pad2(month)}-01`;
+    const lastDay = isListMode ? 31 : new Date(year, month, 0).getDate();
+    const to = isListMode
+      ? `${now.getFullYear() + 1}-12-31`
+      : `${year}-${pad2(month)}-${pad2(lastDay)}`;
     try {
       const res = await fetch(`/api/me/holiday-events/registrations?from=${from}&to=${to}`, {
         credentials: "include",
@@ -341,7 +430,7 @@ export function PublicIghCalendar({
     } catch {
       /* ignore */
     }
-  }, [sessionUser, year, month]);
+  }, [sessionUser, year, month, isListMode]);
 
   useEffect(() => {
     void loadCalendar();
@@ -407,6 +496,13 @@ export function PublicIghCalendar({
   }, [subtitleTags, subtitleFilter]);
   const selectedItems = selectedYmd ? (byDate.get(selectedYmd) ?? []) : [];
   const activeItem = focusedItem ?? selectedItems[0] ?? null;
+  const listDays = useMemo(
+    () =>
+      [...byDate.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, dayItems]) => ({ date, items: dayItems })),
+    [byDate]
+  );
 
   const isRegistered = (item: PublicCalendarItem) =>
     myRegistrations.has(`${item.holidayId}:${item.date}` as RegistrationKey);
@@ -436,40 +532,49 @@ export function PublicIghCalendar({
   return (
     <div
       className={
-        selectedYmd
+        !isListMode && selectedYmd
           ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_min(100%,22rem)] lg:items-start"
           : "w-full"
       }
     >
       <div className="w-full min-w-0">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--igh-border)] bg-white hover:bg-[var(--igh-surface)]"
-              aria-label="Mês anterior"
-              onClick={() => {
-                setView((v) => new Date(v.getFullYear(), v.getMonth() - 1, 1));
-                clearDaySelection();
-              }}
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <h2 className="min-w-[10rem] text-center text-lg font-semibold capitalize text-[var(--igh-secondary)]">
-              {monthLabel}
-            </h2>
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--igh-border)] bg-white hover:bg-[var(--igh-surface)]"
-              aria-label="Próximo mês"
-              onClick={() => {
-                setView((v) => new Date(v.getFullYear(), v.getMonth() + 1, 1));
-                clearDaySelection();
-              }}
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
+          {isListMode ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--igh-primary)]">
+                Listagem filtrada
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-[var(--igh-secondary)]">{subtitleFilter}</h2>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--igh-border)] bg-white hover:bg-[var(--igh-surface)]"
+                aria-label="Mês anterior"
+                onClick={() => {
+                  setView((v) => new Date(v.getFullYear(), v.getMonth() - 1, 1));
+                  clearDaySelection();
+                }}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <h2 className="min-w-[10rem] text-center text-lg font-semibold capitalize text-[var(--igh-secondary)]">
+                {monthLabel}
+              </h2>
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--igh-border)] bg-white hover:bg-[var(--igh-surface)]"
+                aria-label="Próximo mês"
+                onClick={() => {
+                  setView((v) => new Date(v.getFullYear(), v.getMonth() + 1, 1));
+                  clearDaySelection();
+                }}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
@@ -534,13 +639,47 @@ export function PublicIghCalendar({
             </div>
             {subtitleFilter ? (
               <p className="mt-2 text-xs text-[var(--igh-muted)]">
-                Exibindo apenas dias com eventos com o subtítulo{" "}
-                <strong className="text-[var(--igh-secondary)]">{subtitleFilter}</strong>.
+                Eventos agrupados por dia, em ordem cronológica.
               </p>
             ) : null}
           </div>
         ) : null}
 
+        {isListMode ? (
+          loading ? (
+            <p className="py-12 text-center text-sm text-[var(--igh-muted)]">Carregando eventos…</p>
+          ) : listDays.length === 0 ? (
+            <p className="rounded-xl border border-[var(--igh-border)] bg-white py-12 text-center text-sm text-[var(--igh-muted)]">
+              Nenhum evento encontrado com este subtítulo no período exibido.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-8">
+              {listDays.map(({ date, items: dayItems }) => (
+                <section key={date}>
+                  <h3 className="border-b border-[var(--igh-border)] pb-2 text-base font-semibold capitalize text-[var(--igh-secondary)]">
+                    {formatDayHeading(date)}
+                  </h3>
+                  <ul className="mt-4 flex flex-col gap-4">
+                    {dayItems.map((item) => (
+                      <FilteredEventListItem
+                        key={item.id}
+                        item={item}
+                        active={activeItem?.id === item.id}
+                        registered={isRegistered(item)}
+                        sessionUser={sessionUser}
+                        registering={registering}
+                        onSelect={() => selectEvent(item)}
+                        onRegister={(ev) => void register(ev)}
+                        onSubtitleClick={toggleSubtitleFilter}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )
+        ) : (
+          <>
         <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-[var(--igh-muted)]">
           {WEEKDAYS.map((d) => (
             <div key={d} className="py-2">
@@ -600,9 +739,11 @@ export function PublicIghCalendar({
             })}
           </div>
         )}
+          </>
+        )}
       </div>
 
-      {selectedYmd ? (
+      {!isListMode && selectedYmd ? (
         <aside className="rounded-2xl border border-[var(--igh-border)] bg-white p-5 shadow-sm lg:sticky lg:top-4">
           {selectedItems.length === 0 ? (
             <p className="text-sm text-[var(--igh-muted)]">Nenhum feriado ou evento neste dia.</p>
