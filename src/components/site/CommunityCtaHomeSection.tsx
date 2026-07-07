@@ -3,7 +3,18 @@ import { MessageCircle, Sparkles, Users } from "lucide-react";
 import { Container } from "./Container";
 import { Button } from "./Button";
 
-export function CommunityCtaHomeSection() {
+type CommunityCtaSessionUser = {
+  name: string;
+  role: string;
+};
+
+export function CommunityCtaHomeSection({
+  sessionUser = null,
+}: {
+  sessionUser?: CommunityCtaSessionUser | null;
+}) {
+  const isLoggedIn = !!sessionUser;
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-[var(--igh-secondary-solid)] via-[#1e3a5f] to-[var(--igh-primary)] py-14 text-white sm:py-20">
       <div
@@ -43,58 +54,99 @@ export function CommunityCtaHomeSection() {
               </li>
             </ul>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button
-                as="link"
-                href="/cadastro?from=%2Fcomunidade"
-                variant="primary"
-                size="lg"
-                className="!bg-white !text-[var(--igh-secondary-solid)] hover:!bg-white/90"
-              >
-                Criar conta gratuita
-              </Button>
-              <Button
-                as="link"
-                href="/login?from=%2Fcomunidade"
-                variant="outline"
-                size="lg"
-                className="border-white text-white hover:bg-white/10"
-              >
-                Já tenho conta — entrar
-              </Button>
-              <Button
-                as="link"
-                href="/calendario"
-                variant="outline"
-                size="lg"
-                className="border-white text-white hover:bg-white/10"
-              >
-                Ver calendário de eventos
-              </Button>
+              {isLoggedIn ? (
+                <Button
+                  as="link"
+                  href="/comunidade"
+                  variant="primary"
+                  size="lg"
+                  className="!bg-white !text-[var(--igh-secondary-solid)] hover:!bg-white/90"
+                >
+                  Acessar Comunidade IGH
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    as="link"
+                    href="/cadastro?from=%2Fcomunidade"
+                    variant="primary"
+                    size="lg"
+                    className="!bg-white !text-[var(--igh-secondary-solid)] hover:!bg-white/90"
+                  >
+                    Criar conta gratuita
+                  </Button>
+                  <Button
+                    as="link"
+                    href="/login?from=%2Fcomunidade"
+                    variant="outline"
+                    size="lg"
+                    className="border-white text-white hover:bg-white/10"
+                  >
+                    Já tenho conta — entrar
+                  </Button>
+                  <Button
+                    as="link"
+                    href="/login?from=%2Fcomunidade"
+                    variant="outline"
+                    size="lg"
+                    className="border-white text-white hover:bg-white/10"
+                  >
+                    Conhecer a Comunidade IGH
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
           <div className="rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-white/80">Como começar</p>
-            <ol className="mt-4 space-y-4 text-sm text-white/90">
-              <li className="flex gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
-                  1
-                </span>
-                <span>Cadastre-se no portal com nome, e-mail e senha.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
-                  2
-                </span>
-                <span>Acesse a Comunidade IGH no menu após o login.</span>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
-                  3
-                </span>
-                <span>Publique sua ideia, marque tags e converse com a rede IGH.</span>
-              </li>
-            </ol>
+            <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
+              {isLoggedIn ? "Próximo passo" : "Como começar"}
+            </p>
+            {isLoggedIn ? (
+              <ol className="mt-4 space-y-4 text-sm text-white/90">
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+                    1
+                  </span>
+                  <span>
+                    Você já está conectado como <strong>{sessionUser?.name}</strong>.
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+                    2
+                  </span>
+                  <span>Entre na Comunidade IGH e explore as discussões em andamento.</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+                    3
+                  </span>
+                  <span>Publique sua ideia, marque tags e converse com a rede IGH.</span>
+                </li>
+              </ol>
+            ) : (
+              <ol className="mt-4 space-y-4 text-sm text-white/90">
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+                    1
+                  </span>
+                  <span>Cadastre-se no portal com nome, e-mail e senha.</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+                    2
+                  </span>
+                  <span>Acesse a Comunidade IGH no menu após o login.</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
+                    3
+                  </span>
+                  <span>Publique sua ideia, marque tags e converse com a rede IGH.</span>
+                </li>
+              </ol>
+            )}
           </div>
         </div>
       </Container>

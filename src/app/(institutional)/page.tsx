@@ -31,6 +31,7 @@ import {
   getPublicPlatformExperienceBlock,
   getPublicMotherCampaignMessages,
 } from "@/lib/site-data";
+import { getSessionUserFromCookie } from "@/lib/auth";
 
 export const metadata = {
   title: "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital",
@@ -59,6 +60,7 @@ export default async function HomePage({ searchParams }: Props) {
     studentRanking,
     platformExperienceBlock,
     mothersDaySection,
+    sessionUser,
   ] = await Promise.all([
     getFormationsForFilter(),
     getCoursesForSite(formacaoSlug),
@@ -70,6 +72,7 @@ export default async function HomePage({ searchParams }: Props) {
     getPublicStudentRanking(15),
     getPublicPlatformExperienceBlock(),
     getPublicMotherCampaignMessages(18),
+    getSessionUserFromCookie(),
   ]);
 
   const recentPosts = newsPosts.slice(0, 4).map((p) => {
@@ -134,7 +137,9 @@ export default async function HomePage({ searchParams }: Props) {
       )}
 
       <HomeAudiencePathsStrip />
-      <CommunityCtaHomeSection />
+      <CommunityCtaHomeSection
+        sessionUser={sessionUser ? { name: sessionUser.name, role: sessionUser.role } : null}
+      />
       <HomePublicRatingStrip block={platformExperienceBlock} />
 
       {/* Prova de impacto */}
