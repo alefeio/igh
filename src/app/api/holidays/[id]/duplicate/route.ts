@@ -2,16 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAuditLog } from "@/lib/audit";
-import { normalizeHolidayTimeHm } from "@/lib/validators/holidays";
-
-function shiftHmByMinutes(hm: string, deltaMinutes: number): string {
-  const [h, m] = hm.split(":").map((x) => parseInt(x, 10));
-  let total = h * 60 + m + deltaMinutes;
-  total = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
-  const nh = Math.floor(total / 60);
-  const nm = total % 60;
-  return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
-}
 
 function addUtcDays(date: Date, days: number): Date {
   const d = new Date(date);
@@ -34,38 +24,38 @@ export async function POST(
   const copyName = baseName ? `${baseName} (cópia)` : "Cópia";
 
   let date = source.date;
-  let eventStartTime = source.eventStartTime;
-  let eventEndTime = source.eventEndTime;
+  const eventStartTime = source.eventStartTime;
+  const eventEndTime = source.eventEndTime;
 
-  const existsAt = async () =>
-    prisma.holiday.findFirst({
-      where: { date, recurring: source.recurring, eventStartTime, eventEndTime },
-      select: { id: true },
-    });
+  if (!isEvent) {
+    const existsAt = async (d: Date) =>
+      prisma.holiday.findFirst({
+        where: {
+          date: d,
+          recurring: source.recurring,
+          eventStartTime,
+          eventEndTime,
+        },
+        select: { id: true },
+      });
 
-  let conflict = await existsAt();
-  if (conflict) {
-    if (isEvent && eventStartTime && eventEndTime) {
-      for (let i = 1; i <= 48 && conflict; i++) {
-        eventStartTime = normalizeHolidayTimeHm(shiftHmByMinutes(source.eventStartTime!, i * 30));
-        eventEndTime = normalizeHolidayTimeHm(shiftHmByMinutes(source.eventEndTime!, i * 30));
-        if (eventStartTime >= eventEndTime) continue;
-        conflict = await existsAt();
-      }
-    } else if (!source.recurring) {
+    let conflict = await existsAt(date);
+    if (conflict && !source.recurring) {
       for (let i = 1; i <= 31 && conflict; i++) {
         date = addUtcDays(source.date, i);
-        conflict = await existsAt();
+        conflict = await existsAt(date);
       }
     }
-  }
 
-  if (conflict) {
-    return jsonErr(
-      "DUPLICATE_DATE",
-      "Não foi possível duplicar automaticamente: já existe registro com a mesma data e horário. Ajuste manualmente no formulário.",
-      409
-    );
+    if (conflict) {
+      return jsonErr(
+        "DUPLICATE_DATE",
+        source.recurring
+          ? "Não foi possível duplicar: já existe feriado recorrente neste dia e mês."
+          : "Não foi possível duplicar: já existe feriado nesta data. Ajuste manualmente no formulário.",
+        409
+      );
+    }
   }
 
   const holiday = await prisma.holiday.create({

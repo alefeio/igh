@@ -46,20 +46,20 @@ export async function POST(request: Request) {
   const eventStartTime = isEvent ? normalizeHolidayTimeHm(rawS!) : null;
   const eventEndTime = isEvent ? normalizeHolidayTimeHm(rawE!) : null;
 
-  const existing = await prisma.holiday.findFirst({
-    where: { date, recurring, eventStartTime, eventEndTime },
-    select: { id: true },
-  });
-  if (existing) {
-    return jsonErr(
-      "DUPLICATE_DATE",
-      isEvent
-        ? "Já existe um evento com esta data e horário."
-        : recurring
+  if (!isEvent) {
+    const existing = await prisma.holiday.findFirst({
+      where: { date, recurring, eventStartTime, eventEndTime },
+      select: { id: true },
+    });
+    if (existing) {
+      return jsonErr(
+        "DUPLICATE_DATE",
+        recurring
           ? "Já existe um feriado recorrente para este dia e mês."
           : "Já existe um feriado para esta data.",
-      409
-    );
+        409
+      );
+    }
   }
 
   const holiday = await prisma.holiday.create({

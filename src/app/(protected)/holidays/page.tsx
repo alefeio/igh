@@ -430,7 +430,7 @@ export default function HolidaysPage() {
       <DashboardHero
         eyebrow="Cadastros"
         title="Eventos e Feriados"
-        description="Feriados de dia inteiro não geram aula nesse dia; as aulas são remarcadas para os próximos dias de aula da turma. Eventos com horário só afetam turmas cujo horário cruza o intervalo. Ao salvar, o sistema recalcula automaticamente as sessões de todas as turmas (qualquer status). Se o cadastro falhou depois de avisar duplicata, o registro já existe: use Recalcular ou edite e salve o evento na lista."
+        description="Feriados de dia inteiro não geram aula nesse dia; as aulas são remarcadas para os próximos dias de aula da turma. Eventos com horário só afetam turmas cujo horário cruza o intervalo. Vários eventos podem ocorrer no mesmo dia e horário. Ao salvar, o sistema recalcula automaticamente as sessões de todas as turmas (qualquer status)."
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
             <Button
@@ -565,9 +565,12 @@ export default function HolidaysPage() {
             recalculado automaticamente.
           </li>
           <li>
-            Se aparecer que já existe evento na mesma data e hora mas o primeiro envio deu erro, o registro pode
-            ter sido salvo mesmo assim: use <strong>Recalcular calendário das turmas</strong> acima ou abra o
-            evento na lista e clique em <strong>Salvar</strong> de novo.
+            <strong>Vários eventos no mesmo horário</strong> são permitidos (cada um com nome e configurações próprias).
+          </li>
+          <li>
+            Se o cadastro de <strong>feriado</strong> falhou depois de avisar duplicata, o registro pode ter sido
+            salvo mesmo assim: use <strong>Recalcular calendário das turmas</strong> acima ou edite na lista e salve
+            de novo.
           </li>
           <li>
             Depois de cada turma ter o calendário atualizado, o sistema tenta enviar o aviso no sino na hora. Se
@@ -701,8 +704,14 @@ export default function HolidaysPage() {
         <form className="flex flex-col gap-3" onSubmit={save}>
           {isDuplicating && !editing ? (
             <p className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/60 px-3 py-2 text-xs text-[var(--text-secondary)]">
-              Revise os dados da cópia e ajuste <strong>data ou horário</strong> se já existir um registro igual. Salve
-              para criar o novo item.
+              Revise os dados da cópia
+              {kind === "holiday" ? (
+                <>
+                  {" "}
+                  e ajuste a <strong>data</strong> se já existir feriado igual
+                </>
+              ) : null}
+              . Salve para criar o novo item.
             </p>
           ) : null}
           <div>
