@@ -25,6 +25,12 @@ function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
+function calendarItemTypeLabel(item: PublicCalendarItem): string {
+  if (item.kind === "holiday") return "Feriado";
+  if (item.allowsRegistration) return "Evento · inscrições";
+  return "Evento";
+}
+
 type SessionUser = { name: string; email: string; role: string } | null;
 
 type RegistrationKey = `${string}:${string}`;
@@ -70,7 +76,7 @@ function ItemTitleBlock({
           <button
             type="button"
             onClick={() => onSubtitleClick(item.subtitle!)}
-            className="mt-1 inline-flex max-w-full rounded-full border border-[var(--igh-border)] bg-[var(--igh-surface)] px-2 py-0.5 text-left text-xs font-normal text-[var(--igh-muted)] transition hover:border-[var(--igh-primary)]/50 hover:text-[var(--igh-primary)]"
+            className="mt-1 inline-block max-w-full text-left text-xs font-normal text-[var(--igh-muted)] underline decoration-[var(--igh-border)] underline-offset-2 transition hover:text-[var(--igh-primary)]"
           >
             {item.subtitle}
           </button>
@@ -104,28 +110,10 @@ function CalendarItemDetail({
         {formatPublicCalendarDate(item.date, item.recurring)}
         {item.startTime && item.endTime ? ` · ${formatHm(item.startTime)} – ${formatHm(item.endTime)}` : ""}
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            item.kind === "holiday"
-              ? "bg-slate-100 text-slate-700"
-              : item.allowsRegistration
-                ? "bg-[var(--igh-primary)]/10 text-[var(--igh-primary)]"
-                : "bg-amber-100 text-amber-800"
-          }`}
-        >
-          {item.kind === "holiday"
-            ? "Feriado"
-            : item.allowsRegistration
-              ? "Evento · inscrições"
-              : "Evento"}
-        </span>
-        {registered && (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-            Inscrito
-          </span>
-        )}
-      </div>
+      <p className="mt-2 text-xs text-[var(--igh-muted)]">
+        {calendarItemTypeLabel(item)}
+        {registered ? " · Inscrito" : ""}
+      </p>
       {item.publicDescription && (
         <p className="mt-3 text-sm text-[var(--igh-muted)]">{item.publicDescription}</p>
       )}
@@ -236,7 +224,7 @@ function DayEventsSection({
       {items.length === 0 ? (
         <p className="mt-4 text-sm text-[var(--igh-muted)]">Nenhum feriado ou evento neste dia.</p>
       ) : (
-        <ul className="mt-4 flex flex-col gap-4">
+        <ul className="mt-4 flex list-none flex-col gap-4 pl-0">
           {items.map((item) => (
             <FilteredEventListItem
               key={item.id}
@@ -286,27 +274,11 @@ function FilteredEventListItem({
             : "border-[var(--igh-border)] bg-white hover:border-[var(--igh-primary)]/40"
         }`}
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              item.kind === "holiday"
-                ? "bg-slate-100 text-slate-700"
-                : item.allowsRegistration
-                  ? "bg-[var(--igh-primary)]/10 text-[var(--igh-primary)]"
-                  : "bg-amber-100 text-amber-800"
-            }`}
-          >
-            {item.kind === "holiday"
-              ? "Feriado"
-              : item.allowsRegistration
-                ? "Evento · inscrições"
-                : "Evento"}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--igh-muted)]">
+          <span>
+            {calendarItemTypeLabel(item)}
+            {registered ? " · Inscrito" : ""}
           </span>
-          {registered && (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-              Inscrito
-            </span>
-          )}
           {item.startTime && item.endTime ? (
             <span className="inline-flex items-center gap-1 text-xs text-[var(--igh-muted)]">
               <Clock className="h-3.5 w-3.5" />
@@ -714,13 +686,13 @@ export function PublicIghCalendar({
             </Button>
             <div className="flex flex-wrap gap-3 text-xs text-[var(--igh-muted)]">
             <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-full bg-slate-400" /> Feriado
+              <span className="h-2.5 w-2.5 rounded-full bg-slate-400" aria-hidden /> Feriado
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Evento
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-500" aria-hidden /> Evento
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-full bg-[var(--igh-primary)]" /> Inscrições abertas
+              <span className="h-2.5 w-2.5 rounded-full bg-[var(--igh-primary)]" aria-hidden /> Inscrições abertas
             </span>
             </div>
           </div>
@@ -784,7 +756,7 @@ export function PublicIghCalendar({
                   <h3 className="border-b border-[var(--igh-border)] pb-2 text-base font-semibold capitalize text-[var(--igh-secondary)]">
                     {formatDayHeading(date)}
                   </h3>
-                  <ul className="mt-4 flex flex-col gap-4">
+                  <ul className="mt-4 flex list-none flex-col gap-4 pl-0">
                     {dayItems.map((item) => (
                       <FilteredEventListItem
                         key={item.id}
@@ -843,6 +815,12 @@ export function PublicIghCalendar({
                         {weekday}
                       </span>
                       <span className="text-base font-semibold text-[var(--igh-secondary)]">{cell.day}</span>
+                      <span
+                        className={`mt-1 h-1.5 w-1.5 rounded-full ${
+                          hasEvents ? "bg-[var(--igh-primary)]" : "bg-transparent"
+                        }`}
+                        aria-hidden
+                      />
                     </button>
                   );
                 })}
@@ -896,7 +874,7 @@ export function PublicIghCalendar({
                             </span>
                           ) : null}
                         </button>
-                        <ul className="mt-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+                        <ul className="mt-1 flex min-h-0 flex-1 list-none flex-col gap-0.5 overflow-hidden pl-0">
                           {dayItems.length === 0 ? (
                             <li className="flex-1" aria-hidden />
                           ) : (
@@ -961,13 +939,13 @@ export function PublicIghCalendar({
                       </p>
                     </div>
                   </div>
-                  <ul className="mt-4 flex flex-col gap-3">
+                  <ul className="mt-4 flex list-none flex-col gap-3 pl-0">
                     {upcomingPreview.map(({ date, items: dayItems }) => (
                       <li key={date}>
                         <p className="mb-2 text-xs font-semibold capitalize text-[var(--igh-secondary)]">
                           {formatDayHeading(date)}
                         </p>
-                        <ul className="flex flex-col gap-2">
+                        <ul className="flex list-none flex-col gap-2 pl-0">
                           {dayItems.map((item) => (
                             <li key={item.id}>
                               <button
@@ -975,17 +953,10 @@ export function PublicIghCalendar({
                                 onClick={() => selectEvent(item)}
                                 className="flex w-full items-start gap-3 rounded-xl border border-[var(--igh-border)] bg-white p-3 text-left transition active:scale-[0.99] hover:border-[var(--igh-primary)]/40"
                               >
-                                <span
-                                  className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
-                                    item.allowsRegistration
-                                      ? "bg-[var(--igh-primary)]"
-                                      : item.kind === "holiday"
-                                        ? "bg-slate-400"
-                                        : "bg-amber-500"
-                                  }`}
-                                  aria-hidden
-                                />
                                 <span className="min-w-0 flex-1">
+                                  <span className="block text-[10px] text-[var(--igh-muted)]">
+                                    {calendarItemTypeLabel(item)}
+                                  </span>
                                   <span className="block font-medium text-[var(--igh-secondary)]">{item.name}</span>
                                   {item.subtitle ? (
                                     <span className="mt-0.5 block truncate text-xs text-[var(--igh-muted)]">
