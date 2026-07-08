@@ -597,6 +597,22 @@ export function PublicIghCalendar({
     [byDate]
   );
 
+  /** Próximos eventos (após hoje) no mês carregado — atalho mobile. */
+  const upcomingPreview = useMemo(() => {
+    const out: { date: string; items: PublicCalendarItem[] }[] = [];
+    let count = 0;
+    const maxItems = 6;
+    for (const { date, items: dayItems } of listDays) {
+      if (date <= todayYmd) continue;
+      const slice = dayItems.slice(0, maxItems - count);
+      if (slice.length === 0) continue;
+      out.push({ date, items: slice });
+      count += slice.length;
+      if (count >= maxItems) break;
+    }
+    return out;
+  }, [listDays, todayYmd]);
+
   const isRegistered = (item: PublicCalendarItem) =>
     myRegistrations.has(`${item.holidayId}:${item.date}` as RegistrationKey);
 
@@ -827,12 +843,6 @@ export function PublicIghCalendar({
                         {weekday}
                       </span>
                       <span className="text-base font-semibold text-[var(--igh-secondary)]">{cell.day}</span>
-                      <span
-                        className={`mt-1 h-1.5 w-1.5 rounded-full ${
-                          hasEvents ? "bg-[var(--igh-primary)]" : "bg-transparent"
-                        }`}
-                        aria-hidden
-                      />
                     </button>
                   );
                 })}
@@ -937,6 +947,68 @@ export function PublicIghCalendar({
                 Selecione um dia para ver os eventos e detalhes.
               </p>
             )}
+
+            {!loading && upcomingPreview.length > 0 ? (
+              <div className="mt-4 md:hidden">
+                <div className="rounded-2xl border border-[var(--igh-primary)]/30 bg-gradient-to-br from-[var(--igh-primary)]/10 via-white to-amber-50 p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--igh-primary)]">
+                        Próximos eventos
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--igh-muted)]">
+                        Toque em um item para abrir o dia e ver os detalhes.
+                      </p>
+                    </div>
+                  </div>
+                  <ul className="mt-4 flex flex-col gap-3">
+                    {upcomingPreview.map(({ date, items: dayItems }) => (
+                      <li key={date}>
+                        <p className="mb-2 text-xs font-semibold capitalize text-[var(--igh-secondary)]">
+                          {formatDayHeading(date)}
+                        </p>
+                        <ul className="flex flex-col gap-2">
+                          {dayItems.map((item) => (
+                            <li key={item.id}>
+                              <button
+                                type="button"
+                                onClick={() => selectEvent(item)}
+                                className="flex w-full items-start gap-3 rounded-xl border border-[var(--igh-border)] bg-white p-3 text-left transition active:scale-[0.99] hover:border-[var(--igh-primary)]/40"
+                              >
+                                <span
+                                  className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+                                    item.allowsRegistration
+                                      ? "bg-[var(--igh-primary)]"
+                                      : item.kind === "holiday"
+                                        ? "bg-slate-400"
+                                        : "bg-amber-500"
+                                  }`}
+                                  aria-hidden
+                                />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block font-medium text-[var(--igh-secondary)]">{item.name}</span>
+                                  {item.subtitle ? (
+                                    <span className="mt-0.5 block truncate text-xs text-[var(--igh-muted)]">
+                                      {item.subtitle}
+                                    </span>
+                                  ) : null}
+                                  {item.startTime && item.endTime ? (
+                                    <span className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--igh-muted)]">
+                                      <Clock className="h-3.5 w-3.5" aria-hidden />
+                                      {formatHm(item.startTime)} – {formatHm(item.endTime)}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </div>

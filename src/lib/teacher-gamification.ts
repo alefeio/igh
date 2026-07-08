@@ -161,8 +161,12 @@ export type TeacherGamificationResult = {
 
 /**
  * Calcula gamificação do professor: cursos das turmas que leciona (qualquer status de turma).
+ * Com `cycleId`, considera apenas turmas daquele ciclo.
  */
-export async function computeTeacherGamification(teacherId: string): Promise<TeacherGamificationResult | null> {
+export async function computeTeacherGamification(
+  teacherId: string,
+  opts?: { cycleId?: string }
+): Promise<TeacherGamificationResult | null> {
   const teacher = await prisma.teacher.findFirst({
     where: { id: teacherId, deletedAt: null },
     select: { id: true, name: true },
@@ -170,7 +174,10 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
   if (!teacher) return null;
 
   const groups = await prisma.classGroup.findMany({
-    where: { teacherId },
+    where: {
+      teacherId,
+      ...(opts?.cycleId ? { cycleId: opts.cycleId } : {}),
+    },
     select: { id: true, courseId: true },
   });
   const courseIds = [...new Set(groups.map((g) => g.courseId))];
@@ -434,7 +441,9 @@ export async function computeTeacherGamification(teacherId: string): Promise<Tea
 }
 
 /** Ranking de todos os professores ativos (Admin/Master). */
-export async function computeAllTeachersGamification(): Promise<TeacherGamificationResult[]> {
+export async function computeAllTeachersGamification(
+  opts?: { cycleId?: string }
+): Promise<TeacherGamificationResult[]> {
   const teachers = await prisma.teacher.findMany({
     where: { deletedAt: null, isActive: true },
     select: { id: true },
@@ -442,7 +451,7 @@ export async function computeAllTeachersGamification(): Promise<TeacherGamificat
   });
   const out: TeacherGamificationResult[] = [];
   for (const t of teachers) {
-    const g = await computeTeacherGamification(t.id);
+    const g = await computeTeacherGamification(t.id, opts);
     if (g) out.push(g);
   }
   out.sort((a, b) => b.points.total - a.points.total);

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { getTurnstileSiteKey } from "@/lib/bot-protection";
 import { CadastroForm } from "./cadastro-form";
 
 type Props = { searchParams: Promise<{ from?: string | string[] }> };
@@ -31,7 +32,7 @@ export default async function CadastroPage({ searchParams }: Props) {
           </div>
         </div>
         <div className="card-body">
-          <CadastroForm redirectTo={redirectTo} />
+          <CadastroForm redirectTo={redirectTo} turnstileSiteKey={getTurnstileSiteKey()} />
         </div>
       </div>
     </div>

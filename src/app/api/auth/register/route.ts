@@ -1,19 +1,62 @@
 import { NextResponse } from "next/server";
 
 import { getAuthCookieOptions, AUTH_TOKEN_COOKIE_NAME, buildAuthSessionToken, hashPassword } from "@/lib/auth";
+import {
+  clientIpFromRequest,
+  isHoneypotFilled,
+  isTurnstileConfigured,
+  verifyTurnstileToken,
+} from "@/lib/bot-protection";
 import { jsonErr } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/rate-limit-memory";
 import { registerSchema } from "@/lib/validators/auth";
+
+const WINDOW_MS = 60 * 60 * 1000;
+const MAX_PER_IP = 8;
 
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
+    if (isHoneypotFilled(body as Record<string, unknown> | null)) {
+      return NextResponse.json({ ok: true as const, data: { redirectTo: "/dashboard" } });
+    }
+
+    const ip = clientIpFromRequest(request);
+    const ipLimit = checkRateLimit(`auth:register:ip:${ip}`, MAX_PER_IP, WINDOW_MS);
+    if (!ipLimit.ok) {
+      return jsonErr(
+        "RATE_LIMIT",
+        `Muitas tentativas de cadastro. Aguarde ${ipLimit.retryAfterSec} segundos.`,
+        429
+      );
+    }
+
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {
       return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos.", 400);
     }
 
+    if (isTurnstileConfigured()) {
+      const captcha = await verifyTurnstileToken({
+        token: parsed.data.captchaToken,
+        ip,
+      });
+      if (!captcha.ok) {
+        return jsonErr("CAPTCHA_FAILED", captcha.message, 400);
+      }
+    }
+
     const { name, email, password } = parsed.data;
+    const emailLimit = checkRateLimit(`auth:register:email:${email}`, 5, WINDOW_MS);
+    if (!emailLimit.ok) {
+      return jsonErr(
+        "RATE_LIMIT",
+        `Muitas tentativas com este e-mail. Aguarde ${emailLimit.retryAfterSec} segundos.`,
+        429
+      );
+    }
+
     const exists = await prisma.user.findUnique({
       where: { email },
       select: { id: true },

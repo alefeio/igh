@@ -4,35 +4,44 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { TurnstileWidget } from "@/components/auth/TurnstileWidget";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { ApiResponse } from "@/lib/api-types";
 
-type LoginFormProps = { redirectTo?: string };
+type LoginFormProps = {
+  redirectTo?: string;
+  turnstileSiteKey?: string | null;
+};
 
-export function LoginForm({ redirectTo }: LoginFormProps) {
+export function LoginForm({ redirectTo, turnstileSiteKey = null }: LoginFormProps) {
   const router = useRouter();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [website, setWebsite] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [setupHint, setSetupHint] = useState(false);
 
   useEffect(() => {
-    // Se ainda não tiver MASTER, o /setup estará disponível.
     setSetupHint(true);
   }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (turnstileSiteKey && !captchaToken) {
+      toast.push("error", "Confirme que você não é um robô antes de continuar.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ login, password }),
+        body: JSON.stringify({ login, password, captchaToken, website }),
       });
       const raw = await res.text();
       let json: ApiResponse<{
@@ -70,7 +79,18 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
   }
 
   return (
-    <form className="flex flex-col gap-3" onSubmit={submit}>
+    <form className="relative flex flex-col gap-3" onSubmit={submit}>
+      <div className="absolute -left-[9999px] top-auto h-0 w-0 overflow-hidden" aria-hidden>
+        <label htmlFor="login-website">Website</label>
+        <input
+          id="login-website"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+        />
+      </div>
       <div>
         <label className="text-sm font-medium text-[var(--text-primary)]">E-mail ou CPF</label>
         <div className="mt-1">
@@ -89,7 +109,14 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
       </div>
-      <Button type="submit" disabled={loading}>
+
+      {turnstileSiteKey ? (
+        <div className="pt-1">
+          <TurnstileWidget siteKey={turnstileSiteKey} onToken={setCaptchaToken} />
+        </div>
+      ) : null}
+
+      <Button type="submit" disabled={loading || (!!turnstileSiteKey && !captchaToken)}>
         {loading ? "Entrando..." : "Entrar"}
       </Button>
       <div className="text-center">

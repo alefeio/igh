@@ -5,11 +5,16 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { computeStudentGamificationRanking } from "@/lib/student-gamification-ranking";
 
-/** Ranking global de alunos — custoso; cache breve para várias rotas (dashboard admin/prof, ranking). */
-export async function getCachedStudentGamificationRankingFull() {
+/** Ranking de alunos por ciclo — custoso; cache breve para várias rotas (dashboard admin/prof, ranking). */
+export async function getCachedStudentGamificationRankingFull(cycleId?: string) {
+  const key = cycleId ?? "all";
   return unstable_cache(
-    () => computeStudentGamificationRanking({ nameMode: "full" }),
-    ["student-gamification-ranking-full-v1"],
+    () =>
+      computeStudentGamificationRanking({
+        nameMode: "full",
+        ...(cycleId ? { cycleId } : {}),
+      }),
+    ["student-gamification-ranking-full-v2", key],
     { revalidate: 90 },
   )();
 }

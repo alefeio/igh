@@ -47,6 +47,8 @@ type ComputeOpts = {
   nameMode?: "public" | "full";
   /** Se definido, só entram matrículas ativas em turmas deste professor (ex.: ranking no painel do professor). */
   teacherId?: string;
+  /** Escopo por ciclo letivo (turmas com classGroup.cycleId). */
+  cycleId?: string;
 };
 
 /**
@@ -56,6 +58,7 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
   const limit = opts?.limit;
   const nameMode = opts?.nameMode ?? "full";
   const teacherId = opts?.teacherId;
+  const cycleId = opts?.cycleId;
 
   const today = getBrazilTodayDateOnly();
 
@@ -63,7 +66,14 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
     where: {
       status: "ACTIVE",
       student: { deletedAt: null },
-      ...(teacherId != null ? { classGroup: { teacherId } } : {}),
+      ...(teacherId != null || cycleId != null
+        ? {
+            classGroup: {
+              ...(teacherId != null ? { teacherId } : {}),
+              ...(cycleId != null ? { cycleId } : {}),
+            },
+          }
+        : {}),
     },
     select: {
       id: true,
@@ -261,7 +271,10 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
 }
 
 /** Pontuação e nível do aluno (mesma fórmula do ranking), para notificações de gamificação. */
-export async function getGamificationSnapshotForStudent(studentId: string): Promise<{
+export async function getGamificationSnapshotForStudent(
+  studentId: string,
+  opts?: { cycleId?: string }
+): Promise<{
   userId: string;
   points: number;
   levelName: string;
@@ -274,7 +287,11 @@ export async function getGamificationSnapshotForStudent(studentId: string): Prom
   const userId = student.userId;
 
   const enrollments = await prisma.enrollment.findMany({
-    where: { studentId, status: "ACTIVE" },
+    where: {
+      studentId,
+      status: "ACTIVE",
+      ...(opts?.cycleId ? { classGroup: { cycleId: opts.cycleId } } : {}),
+    },
     select: { id: true },
   });
   if (enrollments.length === 0) {

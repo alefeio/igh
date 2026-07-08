@@ -4,31 +4,47 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { TurnstileWidget } from "@/components/auth/TurnstileWidget";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import type { ApiResponse } from "@/lib/api-types";
 
-type CadastroFormProps = { redirectTo?: string };
+type CadastroFormProps = {
+  redirectTo?: string;
+  turnstileSiteKey?: string | null;
+};
 
-export function CadastroForm({ redirectTo }: CadastroFormProps) {
+export function CadastroForm({ redirectTo, turnstileSiteKey = null }: CadastroFormProps) {
   const router = useRouter();
   const toast = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [website, setWebsite] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
+    if (turnstileSiteKey && !captchaToken) {
+      toast.push("error", "Confirme que você não é um robô antes de continuar.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          captchaToken,
+          website,
+        }),
       });
       const raw = await res.text();
       let json: ApiResponse<{ redirectTo?: string }>;
@@ -53,7 +69,18 @@ export function CadastroForm({ redirectTo }: CadastroFormProps) {
   }
 
   return (
-    <form className="flex flex-col gap-3" onSubmit={submit}>
+    <form className="relative flex flex-col gap-3" onSubmit={submit}>
+      <div className="absolute -left-[9999px] top-auto h-0 w-0 overflow-hidden" aria-hidden>
+        <label htmlFor="cadastro-website">Website</label>
+        <input
+          id="cadastro-website"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+        />
+      </div>
       <div>
         <label className="text-sm font-medium text-[var(--text-primary)]">Nome</label>
         <div className="mt-1">
@@ -73,7 +100,13 @@ export function CadastroForm({ redirectTo }: CadastroFormProps) {
         </div>
       </div>
 
-      <Button type="submit" disabled={loading}>
+      {turnstileSiteKey ? (
+        <div className="pt-1">
+          <TurnstileWidget siteKey={turnstileSiteKey} onToken={setCaptchaToken} />
+        </div>
+      ) : null}
+
+      <Button type="submit" disabled={loading || (!!turnstileSiteKey && !captchaToken)}>
         {loading ? "Criando conta..." : "Criar conta e participar"}
       </Button>
 

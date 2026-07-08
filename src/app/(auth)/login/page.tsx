@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { getTurnstileSiteKey } from "@/lib/bot-protection";
 import { LoginForm } from "./login-form";
 
 type Props = { searchParams: Promise<{ from?: string | string[] }> };
@@ -30,7 +31,7 @@ export default async function LoginPage({ searchParams }: Props) {
           <div className="mt-1 text-sm text-[var(--text-secondary)]">Acesse com seu e-mail e senha.</div>
         </div>
         <div className="card-body">
-          <LoginForm redirectTo={redirectTo} />
+          <LoginForm redirectTo={redirectTo} turnstileSiteKey={getTurnstileSiteKey()} />
           <p className="mt-3 text-center text-xs text-[var(--text-muted)]">
             Ainda não tem conta?{" "}
             <Link href={redirectTo ? `/cadastro?from=${encodeURIComponent(redirectTo)}` : "/cadastro"} className="underline">

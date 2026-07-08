@@ -1,3 +1,5 @@
+import { revalidatePath } from "next/cache";
+
 import { requireMaster } from "@/lib/auth";
 import {
   getOrCreateHolidayCalendarBanner,
@@ -41,6 +43,8 @@ export async function PATCH(request: Request) {
       ...(parsed.data.isActive !== undefined && { isActive: parsed.data.isActive }),
     },
   });
+
+  revalidatePath("/calendario");
 
   return jsonOk({ banner: mapHolidayCalendarBannerAdmin(updated) });
 }

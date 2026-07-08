@@ -794,8 +794,10 @@ export async function getStudentEvolucaoPagePayload(user: SessionUser): Promise<
   if (!student) return null;
   const roleLabel = ROLE_LABELS[user.role] ?? user.role;
   const metrics = await loadStudentDashboardMetrics(student.id, user.id, roleLabel);
+  const { resolveGamificationCycleId } = await import("@/lib/gamification-cycle");
+  const cycleId = await resolveGamificationCycleId();
   const [rankingFull, forumLessonsWithActivity] = await Promise.all([
-    getCachedStudentGamificationRankingFull(),
+    getCachedStudentGamificationRankingFull(cycleId),
     attachForumLastMessagePreviews(await getStudentAttendedLessonsForumActivities(metrics.enrollments.map((e) => e.id), 96)),
   ]);
   const myRow = rankingFull.find((r) => r.studentId === student.id);
@@ -889,15 +891,16 @@ export async function getTeacherAcompanhamentoPagePayload(
     })
     .then((rows) => [...new Set(rows.map((r) => r.courseId))]);
 
-  const studentRankingFull = await getCachedStudentGamificationRankingFull();
+  const cycleId = await (await import("@/lib/gamification-cycle")).resolveGamificationCycleId();
+  const studentRankingFull = await getCachedStudentGamificationRankingFull(cycleId);
 
   const [gamification, enrollmentsForFeedback, enrollmentsForTeacherRanking, forumGlobal, forumTaught] =
     await Promise.all([
-      computeTeacherGamification(teacher.id),
+      computeTeacherGamification(teacher.id, { cycleId }),
       prisma.enrollment.findMany({
         where: {
           status: "ACTIVE",
-          classGroup: { teacherId: teacher.id },
+          classGroup: { teacherId: teacher.id, cycleId },
           student: { userId: { not: null }, deletedAt: null },
         },
         select: { student: { select: { userId: true } } },
@@ -905,7 +908,7 @@ export async function getTeacherAcompanhamentoPagePayload(
       prisma.enrollment.findMany({
         where: {
           status: "ACTIVE",
-          classGroup: { teacherId: teacher.id },
+          classGroup: { teacherId: teacher.id, cycleId },
           student: { deletedAt: null },
         },
         select: { studentId: true },
@@ -1145,8 +1148,9 @@ export async function getAdminPlataformaPagePayload(
   }
 
   const todayAdmin = getBrazilTodayDateOnly();
+  const cycleId = await (await import("@/lib/gamification-cycle")).resolveGamificationCycleId();
 
-  const studentRankingFull = await getCachedStudentGamificationRankingFull();
+  const studentRankingFull = await getCachedStudentGamificationRankingFull(cycleId);
 
   const [
     platformExperienceAgg,
@@ -1179,7 +1183,7 @@ export async function getAdminPlataformaPagePayload(
 
   const forumLessonsWithActivity = await attachForumLastMessagePreviews(forumRawGlobal);
 
-  const teachersGamificationRanking = await computeAllTeachersGamification();
+  const teachersGamificationRanking = await computeAllTeachersGamification({ cycleId });
 
   const platformExperienceSummary: PlatformExperienceDashboardSummary = {
     totalCount: platformExperienceAgg._count.id,

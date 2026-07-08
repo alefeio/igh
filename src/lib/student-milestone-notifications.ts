@@ -11,9 +11,11 @@ export type MilestoneSnapshot = {
 };
 
 export async function captureMilestoneSnapshot(studentId: string): Promise<MilestoneSnapshot> {
+  const { resolveGamificationCycleId } = await import("@/lib/gamification-cycle");
+  const cycleId = await resolveGamificationCycleId();
   const [badgeCtx, gam] = await Promise.all([
     buildStudentBadgeContextFromStudentId(studentId),
-    getGamificationSnapshotForStudent(studentId),
+    getGamificationSnapshotForStudent(studentId, { cycleId }),
   ]);
   return {
     badgeCtx,
@@ -23,9 +25,11 @@ export async function captureMilestoneSnapshot(studentId: string): Promise<Miles
 
 /** Compara antes/depois de uma ação (aula, exercício, fórum) e notifica nível/conquistas novos. */
 export async function notifyMilestoneDiff(studentId: string, before: MilestoneSnapshot): Promise<void> {
+  const { resolveGamificationCycleId } = await import("@/lib/gamification-cycle");
+  const cycleId = await resolveGamificationCycleId();
   const [afterBadgeCtx, afterGam] = await Promise.all([
     buildStudentBadgeContextFromStudentId(studentId),
-    getGamificationSnapshotForStudent(studentId),
+    getGamificationSnapshotForStudent(studentId, { cycleId }),
   ]);
   if (!afterGam || !afterBadgeCtx) return;
   const userId = afterGam.userId;

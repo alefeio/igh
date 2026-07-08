@@ -1,8 +1,11 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { CycleFilterSelect } from "@/components/dashboard/CycleFilterSelect";
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { requireSessionUser } from "@/lib/auth";
+import { getGamificationCycleContext } from "@/lib/gamification-cycle";
 import { prisma } from "@/lib/prisma";
 import {
   computeAllTeachersGamification,
@@ -15,11 +18,16 @@ export const metadata = {
   title: "Gamificação — Professores",
 };
 
-export default async function GamificacaoProfessoresPage() {
+type Props = { searchParams: Promise<{ cycleId?: string }> };
+
+export default async function GamificacaoProfessoresPage({ searchParams }: Props) {
   const user = await requireSessionUser();
   if (user.role === "STUDENT") notFound();
 
-  const ranking = await computeAllTeachersGamification();
+  const { cycleId: cycleParam } = await searchParams;
+  const { cycleId, cycles, selected } = await getGamificationCycleContext(cycleParam);
+
+  const ranking = await computeAllTeachersGamification({ cycleId });
   let myTeacherId: string | null = null;
   if (user.role === "TEACHER") {
     const t = await prisma.teacher.findFirst({
@@ -29,30 +37,34 @@ export default async function GamificacaoProfessoresPage() {
     myTeacherId = t?.id ?? null;
   }
 
-  const myStats = myTeacherId ? await computeTeacherGamification(myTeacherId) : null;
+  const myStats = myTeacherId ? await computeTeacherGamification(myTeacherId, { cycleId }) : null;
   const rankingColumns = getGamificationRankingTableColumns();
+  const cycleLabel = selected?.label ?? "ciclo atual";
 
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
-      <nav aria-label="Navegação">
+      <nav aria-label="Navegação" className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href="/dashboard"
           className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5"
         >
           Dashboard · Gamificação
         </Link>
+        <Suspense fallback={null}>
+          <CycleFilterSelect cycles={cycles} selectedId={cycleId} />
+        </Suspense>
       </nav>
 
       <DashboardHero
         eyebrow="Engajamento"
         title="Gamificação — professores"
-        description="Conteúdo e exercícios nas aulas, frequência, fórum, horas de estudo dos alunos e exercícios realizados (tentativas e acertos)."
+        description={`Pontuação do ${cycleLabel}: conteúdo e exercícios nas aulas, frequência, fórum, horas de estudo dos alunos e exercícios realizados.`}
       />
 
       {myStats && (
         <SectionCard
           title="Seu desempenho"
-          description="Pontuação acumulada no critério da plataforma."
+          description={`Pontuação acumulada no ${cycleLabel}.`}
           variant="elevated"
           className="border-[var(--igh-primary)]/30 bg-[var(--igh-primary)]/5"
         >
@@ -67,7 +79,7 @@ export default async function GamificacaoProfessoresPage() {
 
       <SectionCard
         title="Ranking comparativo"
-        description="Professores ativos ordenados por pontuação. Passe o mouse nos títulos das colunas para dicas."
+        description={`Professores ativos ordenados por pontuação no ${cycleLabel}. Passe o mouse nos títulos das colunas para dicas.`}
         variant="elevated"
       >
         <details className="mb-5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 text-left">
@@ -106,7 +118,7 @@ export default async function GamificacaoProfessoresPage() {
             {ranking.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted)]">
-                  Nenhum professor ativo encontrado.
+                  Nenhum professor ativo encontrado neste ciclo.
                 </td>
               </tr>
             ) : (

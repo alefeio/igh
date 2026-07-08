@@ -82,8 +82,13 @@ export function HolidayCalendarBannerEditor() {
         toast.push("error", json && !json.ok ? json.error.message : "Falha ao salvar banner.");
         return;
       }
-      toast.push("success", "Banner do calendário público atualizado.");
       const b = json.data.banner;
+      toast.push(
+        "success",
+        b.isActive && b.title.trim()
+          ? "Banner publicado em /calendario."
+          : "Banner salvo. Ative e informe um título para exibir em /calendario."
+      );
       setTitle(b.title);
       setSubtitle(b.subtitle ?? "");
       setCtaLabel(b.ctaLabel ?? "");
@@ -115,6 +120,32 @@ export function HolidayCalendarBannerEditor() {
         <p className="text-sm text-[var(--text-muted)]">Carregando banner…</p>
       ) : (
         <form className="flex flex-col gap-4" onSubmit={save}>
+          <div
+            className={`rounded-lg border px-3 py-2 text-sm ${
+              isActive && title.trim()
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900"
+                : "border-amber-500/40 bg-amber-500/10 text-amber-950"
+            }`}
+          >
+            {isActive && title.trim() ? (
+              <p>
+                <strong>Publicado.</strong> O banner aparece em{" "}
+                <a href="/calendario" target="_blank" rel="noreferrer" className="underline">
+                  /calendario
+                </a>{" "}
+                logo acima do calendário.
+              </p>
+            ) : (
+              <p>
+                <strong>Não visível no site.</strong> Marque{" "}
+                <em>Exibir banner ativo no calendário público</em> e preencha o título para publicar em{" "}
+                <a href="/calendario" target="_blank" rel="noreferrer" className="underline">
+                  /calendario
+                </a>
+                .
+              </p>
+            )}
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
             Exibir banner ativo no calendário público

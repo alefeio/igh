@@ -8,8 +8,15 @@ import {
   type SessionUser,
 } from "@/lib/auth";
 import type { UserRole } from "@/generated/prisma/client";
+import {
+  clientIpFromRequest,
+  isHoneypotFilled,
+  isTurnstileConfigured,
+  verifyTurnstileToken,
+} from "@/lib/bot-protection";
 import { jsonErr } from "@/lib/http";
 import { getRequestClientMeta } from "@/lib/request-client-meta";
+import { checkRateLimit } from "@/lib/rate-limit-memory";
 import { loginSchema } from "@/lib/validators/auth";
 import {
   birthDateToStudentPasswordLegacyLocal,
@@ -26,6 +33,9 @@ const userLoginSelect = {
   mustChangePassword: true,
   passwordHash: true,
 } as const;
+
+const WINDOW_MS = 60 * 60 * 1000;
+const MAX_PER_IP = 30;
 
 /**
  * Aceita senha no formato atual (UTC/calendário ISO) ou legado (getDate local),
@@ -48,12 +58,45 @@ async function verifyPasswordForStudentAccount(
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
+    if (isHoneypotFilled(body as Record<string, unknown> | null)) {
+      return jsonErr("INVALID_CREDENTIALS", "E-mail/CPF ou senha inválidos.", 401);
+    }
+
+    const ip = clientIpFromRequest(request);
+    const ipLimit = checkRateLimit(`auth:login:ip:${ip}`, MAX_PER_IP, WINDOW_MS);
+    if (!ipLimit.ok) {
+      return jsonErr(
+        "RATE_LIMIT",
+        `Muitas tentativas de login. Aguarde ${ipLimit.retryAfterSec} segundos.`,
+        429
+      );
+    }
+
     const parsed = loginSchema.safeParse(body);
     if (!parsed.success) {
       return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
     }
 
+    if (isTurnstileConfigured()) {
+      const captcha = await verifyTurnstileToken({
+        token: parsed.data.captchaToken,
+        ip,
+      });
+      if (!captcha.ok) {
+        return jsonErr("CAPTCHA_FAILED", captcha.message, 400);
+      }
+    }
+
     const { login, password, kind } = parsed.data;
+
+    const loginLimit = checkRateLimit(`auth:login:id:${kind}:${login}`, 15, WINDOW_MS);
+    if (!loginLimit.ok) {
+      return jsonErr(
+        "RATE_LIMIT",
+        `Muitas tentativas com este usuário. Aguarde ${loginLimit.retryAfterSec} segundos.`,
+        429
+      );
+    }
 
     let user: {
       id: string;

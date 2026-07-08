@@ -235,10 +235,12 @@ export async function getTestimonials(): Promise<TestimonialPublic[]> {
   }
 }
 
-/** Top do ranking de alunos (gamificação) para a home — nomes discretos. */
+/** Top do ranking de alunos (gamificação) para a home — nomes discretos; ciclo mais recente. */
 export async function getPublicStudentRanking(limit = 12): Promise<StudentRankEntry[]> {
   try {
-    return await computeStudentGamificationRanking({ limit, nameMode: "public" });
+    const { resolveGamificationCycleId } = await import("@/lib/gamification-cycle");
+    const cycleId = await resolveGamificationCycleId();
+    return await computeStudentGamificationRanking({ limit, nameMode: "public", cycleId });
   } catch {
     return [];
   }

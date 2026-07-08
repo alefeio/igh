@@ -13,6 +13,8 @@ export const registerSchema = z.object({
     .string()
     .min(8, "A senha deve ter pelo menos 8 caracteres.")
     .max(72, "A senha deve ter no máximo 72 caracteres."),
+  captchaToken: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
 });
 
 /** Aceita `login` ou (legado) `email` no corpo da requisição. */
@@ -21,6 +23,8 @@ export const loginSchema = z
     login: z.string().optional(),
     email: z.string().optional(),
     password: z.string().min(1, "Senha é obrigatória"),
+    captchaToken: z.string().optional().nullable(),
+    website: z.string().optional().nullable(),
   })
   .superRefine((data, ctx) => {
     const raw = (data.login ?? data.email ?? "").trim();
@@ -50,7 +54,19 @@ export const loginSchema = z
     const isEmail = z.string().email().safeParse(lower).success;
     const digits = raw.replace(/\D/g, "");
     if (isEmail) {
-      return { login: lower, password: data.password, kind: "email" as const };
+      return {
+        login: lower,
+        password: data.password,
+        kind: "email" as const,
+        captchaToken: data.captchaToken ?? null,
+        website: data.website ?? null,
+      };
     }
-    return { login: digits, password: data.password, kind: "cpf" as const };
+    return {
+      login: digits,
+      password: data.password,
+      kind: "cpf" as const,
+      captchaToken: data.captchaToken ?? null,
+      website: data.website ?? null,
+    };
   });

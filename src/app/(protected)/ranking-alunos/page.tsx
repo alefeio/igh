@@ -1,15 +1,20 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
+import { CycleFilterSelect } from "@/components/dashboard/CycleFilterSelect";
 import { RankingAlunosFullTable, type RankingPlacementInfo } from "@/components/dashboard/RankingAlunosFullTable";
 import { requireSessionUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { getCachedStudentGamificationRankingFull } from "@/lib/cached-dashboard-queries";
+import { getGamificationCycleContext } from "@/lib/gamification-cycle";
+import { prisma } from "@/lib/prisma";
 
 export const metadata = {
   title: "Ranking de alunos | IGH",
-  description: "Ranking completo de gamificação — aulas, exercícios, presença e fórum.",
+  description: "Ranking completo de gamificação por ciclo — aulas, exercícios, presença e fórum.",
 };
+
+type Props = { searchParams: Promise<{ cycleId?: string }> };
 
 function buildPlacement(
   student: { id: string } | null,
@@ -33,8 +38,11 @@ function buildPlacement(
   };
 }
 
-export default async function RankingAlunosPage() {
+export default async function RankingAlunosPage({ searchParams }: Props) {
   const user = await requireSessionUser();
+  const { cycleId: cycleParam } = await searchParams;
+  const { cycleId, cycles, selected } = await getGamificationCycleContext(cycleParam);
+
   const student = await prisma.student.findFirst({
     where: { userId: user.id, deletedAt: null },
     select: { id: true },
@@ -48,14 +56,14 @@ export default async function RankingAlunosPage() {
     });
     if (teacher) {
       const enrollRows = await prisma.enrollment.findMany({
-        where: { status: "ACTIVE", classGroup: { teacherId: teacher.id } },
+        where: { status: "ACTIVE", classGroup: { teacherId: teacher.id, cycleId } },
         select: { studentId: true },
       });
       teacherHighlightStudentIds = [...new Set(enrollRows.map((e) => e.studentId))];
     }
   }
 
-  const fullRanking = await getCachedStudentGamificationRankingFull();
+  const fullRanking = await getCachedStudentGamificationRankingFull(cycleId);
   const filtered = fullRanking
     .filter((r) => r.points > 0)
     .map((r, i) => ({
@@ -64,10 +72,11 @@ export default async function RankingAlunosPage() {
     }));
 
   const placement = buildPlacement(student, fullRanking, filtered);
+  const cycleLabel = selected?.label ?? "ciclo atual";
 
   return (
     <div className="min-w-0">
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link
           href="/dashboard"
           className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--igh-primary)] hover:underline"
@@ -75,14 +84,17 @@ export default async function RankingAlunosPage() {
           <ChevronLeft className="h-4 w-4" aria-hidden />
           Voltar ao painel
         </Link>
+        <Suspense fallback={null}>
+          <CycleFilterSelect cycles={cycles} selectedId={cycleId} />
+        </Suspense>
       </div>
       <header className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-[var(--igh-secondary)] sm:text-3xl">
           Ranking de alunos
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-[var(--text-muted)]">
-          Pontuação igual à do painel do aluno: aulas concluídas, exercícios, frequência e participação no fórum. Apenas
-          alunos com matrícula ativa e com pontuação acima de zero entram na lista.
+          Pontuação do {cycleLabel}: aulas concluídas, exercícios, frequência e participação no fórum. Apenas
+          alunos com matrícula ativa neste ciclo e com pontuação acima de zero entram na lista.
         </p>
       </header>
 

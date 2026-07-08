@@ -13,6 +13,8 @@ export const metadata = {
     "Feriados, eventos e inscrições do Instituto Geração Humana. Veja o calendário institucional e participe dos eventos abertos.",
 };
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   searchParams: Promise<{ event?: string; date?: string; subtitle?: string }>;
 };
