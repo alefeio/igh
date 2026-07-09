@@ -768,6 +768,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         totalForumQuestions: 0,
         totalForumReplies: 0,
         welcomeBanners,
+        upcomingHolidayEventRegistrations: [],
       };
     }
     return loadStudentDashboardMetrics(student.id, user.id, roleLabel);
