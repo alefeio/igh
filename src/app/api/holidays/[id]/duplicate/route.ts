@@ -69,6 +69,7 @@ export async function POST(
       allowsRegistration: isEvent ? source.allowsRegistration : false,
       publicDescription: source.publicDescription,
       subtitle: isEvent ? source.subtitle : null,
+      responsibleTeacherId: source.responsibleTeacherId,
     },
   });
 

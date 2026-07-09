@@ -106,6 +106,9 @@ export async function PATCH(
       ...(parsed.data.subtitle !== undefined || parsed.data.eventStartTime !== undefined || parsed.data.eventEndTime !== undefined
         ? { subtitle: isEvent ? (parsed.data.subtitle !== undefined ? parsed.data.subtitle?.trim() || null : existing.subtitle) : null }
         : {}),
+      ...(parsed.data.responsibleTeacherId !== undefined
+        ? { responsibleTeacherId: parsed.data.responsibleTeacherId || null }
+        : {}),
     },
   });
 

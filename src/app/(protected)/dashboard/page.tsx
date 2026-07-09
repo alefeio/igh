@@ -737,6 +737,7 @@ function DashboardStudent({
     recommendedEnrollmentId,
     lastViewedLesson,
     welcomeBanners,
+    upcomingHolidayEventRegistrations,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
   const recommendedEnrollment = recommendedEnrollmentId
@@ -837,6 +838,40 @@ function DashboardStudent({
       />
 
       <div className="min-w-0">{continueBlock}</div>
+
+      {upcomingHolidayEventRegistrations.length > 0 ? (
+        <SectionCard
+          title="Lembrete — eventos em que você está inscrito"
+          description="Fica visível até a data do evento. Toque em um item para abrir no calendário público."
+          variant="elevated"
+        >
+          <ul className="list-none space-y-2 pl-0">
+            {upcomingHolidayEventRegistrations.slice(0, 5).map((r) => (
+              <li key={r.id} className="rounded-xl border border-[var(--igh-border)] bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[var(--text-primary)]">
+                      {r.holidayName ?? "Evento IGH"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                      {r.occurrenceDate}
+                      {r.eventStartTime && r.eventEndTime ? ` · ${r.eventStartTime.slice(0, 5)}–${r.eventEndTime.slice(0, 5)}` : ""}
+                      {r.subtitle ? ` · ${r.subtitle}` : ""}
+                      {r.responsibleTeacherName ? ` · Prof.: ${r.responsibleTeacherName}` : ""}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/calendario?date=${encodeURIComponent(r.occurrenceDate)}&event=${encodeURIComponent(r.holidayId)}`}
+                    className="text-sm font-medium text-[var(--igh-primary)] hover:underline"
+                  >
+                    Abrir
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : null}
 
       {suspendedEnrollments.length > 0 && (
         <div className="space-y-3" aria-label="Turmas com acesso às aulas bloqueado">

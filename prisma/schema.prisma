@@ -374,6 +374,8 @@ model Teacher {
   classGroupTeachers    ClassGroupTeacher[]
   lessonQuestionReplies LessonQuestionTeacherReply[]
   examsCreated          ClassGroupExam[]             @relation("ExamCreatedByTeacher")
+  holidayEventsResponsibleFor Holiday[]              @relation("HolidayResponsibleTeacher")
+  holidayEventAttendancesMarked HolidayEventRegistration[] @relation("HolidayEventAttendanceMarkedByTeacher")
   user                  User?                        @relation(fields: [userId], references: [id])
 }
 
@@ -679,7 +681,12 @@ model Holiday {
   publicDescription  String?
   /// * Subtítulo discreto abaixo do nome no calendário público (eventos).
   subtitle           String?
+  /// * Professor responsável (opcional) — usado para marcação de presença e certificado.
+  responsibleTeacherId String?
   registrations      HolidayEventRegistration[]
+  responsibleTeacher Teacher?                   @relation("HolidayResponsibleTeacher", fields: [responsibleTeacherId], references: [id], onDelete: SetNull)
+
+  @@index([responsibleTeacherId])
 }
 
 /// * Banner horizontal de destaque na página pública /calendario (singleton).
@@ -704,13 +711,23 @@ model HolidayEventRegistration {
   createdAt               DateTime  @default(now())
   confirmationEmailSentAt DateTime?
   reminderEmailSentAt     DateTime?
+  /// * Presença confirmada pelo professor responsável.
+  present                 Boolean?
+  attendanceMarkedAt      DateTime?
+  attendanceMarkedByTeacherId String?
+  /// * Certificado gerado automaticamente (somente se present=true).
+  certificateUrl          String?
+  certificatePublicId     String?
+  certificateFileName     String?
   holiday                 Holiday   @relation(fields: [holidayId], references: [id], onDelete: Cascade)
   user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendanceMarkedByTeacher Teacher? @relation("HolidayEventAttendanceMarkedByTeacher", fields: [attendanceMarkedByTeacherId], references: [id], onDelete: SetNull)
 
   @@unique([holidayId, userId, occurrenceDate])
   @@index([occurrenceDate])
   @@index([userId])
   @@index([holidayId, occurrenceDate])
+  @@index([attendanceMarkedByTeacherId])
 }
 
 model AuditLog {

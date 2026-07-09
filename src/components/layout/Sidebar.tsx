@@ -52,6 +52,7 @@ const ITEMS: Item[] = [
   { href: "/professor/calendario", label: "Calendário de aulas", teacherOnly: true, category: "Professor" },
   { href: "/comunidade", label: "Comunidade IGH (PII)", teacherOnly: true, category: "Professor" },
   { href: "/professor/forum", label: "Fórum dos cursos", teacherOnly: true, category: "Professor" },
+  { href: "/professor/eventos", label: "Eventos (presença)", teacherOnly: true, category: "Professor" },
   { href: "/professor/frequencia", label: "Frequência", teacherOnly: true, category: "Professor" },
   { href: "/gamificacao", label: "Gamificação", teacherOnly: true, category: "Professor" },
   { href: "/ranking-alunos", label: "Ranking dos alunos", teacherOnly: true, category: "Professor" },

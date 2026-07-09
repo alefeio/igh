@@ -73,6 +73,7 @@ export async function POST(request: Request) {
       allowsRegistration: isEvent ? (parsed.data.allowsRegistration ?? false) : false,
       publicDescription: parsed.data.publicDescription?.trim() || null,
       subtitle: isEvent ? parsed.data.subtitle?.trim() || null : null,
+      responsibleTeacherId: parsed.data.responsibleTeacherId ?? null,
     },
   });
 

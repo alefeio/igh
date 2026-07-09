@@ -263,6 +263,17 @@ export type DashboardDataStudent = {
   totalForumReplies: number;
   /** Banners ativos (Admin → Banners (aluno)); topo do painel do aluno e vitrine /tablet/banners */
   welcomeBanners: StudentWelcomeBanner[];
+  /** Próximos eventos institucionais em que o aluno está inscrito (até a data ocorrer). */
+  upcomingHolidayEventRegistrations: {
+    id: string;
+    holidayId: string;
+    occurrenceDate: string;
+    holidayName: string | null;
+    subtitle: string | null;
+    eventStartTime: string | null;
+    eventEndTime: string | null;
+    responsibleTeacherName: string | null;
+  }[];
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -311,6 +322,7 @@ export async function loadStudentDashboardMetrics(
     forumQuestionsByEnrollment,
     forumRepliesByEnrollment,
     lessonsAccessedByEnrollment,
+    upcomingHolidayEventRegistrationsRaw,
   ] = await Promise.all([
     prisma.courseModule.findMany({
       where: { courseId: { in: courseIds } },
@@ -359,6 +371,34 @@ export async function loadStudentDashboardMetrics(
           _count: { id: true },
         })
       : Promise.resolve([]),
+    prisma.holidayEventRegistration.findMany({
+      where: {
+        userId,
+        occurrenceDate: {
+          gte: (() => {
+            const d = getBrazilTodayDateOnly();
+            const y = d.getUTCFullYear();
+            const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+            const day = String(d.getUTCDate()).padStart(2, "0");
+            return `${y}-${m}-${day}`;
+          })(),
+        },
+        holiday: { isActive: true, allowsRegistration: true },
+      },
+      orderBy: [{ occurrenceDate: "asc" }, { createdAt: "asc" }],
+      include: {
+        holiday: {
+          select: {
+            id: true,
+            name: true,
+            subtitle: true,
+            eventStartTime: true,
+            eventEndTime: true,
+            responsibleTeacher: { select: { name: true } },
+          },
+        },
+      },
+    }),
   ]);
   const lessonsByCourseId = new Map<string, number>();
   for (const m of modulesWithCount) {
@@ -465,6 +505,19 @@ export async function loadStudentDashboardMetrics(
     select: { id: true, title: true, subtitle: true, imageUrl: true, linkHref: true },
   });
 
+  const upcomingHolidayEventRegistrations = upcomingHolidayEventRegistrationsRaw
+    .filter((r) => r.holiday != null)
+    .map((r) => ({
+      id: r.id,
+      holidayId: r.holidayId,
+      occurrenceDate: r.occurrenceDate,
+      holidayName: r.holiday.name,
+      subtitle: r.holiday.subtitle,
+      eventStartTime: r.holiday.eventStartTime,
+      eventEndTime: r.holiday.eventEndTime,
+      responsibleTeacherName: r.holiday.responsibleTeacher?.name ?? null,
+    }));
+
   return {
     role: "STUDENT",
     roleLabel,
@@ -480,6 +533,7 @@ export async function loadStudentDashboardMetrics(
     totalForumQuestions: forumQuestionsCount,
     totalForumReplies: forumRepliesCount,
     welcomeBanners,
+    upcomingHolidayEventRegistrations,
   };
 }
 

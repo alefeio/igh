@@ -27,7 +27,14 @@ type Holiday = {
   allowsRegistration: boolean;
   publicDescription: string | null;
   subtitle: string | null;
+  responsibleTeacherId?: string | null;
   _count?: { registrations: number };
+};
+
+type TeacherOption = {
+  id: string;
+  name: string;
+  deletedAt?: string | null;
 };
 
 type ScheduleRecalculation = {
@@ -109,6 +116,8 @@ export default function HolidaysPage() {
   const [allowsRegistration, setAllowsRegistration] = useState(false);
   const [publicDescription, setPublicDescription] = useState("");
   const [subtitle, setSubtitle] = useState("");
+  const [responsibleTeacherId, setResponsibleTeacherId] = useState<string>("");
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
@@ -135,6 +144,7 @@ export default function HolidaysPage() {
     setAllowsRegistration(false);
     setPublicDescription("");
     setSubtitle("");
+    setResponsibleTeacherId("");
     setEditing(null);
     setIsDuplicating(false);
   }
@@ -160,6 +170,7 @@ export default function HolidaysPage() {
     setAllowsRegistration(h.allowsRegistration);
     setPublicDescription(h.publicDescription ?? "");
     setSubtitle(h.subtitle ?? "");
+    setResponsibleTeacherId(h.responsibleTeacherId ?? "");
     setOpen(true);
   }
 
@@ -177,6 +188,7 @@ export default function HolidaysPage() {
     setAllowsRegistration(h.allowsRegistration);
     setPublicDescription(h.publicDescription ?? "");
     setSubtitle(h.subtitle ?? "");
+    setResponsibleTeacherId(h.responsibleTeacherId ?? "");
     setOpen(true);
   }
 
@@ -221,6 +233,16 @@ export default function HolidaysPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!isMaster) return;
+    void (async () => {
+      const res = await fetch("/api/teachers?status=active");
+      const json = await parseApiJson<{ teachers: TeacherOption[] }>(res);
+      if (!res.ok || !json || !json.ok) return;
+      setTeachers(json.data.teachers ?? []);
+    })();
+  }, [isMaster]);
 
   /** Reexecuta só o recálculo (feriado já existe no banco; primeiro POST pode ter falhado depois do INSERT). */
   async function recalculateScheduleOnly() {
@@ -325,12 +347,14 @@ export default function HolidaysPage() {
         payload.allowsRegistration = allowsRegistration;
         payload.publicDescription = publicDescription.trim() || null;
         payload.subtitle = subtitle.trim() || null;
+        payload.responsibleTeacherId = responsibleTeacherId.trim() || null;
       } else {
         payload.eventStartTime = null;
         payload.eventEndTime = null;
         payload.allowsRegistration = false;
         payload.publicDescription = null;
         payload.subtitle = null;
+        payload.responsibleTeacherId = null;
       }
 
       if (editing) {
@@ -991,6 +1015,31 @@ export default function HolidaysPage() {
                   onChange={(e) => setSubtitle(e.target.value)}
                   placeholder="Ex.: Workshop presencial · auditório principal"
                 />
+              </div>
+            </div>
+          ) : null}
+          {kind === "event" ? (
+            <div>
+              <label className="text-sm font-medium">Professor responsável (opcional)</label>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                Define quem poderá marcar presença e gerar certificados no painel do professor.
+              </p>
+              <div className="mt-1">
+                <select
+                  className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                  value={responsibleTeacherId}
+                  onChange={(e) => setResponsibleTeacherId(e.target.value)}
+                  disabled={!isMaster}
+                >
+                  <option value="">Sem professor</option>
+                  {teachers
+                    .filter((t) => !t.deletedAt)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                </select>
               </div>
             </div>
           ) : null}

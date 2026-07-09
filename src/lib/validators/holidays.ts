@@ -50,6 +50,7 @@ export const createHolidaySchema = z
     allowsRegistration: z.boolean().optional(),
     publicDescription: z.string().max(2000).optional().nullable(),
     subtitle: z.string().max(300).optional().nullable(),
+    responsibleTeacherId: z.string().uuid().optional().nullable(),
   })
   .superRefine(hmRefine)
   .superRefine((data, ctx) => {
@@ -76,6 +77,7 @@ export const updateHolidaySchema = z.object({
   allowsRegistration: z.boolean().optional(),
   publicDescription: z.string().max(2000).optional().nullable(),
   subtitle: z.string().max(300).optional().nullable(),
+  responsibleTeacherId: z.string().uuid().optional().nullable(),
 });
 
 export const holidayCalendarBannerSchema = z.object({

@@ -21,6 +21,17 @@ CREATE TABLE "User" (
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
+-- Compat: algumas migrations anteriores criam SupportTicket antes do User no shadow DB.
+-- Garante FK de SupportTicket.userId -> User.id se a tabela já existir.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'SupportTicket')
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SupportTicket_userId_fkey') THEN
+    ALTER TABLE "SupportTicket"
+      ADD CONSTRAINT "SupportTicket_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
 -- CreateTable
 CREATE TABLE "Teacher" (
     "id" TEXT NOT NULL,
