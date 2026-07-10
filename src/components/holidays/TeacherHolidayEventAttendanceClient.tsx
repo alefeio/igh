@@ -24,14 +24,17 @@ type OccurrenceRow = {
 type RegistrationRow = {
   id: string;
   holidayId: string;
-  userId: string;
+  userId: string | null;
   occurrenceDate: string;
   createdAt: string;
   present: boolean | null;
   attendanceMarkedAt: string | null;
   certificateUrl: string | null;
   certificateFileName: string | null;
-  user: { id: string; name: string; email: string };
+  guestName: string | null;
+  guestPhone: string | null;
+  guestEmail: string | null;
+  user: { id: string; name: string; email: string; whatsapp?: string | null } | null;
 };
 
 async function parseApiJson<T>(res: Response): Promise<ApiResponse<T> | null> {
@@ -223,8 +226,12 @@ export function TeacherHolidayEventAttendanceClient() {
                   <li key={r.id} className="rounded-xl border border-[var(--igh-border)] bg-white p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate font-medium text-[var(--text-primary)]">{r.user.name}</div>
-                        <div className="truncate text-xs text-[var(--text-muted)]">{r.user.email}</div>
+                        <div className="truncate font-medium text-[var(--text-primary)]">
+                          {r.user?.name ?? r.guestName ?? "Participante"}
+                        </div>
+                        <div className="truncate text-xs text-[var(--text-muted)]">
+                          {r.user?.email ?? r.guestEmail ?? r.guestPhone ?? "—"}
+                        </div>
                       </div>
                       <Button type="button" variant={present ? "secondary" : "primary"} disabled={disabled} onClick={() => void togglePresence(r)}>
                         {present ? (

@@ -122,6 +122,72 @@ export async function registerUserForHolidayEvent(params: {
   return { ok: true as const, alreadyRegistered: false, registration };
 }
 
+export async function registerGuestForHolidayEvent(params: {
+  holidayId: string;
+  occurrenceDate: string;
+  name: string;
+  phone: string;
+  email?: string | null;
+  cpf?: string | null;
+}) {
+  const check = await validateHolidayOccurrenceDate(params.holidayId, params.occurrenceDate);
+  if (!check.ok) return { ok: false as const, message: check.message };
+
+  const { holiday } = check;
+  const phone = params.phone.replace(/\D/g, "");
+  const existing = await prisma.holidayEventRegistration.findFirst({
+    where: {
+      holidayId: params.holidayId,
+      occurrenceDate: params.occurrenceDate,
+      guestPhone: phone,
+    },
+  });
+  if (existing) {
+    return { ok: true as const, alreadyRegistered: true, registration: existing };
+  }
+
+  const registration = await prisma.holidayEventRegistration.create({
+    data: {
+      holidayId: params.holidayId,
+      occurrenceDate: params.occurrenceDate,
+      guestName: params.name.trim(),
+      guestPhone: phone,
+      guestEmail: params.email?.trim().toLowerCase() || null,
+      guestCpf: params.cpf?.replace(/\D/g, "") || null,
+    },
+  });
+
+  const emailTo = registration.guestEmail;
+  if (emailTo) {
+    const eventLabel = formatEventLabel(holiday.name, holiday.eventStartTime, holiday.eventEndTime);
+    const dateLabel = formatOccurrenceDisplay(params.occurrenceDate, holiday.recurring);
+    const { subject, html } = templateHolidayEventConfirmation({
+      name: params.name.trim(),
+      eventName: eventLabel,
+      occurrenceDateLabel: dateLabel,
+      startTime: holiday.eventStartTime?.slice(0, 5) ?? "",
+      endTime: holiday.eventEndTime?.slice(0, 5) ?? "",
+      publicDescription: holiday.publicDescription,
+    });
+
+    await sendEmailAndRecord({
+      to: emailTo,
+      subject,
+      html,
+      emailType: "HOLIDAY_EVENT_CONFIRMATION",
+      entityType: "HolidayEventRegistration",
+      entityId: registration.id,
+    });
+
+    await prisma.holidayEventRegistration.update({
+      where: { id: registration.id },
+      data: { confirmationEmailSentAt: new Date() },
+    });
+  }
+
+  return { ok: true as const, alreadyRegistered: false, registration };
+}
+
 export type HolidayEventReminderRunResult = {
   date: string;
   sent: number;
@@ -150,7 +216,13 @@ export async function runHolidayEventRemindersForToday(): Promise<HolidayEventRe
   let failed = 0;
 
   for (const reg of registrations) {
-    if (!reg.user.isActive) {
+    const toEmail = reg.user?.email ?? reg.guestEmail ?? null;
+    const toName = reg.user?.name ?? reg.guestName ?? "Participante";
+    if (!toEmail) {
+      skipped += 1;
+      continue;
+    }
+    if (reg.user && !reg.user.isActive) {
       skipped += 1;
       continue;
     }
@@ -175,7 +247,7 @@ export async function runHolidayEventRemindersForToday(): Promise<HolidayEventRe
     const eventLabel = formatEventLabel(reg.holiday.name, reg.holiday.eventStartTime, reg.holiday.eventEndTime);
     const dateLabel = formatOccurrenceDisplay(reg.occurrenceDate, reg.holiday.recurring);
     const { subject, html } = templateHolidayEventReminder({
-      name: reg.user.name,
+      name: toName,
       eventName: eventLabel,
       occurrenceDateLabel: dateLabel,
       startTime: reg.holiday.eventStartTime?.slice(0, 5) ?? "",
@@ -183,7 +255,7 @@ export async function runHolidayEventRemindersForToday(): Promise<HolidayEventRe
     });
 
     const result = await sendEmailAndRecord({
-      to: reg.user.email,
+      to: toEmail,
       subject,
       html,
       emailType: "HOLIDAY_EVENT_REMINDER",

@@ -4,6 +4,7 @@ import { Container, PageHeader } from "@/components/site";
 import { PublicCalendarHighlightBanner } from "@/components/site/PublicCalendarHighlightBanner";
 import { PublicIghCalendar } from "@/components/site/PublicIghCalendar";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { getTurnstileSiteKey } from "@/lib/bot-protection";
 import { getActiveHolidayCalendarBanner } from "@/lib/holiday-calendar-banner";
 import { parsePublicCalendarSearchParams } from "@/lib/public-calendar-shared";
 
@@ -42,6 +43,7 @@ export default async function CalendarioPublicoPage({ searchParams }: Props) {
               sessionUser={session ? { name: session.name, email: session.email, role: session.role } : null}
               initialHolidayId={initialHolidayId ?? undefined}
               initialDate={initialDate ?? undefined}
+              turnstileSiteKey={getTurnstileSiteKey()}
             />
           </Suspense>
         </Container>

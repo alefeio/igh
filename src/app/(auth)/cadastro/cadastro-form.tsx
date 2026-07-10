@@ -21,10 +21,19 @@ export function CadastroForm({ redirectTo, turnstileSiteKey = null }: CadastroFo
   const toast = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [password, setPassword] = useState("");
   const [website, setWebsite] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  function formatWhatsappInput(raw: string) {
+    const d = raw.replace(/\D/g, "").slice(0, 11);
+    if (d.length <= 2) return d;
+    if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+    if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,6 +50,7 @@ export function CadastroForm({ redirectTo, turnstileSiteKey = null }: CadastroFo
         body: JSON.stringify({
           name,
           email,
+          whatsapp,
           password,
           captchaToken,
           website,
@@ -91,6 +101,19 @@ export function CadastroForm({ redirectTo, turnstileSiteKey = null }: CadastroFo
         <label className="text-sm font-medium text-[var(--text-primary)]">E-mail</label>
         <div className="mt-1">
           <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="seu@email.com" />
+        </div>
+      </div>
+      <div>
+        <label className="text-sm font-medium text-[var(--text-primary)]">WhatsApp</label>
+        <div className="mt-1">
+          <Input
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(formatWhatsappInput(e.target.value))}
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            placeholder="(91) 99999-9999"
+          />
         </div>
       </div>
       <div>

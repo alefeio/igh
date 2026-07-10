@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Clock, Share2, Sparkles, Ticket, X } from "l
 
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site/Button";
+import { GuestHolidayEventRegisterForm } from "@/components/site/GuestHolidayEventRegisterForm";
 import type { ApiResponse } from "@/lib/api-types";
 import type { PublicCalendarItem } from "@/lib/public-calendar-shared";
 import {
@@ -95,6 +96,7 @@ function CalendarItemDetail({
   registering,
   onRegister,
   onSubtitleClick,
+  turnstileSiteKey,
 }: {
   item: PublicCalendarItem;
   sessionUser: SessionUser;
@@ -102,6 +104,7 @@ function CalendarItemDetail({
   registering: boolean;
   onRegister: (item: PublicCalendarItem) => void;
   onSubtitleClick?: (subtitle: string) => void;
+  turnstileSiteKey?: string | null;
 }) {
   return (
     <div className="rounded-xl border border-dashed border-[var(--igh-border)] bg-[var(--igh-surface)]/60 p-4">
@@ -135,7 +138,7 @@ function CalendarItemDetail({
           ) : (
             <>
               <p className="text-sm text-[var(--igh-muted)]">
-                Entre ou crie sua conta gratuita para se inscrever.
+                Entre ou crie sua conta gratuita para se inscrever — ou use a inscrição rápida abaixo.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button as="link" href={publicCalendarLoginPath(item.holidayId, item.date)}>
@@ -149,6 +152,11 @@ function CalendarItemDetail({
                   Criar conta
                 </Button>
               </div>
+              <GuestHolidayEventRegisterForm
+                holidayId={item.holidayId}
+                occurrenceDate={item.date}
+                turnstileSiteKey={turnstileSiteKey}
+              />
             </>
           )}
         </div>
@@ -192,6 +200,7 @@ function DayEventsSection({
   onSubtitleClick,
   onClose,
   sectionId,
+  turnstileSiteKey,
 }: {
   date: string;
   items: PublicCalendarItem[];
@@ -204,6 +213,7 @@ function DayEventsSection({
   onSubtitleClick: (subtitle: string) => void;
   onClose?: () => void;
   sectionId?: string;
+  turnstileSiteKey?: string | null;
 }) {
   return (
     <section id={sectionId} className="scroll-mt-4">
@@ -236,6 +246,7 @@ function DayEventsSection({
               onSelect={() => onSelect(item)}
               onRegister={onRegister}
               onSubtitleClick={onSubtitleClick}
+              turnstileSiteKey={turnstileSiteKey}
             />
           ))}
         </ul>
@@ -253,6 +264,7 @@ function FilteredEventListItem({
   onSelect,
   onRegister,
   onSubtitleClick,
+  turnstileSiteKey,
 }: {
   item: PublicCalendarItem;
   active: boolean;
@@ -262,6 +274,7 @@ function FilteredEventListItem({
   onSelect: () => void;
   onRegister: (item: PublicCalendarItem) => void;
   onSubtitleClick: (subtitle: string) => void;
+  turnstileSiteKey?: string | null;
 }) {
   return (
     <li className="flex flex-col gap-3">
@@ -298,6 +311,7 @@ function FilteredEventListItem({
           registering={registering}
           onRegister={onRegister}
           onSubtitleClick={onSubtitleClick}
+          turnstileSiteKey={turnstileSiteKey}
         />
       ) : null}
     </li>
@@ -308,10 +322,12 @@ export function PublicIghCalendar({
   sessionUser,
   initialHolidayId,
   initialDate,
+  turnstileSiteKey = null,
 }: {
   sessionUser: SessionUser;
   initialHolidayId?: string;
   initialDate?: string;
+  turnstileSiteKey?: string | null;
 }) {
   const toast = useToast();
   const router = useRouter();
@@ -768,6 +784,7 @@ export function PublicIghCalendar({
                         onSelect={() => selectEvent(item)}
                         onRegister={(ev) => void register(ev)}
                         onSubtitleClick={toggleSubtitleFilter}
+                        turnstileSiteKey={turnstileSiteKey}
                       />
                     ))}
                   </ul>
@@ -918,6 +935,7 @@ export function PublicIghCalendar({
                   onRegister={(item) => void register(item)}
                   onSubtitleClick={toggleSubtitleFilter}
                   onClose={clearDaySelection}
+                  turnstileSiteKey={turnstileSiteKey}
                 />
               </div>
             ) : (

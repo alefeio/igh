@@ -28,6 +28,8 @@ model User {
   name                         String
   email                        String                       @unique
   passwordHash                 String
+  /// * WhatsApp / celular (dígitos). Pedido no cadastro rápido para inscrição em eventos.
+  whatsapp                     String?
   role                         UserRole
   isActive                     Boolean                      @default(true)
   createdAt                    DateTime                     @default(now())
@@ -701,16 +703,22 @@ model HolidayCalendarBanner {
   updatedAt DateTime @updatedAt
 }
 
-/// * Inscrição de usuário em uma ocorrência de evento institucional (data concreta).
+/// * Inscrição em ocorrência de evento institucional (usuário logado ou convidado sem conta).
 model HolidayEventRegistration {
   id                      String    @id @default(uuid())
   holidayId               String
-  userId                  String
+  /// * Preenchido quando a inscrição é de usuário autenticado.
+  userId                  String?
   /// * Data da ocorrência (YYYY-MM-DD), importante para eventos recorrentes.
   occurrenceDate          String
   createdAt               DateTime  @default(now())
   confirmationEmailSentAt DateTime?
   reminderEmailSentAt     DateTime?
+  /// * Dados de inscrição simplificada (sem criar conta).
+  guestName               String?
+  guestPhone              String?
+  guestEmail              String?
+  guestCpf                String?
   /// * Presença confirmada pelo professor responsável.
   present                 Boolean?
   attendanceMarkedAt      DateTime?
@@ -720,12 +728,14 @@ model HolidayEventRegistration {
   certificatePublicId     String?
   certificateFileName     String?
   holiday                 Holiday   @relation(fields: [holidayId], references: [id], onDelete: Cascade)
-  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                    User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   attendanceMarkedByTeacher Teacher? @relation("HolidayEventAttendanceMarkedByTeacher", fields: [attendanceMarkedByTeacherId], references: [id], onDelete: SetNull)
 
   @@unique([holidayId, userId, occurrenceDate])
+  @@unique([holidayId, guestPhone, occurrenceDate])
   @@index([occurrenceDate])
   @@index([userId])
+  @@index([guestPhone])
   @@index([holidayId, occurrenceDate])
   @@index([attendanceMarkedByTeacherId])
 }

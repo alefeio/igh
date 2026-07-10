@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const { name, email, password } = parsed.data;
+    const { name, email, password, whatsapp } = parsed.data;
     const emailLimit = checkRateLimit(`auth:register:email:${email}`, 5, WINDOW_MS);
     if (!emailLimit.ok) {
       return jsonErr(
@@ -70,6 +70,7 @@ export async function POST(request: Request) {
       data: {
         name,
         email,
+        whatsapp,
         passwordHash,
         role: "STUDENT",
         isActive: true,

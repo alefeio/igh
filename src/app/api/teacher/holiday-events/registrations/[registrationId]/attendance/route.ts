@@ -72,7 +72,7 @@ export async function POST(
   if (parsed.data.present && !updated.certificateUrl) {
     try {
       const pdfBytes = await generateHolidayEventCertificatePdfBytes({
-        participantName: reg.user.name,
+        participantName: (reg.user?.name ?? reg.guestName ?? "Participante").trim(),
         eventName: reg.holiday.name?.trim() || "Evento IGH",
         occurrenceDate: reg.occurrenceDate,
         eventStartTime: reg.holiday.eventStartTime,
@@ -80,7 +80,11 @@ export async function POST(
         responsibleTeacherName: teacher.name,
       });
       const safeDate = reg.occurrenceDate.replaceAll("-", "");
-      const fileName = `certificado-evento-${safeDate}-${reg.user.name.trim().slice(0, 32).replaceAll(" ", "-")}.pdf`;
+      const participantSlug = (reg.user?.name ?? reg.guestName ?? "participante")
+        .trim()
+        .slice(0, 32)
+        .replaceAll(" ", "-");
+      const fileName = `certificado-evento-${safeDate}-${participantSlug}.pdf`;
       const up = await uploadCertificatePdfToApimages({ pdfBytes, fileName });
       const finalReg = await prisma.holidayEventRegistration.update({
         where: { id: updated.id },

@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     where: { holidayId, occurrenceDate },
     orderBy: [{ createdAt: "asc" }],
     include: {
-      user: { select: { id: true, name: true, email: true } },
+      user: { select: { id: true, name: true, email: true, whatsapp: true } },
     },
   });
 

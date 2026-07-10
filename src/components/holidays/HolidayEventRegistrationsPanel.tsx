@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Clock, Mail, Search, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Mail, Plus, Search, Trash2, Users } from "lucide-react";
 
 import { SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
+import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -17,7 +18,11 @@ type RegistrationRow = {
   createdAt: string;
   confirmationEmailSentAt: string | null;
   reminderEmailSentAt: string | null;
-  user: { id: string; name: string; email: string };
+  guestName: string | null;
+  guestPhone: string | null;
+  guestEmail: string | null;
+  guestCpf: string | null;
+  user: { id: string; name: string; email: string; whatsapp: string | null } | null;
   holiday: {
     id: string;
     name: string | null;
@@ -58,6 +63,26 @@ function formatDateTime(iso: string | null): string {
   });
 }
 
+function formatPhoneDisplay(raw: string | null | undefined): string {
+  if (!raw) return "—";
+  const d = raw.replace(/\D/g, "");
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return raw;
+}
+
+function participantName(row: RegistrationRow): string {
+  return row.user?.name ?? row.guestName ?? "—";
+}
+
+function participantEmail(row: RegistrationRow): string {
+  return row.user?.email ?? row.guestEmail ?? "—";
+}
+
+function participantPhone(row: RegistrationRow): string {
+  return formatPhoneDisplay(row.user?.whatsapp ?? row.guestPhone);
+}
+
 function groupKey(holidayId: string, occurrenceDate: string) {
   return `${holidayId}:${occurrenceDate}`;
 }
@@ -79,12 +104,22 @@ export function HolidayEventRegistrationsPanel({
   focusHolidayId?: string | null;
   onClearFocus?: () => void;
 }) {
+  const toast = useToast();
   const [scope, setScope] = useState<Scope>("upcoming");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<RegistrationRow[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [addingFor, setAddingFor] = useState<string | null>(null);
+  const [mode, setMode] = useState<"user" | "guest">("guest");
+  const [userEmail, setUserEmail] = useState("");
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestCpf, setGuestCpf] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -166,6 +201,71 @@ export function HolidayEventRegistrationsPanel({
     });
   }
 
+  function openAddForm(key: string) {
+    setAddingFor(key);
+    setMode("guest");
+    setUserEmail("");
+    setGuestName("");
+    setGuestPhone("");
+    setGuestEmail("");
+    setGuestCpf("");
+    setExpanded((prev) => new Set(prev).add(key));
+  }
+
+  async function submitAdd(holidayId: string, occurrenceDate: string) {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const body =
+        mode === "user"
+          ? { holidayId, occurrenceDate, userEmail }
+          : {
+              holidayId,
+              occurrenceDate,
+              name: guestName,
+              phone: guestPhone,
+              email: guestEmail || undefined,
+              cpf: guestCpf || undefined,
+            };
+      const res = await fetch("/api/holidays/registrations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await parseApiJson<{ alreadyRegistered?: boolean }>(res);
+      if (!res.ok || !json?.ok) {
+        toast.push("error", json && !json.ok ? json.error.message : "Falha ao cadastrar inscrição.");
+        return;
+      }
+      toast.push(
+        "success",
+        json.data.alreadyRegistered ? "Participante já estava inscrito." : "Inscrição cadastrada.",
+      );
+      setAddingFor(null);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRegistration(id: string) {
+    if (deletingId) return;
+    if (!confirm("Excluir esta inscrição do evento?")) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/holidays/registrations/${id}`, { method: "DELETE" });
+      const json = await parseApiJson<{ deleted: boolean }>(res);
+      if (!res.ok || !json?.ok) {
+        toast.push("error", json && !json.ok ? json.error.message : "Falha ao excluir.");
+        return;
+      }
+      toast.push("success", "Inscrição excluída.");
+      await load();
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <SectionCard
       title="Inscrições em eventos"
@@ -205,7 +305,7 @@ export function HolidayEventRegistrationsPanel({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar evento, nome ou e-mail…"
+              placeholder="Buscar evento, nome, e-mail ou telefone…"
               className="pl-9"
             />
           </div>
@@ -232,10 +332,11 @@ export function HolidayEventRegistrationsPanel({
             Nenhuma inscrição encontrada para os filtros selecionados.
           </p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex list-none flex-col gap-3 pl-0">
             {groups.map((group) => {
               const isOpen = expanded.has(group.key);
               const eventName = group.holiday.name?.trim() || "Evento sem nome";
+              const isAdding = addingFor === group.key;
               return (
                 <li
                   key={group.key}
@@ -281,20 +382,123 @@ export function HolidayEventRegistrationsPanel({
                   </button>
                   {isOpen ? (
                     <div className="border-t border-[var(--card-border)] px-4 pb-4">
+                      <div className="mt-3 flex justify-end">
+                        <Button type="button" size="sm" variant="secondary" onClick={() => openAddForm(group.key)}>
+                          <Plus className="mr-1 h-4 w-4" />
+                          Adicionar inscrito
+                        </Button>
+                      </div>
+
+                      {isAdding ? (
+                        <div className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/40 p-3">
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setMode("guest")}
+                              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                                mode === "guest"
+                                  ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                                  : "border-[var(--card-border)] bg-white"
+                              }`}
+                            >
+                              Sem conta
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setMode("user")}
+                              className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                                mode === "user"
+                                  ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                                  : "border-[var(--card-border)] bg-white"
+                              }`}
+                            >
+                              Usuário existente (e-mail)
+                            </button>
+                          </div>
+                          {mode === "user" ? (
+                            <div>
+                              <label className="text-xs font-medium">E-mail do usuário</label>
+                              <div className="mt-1">
+                                <Input
+                                  value={userEmail}
+                                  onChange={(e) => setUserEmail(e.target.value)}
+                                  type="email"
+                                  placeholder="usuario@email.com"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <div className="sm:col-span-2">
+                                <label className="text-xs font-medium">Nome *</label>
+                                <div className="mt-1">
+                                  <Input value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium">Telefone *</label>
+                                <div className="mt-1">
+                                  <Input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium">E-mail (opcional)</label>
+                                <div className="mt-1">
+                                  <Input value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} type="email" />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium">CPF (opcional)</label>
+                                <div className="mt-1">
+                                  <Input value={guestCpf} onChange={(e) => setGuestCpf(e.target.value)} />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <div className="mt-3 flex justify-end gap-2">
+                            <Button type="button" variant="secondary" size="sm" onClick={() => setAddingFor(null)}>
+                              Cancelar
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={saving}
+                              onClick={() => void submitAdd(group.holidayId, group.occurrenceDate)}
+                            >
+                              {saving ? "Salvando…" : "Salvar"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+
                       <TableShell className="mt-3">
                         <thead>
                           <tr>
                             <Th>Participante</Th>
-                            <Th>E-mail</Th>
+                            <Th>Contato</Th>
                             <Th>Inscrito em</Th>
                             <Th>E-mails</Th>
+                            <Th className="w-20">Ações</Th>
                           </tr>
                         </thead>
                         <tbody>
                           {group.items.map((row) => (
                             <tr key={row.id}>
-                              <Td className="font-medium">{row.user.name}</Td>
-                              <Td className="text-[var(--text-secondary)]">{row.user.email}</Td>
+                              <Td className="font-medium">
+                                {participantName(row)}
+                                {!row.user ? (
+                                  <span className="mt-0.5 block text-[10px] font-normal uppercase tracking-wide text-[var(--text-muted)]">
+                                    Sem conta
+                                  </span>
+                                ) : null}
+                              </Td>
+                              <Td className="text-[var(--text-secondary)]">
+                                <div className="flex flex-col gap-0.5 text-xs">
+                                  <span>{participantEmail(row)}</span>
+                                  <span>{participantPhone(row)}</span>
+                                  {row.guestCpf ? <span>CPF: {row.guestCpf}</span> : null}
+                                </div>
+                              </Td>
                               <Td className="text-[var(--text-secondary)]">{formatDateTime(row.createdAt)}</Td>
                               <Td className="text-xs text-[var(--text-secondary)]">
                                 <div className="flex flex-col gap-1">
@@ -307,6 +511,18 @@ export function HolidayEventRegistrationsPanel({
                                     Lembrete: {row.reminderEmailSentAt ? "enviado" : "pendente"}
                                   </span>
                                 </div>
+                              </Td>
+                              <Td>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={deletingId === row.id}
+                                  onClick={() => void removeRegistration(row.id)}
+                                  aria-label="Excluir inscrição"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </Td>
                             </tr>
                           ))}

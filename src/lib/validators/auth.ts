@@ -9,6 +9,12 @@ export const setupSchema = z.object({
 export const registerSchema = z.object({
   name: z.string().trim().min(2, "Informe seu nome completo.").max(120, "Nome muito longo."),
   email: z.string().trim().email("Informe um e-mail válido.").toLowerCase(),
+  whatsapp: z
+    .string()
+    .trim()
+    .min(1, "Informe seu WhatsApp.")
+    .transform((v) => v.replace(/\D/g, ""))
+    .refine((v) => v.length >= 10 && v.length <= 11, "WhatsApp deve ter 10 ou 11 dígitos."),
   password: z
     .string()
     .min(8, "A senha deve ter pelo menos 8 caracteres.")
