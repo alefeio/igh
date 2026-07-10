@@ -194,7 +194,7 @@ export async function uploadCertificatePdfToApimages(params: {
   fileName: string;
 }): Promise<{ url: string; publicId: string; fileName: string }> {
   const { uploadUrl, apiKey } = getApimagesConfig();
-  const blob = new Blob([params.pdfBytes], { type: "application/pdf" });
+  const blob = new Blob([Buffer.from(params.pdfBytes)], { type: "application/pdf" });
   const fd = new FormData();
   fd.append("file", blob, params.fileName);
 
