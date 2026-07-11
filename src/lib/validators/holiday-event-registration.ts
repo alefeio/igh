@@ -17,6 +17,11 @@ const optionalCpf = z
   })
   .refine((v) => v == null || v.length === 11, "CPF deve ter 11 dígitos.");
 
+/** Inscrição autenticada (usuário logado). */
+export const registerHolidayEventSchema = z.object({
+  occurrenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."),
+});
+
 export const guestHolidayEventRegisterSchema = z.object({
   occurrenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."),
   name: z.string().trim().min(2, "Informe o nome.").max(120, "Nome muito longo."),
