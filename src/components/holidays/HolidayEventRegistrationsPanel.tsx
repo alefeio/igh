@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Clock, Mail, Plus, Search, Trash2, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Mail, Plus, Printer, Search, Trash2, Users } from "lucide-react";
 
 import { SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -266,6 +266,160 @@ export function HolidayEventRegistrationsPanel({
     }
   }
 
+  function escapeHtml(value: string) {
+    return value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function buildAttendanceListHtml(
+    list: Array<{
+      key: string;
+      holiday: RegistrationRow["holiday"];
+      occurrenceDate: string;
+      items: RegistrationRow[];
+    }>,
+  ) {
+    const sections = list
+      .map((group, index) => {
+        const eventName = group.holiday.name?.trim() || "Evento sem nome";
+        const subtitle = group.holiday.subtitle?.trim() || "";
+        const dateLabel = formatOccurrenceHeading(group.occurrenceDate);
+        const timeLabel =
+          group.holiday.eventStartTime && group.holiday.eventEndTime
+            ? `${formatHm(group.holiday.eventStartTime)} – ${formatHm(group.holiday.eventEndTime)}`
+            : "";
+        const names = [...group.items]
+          .map((row) => participantName(row))
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
+        const rowsHtml = names
+          .map(
+            (name, i) => `
+              <tr>
+                <td class="num">${i + 1}</td>
+                <td class="name">${escapeHtml(name)}</td>
+                <td class="sign"></td>
+              </tr>`,
+          )
+          .join("");
+        const pageBreak = index < list.length - 1 ? " page-break" : "";
+        return `
+          <section class="event${pageBreak}">
+            <h1>${escapeHtml(eventName)}</h1>
+            ${subtitle ? `<p class="subtitle">${escapeHtml(subtitle)}</p>` : ""}
+            <p class="meta">${escapeHtml(dateLabel)}${timeLabel ? ` · ${escapeHtml(timeLabel)}` : ""}</p>
+            <p class="count">${names.length} inscrito${names.length === 1 ? "" : "s"}</p>
+            <table>
+              <thead>
+                <tr>
+                  <th class="num">#</th>
+                  <th class="name">Nome</th>
+                  <th class="sign">Assinatura</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml || `<tr><td colspan="3" class="empty">Nenhum inscrito.</td></tr>`}
+              </tbody>
+            </table>
+          </section>`;
+      })
+      .join("");
+
+    return `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8">
+          <title>Lista de presença — eventos</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+              color: #171717;
+              margin: 0;
+              padding: 24px;
+            }
+            .event { padding-bottom: 8px; }
+            .page-break { page-break-after: always; break-after: page; }
+            h1 {
+              font-size: 1.35rem;
+              margin: 0 0 4px;
+              line-height: 1.3;
+            }
+            .subtitle {
+              margin: 0 0 6px;
+              font-size: 0.95rem;
+              color: #3f3f46;
+            }
+            .meta {
+              margin: 0;
+              font-size: 0.9rem;
+              color: #52525b;
+              text-transform: capitalize;
+            }
+            .count {
+              margin: 8px 0 14px;
+              font-size: 0.8rem;
+              color: #71717a;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 0.9rem;
+            }
+            th, td {
+              border: 1px solid #d4d4d8;
+              padding: 10px 12px;
+              vertical-align: middle;
+            }
+            th {
+              background: #f4f4f5;
+              font-weight: 600;
+              text-align: left;
+            }
+            .num { width: 40px; text-align: center; }
+            th.num { text-align: center; }
+            .name { width: 42%; }
+            .sign { min-height: 36px; height: 42px; }
+            .empty { text-align: center; color: #71717a; }
+            @media print {
+              body { padding: 12mm; }
+              .page-break { page-break-after: always; break-after: page; }
+            }
+          </style>
+        </head>
+        <body>
+          ${sections}
+          <script>
+            setTimeout(function () { window.print(); }, 250);
+          </script>
+        </body>
+      </html>`;
+  }
+
+  function printAttendanceLists(
+    list: Array<{
+      key: string;
+      holiday: RegistrationRow["holiday"];
+      occurrenceDate: string;
+      items: RegistrationRow[];
+    }>,
+  ) {
+    if (list.length === 0) {
+      toast.push("error", "Não há inscritos para imprimir.");
+      return;
+    }
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.push("error", "Permita pop-ups para imprimir a listagem.");
+      return;
+    }
+    printWindow.document.write(buildAttendanceListHtml(list));
+    printWindow.document.close();
+  }
+
   return (
     <SectionCard
       title="Inscrições em eventos"
@@ -300,14 +454,27 @@ export function HolidayEventRegistrationsPanel({
               </button>
             ))}
           </div>
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar evento, nome, e-mail ou telefone…"
-              className="pl-9"
-            />
+          <div className="flex w-full flex-col gap-2 sm:max-w-md sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar evento, nome, e-mail ou telefone…"
+                className="pl-9"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={loading || groups.length === 0}
+              onClick={() => printAttendanceLists(groups)}
+              className="shrink-0"
+            >
+              <Printer className="mr-1.5 h-4 w-4" />
+              Imprimir listagens
+            </Button>
           </div>
         </div>
 
@@ -382,7 +549,16 @@ export function HolidayEventRegistrationsPanel({
                   </button>
                   {isOpen ? (
                     <div className="border-t border-[var(--card-border)] px-4 pb-4">
-                      <div className="mt-3 flex justify-end">
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => printAttendanceLists([group])}
+                        >
+                          <Printer className="mr-1 h-4 w-4" />
+                          Imprimir
+                        </Button>
                         <Button type="button" size="sm" variant="secondary" onClick={() => openAddForm(group.key)}>
                           <Plus className="mr-1 h-4 w-4" />
                           Adicionar inscrito
