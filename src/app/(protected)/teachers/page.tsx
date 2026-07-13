@@ -34,6 +34,7 @@ type Teacher = {
   email: string | null;
   phone: string | null;
   photoUrl: string | null;
+  signatureUrl: string | null;
   isActive: boolean;
   deletedAt: string | null;
   createdAt: string;
@@ -56,6 +57,7 @@ export default function TeachersPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
+  const [signatureUrl, setSignatureUrl] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   const canSubmit = useMemo(() => {
@@ -67,6 +69,7 @@ export default function TeachersPage() {
     setEmail("");
     setPhone("");
     setPhotoUrl("");
+    setSignatureUrl("");
     setIsActive(true);
     setEditing(null);
   }
@@ -82,6 +85,7 @@ export default function TeachersPage() {
     setEmail(t.email ?? "");
     setPhone(t.phone ?? "");
     setPhotoUrl(t.photoUrl ?? "");
+    setSignatureUrl(t.signatureUrl ?? "");
     setIsActive(t.isActive);
     setOpen(true);
   }
@@ -119,8 +123,10 @@ export default function TeachersPage() {
       };
       if (editing) {
         payload.photoUrl = photoUrl.trim();
-      } else if (photoUrl.trim()) {
-        payload.photoUrl = photoUrl.trim();
+        payload.signatureUrl = signatureUrl.trim();
+      } else {
+        if (photoUrl.trim()) payload.photoUrl = photoUrl.trim();
+        if (signatureUrl.trim()) payload.signatureUrl = signatureUrl.trim();
       }
       const url = editing ? `/api/teachers/${editing.id}` : "/api/teachers";
       const method = editing ? "PATCH" : "POST";
@@ -366,6 +372,37 @@ export default function TeachersPage() {
                 <img src={photoUrl.trim()} alt="" className="h-20 w-20 rounded-full object-cover ring-1 ring-[var(--card-border)]" />
                 <Button type="button" variant="secondary" size="sm" onClick={() => setPhotoUrl("")}>
                   Remover foto
+                </Button>
+              </div>
+            ) : null}
+          </div>
+          <div>
+            <label className="text-sm font-medium">Assinatura (opcional)</label>
+            <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+              PNG/JPG com fundo transparente, usada no verso do certificado de conclusão.
+            </p>
+            <Input
+              className="mt-1"
+              value={signatureUrl}
+              onChange={(e) => setSignatureUrl(e.target.value)}
+              placeholder="https://..."
+            />
+            <ApimagesImageUpload
+              kind="teachers"
+              currentUrl={signatureUrl.trim() || undefined}
+              onUploaded={(url) => setSignatureUrl(url)}
+              label="Enviar assinatura"
+            />
+            {signatureUrl.trim() ? (
+              <div className="mt-2 flex items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={signatureUrl.trim()}
+                  alt=""
+                  className="h-14 max-w-[200px] object-contain ring-1 ring-[var(--card-border)] bg-white p-1"
+                />
+                <Button type="button" variant="secondary" size="sm" onClick={() => setSignatureUrl("")}>
+                  Remover assinatura
                 </Button>
               </div>
             ) : null}

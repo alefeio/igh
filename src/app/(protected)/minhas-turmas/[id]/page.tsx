@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -10,8 +10,19 @@ import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/Das
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+
+type CertificateEligibility = {
+  eligible: boolean;
+  progressComplete: boolean;
+  statusCompleted: boolean;
+  classGroupEncerrada?: boolean;
+  totalLessons: number;
+  completedLessons: number;
+  reason: string | null;
+};
 
 type EnrollmentDetail = {
   id: string;
@@ -29,6 +40,7 @@ type EnrollmentDetail = {
   endTime: string;
   certificateUrl: string | null;
   certificateFileName: string | null;
+  certificateEligibility?: CertificateEligibility;
   sessions: Array<{
     id: string;
     sessionDate: string;
@@ -84,7 +96,7 @@ export default function MinhasTurmasDetailPage() {
   const [exams, setExams] = useState<
     { id: string; title: string; canStart: boolean; attemptStatus: string | null; scorePercent: number | null }[]
   >([]);
-
+  const [downloadingCertificate, setDownloadingCertificate] = useState(false);
   useEffect(() => {
     if (!id) return;
     async function load() {
@@ -279,23 +291,86 @@ export default function MinhasTurmasDetailPage() {
             </div>
           </section>
 
-          {e.certificateUrl ? (
-            <section aria-labelledby="cert-heading">
-              <h2 id="cert-heading" className="text-base font-semibold text-[var(--text-primary)]">
-                Certificado
-              </h2>
-              <p className="mt-2">
-                <a
-                  href={e.certificateUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[var(--igh-primary)] underline hover:no-underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
+          <section aria-labelledby="cert-heading">
+            <h2 id="cert-heading" className="text-base font-semibold text-[var(--text-primary)]">
+              Certificado
+            </h2>
+            {e.status === "ENCERRADA" || e.certificateEligibility?.eligible || e.certificateUrl ? (
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  disabled={downloadingCertificate}
+                  onClick={async () => {
+                    if (!id || downloadingCertificate) return;
+                    setDownloadingCertificate(true);
+                    try {
+                      const res = await fetch(`/api/me/enrollments/${id}/certificate`, {
+                        credentials: "include",
+                      });
+                      const json = (await res.json()) as ApiResponse<{
+                        url: string;
+                        fileName: string | null;
+                      }>;
+                      if (!res.ok || !json.ok) {
+                        toast.push(
+                          "error",
+                          !json.ok ? json.error.message : "Não foi possível gerar o certificado.",
+                        );
+                        return;
+                      }
+                      setData((prev) =>
+                        prev
+                          ? {
+                              enrollment: {
+                                ...prev.enrollment,
+                                certificateUrl: json.data.url,
+                                certificateFileName: json.data.fileName,
+                                certificateEligibility: {
+                                  eligible: true,
+                                  progressComplete: true,
+                                  statusCompleted:
+                                    prev.enrollment.certificateEligibility?.statusCompleted ?? false,
+                                  classGroupEncerrada: true,
+                                  totalLessons:
+                                    prev.enrollment.certificateEligibility?.totalLessons ?? 0,
+                                  completedLessons:
+                                    prev.enrollment.certificateEligibility?.completedLessons ?? 0,
+                                  reason: null,
+                                },
+                              },
+                            }
+                          : prev,
+                      );
+                      window.open(json.data.url, "_blank", "noopener,noreferrer");
+                      toast.push("success", "Certificado pronto para download.");
+                    } catch {
+                      toast.push("error", "Falha ao baixar o certificado.");
+                    } finally {
+                      setDownloadingCertificate(false);
+                    }
+                  }}
                 >
-                  {e.certificateFileName || "Ver certificado"}
-                </a>
+                  <Download className="mr-1.5 h-4 w-4" />
+                  {downloadingCertificate ? "Gerando…" : "Baixar certificado"}
+                </Button>
+                {e.certificateUrl ? (
+                  <a
+                    href={e.certificateUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[var(--igh-primary)] underline hover:no-underline"
+                  >
+                    {e.certificateFileName || "Abrir certificado"}
+                  </a>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-[var(--text-muted)]">
+                {e.certificateEligibility?.reason ??
+                  "O certificado ficará disponível quando a turma estiver encerrada."}
               </p>
-            </section>
-          ) : null}
+            )}
+          </section>
 
           {exams.length > 0 ? (
             <section aria-labelledby="provas-heading">

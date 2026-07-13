@@ -114,6 +114,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       ...(parsed.data.photoUrl !== undefined
         ? { photoUrl: parsed.data.photoUrl.trim() === "" ? null : parsed.data.photoUrl.trim() }
         : {}),
+      ...(parsed.data.signatureUrl !== undefined
+        ? { signatureUrl: parsed.data.signatureUrl.trim() === "" ? null : parsed.data.signatureUrl.trim() }
+        : {}),
       ...(teacherUserId != null ? { userId: teacherUserId } : {}),
       ...(parsed.data.isActive === true ? { deletedAt: null } : {}),
     },

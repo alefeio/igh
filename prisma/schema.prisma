@@ -372,6 +372,8 @@ model Teacher {
   updatedAt             DateTime                     @updatedAt
   userId                String?                      @unique
   photoUrl              String?
+  /// * URL da assinatura (PNG/JPG) usada no verso do certificado de conclusão.
+  signatureUrl          String?
   classGroups           ClassGroup[]
   classGroupTeachers    ClassGroupTeacher[]
   lessonQuestionReplies LessonQuestionTeacherReply[]
@@ -807,6 +809,8 @@ model Enrollment {
   certificateUrl        String?
   certificatePublicId   String?
   certificateFileName   String?
+  /// * Data usada no texto do certificado (estável após a 1ª emissão).
+  certificateIssuedAt   DateTime?
   isPreEnrollment       Boolean                          @default(false)
   classGroup            ClassGroup                       @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
   student               Student                          @relation(fields: [studentId], references: [id], onDelete: Cascade)

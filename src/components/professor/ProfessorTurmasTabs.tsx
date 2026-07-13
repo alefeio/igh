@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
+import { useToast } from "@/components/feedback/ToastProvider";
+import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 import {
   TEACHER_CLASS_GROUP_TABS,
@@ -42,10 +44,12 @@ function formatDate(s: string) {
 }
 
 export function ProfessorTurmasTabs() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<TeacherClassGroupTab>("em_andamento");
   const [cache, setCache] = useState<Partial<Record<TeacherClassGroupTab, ClassGroupRow[]>>>({});
   const [loadingTab, setLoadingTab] = useState<TeacherClassGroupTab | null>("em_andamento");
   const [error, setError] = useState<string | null>(null);
+  const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
 
   const loadTab = useCallback(async (tab: TeacherClassGroupTab) => {
     setLoadingTab(tab);
@@ -77,6 +81,41 @@ export function ProfessorTurmasTabs() {
       void loadTab(tab);
     }
   };
+
+  async function downloadCertificates(cg: ClassGroupRow) {
+    if (downloadingCertsId) return;
+    setDownloadingCertsId(cg.id);
+    try {
+      const res = await fetch(`/api/class-groups/${cg.id}/certificates-zip`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        toast.push(
+          "error",
+          json && !json.ok ? json.error.message : "Falha ao baixar certificados.",
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(cd);
+      const fileName = match?.[1] ?? `certificados-${cg.id.slice(0, 8)}.zip`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.push("success", "Download dos certificados iniciado.");
+    } catch {
+      toast.push("error", "Falha ao baixar certificados.");
+    } finally {
+      setDownloadingCertsId(null);
+    }
+  }
 
   const rows = cache[activeTab];
   const isLoading = loadingTab === activeTab && rows === undefined;
@@ -168,12 +207,23 @@ export function ProfessorTurmasTabs() {
                   {cg.enrollmentsCount} / {cg.capacity}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <Link
-                    href={`/professor/turmas/${cg.id}`}
-                    className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)]"
-                  >
-                    Ver turma
-                  </Link>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={downloadingCertsId != null || cg.enrollmentsCount === 0}
+                      onClick={() => void downloadCertificates(cg)}
+                    >
+                      {downloadingCertsId === cg.id ? "Gerando ZIP…" : "Baixar certificados"}
+                    </Button>
+                    <Link
+                      href={`/professor/turmas/${cg.id}`}
+                      className="inline-flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-1.5 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)]"
+                    >
+                      Ver turma
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}

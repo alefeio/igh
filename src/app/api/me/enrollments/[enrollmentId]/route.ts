@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { getCourseCertificateEligibility } from "@/lib/course-certificate-eligibility";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { ensureLessonReleasedNotifications } from "@/lib/lesson-release-notifications";
 import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
@@ -89,6 +90,7 @@ export async function GET(
 
   const modules = await getModulesWithLessonsByCourseId(course.id);
   const orderedLessonTitles = modules.flatMap((m) => m.lessons.map((l) => l.title));
+  const certificateEligibility = await getCourseCertificateEligibility(enrollmentId);
 
   return jsonOk({
     enrollment: {
@@ -111,6 +113,7 @@ export async function GET(
       endTime: g2.endTime,
       certificateUrl: enrollmentWithUpdatedSessions.certificateUrl,
       certificateFileName: enrollmentWithUpdatedSessions.certificateFileName,
+      certificateEligibility,
       sessions: g2.sessions.map((s, index) => ({
         id: s.id,
         sessionDate: s.sessionDate,

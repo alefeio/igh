@@ -24,6 +24,24 @@ const nextConfig: NextConfig = {
   /** Menos trabalho e disco no build; o default já é false, deixamos explícito. */
   productionBrowserSourceMaps: false,
   /**
+   * Inclui template PDF e fontes no bundle serverless (certificado de conclusão).
+   * @see https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats
+   */
+  outputFileTracingIncludes: {
+    "/api/me/enrollments/[enrollmentId]/certificate": [
+      "./assets/certificates/**/*",
+      "./assets/fonts/**/*",
+    ],
+    "/api/class-groups/[id]/certificates-zip": [
+      "./assets/certificates/**/*",
+      "./assets/fonts/**/*",
+    ],
+    "/api/cycles/[id]/certificates-zip": [
+      "./assets/certificates/**/*",
+      "./assets/fonts/**/*",
+    ],
+  },
+  /**
    * Next.js 16: o build em produção usa Turbopack por omissão (ver `next/dist/lib/bundler.js`).
    * O script `npm run build` passa `--webpack` para evitar crashes OOM / CSS no Turbopack no Windows.
    */

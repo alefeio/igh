@@ -154,6 +154,8 @@ export default function ClassGroupsPage() {
   const [cycleYear, setCycleYear] = useState(String(new Date().getFullYear()));
   const [cycleVisible, setCycleVisible] = useState(true);
   const [cycleSaving, setCycleSaving] = useState(false);
+  const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
+  const [downloadingCycleCertsId, setDownloadingCycleCertsId] = useState<string | null>(null);
 
   const [cycleEditNumber, setCycleEditNumber] = useState("1");
   const [cycleEditYear, setCycleEditYear] = useState(String(new Date().getFullYear()));
@@ -628,7 +630,55 @@ export default function ClassGroupsPage() {
                 </Td>
                 <Td>{cg.enrollmentsCount ?? 0} / {cg.capacity}</Td>
                 <Td>
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      variant="secondary"
+                      disabled={
+                        downloadingCertsId != null ||
+                        (cg.enrollmentsCount ?? 0) === 0
+                      }
+                      title={
+                        (cg.enrollmentsCount ?? 0) === 0
+                          ? "Sem alunos matriculados"
+                          : "Baixar ZIP com os certificados da turma"
+                      }
+                      onClick={async () => {
+                        if (downloadingCertsId) return;
+                        setDownloadingCertsId(cg.id);
+                        try {
+                          const res = await fetch(`/api/class-groups/${cg.id}/certificates-zip`, {
+                            credentials: "include",
+                          });
+                          if (!res.ok) {
+                            const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+                            toast.push(
+                              "error",
+                              apiErrorMessage(json, "Falha ao baixar certificados."),
+                            );
+                            return;
+                          }
+                          const blob = await res.blob();
+                          const cd = res.headers.get("Content-Disposition") ?? "";
+                          const match = /filename="([^"]+)"/.exec(cd);
+                          const fileName = match?.[1] ?? `certificados-${cg.id.slice(0, 8)}.zip`;
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = fileName;
+                          document.body.appendChild(a);
+                          a.click();
+                          a.remove();
+                          URL.revokeObjectURL(url);
+                          toast.push("success", "Download dos certificados iniciado.");
+                        } catch {
+                          toast.push("error", "Falha ao baixar certificados.");
+                        } finally {
+                          setDownloadingCertsId(null);
+                        }
+                      }}
+                    >
+                      {downloadingCertsId === cg.id ? "Gerando ZIP…" : "Baixar certificados"}
+                    </Button>
                     {canMutate && (
                       <>
                         <Button variant="secondary" onClick={() => openEdit(cg)}>
@@ -709,7 +759,48 @@ export default function ClassGroupsPage() {
                   </Badge>
                 </Td>
                 <Td>
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      variant="secondary"
+                      disabled={downloadingCycleCertsId != null}
+                      title="Baixar ZIP com certificados de todas as turmas deste ciclo"
+                      onClick={async () => {
+                        if (downloadingCycleCertsId) return;
+                        setDownloadingCycleCertsId(c.id);
+                        try {
+                          const res = await fetch(`/api/cycles/${c.id}/certificates-zip`, {
+                            credentials: "include",
+                          });
+                          if (!res.ok) {
+                            const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+                            toast.push(
+                              "error",
+                              apiErrorMessage(json, "Falha ao baixar certificados do ciclo."),
+                            );
+                            return;
+                          }
+                          const blob = await res.blob();
+                          const cd = res.headers.get("Content-Disposition") ?? "";
+                          const match = /filename="([^"]+)"/.exec(cd);
+                          const fileName = match?.[1] ?? `certificados-ciclo-${c.cycle}-${c.year}.zip`;
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = fileName;
+                          document.body.appendChild(a);
+                          a.click();
+                          a.remove();
+                          URL.revokeObjectURL(url);
+                          toast.push("success", "Download dos certificados do ciclo iniciado.");
+                        } catch {
+                          toast.push("error", "Falha ao baixar certificados do ciclo.");
+                        } finally {
+                          setDownloadingCycleCertsId(null);
+                        }
+                      }}
+                    >
+                      {downloadingCycleCertsId === c.id ? "Gerando ZIP…" : "Baixar certificados"}
+                    </Button>
                     <Button
                       variant="secondary"
                       onClick={() => openEditCycle(c)}
