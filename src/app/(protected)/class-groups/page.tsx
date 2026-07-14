@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { MoreHorizontal } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -86,33 +87,61 @@ const STATUS_TONE: Record<ClassGroup["status"], Parameters<typeof Badge>[0]["ton
   EXTERNO: "blue",
 };
 
-const DAY_ORDER = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"] as const;
-const DAY_LABELS: Record<string, string> = {
-  SEG: "Segunda",
-  TER: "Terça",
-  QUA: "Quarta",
-  QUI: "Quinta",
-  SEX: "Sexta",
-  SAB: "Sábado",
-  DOM: "Domingo",
+const STATUS_SHORT: Record<ClassGroup["status"], string> = {
+  PLANEJADA: "Plan.",
+  ABERTA: "Abert.",
+  EM_ANDAMENTO: "And.",
+  ENCERRADA: "Enc.",
+  CANCELADA: "Canc.",
+  INTERNO: "Int.",
+  EXTERNO: "Ext.",
 };
 
-function formatDaysOfWeek(days: string[]): string {
-  if (!days?.length) return "—";
-  const sorted = [...days].sort(
-    (a, b) => DAY_ORDER.indexOf(a as (typeof DAY_ORDER)[number]) - DAY_ORDER.indexOf(b as (typeof DAY_ORDER)[number]),
-  );
-  return sorted.map((d) => DAY_LABELS[d] ?? d).join(", ");
-}
-
-function formatClassGroupStartDate(d: string | undefined): string {
+/** Início no formato dd/mm/aa */
+function formatStartDateShort(d: string | undefined): string {
   if (!d) return "—";
   const datePart = String(d).trim().split("T")[0];
-  if (datePart && /^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
-    const [y, m, day] = datePart.split("-").map(Number);
-    return new Date(y, m - 1, day).toLocaleDateString("pt-BR");
-  }
-  return "—";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return "—";
+  const [y, m, day] = datePart.split("-");
+  return `${day}/${m}/${y.slice(2)}`;
+}
+
+/** Horário compacto: 09:00–10:15 → 9/10:15 */
+function formatTimeShort(startTime: string, endTime: string): string {
+  const fmt = (t: string) => {
+    const s = (t ?? "").trim().slice(0, 5);
+    if (!/^\d{2}:\d{2}$/.test(s)) return s || "—";
+    const [h, min] = s.split(":");
+    const hh = String(parseInt(h, 10));
+    return min === "00" ? hh : `${hh}:${min}`;
+  };
+  return `${fmt(startTime)}/${fmt(endTime)}`;
+}
+
+function formatTeachersShort(cg: ClassGroup): string {
+  const names =
+    cg.teachers && cg.teachers.length > 0
+      ? cg.teachers.map((t) => t.name)
+      : [cg.teacher.name];
+  return names
+    .map((n) => n.trim().split(/\s+/)[0] || n)
+    .filter(Boolean)
+    .join(", ");
+}
+
+async function downloadBlobResponse(res: Response, fallbackName: string) {
+  const blob = await res.blob();
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(cd);
+  const fileName = match?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export default function ClassGroupsPage() {
@@ -156,6 +185,10 @@ export default function ClassGroupsPage() {
   const [cycleSaving, setCycleSaving] = useState(false);
   const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
   const [downloadingCycleCertsId, setDownloadingCycleCertsId] = useState<string | null>(null);
+  const [downloadingSelected, setDownloadingSelected] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [actionsMenuId, setActionsMenuId] = useState<string | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [cycleEditNumber, setCycleEditNumber] = useState("1");
   const [cycleEditYear, setCycleEditYear] = useState(String(new Date().getFullYear()));
@@ -457,6 +490,66 @@ export default function ClassGroupsPage() {
     }
   }
 
+  async function downloadClassGroupCertificates(cg: ClassGroup) {
+    if (downloadingCertsId) return;
+    setDownloadingCertsId(cg.id);
+    setActionsMenuId(null);
+    try {
+      const res = await fetch(`/api/class-groups/${cg.id}/certificates-zip`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        toast.push("error", apiErrorMessage(json, "Falha ao baixar certificados."));
+        return;
+      }
+      await downloadBlobResponse(res, `certificados-${cg.id.slice(0, 8)}.zip`);
+      toast.push("success", "Download dos certificados iniciado.");
+    } catch {
+      toast.push("error", "Falha ao baixar certificados.");
+    } finally {
+      setDownloadingCertsId(null);
+    }
+  }
+
+  async function downloadSelectedCertificates() {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || downloadingSelected) return;
+    setDownloadingSelected(true);
+    try {
+      const res = await fetch("/api/class-groups/certificates-zip", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ classGroupIds: ids }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        toast.push("error", apiErrorMessage(json, "Falha ao baixar certificados selecionados."));
+        return;
+      }
+      await downloadBlobResponse(res, `certificados-selecionadas-${ids.length}-turmas.zip`);
+      toast.push("success", "Download dos certificados selecionados iniciado.");
+    } catch {
+      toast.push("error", "Falha ao baixar certificados selecionados.");
+    } finally {
+      setDownloadingSelected(false);
+    }
+  }
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!actionsMenuRef.current) return;
+      if (!actionsMenuRef.current.contains(e.target as Node)) {
+        setActionsMenuId(null);
+      }
+    }
+    if (actionsMenuId) {
+      document.addEventListener("mousedown", onDocClick);
+      return () => document.removeEventListener("mousedown", onDocClick);
+    }
+  }, [actionsMenuId]);
+
   const normalizeForSearch = (s: string) =>
     s
       .toLowerCase()
@@ -563,179 +656,6 @@ export default function ClassGroupsPage() {
       </SectionCard>
 
       <SectionCard
-        title="Listagem de turmas"
-        description={
-          loading
-            ? "Carregando…"
-            : `${visibleItems.length} ${visibleItems.length === 1 ? "turma" : "turmas"} com os filtros atuais.`
-        }
-      >
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-14" role="status">
-            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
-            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
-          </div>
-        ) : (
-        <TableShell>
-          <thead>
-            <tr>
-              <Th>Ciclo</Th>
-              <Th>Curso</Th>
-              <Th>Professor(es)</Th>
-              <Th>Local</Th>
-              <Th>Início</Th>
-              <Th>Dias da semana</Th>
-              <Th>Horário</Th>
-              <Th>Aulas / Horas</Th>
-              <Th>Status</Th>
-              <Th>Capacidade</Th>
-              <Th />
-            </tr>
-          </thead>
-          <tbody>
-            {visibleItems.map((cg) => (
-              <tr key={cg.id}>
-                <Td className="whitespace-nowrap text-[var(--text-secondary)]">
-                  {cg.cycle ? `${cg.cycle.cycle}/${cg.cycle.year}` : "—"}
-                </Td>
-                <Td className="max-w-[14rem] whitespace-normal break-words font-medium text-[var(--text-primary)]">
-                  {cg.course.name}
-                </Td>
-                <Td className="max-w-[10rem] whitespace-normal break-words text-[var(--text-secondary)]">
-                  {(cg.teachers && cg.teachers.length > 0
-                    ? cg.teachers.map((t) => t.name)
-                    : [cg.teacher.name]
-                  ).join(", ")}
-                </Td>
-                <Td className="max-w-[12rem] whitespace-normal break-words text-[var(--text-secondary)]">
-                  {cg.location?.trim() ? cg.location : "—"}
-                </Td>
-                <Td className="whitespace-nowrap text-[var(--text-secondary)]">
-                  {formatClassGroupStartDate(cg.startDate)}
-                </Td>
-                <Td className="max-w-[14rem] whitespace-normal break-words text-[var(--text-secondary)]">
-                  {formatDaysOfWeek(cg.daysOfWeek)}
-                </Td>
-                <Td className="whitespace-nowrap text-[var(--text-secondary)]">
-                  {cg.startTime} – {cg.endTime}
-                </Td>
-                <Td>
-                  <span className="text-[var(--text-secondary)]">
-                    {cg.totalSessions ?? cg.sessions?.length ?? 0} aulas
-                    {cg.totalHours != null && ` · ${cg.totalHours}h`}
-                  </span>
-                </Td>
-                <Td>
-                  <Badge tone={STATUS_TONE[cg.status]}>{cg.status}</Badge>
-                </Td>
-                <Td>{cg.enrollmentsCount ?? 0} / {cg.capacity}</Td>
-                <Td>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Button
-                      variant="secondary"
-                      disabled={
-                        downloadingCertsId != null ||
-                        (cg.enrollmentsCount ?? 0) === 0
-                      }
-                      title={
-                        (cg.enrollmentsCount ?? 0) === 0
-                          ? "Sem alunos matriculados"
-                          : "Baixar ZIP com os certificados da turma"
-                      }
-                      onClick={async () => {
-                        if (downloadingCertsId) return;
-                        setDownloadingCertsId(cg.id);
-                        try {
-                          const res = await fetch(`/api/class-groups/${cg.id}/certificates-zip`, {
-                            credentials: "include",
-                          });
-                          if (!res.ok) {
-                            const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
-                            toast.push(
-                              "error",
-                              apiErrorMessage(json, "Falha ao baixar certificados."),
-                            );
-                            return;
-                          }
-                          const blob = await res.blob();
-                          const cd = res.headers.get("Content-Disposition") ?? "";
-                          const match = /filename="([^"]+)"/.exec(cd);
-                          const fileName = match?.[1] ?? `certificados-${cg.id.slice(0, 8)}.zip`;
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = fileName;
-                          document.body.appendChild(a);
-                          a.click();
-                          a.remove();
-                          URL.revokeObjectURL(url);
-                          toast.push("success", "Download dos certificados iniciado.");
-                        } catch {
-                          toast.push("error", "Falha ao baixar certificados.");
-                        } finally {
-                          setDownloadingCertsId(null);
-                        }
-                      }}
-                    >
-                      {downloadingCertsId === cg.id ? "Gerando ZIP…" : "Baixar certificados"}
-                    </Button>
-                    {canMutate && (
-                      <>
-                        <Button variant="secondary" onClick={() => openEdit(cg)}>
-                          Editar
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          disabled={duplicatingId != null}
-                          onClick={() => void duplicateClassGroup(cg)}
-                        >
-                          {duplicatingId === cg.id ? "Duplicando…" : "Duplicar"}
-                        </Button>
-                        {cg.status !== "CANCELADA" ? (
-                          <Button
-                            variant="secondary"
-                            onClick={() => inactivateClassGroup(cg)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            Inativar
-                          </Button>
-                        ) : (
-                          <>
-                            <Button variant="secondary" onClick={() => reactivateClassGroup(cg)}>
-                              Reativar
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              onClick={() => deleteClassGroup(cg)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              Excluir
-                            </Button>
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </Td>
-              </tr>
-            ))}
-            {visibleItems.length === 0 ? (
-              <tr>
-                <Td colSpan={11}>
-                  <span className="text-[var(--text-secondary)]">
-                    {items.length === 0
-                      ? "Nenhuma turma cadastrada."
-                      : "Nenhuma turma encontrada com os filtros aplicados."}
-                  </span>
-                </Td>
-              </tr>
-            ) : null}
-          </tbody>
-        </TableShell>
-        )}
-      </SectionCard>
-
-      <SectionCard
         title="Ciclos"
         description="Gerencie os ciclos (número, ano e visibilidade para matrículas no painel e no site)."
       >
@@ -779,18 +699,10 @@ export default function ClassGroupsPage() {
                             );
                             return;
                           }
-                          const blob = await res.blob();
-                          const cd = res.headers.get("Content-Disposition") ?? "";
-                          const match = /filename="([^"]+)"/.exec(cd);
-                          const fileName = match?.[1] ?? `certificados-ciclo-${c.cycle}-${c.year}.zip`;
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = fileName;
-                          document.body.appendChild(a);
-                          a.click();
-                          a.remove();
-                          URL.revokeObjectURL(url);
+                          await downloadBlobResponse(
+                            res,
+                            `certificados-ciclo-${c.cycle}-${c.year}.zip`,
+                          );
                           toast.push("success", "Download dos certificados do ciclo iniciado.");
                         } catch {
                           toast.push("error", "Falha ao baixar certificados do ciclo.");
@@ -801,10 +713,7 @@ export default function ClassGroupsPage() {
                     >
                       {downloadingCycleCertsId === c.id ? "Gerando ZIP…" : "Baixar certificados"}
                     </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => openEditCycle(c)}
-                    >
+                    <Button variant="secondary" onClick={() => openEditCycle(c)}>
                       Editar
                     </Button>
                     <Button
@@ -844,6 +753,255 @@ export default function ClassGroupsPage() {
             ) : null}
           </tbody>
         </TableShell>
+      </SectionCard>
+
+      <SectionCard
+        title="Listagem de turmas"
+        description={
+          loading
+            ? "Carregando…"
+            : `${visibleItems.length} ${visibleItems.length === 1 ? "turma" : "turmas"} com os filtros atuais.`
+        }
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-14" role="status">
+            <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+            <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={selectedIds.size === 0 || downloadingSelected}
+                onClick={() => void downloadSelectedCertificates()}
+              >
+                {downloadingSelected
+                  ? "Gerando ZIP…"
+                  : `Baixar certificados (${selectedIds.size})`}
+              </Button>
+              {selectedIds.size > 0 ? (
+                <button
+                  type="button"
+                  className="text-xs text-[var(--text-muted)] underline hover:text-[var(--text-primary)]"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Limpar seleção
+                </button>
+              ) : null}
+            </div>
+            <TableShell>
+              <thead>
+                <tr>
+                  <Th className="w-10">
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar todas as turmas visíveis"
+                      checked={
+                        visibleItems.length > 0 &&
+                        visibleItems.every((cg) => selectedIds.has(cg.id))
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIds(new Set(visibleItems.map((cg) => cg.id)));
+                        } else {
+                          setSelectedIds(new Set());
+                        }
+                      }}
+                    />
+                  </Th>
+                  <Th>Ciclo</Th>
+                  <Th>Curso</Th>
+                  <Th>Prof.</Th>
+                  <Th>In.</Th>
+                  <Th>Hr.</Th>
+                  <Th>Status</Th>
+                  <Th>Cap.</Th>
+                  <Th className="w-12" />
+                </tr>
+              </thead>
+              <tbody>
+                {visibleItems.map((cg) => {
+                  const menuOpen = actionsMenuId === cg.id;
+                  return (
+                    <tr key={cg.id}>
+                      <Td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Selecionar turma ${cg.course.name}`}
+                          checked={selectedIds.has(cg.id)}
+                          onChange={(e) => {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(cg.id);
+                              else next.delete(cg.id);
+                              return next;
+                            });
+                          }}
+                        />
+                      </Td>
+                      <Td className="whitespace-nowrap text-[var(--text-secondary)]">
+                        {cg.cycle ? `${cg.cycle.cycle}/${String(cg.cycle.year).slice(2)}` : "—"}
+                      </Td>
+                      <Td
+                        className="max-w-[12rem] truncate font-medium text-[var(--text-primary)]"
+                        title={cg.course.name}
+                      >
+                        {cg.course.name}
+                      </Td>
+                      <Td
+                        className="max-w-[7rem] truncate text-[var(--text-secondary)]"
+                        title={
+                          (cg.teachers && cg.teachers.length > 0
+                            ? cg.teachers.map((t) => t.name)
+                            : [cg.teacher.name]
+                          ).join(", ")
+                        }
+                      >
+                        {formatTeachersShort(cg)}
+                      </Td>
+                      <Td className="whitespace-nowrap text-[var(--text-secondary)]">
+                        {formatStartDateShort(cg.startDate)}
+                      </Td>
+                      <Td
+                        className="whitespace-nowrap text-[var(--text-secondary)]"
+                        title={`${cg.startTime} – ${cg.endTime}`}
+                      >
+                        {formatTimeShort(cg.startTime, cg.endTime)}
+                      </Td>
+                      <Td>
+                        <span title={cg.status}>
+                          <Badge tone={STATUS_TONE[cg.status]}>{STATUS_SHORT[cg.status]}</Badge>
+                        </span>
+                      </Td>
+                      <Td className="whitespace-nowrap text-[var(--text-secondary)]">
+                        {cg.enrollmentsCount ?? 0}/{cg.capacity}
+                      </Td>
+                      <Td className="relative text-right">
+                        <div
+                          className="relative inline-block text-left"
+                          ref={menuOpen ? actionsMenuRef : undefined}
+                        >
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            aria-haspopup="menu"
+                            aria-expanded={menuOpen}
+                            onClick={() =>
+                              setActionsMenuId((prev) => (prev === cg.id ? null : cg.id))
+                            }
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Ações</span>
+                          </Button>
+                          {menuOpen ? (
+                            <div
+                              role="menu"
+                              className="absolute right-0 z-30 mt-1 min-w-[11rem] rounded-md border border-[var(--card-border)] bg-white py-1 shadow-lg dark:bg-zinc-900"
+                            >
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
+                                disabled={
+                                  downloadingCertsId != null || (cg.enrollmentsCount ?? 0) === 0
+                                }
+                                onClick={() => void downloadClassGroupCertificates(cg)}
+                              >
+                                {downloadingCertsId === cg.id
+                                  ? "Gerando ZIP…"
+                                  : "Baixar certificados"}
+                              </button>
+                              {canMutate ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                                    onClick={() => {
+                                      setActionsMenuId(null);
+                                      openEdit(cg);
+                                    }}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
+                                    disabled={duplicatingId != null}
+                                    onClick={() => {
+                                      setActionsMenuId(null);
+                                      void duplicateClassGroup(cg);
+                                    }}
+                                  >
+                                    {duplicatingId === cg.id ? "Duplicando…" : "Duplicar"}
+                                  </button>
+                                  {cg.status !== "CANCELADA" ? (
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-[var(--igh-surface)]"
+                                      onClick={() => {
+                                        setActionsMenuId(null);
+                                        void inactivateClassGroup(cg);
+                                      }}
+                                    >
+                                      Inativar
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                                        onClick={() => {
+                                          setActionsMenuId(null);
+                                          void reactivateClassGroup(cg);
+                                        }}
+                                      >
+                                        Reativar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-[var(--igh-surface)]"
+                                        onClick={() => {
+                                          setActionsMenuId(null);
+                                          void deleteClassGroup(cg);
+                                        }}
+                                      >
+                                        Excluir
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </Td>
+                    </tr>
+                  );
+                })}
+                {visibleItems.length === 0 ? (
+                  <tr>
+                    <Td colSpan={9}>
+                      <span className="text-[var(--text-secondary)]">
+                        {items.length === 0
+                          ? "Nenhuma turma cadastrada."
+                          : "Nenhuma turma encontrada com os filtros aplicados."}
+                      </span>
+                    </Td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </TableShell>
+          </>
+        )}
       </SectionCard>
 
       <Modal

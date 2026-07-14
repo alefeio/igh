@@ -36,6 +36,10 @@ const nextConfig: NextConfig = {
       "./assets/certificates/**/*",
       "./assets/fonts/**/*",
     ],
+    "/api/class-groups/certificates-zip": [
+      "./assets/certificates/**/*",
+      "./assets/fonts/**/*",
+    ],
     "/api/cycles/[id]/certificates-zip": [
       "./assets/certificates/**/*",
       "./assets/fonts/**/*",
