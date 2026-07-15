@@ -23,6 +23,8 @@ export function getAuthCookieOptions() {
 
 export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActive" | "mustChangePassword"> & {
   isAdmin?: boolean;
+  isCoordinator?: boolean;
+  isPoloCoordinator?: boolean;
   baseRole?: UserRole;
   hasStudentProfile?: boolean;
   hasTeacherProfile?: boolean;
@@ -93,6 +95,8 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
         email: true,
         role: true,
         isAdmin: true,
+        isCoordinator: true,
+        isPoloCoordinator: true,
         isActive: true,
         mustChangePassword: true,
         student: { select: { id: true } },
@@ -104,10 +108,10 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
     if (payload.role === "MASTER" && user.role !== "MASTER") {
       return null;
     }
-    if (payload.role === "COORDINATOR" && user.role !== "COORDINATOR") {
+    if (payload.role === "COORDINATOR" && user.role !== "COORDINATOR" && !user.isCoordinator) {
       return null;
     }
-    if (payload.role === "POLO_COORDINATOR" && user.role !== "POLO_COORDINATOR") {
+    if (payload.role === "POLO_COORDINATOR" && user.role !== "POLO_COORDINATOR" && !user.isPoloCoordinator) {
       return null;
     }
     if (payload.role === "ADMIN" && user.role !== "ADMIN" && user.role !== "MASTER") {
@@ -122,6 +126,8 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
       isActive: user.isActive,
       mustChangePassword: user.mustChangePassword ?? false,
       isAdmin: user.isAdmin ?? false,
+      isCoordinator: user.isCoordinator ?? false,
+      isPoloCoordinator: user.isPoloCoordinator ?? false,
       hasStudentProfile: !!user.student,
       hasTeacherProfile: !!user.teacher,
     };

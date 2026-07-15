@@ -1,6 +1,6 @@
-import { prisma } from "@/lib/prisma";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { displayStudentBirthDate, displayStudentCpf, getOrCreateStudentForUser } from "@/lib/student-account";
 
 /** Retorna o perfil completo do aluno (para a página Meus dados). Apenas STUDENT, próprio cadastro. */
 export async function GET() {
@@ -9,19 +9,17 @@ export async function GET() {
     return jsonErr("UNAUTHORIZED", "Não autorizado.", 401);
   }
 
-  const student = await prisma.student.findFirst({
-    where: { userId: user.id },
-  });
-  if (!student) {
-    return jsonErr("NOT_FOUND", "Cadastro de aluno não encontrado.", 404);
-  }
+  // O cadastro do aluno existe independentemente de haver matrículas em cursos. Se o
+  // usuário ainda não tiver um Student vinculado (ex.: registrou a conta e nunca se
+  // matriculou), criamos um cadastro mínimo vinculado ao userId.
+  const student = await getOrCreateStudentForUser(user);
 
   return jsonOk({
     student: {
       id: student.id,
       name: student.name,
-      birthDate: student.birthDate,
-      cpf: student.cpf,
+      birthDate: displayStudentBirthDate(student.birthDate),
+      cpf: displayStudentCpf(student.cpf),
       rg: student.rg,
       email: student.email,
       phone: student.phone,

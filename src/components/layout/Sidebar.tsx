@@ -159,6 +159,7 @@ export function Sidebar({
       canTeacher: boolean;
       canAdmin: boolean;
       canCoordinator?: boolean;
+      canPoloCoordinator?: boolean;
     };
   };
   logoUrl?: string | null;

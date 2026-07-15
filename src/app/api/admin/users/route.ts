@@ -7,6 +7,15 @@ import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateAdminWelcome, templateCoordinatorWelcome, templatePoloCoordinatorWelcome } from "@/lib/email/templates";
 
+const ROLE_LABEL_PT: Record<string, string> = {
+  MASTER: "Administrador Master",
+  ADMIN: "Admin",
+  COORDINATOR: "Coordenador",
+  POLO_COORDINATOR: "Coordenador de Polos",
+  TEACHER: "Professor",
+  STUDENT: "Aluno",
+};
+
 export async function GET() {
   await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
 
@@ -17,6 +26,8 @@ export async function GET() {
         { role: "COORDINATOR" },
         { role: "POLO_COORDINATOR" },
         { isAdmin: true },
+        { isCoordinator: true },
+        { isPoloCoordinator: true },
       ],
     },
     orderBy: { createdAt: "desc" },
@@ -26,6 +37,8 @@ export async function GET() {
       email: true,
       role: true,
       isAdmin: true,
+      isCoordinator: true,
+      isPoloCoordinator: true,
       isActive: true,
       createdAt: true,
       updatedAt: true,
@@ -47,50 +60,75 @@ export async function POST(request: Request) {
   const { name, email, role: targetRole = "ADMIN" } = parsed.data;
   const existing = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, name: true, email: true, role: true, isActive: true, isAdmin: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+      isAdmin: true,
+      isCoordinator: true,
+      isPoloCoordinator: true,
+    },
   });
 
   if (existing) {
-    if (
-      existing.role === "ADMIN" ||
-      existing.role === "MASTER" ||
-      existing.role === "COORDINATOR" ||
-      existing.role === "POLO_COORDINATOR"
-    ) {
-      return jsonErr("EMAIL_IN_USE", "Já existe um usuário administrativo com este e-mail.", 409);
+    /** O Master já possui todos os acessos administrativos. */
+    if (existing.role === "MASTER") {
+      return jsonErr("EMAIL_IN_USE", "Este usuário é Administrador Master e já possui todos os acessos.", 409);
     }
-    if (targetRole === "COORDINATOR" || targetRole === "POLO_COORDINATOR") {
-      return jsonErr(
-        "EMAIL_IN_USE",
-        "Para criar este perfil, use um e-mail que ainda não esteja cadastrado na plataforma.",
-        409,
-      );
+
+    /** Já detém o perfil solicitado (papel-base ou sobreposição)? Só então bloqueamos. */
+    const alreadyHasTarget =
+      (targetRole === "ADMIN" && (existing.isAdmin || existing.role === "ADMIN")) ||
+      (targetRole === "COORDINATOR" && (existing.isCoordinator || existing.role === "COORDINATOR")) ||
+      (targetRole === "POLO_COORDINATOR" &&
+        (existing.isPoloCoordinator || existing.role === "POLO_COORDINATOR"));
+
+    if (alreadyHasTarget) {
+      return jsonErr("EMAIL_IN_USE", "Este usuário já possui este perfil de acesso.", 409);
     }
-    if (existing.role === "STUDENT" || existing.role === "TEACHER") {
-      if (existing.isAdmin) {
-        return jsonErr("EMAIL_IN_USE", "Este usuário já possui acesso como Admin.", 409);
-      }
-      const updated = await prisma.user.update({
-        where: { id: existing.id },
-        data: { isAdmin: true, ...(name.trim() !== existing.name ? { name: name.trim() } : {}) },
-        select: { id: true, name: true, email: true, role: true, isAdmin: true, isActive: true },
-      });
-      await createAuditLog({
-        entityType: "User",
-        entityId: updated.id,
-        action: "ADMIN_ACCESS_GRANTED",
-        diff: { email: updated.email, previousRole: existing.role },
-        performedByUserId: master.id,
-      });
-      return jsonOk(
-        {
-          user: updated,
-          emailSent: true,
-          alreadyRegisteredAs: existing.role === "STUDENT" ? "Aluno" : "Professor",
-        },
-        { status: 200 }
-      );
-    }
+
+    /** Concede o novo perfil como sobreposição, preservando o papel-base e os perfis de aluno/professor. */
+    const overlay =
+      targetRole === "ADMIN"
+        ? { isAdmin: true }
+        : targetRole === "COORDINATOR"
+          ? { isCoordinator: true }
+          : { isPoloCoordinator: true };
+
+    const updated = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        ...overlay,
+        ...(name.trim() && name.trim() !== existing.name ? { name: name.trim() } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isAdmin: true,
+        isCoordinator: true,
+        isPoloCoordinator: true,
+        isActive: true,
+      },
+    });
+    await createAuditLog({
+      entityType: "User",
+      entityId: updated.id,
+      action: "STAFF_ACCESS_GRANTED",
+      diff: { email: updated.email, grantedRole: targetRole, previousRole: existing.role },
+      performedByUserId: master.id,
+    });
+    return jsonOk(
+      {
+        user: updated,
+        emailSent: true,
+        alreadyRegisteredAs: ROLE_LABEL_PT[existing.role] ?? existing.role,
+      },
+      { status: 200 }
+    );
   }
 
   const tempPassword = generateTempPassword();

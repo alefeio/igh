@@ -13,6 +13,7 @@ type RolesResponse = {
   canTeacher: boolean;
   canAdmin: boolean;
   canCoordinator?: boolean;
+  canPoloCoordinator?: boolean;
   canMaster?: boolean;
 };
 
@@ -38,10 +39,11 @@ export default function EscolherPerfilPage() {
 
   const canAdmin = roles?.canAdmin === true;
   const canCoordinator = roles?.canCoordinator === true;
+  const canPoloCoordinator = roles?.canPoloCoordinator === true;
   const canStudent = roles?.canStudent === true;
   const canTeacher = roles?.canTeacher === true;
   const canMaster = roles?.canMaster === true;
-  const hasAny = canAdmin || canCoordinator || canStudent || canTeacher || canMaster;
+  const hasAny = canAdmin || canCoordinator || canPoloCoordinator || canStudent || canTeacher || canMaster;
 
   useEffect(() => {
     if (roles !== null && !hasAny) {
@@ -68,7 +70,7 @@ export default function EscolherPerfilPage() {
     return null;
   }
 
-  async function enterAs(role: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR") {
+  async function enterAs(role: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR" | "POLO_COORDINATOR") {
     if (submittingRole) return;
     setSubmittingRole(role);
     try {
@@ -151,6 +153,16 @@ export default function EscolherPerfilPage() {
               onClick={() => enterAs("COORDINATOR")}
             >
               {submittingRole === "COORDINATOR" ? "Entrando…" : "Entrar como Coordenador"}
+            </Button>
+          )}
+          {canPoloCoordinator && !canMaster && (
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={!!submittingRole}
+              onClick={() => enterAs("POLO_COORDINATOR")}
+            >
+              {submittingRole === "POLO_COORDINATOR" ? "Entrando…" : "Entrar como Coordenador de Polos"}
             </Button>
           )}
         </div>

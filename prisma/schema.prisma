@@ -36,6 +36,10 @@ model User {
   updatedAt                    DateTime                     @updatedAt
   mustChangePassword           Boolean                      @default(false)
   isAdmin                      Boolean                      @default(false)
+  /// * Acesso sobreposto como Coordenador (além do papel-base, ex.: professor que também coordena).
+  isCoordinator                Boolean                      @default(false)
+  /// * Acesso sobreposto como Coordenador de Polos (além do papel-base).
+  isPoloCoordinator            Boolean                      @default(false)
   /// * Chaves dos tutoriais já concluídos pelo usuário (ex.: student-dashboard-tutorial-done).
   completedTutorialKeys        String[]                     @default([])
   auditLogs                    AuditLog[]                   @relation("UserAuditLogs")

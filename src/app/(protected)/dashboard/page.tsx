@@ -43,6 +43,7 @@ import {
   type StudentEnrollmentSummary,
 } from "@/lib/dashboard-data";
 import { formatDaysShortPtBr } from "@/lib/turma-display";
+import { formatDateOnly } from "@/lib/format";
 
 const STATUS_LABELS: Record<string, string> = {
   PLANEJADA: "Planejada",
@@ -855,7 +856,7 @@ function DashboardStudent({
                       {r.holidayName ?? "Evento IGH"}
                     </p>
                     <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                      {r.occurrenceDate}
+                      {formatDateOnly(r.occurrenceDate)}
                       {r.eventStartTime && r.eventEndTime ? ` · ${r.eventStartTime.slice(0, 5)}–${r.eventEndTime.slice(0, 5)}` : ""}
                       {r.subtitle ? ` · ${r.subtitle}` : ""}
                       {r.responsibleTeacherName ? ` · Prof.: ${r.responsibleTeacherName}` : ""}

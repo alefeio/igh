@@ -15,6 +15,8 @@ const adminListFilter = {
     { role: "COORDINATOR" as const },
     { role: "POLO_COORDINATOR" as const },
     { isAdmin: true },
+    { isCoordinator: true },
+    { isPoloCoordinator: true },
   ],
 };
 
@@ -24,6 +26,8 @@ const userSelect = {
   email: true,
   role: true,
   isAdmin: true,
+  isCoordinator: true,
+  isPoloCoordinator: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,

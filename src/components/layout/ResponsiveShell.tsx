@@ -31,6 +31,7 @@ export function ResponsiveShell({
       canTeacher: boolean;
       canAdmin: boolean;
       canCoordinator?: boolean;
+      canPoloCoordinator?: boolean;
     };
   };
   logoUrl?: string | null;

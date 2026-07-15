@@ -1,7 +1,7 @@
-import { prisma } from "@/lib/prisma";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getApimagesConfig } from "@/lib/apimages";
+import { getOrCreateStudentForUser } from "@/lib/student-account";
 
 /** Permissão de upload Apimages para o aluno logado (documento, comprovante). Apenas STUDENT. */
 export async function POST() {
@@ -10,13 +10,7 @@ export async function POST() {
     return jsonErr("UNAUTHORIZED", "Não autorizado.", 401);
   }
 
-  const student = await prisma.student.findFirst({
-    where: { userId: user.id },
-    select: { id: true },
-  });
-  if (!student) {
-    return jsonErr("NOT_FOUND", "Cadastro não encontrado.", 404);
-  }
+  await getOrCreateStudentForUser(user);
 
   try {
     const { apiKey, uploadUrl } = getApimagesConfig();

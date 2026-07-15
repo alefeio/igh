@@ -29,6 +29,8 @@ const userLoginSelect = {
   email: true,
   role: true,
   isAdmin: true,
+  isCoordinator: true,
+  isPoloCoordinator: true,
   isActive: true,
   mustChangePassword: true,
   passwordHash: true,
@@ -104,6 +106,8 @@ export async function POST(request: Request) {
       email: string;
       role: string;
       isAdmin: boolean;
+      isCoordinator: boolean;
+      isPoloCoordinator: boolean;
       isActive: boolean;
       mustChangePassword: boolean | null;
       passwordHash: string;
@@ -149,7 +153,8 @@ export async function POST(request: Request) {
       prisma.teacher.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } }).then((r) => !!r),
     ]);
     const hasMaster = user.role === "MASTER";
-    const hasCoordinator = user.role === "COORDINATOR";
+    const hasCoordinator = user.role === "COORDINATOR" || user.isCoordinator === true;
+    const hasPoloCoordinator = user.role === "POLO_COORDINATOR" || user.isPoloCoordinator === true;
     /** Acesso como Admin (JWT ADMIN) — perfil administrativo ou flag isAdmin. */
     const hasAdminAccess = user.isAdmin === true || user.role === "ADMIN";
 
@@ -159,6 +164,7 @@ export async function POST(request: Request) {
     if (hasMaster) choiceCount++;
     else {
       if (hasCoordinator) choiceCount++;
+      if (hasPoloCoordinator) choiceCount++;
       if (hasAdminAccess) choiceCount++;
     }
     const needsRoleChoice = choiceCount >= 2;

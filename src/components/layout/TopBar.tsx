@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 
-type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR"; label: string };
+type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR" | "POLO_COORDINATOR"; label: string };
 
 type NotificationPreviewItem = {
   id: string;
@@ -36,6 +36,7 @@ export function TopBar({
       canTeacher: boolean;
       canAdmin: boolean;
       canCoordinator?: boolean;
+      canPoloCoordinator?: boolean;
     };
   };
 }) {
@@ -163,11 +164,13 @@ export function TopBar({
   const canTeacher = r?.canTeacher ?? (user.hasTeacherProfile === true);
   const canAdmin = r?.canAdmin ?? (user.isAdmin === true || user.baseRole === "ADMIN");
   const canCoordinator = r?.canCoordinator ?? (user.baseRole === "COORDINATOR");
+  const canPoloCoordinator = r?.canPoloCoordinator ?? (user.baseRole === "POLO_COORDINATOR");
 
   const roleLabels: Record<string, string> = {
     MASTER: "Administrador Master",
     ADMIN: "Admin",
     COORDINATOR: "Coordenador",
+    POLO_COORDINATOR: "Coordenador de Polos",
     TEACHER: "Professor",
     STUDENT: "Aluno",
   };
@@ -178,13 +181,14 @@ export function TopBar({
     ...(canTeacher ? [{ value: "TEACHER" as const, label: roleLabels.TEACHER }] : []),
     ...(canAdmin && !canMaster ? [{ value: "ADMIN" as const, label: roleLabels.ADMIN }] : []),
     ...(canCoordinator && !canMaster ? [{ value: "COORDINATOR" as const, label: roleLabels.COORDINATOR }] : []),
+    ...(canPoloCoordinator && !canMaster ? [{ value: "POLO_COORDINATOR" as const, label: roleLabels.POLO_COORDINATOR }] : []),
   ];
   if (!roleOptions.some((o) => o.value === user.role)) {
     roleOptions = [...roleOptions, { value: user.role as RoleOption["value"], label: roleLabels[user.role] ?? user.role }];
   }
   const hasMoreThanOneProfile = roleOptions.length >= 2;
 
-  async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR") {
+  async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR" | "POLO_COORDINATOR") {
     if (newRole === user.role) return;
     setSwitchingRole(true);
     try {
@@ -440,7 +444,7 @@ export function TopBar({
                       value={user.role}
                       disabled={switchingRole}
                       onChange={(e) =>
-                        onRoleChange(e.target.value as "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR")
+                        onRoleChange(e.target.value as "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR" | "POLO_COORDINATOR")
                       }
                       className="w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-sm text-[var(--input-text)] focus:border-[var(--igh-primary)] focus:outline-none"
                     >

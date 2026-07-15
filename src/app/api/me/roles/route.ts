@@ -22,7 +22,8 @@ export async function GET() {
 
   const base = user.baseRole;
   const canMaster = base === "MASTER";
-  const canCoordinator = base === "COORDINATOR";
+  const canCoordinator = user.isCoordinator === true || base === "COORDINATOR";
+  const canPoloCoordinator = user.isPoloCoordinator === true || base === "POLO_COORDINATOR";
   const canAdmin = user.isAdmin === true || base === "ADMIN";
 
   return jsonOk({
@@ -30,6 +31,7 @@ export async function GET() {
     canTeacher: !!hasTeacher,
     canAdmin,
     canCoordinator,
+    canPoloCoordinator,
     canMaster,
   });
 }

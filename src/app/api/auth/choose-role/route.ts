@@ -9,7 +9,7 @@ import {
 import { jsonErr } from "@/lib/http";
 import type { UserRole } from "@/generated/prisma/client";
 
-const ALLOWED_ROLES: UserRole[] = ["STUDENT", "TEACHER", "ADMIN", "MASTER", "COORDINATOR"];
+const ALLOWED_ROLES: UserRole[] = ["STUDENT", "TEACHER", "ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"];
 
 function jsonOkWithSession<T>(data: T, user: Parameters<typeof buildAuthSessionToken>[0], effectiveRole: UserRole) {
   return (async () => {
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const [full, hasStudent, hasTeacher] = await Promise.all([
     prisma.user.findUnique({
       where: { id: user.id },
-      select: { id: true, name: true, email: true, role: true, isAdmin: true, isActive: true, mustChangePassword: true },
+      select: { id: true, name: true, email: true, role: true, isAdmin: true, isCoordinator: true, isPoloCoordinator: true, isActive: true, mustChangePassword: true },
     }),
     prisma.student.findFirst({
       where: { userId: user.id, deletedAt: null },
@@ -76,10 +76,17 @@ export async function POST(request: Request) {
   }
 
   if (role === "COORDINATOR") {
-    if (full.role !== "COORDINATOR") {
+    if (full.role !== "COORDINATOR" && !full.isCoordinator) {
       return jsonErr("FORBIDDEN", "Você não tem perfil de Coordenador.", 403);
     }
     return jsonOkWithSession({ role: "COORDINATOR" as const }, sessionPayload, "COORDINATOR");
+  }
+
+  if (role === "POLO_COORDINATOR") {
+    if (full.role !== "POLO_COORDINATOR" && !full.isPoloCoordinator) {
+      return jsonErr("FORBIDDEN", "Você não tem perfil de Coordenador de Polos.", 403);
+    }
+    return jsonOkWithSession({ role: "POLO_COORDINATOR" as const }, sessionPayload, "POLO_COORDINATOR");
   }
 
   if (role === "STUDENT") {

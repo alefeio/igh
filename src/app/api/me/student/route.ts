@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { getOrCreateStudentForUser } from "@/lib/student-account";
 import { updateStudentSchema } from "@/lib/validators/students";
 
 /** Retorna o aluno vinculado ao usuário logado (role STUDENT). Se não for STUDENT ou não tiver aluno, retorna student: null. */
@@ -86,13 +87,7 @@ export async function PATCH(request: Request) {
     return jsonErr("UNAUTHORIZED", "Não autorizado.", 401);
   }
 
-  const student = await prisma.student.findFirst({
-    where: { userId: user.id },
-    include: { user: true },
-  });
-  if (!student) {
-    return jsonErr("NOT_FOUND", "Cadastro de aluno não encontrado.", 404);
-  }
+  const student = await getOrCreateStudentForUser(user);
 
   const body = await request.json().catch(() => null);
   const parsed = updateStudentSchema.safeParse(body);

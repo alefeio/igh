@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { getOrCreateStudentForUser } from "@/lib/student-account";
 import { createAttachmentSchema } from "@/lib/validators/attachments";
 
 export async function GET() {
@@ -9,13 +10,7 @@ export async function GET() {
     return jsonErr("UNAUTHORIZED", "Não autorizado.", 401);
   }
 
-  const student = await prisma.student.findFirst({
-    where: { userId: user.id },
-    select: { id: true },
-  });
-  if (!student) {
-    return jsonErr("NOT_FOUND", "Cadastro não encontrado.", 404);
-  }
+  const student = await getOrCreateStudentForUser(user);
 
   const attachments = await prisma.studentAttachment.findMany({
     where: { studentId: student.id, deletedAt: null },
@@ -31,13 +26,7 @@ export async function POST(request: Request) {
     return jsonErr("UNAUTHORIZED", "Não autorizado.", 401);
   }
 
-  const student = await prisma.student.findFirst({
-    where: { userId: user.id },
-    select: { id: true },
-  });
-  if (!student) {
-    return jsonErr("NOT_FOUND", "Cadastro não encontrado.", 404);
-  }
+  const student = await getOrCreateStudentForUser(user);
 
   const body = await request.json().catch(() => null);
   const parsed = createAttachmentSchema.safeParse(body);

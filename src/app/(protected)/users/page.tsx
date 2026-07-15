@@ -20,19 +20,32 @@ type AdminUser = {
   email: string;
   role: "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "STUDENT" | "TEACHER";
   isAdmin?: boolean;
+  isCoordinator?: boolean;
+  isPoloCoordinator?: boolean;
   isActive: boolean;
   createdAt: string;
 };
 
 type StaffAccessRole = "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR";
 
+const STAFF_ROLE_LABEL: Record<StaffAccessRole, string> = {
+  ADMIN: "Admin",
+  COORDINATOR: "Coordenador",
+  POLO_COORDINATOR: "Coordenador de Polos",
+};
+
+/** Lista todos os acessos do usuário (papel-base + sobreposições), ex.: "Aluno + Coordenador de Polos". */
 function roleLabel(u: AdminUser): string {
-  if (u.role === "COORDINATOR") return "Coordenador";
-  if (u.role === "POLO_COORDINATOR") return "Coordenador de Polos";
-  if (u.role === "ADMIN" || u.isAdmin) return "Admin";
-  if (u.role === "STUDENT") return "Aluno (+ admin)";
-  if (u.role === "TEACHER") return "Professor (+ admin)";
-  return u.role;
+  const parts: string[] = [];
+  if (u.role === "STUDENT") parts.push("Aluno");
+  else if (u.role === "TEACHER") parts.push("Professor");
+  else if (u.role === "ADMIN") parts.push("Admin");
+  else if (u.role === "COORDINATOR") parts.push("Coordenador");
+  else if (u.role === "POLO_COORDINATOR") parts.push("Coordenador de Polos");
+  if (u.isAdmin && u.role !== "ADMIN") parts.push("Admin");
+  if (u.isCoordinator && u.role !== "COORDINATOR") parts.push("Coordenador");
+  if (u.isPoloCoordinator && u.role !== "POLO_COORDINATOR") parts.push("Coordenador de Polos");
+  return Array.from(new Set(parts)).join(" + ") || u.role;
 }
 
 export default function UsersPage() {
@@ -203,9 +216,10 @@ export default function UsersPage() {
         return;
       }
       if (json.data.alreadyRegisteredAs) {
+        const grantedLabel = STAFF_ROLE_LABEL[createRole];
         toast.push(
           "success",
-        `Usuário já cadastrado como ${json.data.alreadyRegisteredAs}. Foi concedido acesso como Admin. Ao entrar no sistema, ele poderá escolher usar como ${json.data.alreadyRegisteredAs} ou Admin.`
+        `Usuário já cadastrado como ${json.data.alreadyRegisteredAs}. Foi concedido acesso como ${grantedLabel}. Ao entrar no sistema, ele poderá escolher usar como ${json.data.alreadyRegisteredAs} ou ${grantedLabel}.`
       );
     } else if (json.data.emailSent) {
       toast.push("success", "Admin criado. E-mail de acesso enviado para o novo usuário.");
