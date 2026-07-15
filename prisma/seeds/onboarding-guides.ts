@@ -196,6 +196,39 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
 </ul>`,
   },
 
+  POLO_COORDINATOR: {
+    title: "Como usar o sistema — Coordenador de Polos",
+    contentRich: `<h2>Visão geral do perfil Coordenador de Polos</h2>
+<p>Como <strong>Coordenador de Polos</strong>, você gerencia as <strong>matrículas</strong> das turmas vinculadas aos polos sob sua responsabilidade. O menu é enxuto: use <strong>Matrículas</strong> para incluir, ajustar e acompanhar alunos nas turmas dos seus locais.</p>
+
+<h2>Início</h2>
+<h3>Dashboard</h3>
+<p>Ao entrar, você é direcionado para a área de matrículas do seu escopo.</p>
+<h3>Como usar o sistema</h3>
+<p>Guia específico deste perfil (esta página).</p>
+<h3>Meus dados</h3>
+<p>Atualize nome, e-mail e telefone de contato.</p>
+
+<h2>Matrículas dos seus polos</h2>
+<h3>O que você vê</h3>
+<p>Somente turmas ligadas a um <strong>local de polo</strong> que você coordena. Turmas sem vínculo a polo não aparecem no seu painel.</p>
+<h3>O que você pode fazer</h3>
+<ul>
+<li>Listar matrículas ativas e pré-matrículas das suas turmas.</li>
+<li>Matricular alunos em turmas dos seus polos (respeitando status e vagas das turmas).</li>
+<li>Atualizar situação da matrícula e mover entre turmas do seu escopo, quando permitido.</li>
+</ul>
+<h3>O que fica com a administração</h3>
+<p>Cadastro de polos e locais, definição do coordenador, criação de turmas e vínculo turma↔local são feitos por <strong>Admin</strong>, <strong>Master</strong> ou <strong>Coordenador</strong> em <strong>Administração → Polos</strong> e <strong>Turmas</strong>.</p>
+
+<h2>Boas práticas</h2>
+<ul>
+<li>Confirme o local/polo da turma antes de matricular.</li>
+<li>Mantenha dados de contato do aluno atualizados junto à secretaria quando necessário.</li>
+<li>Encerre a sessão em equipamentos compartilhados.</li>
+</ul>`,
+  },
+
   TEACHER: {
     title: "Como usar o sistema — Professor",
     contentRich: `<h2>Visão geral do perfil Professor</h2>
@@ -288,4 +321,11 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
   },
 };
 
-export const ONBOARDING_ROLES_ORDER: UserRole[] = ["MASTER", "ADMIN", "COORDINATOR", "TEACHER", "STUDENT"];
+export const ONBOARDING_ROLES_ORDER: UserRole[] = [
+  "MASTER",
+  "ADMIN",
+  "COORDINATOR",
+  "POLO_COORDINATOR",
+  "TEACHER",
+  "STUDENT",
+];

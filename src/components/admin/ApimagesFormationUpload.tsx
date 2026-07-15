@@ -27,7 +27,7 @@ type Props = {
    */
   uploadContext?: "course" | "site";
   /** Papel da sessão (para professor usar rota dedicada em contexto de curso). */
-  userRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
+  userRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
 };
 
 /**

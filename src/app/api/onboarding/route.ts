@@ -7,6 +7,7 @@ const DEFAULT_TITLE: Record<UserRole, string> = {
   MASTER: "Como usar o sistema — Master",
   ADMIN: "Como usar o sistema — Administrador",
   COORDINATOR: "Como usar o sistema — Coordenador",
+  POLO_COORDINATOR: "Como usar o sistema — Coordenador de Polos",
   TEACHER: "Como usar o sistema — Professor",
   STUDENT: "Como usar o sistema — Aluno",
 };

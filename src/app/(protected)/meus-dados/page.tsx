@@ -10,10 +10,11 @@ export const metadata = {
   description: "Atualize seu cadastro e seus dados de acesso.",
 };
 
-const STAFF_ROLE_LABEL: Record<"MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER", string> = {
+const STAFF_ROLE_LABEL: Record<"MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER", string> = {
   MASTER: "Master",
   ADMIN: "Administrador",
   COORDINATOR: "Coordenador",
+  POLO_COORDINATOR: "Coordenador de Polos",
   TEACHER: "Professor",
 };
 
@@ -49,7 +50,13 @@ export default async function MeusDadosPage() {
     );
   }
 
-  if (user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR" || user.role === "TEACHER") {
+  if (
+    user.role === "MASTER" ||
+    user.role === "ADMIN" ||
+    user.role === "COORDINATOR" ||
+    user.role === "POLO_COORDINATOR" ||
+    user.role === "TEACHER"
+  ) {
     const roleLabel = STAFF_ROLE_LABEL[user.role];
     return (
       <div className="flex min-w-0 flex-col gap-6 sm:gap-8">

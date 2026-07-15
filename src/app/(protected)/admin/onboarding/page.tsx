@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/Input";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import type { ApiResponse } from "@/lib/api-types";
 
-type Role = "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
+type Role = "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
 
 const ROLES: { value: Role; label: string }[] = [
   { value: "MASTER", label: "Master" },
   { value: "ADMIN", label: "Administrador" },
   { value: "COORDINATOR", label: "Coordenador" },
+  { value: "POLO_COORDINATOR", label: "Coordenador de Polos" },
   { value: "TEACHER", label: "Professor" },
   { value: "STUDENT", label: "Aluno" },
 ];
