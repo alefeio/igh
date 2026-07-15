@@ -139,6 +139,27 @@ export function templateCoordinatorRoleAssigned(params: {
   return { subject: "Seu acesso foi atualizado - Coordenação", html: wrapHtml(body) };
 }
 
+/** Perfil de Coordenador de Polos concedido a conta já existente (mesmo login e senha). */
+export function templatePoloCoordinatorRoleAssigned(params: {
+  name: string;
+  email: string;
+}): { subject: string; html: string } {
+  const { name, email } = params;
+  const loginUrl = getAppUrl("/login");
+  const body = `
+<h2>Perfil liberado - Coordenador de Polos</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Foi liberado o acesso de <strong>Coordenador de Polos</strong> na sua conta. Você poderá gerenciar as <strong>matrículas</strong> das turmas dos polos sob sua responsabilidade.</p>
+<p>Continue usando o mesmo e-mail e senha de sempre. Se a sua conta tiver mais de um perfil, escolha <strong>Coordenador de Polos</strong> ao entrar ou no menu do sistema:</p>
+<ul>
+  <li><strong>Link de acesso:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
+  <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
+</ul>
+<p>Se tiver dúvidas, fale com a equipe administrativa.</p>
+`;
+  return { subject: "Seu acesso foi atualizado - Coordenador de Polos", html: wrapHtml(body) };
+}
+
 /** Após alteração Coordenador → Administrador (mesmo login e senha). */
 export function templateAdminRoleAssigned(params: {
   name: string;

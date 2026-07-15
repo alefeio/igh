@@ -5,7 +5,14 @@ import { createAdminSchema } from "@/lib/validators/users";
 import { createAuditLog } from "@/lib/audit";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
-import { templateAdminWelcome, templateCoordinatorWelcome, templatePoloCoordinatorWelcome } from "@/lib/email/templates";
+import {
+  templateAdminWelcome,
+  templateCoordinatorWelcome,
+  templatePoloCoordinatorWelcome,
+  templateAdminRoleAssigned,
+  templateCoordinatorRoleAssigned,
+  templatePoloCoordinatorRoleAssigned,
+} from "@/lib/email/templates";
 
 const ROLE_LABEL_PT: Record<string, string> = {
   MASTER: "Administrador Master",
@@ -121,10 +128,45 @@ export async function POST(request: Request) {
       diff: { email: updated.email, grantedRole: targetRole, previousRole: existing.role },
       performedByUserId: master.id,
     });
+
+    const assigned =
+      targetRole === "COORDINATOR"
+        ? templateCoordinatorRoleAssigned({ name: updated.name, email: updated.email })
+        : targetRole === "POLO_COORDINATOR"
+          ? templatePoloCoordinatorRoleAssigned({ name: updated.name, email: updated.email })
+          : templateAdminRoleAssigned({ name: updated.name, email: updated.email });
+    const emailType =
+      targetRole === "COORDINATOR"
+        ? "coordinator_role_assigned"
+        : targetRole === "POLO_COORDINATOR"
+          ? "polo_coordinator_role_assigned"
+          : "admin_role_assigned";
+    const emailResult = await sendEmailAndRecord({
+      to: updated.email,
+      subject: assigned.subject,
+      html: assigned.html,
+      emailType,
+      entityType: "User",
+      entityId: updated.id,
+      performedByUserId: master.id,
+    });
+    await createAuditLog({
+      entityType: "User",
+      entityId: updated.id,
+      action: "EMAIL_SENT",
+      diff: {
+        type: emailType,
+        success: emailResult.success,
+        messageId: emailResult.messageId,
+        queued: emailResult.queued ?? false,
+      },
+      performedByUserId: master.id,
+    });
+
     return jsonOk(
       {
         user: updated,
-        emailSent: true,
+        emailSent: emailResult.success,
         alreadyRegisteredAs: ROLE_LABEL_PT[existing.role] ?? existing.role,
       },
       { status: 200 }
