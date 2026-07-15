@@ -30,7 +30,6 @@ export function StudentRankingPointsBreakdownModal({
       </Modal>
     );
   }
-  const forumCount = b.forumQuestions + b.forumReplies;
   const bonus = STUDENT_RANKING_BONUS_POINTS;
 
   return (
@@ -65,8 +64,9 @@ export function StudentRankingPointsBreakdownModal({
           <tr className="border-b border-[var(--card-border)]/70">
             <td className="py-2.5 pr-2 align-top font-medium">Exercícios</td>
             <td className="py-2.5 pr-2 align-top text-[var(--text-secondary)]">
-              {b.exerciseAttempts} tentativa{b.exerciseAttempts === 1 ? "" : "s"} + {b.exerciseCorrect}{" "}
-              acerto{b.exerciseCorrect === 1 ? "" : "s"} (cada um = 1 pt)
+              {b.exerciseAttempts} primeira{b.exerciseAttempts === 1 ? "" : "s"} resposta
+              {b.exerciseAttempts === 1 ? "" : "s"} + {b.exerciseCorrect} acerto
+              {b.exerciseCorrect === 1 ? "" : "s"} (cada um = 1 pt; refações não contam)
             </td>
             <td className="py-2.5 text-right tabular-nums font-semibold text-[var(--igh-primary)]">
               {b.pointsExercises}
@@ -84,8 +84,8 @@ export function StudentRankingPointsBreakdownModal({
           <tr className="border-b border-[var(--card-border)]/70">
             <td className="py-2.5 pr-2 align-top font-medium">Fórum</td>
             <td className="py-2.5 pr-2 align-top text-[var(--text-secondary)]">
-              {b.forumQuestions} pergunta{b.forumQuestions === 1 ? "" : "s"} + {b.forumReplies}{" "}
-              resposta{b.forumReplies === 1 ? "" : "s"} ({forumCount} interações × {gp.forumPerReply})
+              {b.forumQuestions} {b.forumQuestions === 1 ? "fórum" : "fóruns"} com 1ª participação ×{" "}
+              {gp.forumPerReply} (mensagens extras no mesmo fórum não pontuam)
             </td>
             <td className="py-2.5 text-right tabular-nums font-semibold text-[var(--igh-primary)]">
               {b.pointsForum}
@@ -136,16 +136,18 @@ export function StudentRankingPointsHelpModal({
           soma <strong>{STUDENT_POINTS_PER_LESSON} pontos</strong>.
         </li>
         <li>
-          <strong className="text-[var(--text-primary)]">Exercícios:</strong> cada tentativa de resposta e cada acerto
-          contam <strong>1 ponto</strong> cada (nas questões ao final das aulas).
+          <strong className="text-[var(--text-primary)]">Exercícios:</strong> só a{" "}
+          <strong>primeira resposta</strong> de cada exercício conta: 1 ponto pela tentativa e mais 1 se estiver
+          correta. Refazer ou alterar a resposta depois não gera pontos.
         </li>
         <li>
           <strong className="text-[var(--text-primary)]">Frequência:</strong> cada presença registrada (sessões até a
           data atual) soma <strong>{gp.attendancePerPresentStudent} pontos</strong>.
         </li>
         <li>
-          <strong className="text-[var(--text-primary)]">Fórum:</strong> cada pergunta ou resposta nas dúvidas das aulas
-          soma <strong>{gp.forumPerReply} pontos</strong>.
+          <strong className="text-[var(--text-primary)]">Fórum:</strong> só a{" "}
+          <strong>primeira participação</strong> em cada fórum (aula) soma{" "}
+          <strong>{gp.forumPerReply} pontos</strong>. Mensagens extras no mesmo fórum não pontuam.
         </li>
         <li>
           <strong className="text-[var(--text-primary)]">Bônus (ações importantes):</strong> enviar a avaliação da

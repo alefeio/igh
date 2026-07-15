@@ -11,11 +11,16 @@ import { getAppUrl } from "@/lib/email";
 import { templateStudentWelcome } from "@/lib/email/templates";
 import { generateTempPassword } from "@/lib/password";
 import { hashPassword } from "@/lib/auth";
+import {
+  enrollmentWhereForPoloCoordinator,
+  poloCoordinatorOwnsClassGroup,
+} from "@/lib/polo-coordinator-scope";
 
 export async function GET() {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR", "POLO_COORDINATOR"]);
 
   const isTeacher = user.role === "TEACHER";
+  const isPoloCoordinator = user.role === "POLO_COORDINATOR";
   let teacherId: string | null = null;
   if (isTeacher) {
     const teacher = await prisma.teacher.findFirst({
@@ -31,7 +36,9 @@ export async function GET() {
   const enrollments = await prisma.enrollment.findMany({
     where: isTeacher && teacherId
       ? { classGroup: { teacherId } }
-      : undefined,
+      : isPoloCoordinator
+        ? enrollmentWhereForPoloCoordinator(user.id)
+        : undefined,
     orderBy: { enrolledAt: "desc" },
     include: {
       student: {
@@ -98,7 +105,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createEnrollmentSchema.safeParse(body);
@@ -107,6 +114,17 @@ export async function POST(request: Request) {
   }
 
   const { studentId, classGroupId } = parsed.data;
+
+  if (user.role === "POLO_COORDINATOR") {
+    const ok = await poloCoordinatorOwnsClassGroup(user.id, classGroupId);
+    if (!ok) {
+      return jsonErr(
+        "FORBIDDEN",
+        "Você só pode matricular alunos em turmas dos polos que coordena.",
+        403,
+      );
+    }
+  }
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },

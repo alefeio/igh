@@ -10,7 +10,12 @@ import { Prisma } from "@/generated/prisma/client";
 type Ctx = { params: Promise<{ id: string }> };
 
 const adminListFilter = {
-  OR: [{ role: "ADMIN" as const }, { role: "COORDINATOR" as const }, { isAdmin: true }],
+  OR: [
+    { role: "ADMIN" as const },
+    { role: "COORDINATOR" as const },
+    { role: "POLO_COORDINATOR" as const },
+    { isAdmin: true },
+  ],
 };
 
 const userSelect = {
@@ -49,8 +54,16 @@ export async function PATCH(request: Request, ctx: Ctx) {
     if (actor.role !== "MASTER") {
       return jsonErr("FORBIDDEN", "Apenas o Master pode alterar o perfil (Admin/Coordenador).", 403);
     }
-    if (existing.role !== "ADMIN" && existing.role !== "COORDINATOR") {
-      return jsonErr("FORBIDDEN", "A alteração de perfil só se aplica a contas Admin ou Coordenador.", 403);
+    if (
+      existing.role !== "ADMIN" &&
+      existing.role !== "COORDINATOR" &&
+      existing.role !== "POLO_COORDINATOR"
+    ) {
+      return jsonErr(
+        "FORBIDDEN",
+        "A alteração de perfil só se aplica a contas Admin, Coordenador ou Coordenador de Polos.",
+        403,
+      );
     }
   }
 
@@ -58,7 +71,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     name?: string;
     email?: string;
     isActive?: boolean;
-    role?: "ADMIN" | "COORDINATOR";
+    role?: "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR";
     passwordHash?: string;
     mustChangePassword?: boolean;
   } = {};

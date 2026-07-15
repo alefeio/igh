@@ -13,14 +13,16 @@ import {
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import { DEFAULT_CYCLE_ID } from "@/lib/cycles";
 import { classGroupTeacherAccessWhere, syncClassGroupTeachers, validateTeacherIds } from "@/lib/class-group-teachers";
+import { classGroupWhereForPoloCoordinator } from "@/lib/polo-coordinator-scope";
 
 export async function GET() {
   try {
-    const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
+    const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR", "POLO_COORDINATOR"]);
 
     await applyClassGroupAutomaticStatusUpdatesCached();
 
     const isTeacher = user.role === "TEACHER";
+    const isPoloCoordinator = user.role === "POLO_COORDINATOR";
     let teacherId: string | null = null;
     if (isTeacher) {
       const teacher = await prisma.teacher.findFirst({
@@ -34,12 +36,23 @@ export async function GET() {
     }
 
     const classGroups = await prisma.classGroup.findMany({
-      where: isTeacher && teacherId ? classGroupTeacherAccessWhere(teacherId) : undefined,
+      where: isTeacher && teacherId
+        ? classGroupTeacherAccessWhere(teacherId)
+        : isPoloCoordinator
+          ? classGroupWhereForPoloCoordinator(user.id)
+          : undefined,
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       include: {
         cycle: true,
         course: true,
         teacher: true,
+        poloLocation: {
+          select: {
+            id: true,
+            name: true,
+            polo: { select: { id: true, name: true } },
+          },
+        },
         classGroupTeachers: { include: { teacher: { select: { id: true, name: true } } } },
         sessions: {
           orderBy: { sessionDate: "asc" },
@@ -84,12 +97,24 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { cycleId, courseId, teacherIds, startDate, daysOfWeek, startTime, endTime, capacity, status, location } =
+  const { cycleId, courseId, teacherIds, startDate, daysOfWeek, startTime, endTime, capacity, status, location, poloLocationId } =
     parsed.data;
 
   const teacherValidation = await validateTeacherIds(teacherIds);
   if (!teacherValidation.ok) return jsonErr("INVALID_TEACHER", teacherValidation.message, 400);
   const primaryTeacherId = teacherIds[0]!;
+
+  let resolvedPoloLocationId: string | null = null;
+  let resolvedLocation = (location && location.trim()) || null;
+  if (poloLocationId && poloLocationId !== "") {
+    const poloLoc = await prisma.poloLocation.findFirst({
+      where: { id: poloLocationId, isActive: true, polo: { isActive: true } },
+      select: { id: true, name: true },
+    });
+    if (!poloLoc) return jsonErr("VALIDATION_ERROR", "Local do polo inválido.", 400);
+    resolvedPoloLocationId = poloLoc.id;
+    resolvedLocation = poloLoc.name;
+  }
 
   const [cycle, course] = await Promise.all([
     prisma.cycle.findUnique({
@@ -102,7 +127,7 @@ export async function POST(request: Request) {
   if (!cycle) return jsonErr("INVALID_CYCLE", "Ciclo inválido.", 400);
   if (!course) return jsonErr("INVALID_COURSE", "Curso inválido.", 400);
 
-  const normalizedLocation = (location && location.trim()) || null;
+  const normalizedLocation = resolvedLocation;
   const locationFilter =
     normalizedLocation === null
       ? { OR: [{ location: null }, { location: "" }] }
@@ -189,7 +214,8 @@ export async function POST(request: Request) {
         endTime,
         capacity,
         status: status ?? "PLANEJADA",
-        location: location || null,
+        location: resolvedLocation,
+        poloLocationId: resolvedPoloLocationId,
       },
     });
 

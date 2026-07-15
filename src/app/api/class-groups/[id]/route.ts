@@ -89,10 +89,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const endTimeForGeneration = parsed.data.endTime ?? existing.endTime;
   const workloadHours = courseForWorkload?.workloadHours ?? existing.course.workloadHours ?? 0;
 
-  const effectiveLocation =
+  let resolvedPoloLocationId: string | null | undefined = undefined;
+  let effectiveLocation =
     parsed.data.location !== undefined
       ? (parsed.data.location && parsed.data.location.trim()) || null
       : (existing.location && existing.location.trim()) || null;
+
+  if (parsed.data.poloLocationId !== undefined) {
+    if (!parsed.data.poloLocationId) {
+      resolvedPoloLocationId = null;
+    } else {
+      const poloLoc = await prisma.poloLocation.findFirst({
+        where: { id: parsed.data.poloLocationId, isActive: true, polo: { isActive: true } },
+        select: { id: true, name: true },
+      });
+      if (!poloLoc) return jsonErr("VALIDATION_ERROR", "Local do polo inválido.", 400);
+      resolvedPoloLocationId = poloLoc.id;
+      effectiveLocation = poloLoc.name;
+    }
+  }
+
   const locationFilter =
     effectiveLocation === null
       ? { OR: [{ location: null }, { location: "" }] }
@@ -185,7 +201,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         endTime: parsed.data.endTime ?? undefined,
         capacity: parsed.data.capacity ?? undefined,
         status: parsed.data.status ?? undefined,
-        location: parsed.data.location === "" ? null : (parsed.data.location ?? undefined),
+        location:
+          parsed.data.poloLocationId !== undefined || parsed.data.location !== undefined
+            ? effectiveLocation
+            : undefined,
+        ...(resolvedPoloLocationId !== undefined ? { poloLocationId: resolvedPoloLocationId } : {}),
         ...(preventAutoCloseValue !== undefined && { preventAutoClose: preventAutoCloseValue }),
       },
     });

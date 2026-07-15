@@ -2,6 +2,10 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import {
+  aggregateFirstExerciseAnswers,
+  countFirstForumParticipations,
+} from "@/lib/gamification-scoring-rules";
+import {
   STUDENT_POINTS_PER_LESSON,
   STUDENT_RANKING_BONUS_POINTS,
   STUDENT_RANKING_GAMIFICATION_POINTS,
@@ -109,7 +113,8 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
     enrollmentIds.length > 0
       ? prisma.enrollmentLessonExerciseAnswer.findMany({
           where: { enrollmentId: { in: enrollmentIds } },
-          select: { enrollmentId: true, correct: true },
+          select: { enrollmentId: true, exerciseId: true, correct: true, createdAt: true },
+          orderBy: { createdAt: "asc" },
         })
       : Promise.resolve([]),
     enrollmentIds.length > 0
@@ -124,17 +129,19 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
         })
       : Promise.resolve([]),
     enrollmentIds.length > 0
-      ? prisma.enrollmentLessonQuestion.groupBy({
-          by: ["enrollmentId"],
+      ? prisma.enrollmentLessonQuestion.findMany({
           where: { enrollmentId: { in: enrollmentIds } },
-          _count: { id: true },
+          select: { enrollmentId: true, lessonId: true, createdAt: true },
         })
       : Promise.resolve([]),
     enrollmentIds.length > 0
-      ? prisma.enrollmentLessonQuestionReply.groupBy({
-          by: ["enrollmentId"],
+      ? prisma.enrollmentLessonQuestionReply.findMany({
           where: { enrollmentId: { in: enrollmentIds } },
-          _count: { id: true },
+          select: {
+            enrollmentId: true,
+            createdAt: true,
+            question: { select: { lessonId: true } },
+          },
         })
       : Promise.resolve([]),
     userIds.length > 0
@@ -161,16 +168,17 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
   ]);
 
   const completedByEnrollment = new Map(progressCounts.map((p) => [p.enrollmentId, p._count.id]));
-  const exerciseByEnrollment = new Map<string, { correct: number; total: number }>();
-  for (const a of exerciseAnswers) {
-    const cur = exerciseByEnrollment.get(a.enrollmentId) ?? { correct: 0, total: 0 };
-    cur.total += 1;
-    if (a.correct) cur.correct += 1;
-    exerciseByEnrollment.set(a.enrollmentId, cur);
-  }
+  const { byEnrollment: exerciseByEnrollment } = aggregateFirstExerciseAnswers(exerciseAnswers);
   const attByEnrollment = new Map(attendanceByEnrollmentRows.map((r) => [r.enrollmentId, r._count.id]));
-  const forumQByEnrollment = new Map(forumQRows.map((r) => [r.enrollmentId, r._count.id]));
-  const forumRByEnrollment = new Map(forumRRows.map((r) => [r.enrollmentId, r._count.id]));
+  const forumScored = countFirstForumParticipations(
+    forumQRows,
+    forumRRows.map((r) => ({
+      enrollmentId: r.enrollmentId,
+      lessonId: r.question.lessonId,
+      createdAt: r.createdAt,
+    })),
+  );
+  const forumParticipationsByEnrollment = forumScored.byEnrollment;
   const hasPlatformExperienceByUserId = new Set(platformExperienceUsers.map((r) => r.userId));
   const hasMothersDayByUserId = new Set(mothersDayUsers.map((r) => r.userId));
 
@@ -181,8 +189,7 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
     exerciseAttempts: number;
     exerciseCorrect: number;
     attendancePresent: number;
-    forumQuestions: number;
-    forumReplies: number;
+    forumParticipations: number;
   };
   const byStudent = new Map<string, Agg>();
 
@@ -199,18 +206,16 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
         exerciseAttempts: 0,
         exerciseCorrect: 0,
         attendancePresent: 0,
-        forumQuestions: 0,
-        forumReplies: 0,
+        forumParticipations: 0,
       } satisfies Agg);
     cur.name = name;
     cur.userId = userId;
     cur.lessonsCompleted += completedByEnrollment.get(e.id) ?? 0;
-    const ex = exerciseByEnrollment.get(e.id) ?? { correct: 0, total: 0 };
-    cur.exerciseAttempts += ex.total;
+    const ex = exerciseByEnrollment.get(e.id) ?? { attempts: 0, correct: 0 };
+    cur.exerciseAttempts += ex.attempts;
     cur.exerciseCorrect += ex.correct;
     cur.attendancePresent += attByEnrollment.get(e.id) ?? 0;
-    cur.forumQuestions += forumQByEnrollment.get(e.id) ?? 0;
-    cur.forumReplies += forumRByEnrollment.get(e.id) ?? 0;
+    cur.forumParticipations += forumParticipationsByEnrollment.get(e.id) ?? 0;
     byStudent.set(sid, cur);
   }
 
@@ -225,7 +230,7 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
     const pointsFrequency =
       a.attendancePresent * STUDENT_RANKING_GAMIFICATION_POINTS.attendancePerPresentStudent;
     const pointsForum =
-      (a.forumQuestions + a.forumReplies) * STUDENT_RANKING_GAMIFICATION_POINTS.forumPerReply;
+      a.forumParticipations * STUDENT_RANKING_GAMIFICATION_POINTS.forumPerReply;
     const pointsPlatformExperience = hasPlatformExperienceFeedback
       ? STUDENT_RANKING_BONUS_POINTS.platformExperienceFeedback
       : 0;
@@ -243,8 +248,9 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
       exerciseAttempts: a.exerciseAttempts,
       exerciseCorrect: a.exerciseCorrect,
       attendancePresent: a.attendancePresent,
-      forumQuestions: a.forumQuestions,
-      forumReplies: a.forumReplies,
+      // Só 1ª participação por fórum; `forumReplies` zera para não contar 2× na UI.
+      forumQuestions: a.forumParticipations,
+      forumReplies: 0,
       hasPlatformExperienceFeedback,
       hasMothersDayTribute,
     };
@@ -314,7 +320,8 @@ export async function getGamificationSnapshotForStudent(
       }),
       prisma.enrollmentLessonExerciseAnswer.findMany({
         where: { enrollmentId: { in: enrollmentIds } },
-        select: { enrollmentId: true, correct: true },
+        select: { enrollmentId: true, exerciseId: true, correct: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
       }),
       prisma.sessionAttendance.groupBy({
         by: ["enrollmentId"],
@@ -325,15 +332,17 @@ export async function getGamificationSnapshotForStudent(
         },
         _count: { id: true },
       }),
-      prisma.enrollmentLessonQuestion.groupBy({
-        by: ["enrollmentId"],
+      prisma.enrollmentLessonQuestion.findMany({
         where: { enrollmentId: { in: enrollmentIds } },
-        _count: { id: true },
+        select: { enrollmentId: true, lessonId: true, createdAt: true },
       }),
-      prisma.enrollmentLessonQuestionReply.groupBy({
-        by: ["enrollmentId"],
+      prisma.enrollmentLessonQuestionReply.findMany({
         where: { enrollmentId: { in: enrollmentIds } },
-        _count: { id: true },
+        select: {
+          enrollmentId: true,
+          createdAt: true,
+          question: { select: { lessonId: true } },
+        },
       }),
     ]);
 
@@ -341,31 +350,26 @@ export async function getGamificationSnapshotForStudent(
   for (const p of progressCounts) {
     lessonsCompleted += p._count.id;
   }
-  let exerciseAttempts = 0;
-  let exerciseCorrect = 0;
-  for (const a of exerciseAnswers) {
-    exerciseAttempts += 1;
-    if (a.correct) exerciseCorrect += 1;
-  }
+  const { totalAttempts: exerciseAttempts, totalCorrect: exerciseCorrect } =
+    aggregateFirstExerciseAnswers(exerciseAnswers);
   let attendancePresent = 0;
   for (const r of attendanceByEnrollmentRows) {
     attendancePresent += r._count.id;
   }
-  let forumQuestions = 0;
-  for (const r of forumQRows) {
-    forumQuestions += r._count.id;
-  }
-  let forumReplies = 0;
-  for (const r of forumRRows) {
-    forumReplies += r._count.id;
-  }
+  const forumParticipations = countFirstForumParticipations(
+    forumQRows,
+    forumRRows.map((r) => ({
+      enrollmentId: r.enrollmentId,
+      lessonId: r.question.lessonId,
+      createdAt: r.createdAt,
+    })),
+  ).total;
 
   const pointsContent = lessonsCompleted * STUDENT_POINTS_PER_LESSON;
   const pointsExercises = exerciseAttempts + exerciseCorrect;
   const pointsFrequency =
     attendancePresent * STUDENT_RANKING_GAMIFICATION_POINTS.attendancePerPresentStudent;
-  const pointsForum =
-    (forumQuestions + forumReplies) * STUDENT_RANKING_GAMIFICATION_POINTS.forumPerReply;
+  const pointsForum = forumParticipations * STUDENT_RANKING_GAMIFICATION_POINTS.forumPerReply;
   const [hasPlatformExperienceFeedback, hasMothersDayTribute] = await Promise.all([
     prisma.platformExperienceFeedback
       .findFirst({ where: { userId }, select: { id: true } })

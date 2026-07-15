@@ -25,9 +25,15 @@ export type StudentRankPointsBreakdown = {
   pointsPlatformExperience: number;
   pointsMothersDay: number;
   lessonsCompleted: number;
+  /** Primeiras respostas a exercícios (refações não contam). */
   exerciseAttempts: number;
+  /** Acertos apenas nas primeiras respostas. */
   exerciseCorrect: number;
   attendancePresent: number;
+  /**
+   * Fóruns (aulas) pontuados: só a 1ª participação por fórum.
+   * `forumReplies` fica 0 na pontuação (compatibilidade da UI).
+   */
   forumQuestions: number;
   forumReplies: number;
   hasPlatformExperienceFeedback: boolean;

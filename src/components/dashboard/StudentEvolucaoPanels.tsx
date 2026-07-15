@@ -40,13 +40,13 @@ export function StudentEvolucaoPanels({
     totalExerciseAttempts,
     totalAttendancePresent,
     totalForumQuestions,
-    totalForumReplies,
   } = metrics;
 
   const pointsContent = totalLessonsCompleted * POINTS_PER_LESSON;
   const pointsExercises = totalExerciseAttempts + totalExerciseCorrect;
   const pointsFrequency = totalAttendancePresent * GAMIFICATION_POINTS.attendancePerPresentStudent;
-  const pointsForum = (totalForumQuestions + totalForumReplies) * GAMIFICATION_POINTS.forumPerReply;
+  // totalForumQuestions já é a contagem de 1ª participação por fórum; replies permanece 0.
+  const pointsForum = totalForumQuestions * GAMIFICATION_POINTS.forumPerReply;
   const points = pointsContent + pointsExercises + pointsFrequency + pointsForum;
   const levelInfo = getLevel(points);
   const badgeContext: StudentBadgeContext = {
@@ -55,7 +55,7 @@ export function StudentEvolucaoPanels({
     enrollments,
     exerciseAttempts: totalExerciseAttempts,
     attendancePresent: totalAttendancePresent,
-    forumInteractions: totalForumQuestions + totalForumReplies,
+    forumInteractions: totalForumQuestions,
   };
   const conquistasRealizadas = getAllUnlockedBadges(badgeContext);
   const proximasMetasPorCategoria = getNextBadgePerTrack(badgeContext);
@@ -183,7 +183,8 @@ export function StudentEvolucaoPanels({
             <div>
               <p className="text-3xl font-bold tabular-nums text-[var(--text-primary)] sm:text-4xl">{totalExerciseCorrect}</p>
               <p className="mt-1 text-sm text-[var(--text-muted)]">
-                acertos em {totalExerciseAttempts} {totalExerciseAttempts === 1 ? "tentativa" : "tentativas"}
+                acertos na 1ª resposta em {totalExerciseAttempts}{" "}
+                {totalExerciseAttempts === 1 ? "exercício" : "exercícios"}
                 <span className="ml-2 font-bold text-[var(--igh-primary)]">
                   {Math.round((totalExerciseCorrect / totalExerciseAttempts) * 100)}%
                 </span>

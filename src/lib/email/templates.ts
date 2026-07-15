@@ -96,6 +96,28 @@ export function templateCoordinatorWelcome(params: {
   return { subject: "Acesso liberado - Coordenação", html: wrapHtml(body) };
 }
 
+export function templatePoloCoordinatorWelcome(params: {
+  name: string;
+  email: string;
+  tempPassword: string;
+}): { subject: string; html: string } {
+  const { name, email, tempPassword } = params;
+  const loginUrl = getAppUrl("/login");
+  const body = `
+<h2>Acesso liberado - Coordenador de Polos</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Seu cadastro como <strong>Coordenador de Polos</strong> foi realizado. Você poderá gerenciar as <strong>matrículas</strong> das turmas dos polos sob sua responsabilidade. Use os dados abaixo para acessar:</p>
+<ul>
+  <li><strong>Link de acesso:</strong> <a href="${loginUrl}">${loginUrl}</a></li>
+  <li><strong>Usuário (e-mail):</strong> ${escapeHtml(email)}</li>
+  <li><strong>Senha temporária:</strong> <code style="background:#f0f0f0;padding:2px 6px;">${escapeHtml(tempPassword)}</code></li>
+</ul>
+<p><strong>Importante:</strong> Por segurança, você deverá trocar a senha no primeiro acesso.</p>
+<p>Guarde esta mensagem em local seguro até alterar sua senha. Não compartilhe sua senha com ninguém.</p>
+`;
+  return { subject: "Acesso liberado - Coordenador de Polos", html: wrapHtml(body) };
+}
+
 /** Após alteração Admin → Coordenador (mesmo login e senha). */
 export function templateCoordinatorRoleAssigned(params: {
   name: string;

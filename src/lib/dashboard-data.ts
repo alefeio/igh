@@ -2,6 +2,10 @@ import "server-only";
 
 import { ensurePendingDocumentRemindersForStudent } from "@/lib/document-reminder-notifications";
 import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
+import {
+  aggregateFirstExerciseAnswers,
+  countFirstForumParticipations,
+} from "@/lib/gamification-scoring-rules";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
@@ -74,6 +78,7 @@ const ROLE_LABELS: Record<string, string> = {
   MASTER: "Administrador Master",
   ADMIN: "Administrador",
   COORDINATOR: "Coordenador",
+  POLO_COORDINATOR: "Coordenador de Polos",
   TEACHER: "Professor",
   STUDENT: "Aluno",
 };
@@ -210,15 +215,15 @@ export type StudentEnrollmentSummary = {
   lessonsCompleted: number;
   /** Aulas com registro de progresso (acesso ao conteúdo). */
   lessonsAccessedCount: number;
-  /** Respostas corretas nos exercícios desta matrícula */
+  /** Acertos apenas na 1ª resposta de cada exercício. */
   exerciseCorrectAttempts: number;
-  /** Total de tentativas nos exercícios desta matrícula */
+  /** Primeiras respostas a exercícios (refações não contam na pontuação). */
   exerciseTotalAttempts: number;
   /** Sessões com presença (até hoje). */
   attendancePresentCount: number;
-  /** Tópicos criados no fórum (dúvidas). */
+  /** Fóruns (aulas) com 1ª participação pontuável. */
   forumQuestionsCount: number;
-  /** Respostas no fórum. */
+  /** Sempre 0 na pontuação (compatibilidade); 1ª participação já está em forumQuestionsCount. */
   forumRepliesCount: number;
 };
 
@@ -336,7 +341,8 @@ export async function loadStudentDashboardMetrics(
     enrollmentIds.length > 0
       ? prisma.enrollmentLessonExerciseAnswer.findMany({
           where: { enrollmentId: { in: enrollmentIds } },
-          select: { enrollmentId: true, correct: true },
+          select: { enrollmentId: true, exerciseId: true, correct: true, createdAt: true },
+          orderBy: { createdAt: "asc" },
         })
       : Promise.resolve([]),
     enrollmentIds.length > 0
@@ -351,17 +357,19 @@ export async function loadStudentDashboardMetrics(
         })
       : Promise.resolve([]),
     enrollmentIds.length > 0
-      ? prisma.enrollmentLessonQuestion.groupBy({
-          by: ["enrollmentId"],
+      ? prisma.enrollmentLessonQuestion.findMany({
           where: { enrollmentId: { in: enrollmentIds } },
-          _count: { id: true },
+          select: { enrollmentId: true, lessonId: true, createdAt: true },
         })
       : Promise.resolve([]),
     enrollmentIds.length > 0
-      ? prisma.enrollmentLessonQuestionReply.groupBy({
-          by: ["enrollmentId"],
+      ? prisma.enrollmentLessonQuestionReply.findMany({
           where: { enrollmentId: { in: enrollmentIds } },
-          _count: { id: true },
+          select: {
+            enrollmentId: true,
+            createdAt: true,
+            question: { select: { lessonId: true } },
+          },
         })
       : Promise.resolve([]),
     enrollmentIds.length > 0
@@ -410,22 +418,23 @@ export async function loadStudentDashboardMetrics(
   const completedByEnrollmentId = new Map(
     progressCounts.map((p) => [p.enrollmentId, p._count.id])
   );
-  const exerciseByEnrollmentId = new Map<string, { correct: number; total: number }>();
-  for (const a of exerciseAnswers) {
-    const cur = exerciseByEnrollmentId.get(a.enrollmentId) ?? { correct: 0, total: 0 };
-    cur.total += 1;
-    if (a.correct) cur.correct += 1;
-    exerciseByEnrollmentId.set(a.enrollmentId, cur);
-  }
+  const { byEnrollment: exerciseByEnrollmentId } = aggregateFirstExerciseAnswers(exerciseAnswers);
   const attendanceMap = new Map(attendanceByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
-  const forumQMap = new Map(forumQuestionsByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
-  const forumRMap = new Map(forumRepliesByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
+  const forumParticipationsByEnrollment = countFirstForumParticipations(
+    forumQuestionsByEnrollment,
+    forumRepliesByEnrollment.map((r) => ({
+      enrollmentId: r.enrollmentId,
+      lessonId: r.question.lessonId,
+      createdAt: r.createdAt,
+    })),
+  ).byEnrollment;
   const lessonsAccessedMap = new Map(lessonsAccessedByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
   const enrollments: StudentEnrollmentSummary[] = enrollmentsRaw.map((e) => {
     const courseId = e.classGroup.courseId;
     const lessonsTotal = lessonsByCourseId.get(courseId) ?? 0;
     const lessonsCompleted = completedByEnrollmentId.get(e.id) ?? 0;
-    const ex = exerciseByEnrollmentId.get(e.id) ?? { correct: 0, total: 0 };
+    const ex = exerciseByEnrollmentId.get(e.id) ?? { attempts: 0, correct: 0 };
+    const forumParticipations = forumParticipationsByEnrollment.get(e.id) ?? 0;
     return {
       id: e.id,
       courseId,
@@ -439,10 +448,11 @@ export async function loadStudentDashboardMetrics(
       lessonsCompleted,
       lessonsAccessedCount: lessonsAccessedMap.get(e.id) ?? 0,
       exerciseCorrectAttempts: ex.correct,
-      exerciseTotalAttempts: ex.total,
+      exerciseTotalAttempts: ex.attempts,
       attendancePresentCount: attendanceMap.get(e.id) ?? 0,
-      forumQuestionsCount: forumQMap.get(e.id) ?? 0,
-      forumRepliesCount: forumRMap.get(e.id) ?? 0,
+      // Só 1ª participação por fórum; replies=0 para não somar 2× na pontuação da UI.
+      forumQuestionsCount: forumParticipations,
+      forumRepliesCount: 0,
     };
   });
   const totalLessonsCompleted = enrollments.reduce((s, e) => s + e.lessonsCompleted, 0);
@@ -450,8 +460,8 @@ export async function loadStudentDashboardMetrics(
   const totalExerciseCorrect = enrollments.reduce((s, e) => s + e.exerciseCorrectAttempts, 0);
   const totalExerciseAttempts = enrollments.reduce((s, e) => s + e.exerciseTotalAttempts, 0);
   const attendancePresentCount = attendanceByEnrollment.reduce((s, r) => s + r._count.id, 0);
-  const forumQuestionsCount = forumQuestionsByEnrollment.reduce((s, r) => s + r._count.id, 0);
-  const forumRepliesCount = forumRepliesByEnrollment.reduce((s, r) => s + r._count.id, 0);
+  const forumQuestionsCount = enrollments.reduce((s, e) => s + e.forumQuestionsCount, 0);
+  const forumRepliesCount = 0;
   const recommended = enrollments.find(
     (e) =>
       e.enrollmentStatus === "ACTIVE" &&

@@ -53,9 +53,16 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Matrículas: Master, Admin, Coordenador ou Professor
+  // Matrículas: Master, Admin, Coordenador, Coordenador de Polos ou Professor
   if (pathname.startsWith("/enrollments")) {
-    if (!["MASTER", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
+    if (!["MASTER", "ADMIN", "COORDINATOR", "POLO_COORDINATOR", "TEACHER"].includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Polos: Master, Admin ou Coordenador
+  if (pathname.startsWith("/admin/polos")) {
+    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
@@ -127,6 +134,7 @@ export const config = {
     "/meus-dados/:path*",
     "/trocar-senha/:path*",
     "/escolher-perfil/:path*",
+    "/admin/polos/:path*",
     "/holidays/:path*",
     "/time-slots/:path*",
     "/professor/:path*",

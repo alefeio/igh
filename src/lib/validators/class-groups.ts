@@ -33,6 +33,8 @@ const baseClassGroupFields = {
     ])
     .optional(),
   location: z.string().optional().or(z.literal("")),
+  /** Local do polo (FK). Quando informado, a turma passa a pertencer ao polo daquele local. */
+  poloLocationId: z.string().uuid().optional().nullable().or(z.literal("")),
 };
 
 export const createClassGroupSchema = z.object(baseClassGroupFields);

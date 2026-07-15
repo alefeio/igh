@@ -5,13 +5,20 @@ import { createAdminSchema } from "@/lib/validators/users";
 import { createAuditLog } from "@/lib/audit";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
-import { templateAdminWelcome, templateCoordinatorWelcome } from "@/lib/email/templates";
+import { templateAdminWelcome, templateCoordinatorWelcome, templatePoloCoordinatorWelcome } from "@/lib/email/templates";
 
 export async function GET() {
   await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
 
   const users = await prisma.user.findMany({
-    where: { OR: [{ role: "ADMIN" }, { role: "COORDINATOR" }, { isAdmin: true }] },
+    where: {
+      OR: [
+        { role: "ADMIN" },
+        { role: "COORDINATOR" },
+        { role: "POLO_COORDINATOR" },
+        { isAdmin: true },
+      ],
+    },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -44,13 +51,18 @@ export async function POST(request: Request) {
   });
 
   if (existing) {
-    if (existing.role === "ADMIN" || existing.role === "MASTER" || existing.role === "COORDINATOR") {
+    if (
+      existing.role === "ADMIN" ||
+      existing.role === "MASTER" ||
+      existing.role === "COORDINATOR" ||
+      existing.role === "POLO_COORDINATOR"
+    ) {
       return jsonErr("EMAIL_IN_USE", "Já existe um usuário administrativo com este e-mail.", 409);
     }
-    if (targetRole === "COORDINATOR") {
+    if (targetRole === "COORDINATOR" || targetRole === "POLO_COORDINATOR") {
       return jsonErr(
         "EMAIL_IN_USE",
-        "Para criar um Coordenador, use um e-mail que ainda não esteja cadastrado na plataforma.",
+        "Para criar este perfil, use um e-mail que ainda não esteja cadastrado na plataforma.",
         409,
       );
     }
@@ -110,17 +122,29 @@ export async function POST(request: Request) {
           email: created.email,
           tempPassword,
         })
-      : templateAdminWelcome({
-          name: created.name,
-          email: created.email,
-          tempPassword,
-        });
+      : created.role === "POLO_COORDINATOR"
+        ? templatePoloCoordinatorWelcome({
+            name: created.name,
+            email: created.email,
+            tempPassword,
+          })
+        : templateAdminWelcome({
+            name: created.name,
+            email: created.email,
+            tempPassword,
+          });
   const { subject, html } = welcome;
+  const emailType =
+    created.role === "COORDINATOR"
+      ? "welcome_coordinator"
+      : created.role === "POLO_COORDINATOR"
+        ? "welcome_polo_coordinator"
+        : "welcome_admin";
   const emailResult = await sendEmailAndRecord({
     to: created.email,
     subject,
     html,
-    emailType: created.role === "COORDINATOR" ? "welcome_coordinator" : "welcome_admin",
+    emailType,
     entityType: "User",
     entityId: created.id,
     performedByUserId: master.id,
@@ -130,7 +154,7 @@ export async function POST(request: Request) {
     entityId: created.id,
     action: "EMAIL_SENT",
     diff: {
-      type: created.role === "COORDINATOR" ? "welcome_coordinator" : "welcome_admin",
+      type: emailType,
       success: emailResult.success,
       messageId: emailResult.messageId,
     },

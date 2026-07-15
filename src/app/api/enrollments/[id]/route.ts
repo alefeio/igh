@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requireStaffRead, requireStaffWrite } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateEnrollmentSchema } from "@/lib/validators/enrollments";
 import { formatDateOnly } from "@/lib/format";
@@ -8,13 +8,22 @@ import { createVerificationToken } from "@/lib/verification-token";
 import { getAppUrl } from "@/lib/email";
 import { templateStudentWelcome } from "@/lib/email/templates";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
+import {
+  poloCoordinatorOwnsClassGroup,
+  poloCoordinatorOwnsEnrollment,
+} from "@/lib/polo-coordinator-scope";
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  await requireStaffRead();
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
   const { id } = await context.params;
+
+  if (user.role === "POLO_COORDINATOR") {
+    const owns = await poloCoordinatorOwnsEnrollment(user.id, id);
+    if (!owns) return jsonErr("FORBIDDEN", "Matrícula fora do escopo dos seus polos.", 403);
+  }
 
   const enrollment = await prisma.enrollment.findUnique({
     where: { id },
@@ -49,13 +58,18 @@ export async function GET(
   });
 }
 
-/** Atualiza matrícula (confirmar pré-matrícula, editar status/certificado). Admin, Master ou Coordenador. */
+/** Atualiza matrícula (confirmar pré-matrícula, editar status/certificado). */
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireStaffWrite();
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
   const { id } = await context.params;
+
+  if (user.role === "POLO_COORDINATOR") {
+    const owns = await poloCoordinatorOwnsEnrollment(user.id, id);
+    if (!owns) return jsonErr("FORBIDDEN", "Matrícula fora do escopo dos seus polos.", 403);
+  }
 
   const existing = await prisma.enrollment.findUnique({
     where: { id },
@@ -87,6 +101,16 @@ export async function PATCH(
 
   if (parsed.data.classGroupId !== undefined && parsed.data.classGroupId !== existing.classGroupId) {
     const newClassGroupId = parsed.data.classGroupId;
+    if (user.role === "POLO_COORDINATOR") {
+      const ownsNew = await poloCoordinatorOwnsClassGroup(user.id, newClassGroupId);
+      if (!ownsNew) {
+        return jsonErr(
+          "FORBIDDEN",
+          "Você só pode mover matrículas para turmas dos polos que coordena.",
+          403,
+        );
+      }
+    }
     const newClassGroup = await prisma.classGroup.findUnique({
       where: { id: newClassGroupId },
       include: { course: { select: { id: true, name: true } } },
@@ -110,7 +134,12 @@ export async function PATCH(
       }
     }
     const alreadyInNew = await prisma.enrollment.findFirst({
-      where: { studentId: existing.studentId, classGroupId: newClassGroupId, status: "ACTIVE", id: { not: id } },
+      where: {
+        studentId: existing.studentId,
+        classGroupId: newClassGroupId,
+        status: "ACTIVE",
+        id: { not: id },
+      },
     });
     if (alreadyInNew) {
       return jsonErr("VALIDATION_ERROR", "O aluno já está inscrito nesta turma.", 400);
@@ -130,7 +159,7 @@ export async function PATCH(
       return jsonErr(
         "VALIDATION_ERROR",
         "O aluno já está inscrito em 2 cursos com turmas em andamento ou abertas. Não é possível alterar para esta turma.",
-        400
+        400,
       );
     }
     data.classGroupId = newClassGroupId;
@@ -217,13 +246,18 @@ export async function PATCH(
   });
 }
 
-/** Exclui uma matrícula. Master ou Coordenador (Admin conforme política da instituição). */
+/** Exclui uma matrícula. */
 export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireStaffWrite();
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
   const { id } = await context.params;
+
+  if (user.role === "POLO_COORDINATOR") {
+    const owns = await poloCoordinatorOwnsEnrollment(user.id, id);
+    if (!owns) return jsonErr("FORBIDDEN", "Matrícula fora do escopo dos seus polos.", 403);
+  }
 
   const enrollment = await prisma.enrollment.findUnique({
     where: { id },

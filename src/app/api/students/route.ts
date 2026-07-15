@@ -40,7 +40,7 @@ function buildStudentSearchOr(q: string): Prisma.StudentWhereInput[] {
 }
 
 export async function GET(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR", "POLO_COORDINATOR"]);
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";
@@ -116,7 +116,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createStudentSchema.safeParse(body);

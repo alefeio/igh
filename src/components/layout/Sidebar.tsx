@@ -16,6 +16,8 @@ type Item = {
   teacherOnly?: boolean;
   /** Professor, admin, master ou coordenador — reportes à coordenação. */
   coordinatorAccess?: boolean;
+  /** Visível também para Coordenador de Polos (ex.: Matrículas). */
+  poloCoordinatorOk?: boolean;
   alwaysShow?: boolean;
   /** Apenas Master ou Admin (ex.: edição do onboarding). */
   masterOrAdminOnly?: boolean;
@@ -80,7 +82,8 @@ const ITEMS: Item[] = [
   { href: "/courses", label: "Cursos", masterOrTeacher: true, category: "Administração" },
   { href: "/admin/cursos/planos-de-aula", label: "Planos de aula (PDF)", adminOrMaster: true, category: "Administração" },
   { href: "/class-groups", label: "Turmas", adminOrMaster: true, category: "Administração" },
-  { href: "/enrollments", label: "Matrículas", adminOrMaster: true, category: "Administração" },
+  { href: "/admin/polos", label: "Polos", adminOrMaster: true, category: "Administração" },
+  { href: "/enrollments", label: "Matrículas", adminOrMaster: true, poloCoordinatorOk: true, category: "Administração" },
   { href: "/horarios", label: "Quadro de horários", adminOrMaster: true, category: "Administração" },
   {
     href: "/admin/site/formacoes",
@@ -145,8 +148,8 @@ export function Sidebar({
   user: {
     name: string;
     email: string;
-    role: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
@@ -170,6 +173,9 @@ export function Sidebar({
   const pathname = usePathname();
 
   const filteredItems = ITEMS.filter((i) => {
+    if (user.role === "POLO_COORDINATOR") {
+      return Boolean(i.alwaysShow || i.poloCoordinatorOk);
+    }
     if (i.alwaysShow) return true;
     if (i.masterExclusive) return user.role === "MASTER";
     if (i.masterOrAdminOnly) return user.role === "MASTER" || user.role === "ADMIN";

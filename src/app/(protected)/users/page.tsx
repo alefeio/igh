@@ -18,14 +18,17 @@ type AdminUser = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "COORDINATOR" | "STUDENT" | "TEACHER";
+  role: "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "STUDENT" | "TEACHER";
   isAdmin?: boolean;
   isActive: boolean;
   createdAt: string;
 };
 
+type StaffAccessRole = "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR";
+
 function roleLabel(u: AdminUser): string {
   if (u.role === "COORDINATOR") return "Coordenador";
+  if (u.role === "POLO_COORDINATOR") return "Coordenador de Polos";
   if (u.role === "ADMIN" || u.isAdmin) return "Admin";
   if (u.role === "STUDENT") return "Aluno (+ admin)";
   if (u.role === "TEACHER") return "Professor (+ admin)";
@@ -45,12 +48,12 @@ export default function UsersPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [createRole, setCreateRole] = useState<"ADMIN" | "COORDINATOR">("ADMIN");
+  const [createRole, setCreateRole] = useState<StaffAccessRole>("ADMIN");
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
-  const [editAccessRole, setEditAccessRole] = useState<"ADMIN" | "COORDINATOR">("ADMIN");
+  const [editAccessRole, setEditAccessRole] = useState<StaffAccessRole>("ADMIN");
   const [savingCreate, setSavingCreate] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -89,8 +92,8 @@ export default function UsersPage() {
     setEditEmail(u.email);
     setEditPassword("");
     setEditIsActive(u.isActive);
-    if (u.role === "ADMIN" || u.role === "COORDINATOR") {
-      setEditAccessRole(u.role === "COORDINATOR" ? "COORDINATOR" : "ADMIN");
+    if (u.role === "ADMIN" || u.role === "COORDINATOR" || u.role === "POLO_COORDINATOR") {
+      setEditAccessRole(u.role);
     }
     setEditOpen(true);
   }
@@ -105,7 +108,7 @@ export default function UsersPage() {
         email: string;
         isActive: boolean;
         password?: string;
-        role?: "ADMIN" | "COORDINATOR";
+        role?: StaffAccessRole;
       } = {
         name: editName,
         email: editEmail,
@@ -115,7 +118,7 @@ export default function UsersPage() {
       if (
         isMaster &&
         editing &&
-        (editing.role === "ADMIN" || editing.role === "COORDINATOR") &&
+        (editing.role === "ADMIN" || editing.role === "COORDINATOR" || editing.role === "POLO_COORDINATOR") &&
         editAccessRole !== editing.role
       ) {
         payload.role = editAccessRole;
@@ -351,21 +354,24 @@ export default function UsersPage() {
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
             </div>
           </div>
-          {isMaster && editing && (editing.role === "ADMIN" || editing.role === "COORDINATOR") ? (
+          {isMaster &&
+          editing &&
+          (editing.role === "ADMIN" || editing.role === "COORDINATOR" || editing.role === "POLO_COORDINATOR") ? (
             <div>
               <label className="text-sm font-medium">Tipo de acesso</label>
               <div className="mt-1">
                 <select
                   className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
                   value={editAccessRole}
-                  onChange={(e) => setEditAccessRole(e.target.value as "ADMIN" | "COORDINATOR")}
+                  onChange={(e) => setEditAccessRole(e.target.value as StaffAccessRole)}
                 >
                   <option value="ADMIN">Administrador (pode alterar cadastros)</option>
                   <option value="COORDINATOR">Coordenador (somente leitura nas áreas de acompanhamento)</option>
+                  <option value="POLO_COORDINATOR">Coordenador de Polos (matrículas dos seus polos)</option>
                 </select>
               </div>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Coordenador acompanha alunos, turmas, frequência e indicadores sem poder alterar dados.
+                Coordenador de Polos gerencia apenas as matrículas das turmas dos polos sob sua responsabilidade.
               </p>
             </div>
           ) : null}
@@ -445,14 +451,15 @@ export default function UsersPage() {
               <select
                 className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
                 value={createRole}
-                onChange={(e) => setCreateRole(e.target.value as "ADMIN" | "COORDINATOR")}
+                onChange={(e) => setCreateRole(e.target.value as StaffAccessRole)}
               >
                 <option value="ADMIN">Administrador (pode alterar cadastros)</option>
                 <option value="COORDINATOR">Coordenador (somente leitura nas áreas de acompanhamento)</option>
+                <option value="POLO_COORDINATOR">Coordenador de Polos (matrículas dos seus polos)</option>
               </select>
             </div>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Coordenador acompanha alunos, turmas, frequência e indicadores sem poder alterar dados.
+              Coordenador de Polos gerencia apenas as matrículas das turmas dos polos sob sua responsabilidade.
             </p>
           </div>
           <p className="text-xs text-[var(--text-muted)]">

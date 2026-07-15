@@ -1,6 +1,10 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import {
+  aggregateFirstExerciseAnswers,
+  countFirstForumParticipations,
+} from "@/lib/gamification-scoring-rules";
 import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
 import type { StudentBadgeContext } from "@/lib/student-badge-definitions";
 
@@ -28,8 +32,8 @@ export async function buildStudentBadgeContextFromStudentId(
     progressCounts,
     exerciseAnswers,
     attendancePresentCount,
-    forumQuestionsCount,
-    forumRepliesCount,
+    forumQRows,
+    forumRRows,
   ] = await Promise.all([
     prisma.courseModule.findMany({
       where: { courseId: { in: courseIds } },
@@ -43,7 +47,8 @@ export async function buildStudentBadgeContextFromStudentId(
     enrollmentIds.length > 0
       ? prisma.enrollmentLessonExerciseAnswer.findMany({
           where: { enrollmentId: { in: enrollmentIds } },
-          select: { enrollmentId: true, correct: true },
+          select: { enrollmentId: true, exerciseId: true, correct: true, createdAt: true },
+          orderBy: { createdAt: "asc" },
         })
       : Promise.resolve([]),
     enrollmentIds.length > 0
@@ -56,15 +61,21 @@ export async function buildStudentBadgeContextFromStudentId(
         })
       : Promise.resolve(0),
     enrollmentIds.length > 0
-      ? prisma.enrollmentLessonQuestion.count({
+      ? prisma.enrollmentLessonQuestion.findMany({
           where: { enrollmentId: { in: enrollmentIds } },
+          select: { enrollmentId: true, lessonId: true, createdAt: true },
         })
-      : Promise.resolve(0),
+      : Promise.resolve([]),
     enrollmentIds.length > 0
-      ? prisma.enrollmentLessonQuestionReply.count({
+      ? prisma.enrollmentLessonQuestionReply.findMany({
           where: { enrollmentId: { in: enrollmentIds } },
+          select: {
+            enrollmentId: true,
+            createdAt: true,
+            question: { select: { lessonId: true } },
+          },
         })
-      : Promise.resolve(0),
+      : Promise.resolve([]),
   ]);
 
   const lessonsByCourseId = new Map<string, number>();
@@ -72,29 +83,32 @@ export async function buildStudentBadgeContextFromStudentId(
     lessonsByCourseId.set(m.courseId, (lessonsByCourseId.get(m.courseId) ?? 0) + m._count.lessons);
   }
   const completedByEnrollmentId = new Map(progressCounts.map((p) => [p.enrollmentId, p._count.id]));
-  const exerciseByEnrollmentId = new Map<string, { correct: number; total: number }>();
-  for (const a of exerciseAnswers) {
-    const cur = exerciseByEnrollmentId.get(a.enrollmentId) ?? { correct: 0, total: 0 };
-    cur.total += 1;
-    if (a.correct) cur.correct += 1;
-    exerciseByEnrollmentId.set(a.enrollmentId, cur);
-  }
+  const { byEnrollment: exerciseByEnrollmentId } = aggregateFirstExerciseAnswers(exerciseAnswers);
+  const forumParticipationsByEnrollment = countFirstForumParticipations(
+    forumQRows,
+    forumRRows.map((r) => ({
+      enrollmentId: r.enrollmentId,
+      lessonId: r.question.lessonId,
+      createdAt: r.createdAt,
+    })),
+  ).byEnrollment;
 
   const enrollments = enrollmentsRaw.map((e) => {
     const courseId = e.classGroup.courseId;
     const lessonsTotal = lessonsByCourseId.get(courseId) ?? 0;
     const lessonsCompleted = completedByEnrollmentId.get(e.id) ?? 0;
-    const ex = exerciseByEnrollmentId.get(e.id) ?? { correct: 0, total: 0 };
+    const ex = exerciseByEnrollmentId.get(e.id) ?? { attempts: 0, correct: 0 };
     return {
       lessonsTotal,
       lessonsCompleted,
-      exerciseTotalAttempts: ex.total,
+      exerciseTotalAttempts: ex.attempts,
     };
   });
 
   const totalLessonsCompleted = enrollments.reduce((s, e) => s + e.lessonsCompleted, 0);
   const totalLessonsTotal = enrollments.reduce((s, e) => s + e.lessonsTotal, 0);
   const totalExerciseAttempts = enrollments.reduce((s, e) => s + e.exerciseTotalAttempts, 0);
+  const forumInteractions = [...forumParticipationsByEnrollment.values()].reduce((s, n) => s + n, 0);
 
   return {
     total: totalLessonsTotal,
@@ -105,6 +119,6 @@ export async function buildStudentBadgeContextFromStudentId(
     })),
     exerciseAttempts: totalExerciseAttempts,
     attendancePresent: attendancePresentCount,
-    forumInteractions: forumQuestionsCount + forumRepliesCount,
+    forumInteractions,
   };
 }

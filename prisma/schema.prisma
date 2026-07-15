@@ -77,6 +77,7 @@ model User {
   ighCommunityTopicsAuthored       IghCommunityTopic[]          @relation("IghCommunityTopicAuthor")
   ighCommunityRepliesAuthored      IghCommunityReply[]          @relation("IghCommunityReplyAuthor")
   holidayEventRegistrations          HolidayEventRegistration[]
+  coordinatedPolos                   Polo[]
 }
 
 /// * Navegação na área logada — rota (pathname) por utilizador, para o Master acompanhar páginas vistas.
@@ -477,6 +478,37 @@ model CourseLessonExerciseOption {
   @@index([exerciseId])
 }
 
+/// * Polo operacional do IGH (agrupa locais físicos e um coordenador de polos).
+model Polo {
+  id                 String         @id @default(uuid())
+  name               String
+  isActive           Boolean        @default(true)
+  coordinatorUserId  String
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  coordinator        User           @relation(fields: [coordinatorUserId], references: [id])
+  locations          PoloLocation[]
+
+  @@index([coordinatorUserId])
+  @@index([isActive])
+}
+
+/// * Local físico pertencente a um polo (turmas podem ser vinculadas a um local).
+model PoloLocation {
+  id          String       @id @default(uuid())
+  poloId      String
+  name        String
+  address     String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  polo        Polo         @relation(fields: [poloId], references: [id], onDelete: Cascade)
+  classGroups ClassGroup[]
+
+  @@unique([poloId, name])
+  @@index([poloId])
+}
+
 model ClassGroup {
   id               String           @id @default(uuid())
   courseId         String
@@ -489,6 +521,8 @@ model ClassGroup {
   capacity         Int
   status           ClassGroupStatus @default(PLANEJADA)
   location         String?
+  /// * Local do polo (quando definido, a turma pertence ao polo daquele local).
+  poloLocationId   String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   endDate          DateTime?        @db.Date
@@ -498,9 +532,12 @@ model ClassGroup {
   teacher          Teacher          @relation(fields: [teacherId], references: [id])
   classGroupTeachers ClassGroupTeacher[]
   cycle            Cycle            @relation(fields: [cycleId], references: [id])
+  poloLocation     PoloLocation?    @relation(fields: [poloLocationId], references: [id], onDelete: SetNull)
   sessions         ClassSession[]
   enrollments      Enrollment[]
   exams            ClassGroupExam[]
+
+  @@index([poloLocationId])
 }
 
 model ClassGroupTeacher {
@@ -1652,6 +1689,8 @@ enum UserRole {
   TEACHER
   STUDENT
   COORDINATOR
+  /// * Coordena matrículas apenas nas turmas dos polos sob sua responsabilidade.
+  POLO_COORDINATOR
 }
 
 enum CourseStatus {

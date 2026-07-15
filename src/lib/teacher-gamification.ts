@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  aggregateFirstExerciseAnswers,
+  countFirstActorLessonParticipations,
+  countFirstForumParticipations,
+} from "@/lib/gamification-scoring-rules";
 import { prisma } from "@/lib/prisma";
 
 /** Meta de exercícios por aula (cadastro completo). */
@@ -14,7 +19,7 @@ export const GAMIFICATION_POINTS = {
   attendancePerSession: 15,
   /** Bônus por aluno com frequência marcada como presente (present=true) */
   attendancePerPresentStudent: 2,
-  /** Por resposta do professor (ou aluno) no fórum */
+  /** Por primeira participação no fórum (por aula); mensagens extras no mesmo fórum não pontuam. */
   forumPerReply: 5,
 } as const;
 
@@ -71,12 +76,11 @@ export function getGamificationRankingTableColumns(): readonly GamificationRanki
       label: "Fórum",
       align: "right",
       description:
-        `Conta interações no fórum por aula, pelo vínculo da matrícula com a turma do professor: ` +
-        `1) Tópicos criados por alunos das turmas deste professor (matrícula ativa); ` +
-        `2) Respostas entre alunos nesses tópicos (EnrollmentLessonQuestionReply); ` +
-        `3) Respostas deste professor em dúvidas do curso em que leciona (outras turmas do mesmo curso contam); ` +
-        `4) Respostas da equipe (admin/master) em tópicos de alunos das turmas deste professor. ` +
-        `Cada interação vale ${p.forumPerReply} pontos.`,
+        `Conta a 1ª participação em cada fórum (aula), pelo vínculo da matrícula com a turma do professor: ` +
+        `1) Alunos: um ponto por fórum na primeira vez que o aluno participa (tópico ou resposta); mensagens extras no mesmo fórum não pontuam; ` +
+        `2) Este professor: um ponto por fórum na primeira resposta dele naquela aula; ` +
+        `3) Equipe (admin/master): um ponto por fórum na primeira resposta de cada usuário da equipe. ` +
+        `Cada participação pontuável vale ${p.forumPerReply} pontos.`,
     },
     {
       label: "Horas assist.",
@@ -88,7 +92,7 @@ export function getGamificationRankingTableColumns(): readonly GamificationRanki
       label: "Ex. realizados",
       align: "right",
       description:
-        "Para cada tentativa de exercício pelos alunos (respostas no escopo) soma-se 1; para cada tentativa correta soma-se mais 1. Valor = tentativas + acertos (entra no total).",
+        "Só a primeira resposta de cada aluno em cada exercício conta: 1 ponto pela tentativa + 1 se estiver correta. Refazer ou editar a resposta não gera pontos.",
     },
   ];
 }
@@ -124,16 +128,21 @@ export type TeacherGamificationTotals = {
   lessonsWithFiveExercises: number;
   pastSessionsTotal: number;
   pastSessionsAttendanceComplete: number;
+  /** Fóruns (aulas) em que o professor deu a 1ª participação. */
   teacherRepliesInScope: number;
-  /** Respostas da equipe (staff) em tópicos de alunos das turmas deste professor. */
+  /** Fóruns pontuados pela equipe (1ª participação por staff×aula). */
   staffRepliesInScope: number;
-  /** Tópicos/dúvidas iniciados por alunos (EnrollmentLessonQuestion) no escopo. */
+  /**
+   * Compat: alunos no escopo — participações pontuáveis vão em `studentTopicsInScope`;
+   * `studentRepliesInScope` fica 0 (não somar 2×).
+   */
   studentTopicsInScope: number;
   studentRepliesInScope: number;
   /** Soma dos minutos estudados (alunos, aulas no escopo). */
   studentTotalMinutesStudied: number;
   /** `round(minutos / 60)` — entra no total como pontuação. */
   studentWatchHours: number;
+  /** Primeiras respostas a exercícios (refações não contam). */
   studentExerciseAttempts: number;
   studentExerciseCorrect: number;
 };
@@ -145,7 +154,7 @@ export type TeacherGamificationPoints = {
   forum: number;
   /** Horas totais de estudo dos alunos (1 h = 1 ponto). */
   studentWatchHours: number;
-  /** Tentativas em exercícios + acertos (cada um soma 1). */
+  /** Primeiras respostas a exercícios + acertos nessas respostas (cada um soma 1). */
   studentExerciseScore: number;
   total: number;
 };
@@ -297,11 +306,11 @@ export async function computeTeacherGamification(
   const enrollmentIds = enrollments.map((e) => e.id);
 
   /** Fórum: não filtrar por lista de lessonIds (EnrollmentLessonQuestion.lessonId não tem FK; o filtro por aula falhava silenciosamente). Usa matrícula → turma → professor/curso. */
-  const [teacherRepliesInScope, staffRepliesInScope, studentTopicsInScope, studentRepliesInScope] =
+  const [teacherReplyRows, staffReplyRows, studentTopicRows, studentReplyRows] =
     await Promise.all([
       courseIds.length === 0
-        ? Promise.resolve(0)
-        : prisma.lessonQuestionTeacherReply.count({
+        ? Promise.resolve([] as Array<{ lessonId: string }>)
+        : prisma.lessonQuestionTeacherReply.findMany({
             where: {
               teacherId,
               question: {
@@ -311,10 +320,11 @@ export async function computeTeacherGamification(
                 },
               },
             },
-          }),
+            select: { question: { select: { lessonId: true } } },
+          }).then((rows) => rows.map((r) => ({ lessonId: r.question.lessonId }))),
       classGroupIds.length === 0
-        ? Promise.resolve(0)
-        : prisma.lessonQuestionTeacherReply.count({
+        ? Promise.resolve([] as Array<{ actorKey: string; lessonId: string }>)
+        : prisma.lessonQuestionTeacherReply.findMany({
             where: {
               staffUserId: { not: null },
               question: {
@@ -324,28 +334,61 @@ export async function computeTeacherGamification(
                 },
               },
             },
-          }),
+            select: {
+              staffUserId: true,
+              question: { select: { lessonId: true } },
+            },
+          }).then((rows) =>
+            rows.map((r) => ({
+              actorKey: r.staffUserId ?? "",
+              lessonId: r.question.lessonId,
+            })),
+          ),
       classGroupIds.length === 0
-        ? Promise.resolve(0)
-        : prisma.enrollmentLessonQuestion.count({
+        ? Promise.resolve(
+            [] as Array<{ enrollmentId: string; lessonId: string; createdAt: Date }>,
+          )
+        : prisma.enrollmentLessonQuestion.findMany({
             where: {
               enrollment: {
                 status: "ACTIVE",
                 classGroup: { teacherId },
               },
             },
+            select: { enrollmentId: true, lessonId: true, createdAt: true },
           }),
       classGroupIds.length === 0
-        ? Promise.resolve(0)
-        : prisma.enrollmentLessonQuestionReply.count({
+        ? Promise.resolve(
+            [] as Array<{ enrollmentId: string; lessonId: string; createdAt: Date }>,
+          )
+        : prisma.enrollmentLessonQuestionReply.findMany({
             where: {
               enrollment: {
                 status: "ACTIVE",
                 classGroup: { teacherId },
               },
             },
-          }),
+            select: {
+              enrollmentId: true,
+              createdAt: true,
+              question: { select: { lessonId: true } },
+            },
+          }).then((rows) =>
+            rows.map((r) => ({
+              enrollmentId: r.enrollmentId,
+              lessonId: r.question.lessonId,
+              createdAt: r.createdAt,
+            })),
+          ),
     ]);
+
+  const teacherRepliesInScope = countFirstActorLessonParticipations(
+    teacherReplyRows.map((r) => ({ actorKey: teacherId, lessonId: r.lessonId })),
+  );
+  const staffRepliesInScope = countFirstActorLessonParticipations(staffReplyRows);
+  const studentForumScored = countFirstForumParticipations(studentTopicRows, studentReplyRows);
+  const studentTopicsInScope = studentForumScored.total;
+  const studentRepliesInScope = 0;
 
   let studentTotalMinutesStudied = 0;
   let studentWatchHours = 0;
@@ -360,19 +403,17 @@ export async function computeTeacherGamification(
     studentTotalMinutesStudied = progressAgg._sum.totalMinutesStudied ?? 0;
     studentWatchHours = Math.round(studentTotalMinutesStudied / 60);
 
-    studentExerciseAttempts = await prisma.enrollmentLessonExerciseAnswer.count({
+    const exerciseAnswerRows = await prisma.enrollmentLessonExerciseAnswer.findMany({
       where: {
         enrollmentId: { in: enrollmentIds },
         exercise: { lessonId: { in: lessonIds } },
       },
+      select: { enrollmentId: true, exerciseId: true, correct: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
     });
-    studentExerciseCorrect = await prisma.enrollmentLessonExerciseAnswer.count({
-      where: {
-        enrollmentId: { in: enrollmentIds },
-        exercise: { lessonId: { in: lessonIds } },
-        correct: true,
-      },
-    });
+    const firstEx = aggregateFirstExerciseAnswers(exerciseAnswerRows);
+    studentExerciseAttempts = firstEx.totalAttempts;
+    studentExerciseCorrect = firstEx.totalCorrect;
   }
 
   const pointsStudentExerciseScore = studentExerciseAttempts + studentExerciseCorrect;

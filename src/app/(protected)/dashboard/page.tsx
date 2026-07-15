@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   BookOpen,
   CalendarDays,
@@ -1082,6 +1083,9 @@ function DashboardStudent({
 
 export default async function DashboardPage() {
   const user = await requireSessionUser();
+  if (user.role === "POLO_COORDINATOR") {
+    redirect("/enrollments");
+  }
   let data: DashboardData;
   try {
     data = await getDashboardData(user);

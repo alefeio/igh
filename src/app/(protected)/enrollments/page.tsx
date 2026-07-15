@@ -863,7 +863,10 @@ export default function EnrollmentsPage() {
                 {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
               </Button>
             </div>
-            {(user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR") && (
+            {(user.role === "ADMIN" ||
+              user.role === "MASTER" ||
+              user.role === "COORDINATOR" ||
+              user.role === "POLO_COORDINATOR") && (
               <Button onClick={openCreate} className="w-full sm:w-auto">
                 Nova matrícula
               </Button>

@@ -50,6 +50,12 @@ type ClassGroup = {
     | "INTERNO"
     | "EXTERNO";
   location: string | null;
+  poloLocationId?: string | null;
+  poloLocation?: {
+    id: string;
+    name: string;
+    polo: { id: string; name: string };
+  } | null;
   createdAt: string;
   cycle: Cycle;
   course: Course;
@@ -173,6 +179,10 @@ export default function ClassGroupsPage() {
   const [capacity, setCapacity] = useState("20");
   const [status, setStatus] = useState<ClassGroup["status"]>("PLANEJADA");
   const [location, setLocation] = useState("");
+  const [poloLocationId, setPoloLocationId] = useState("");
+  const [poloLocationOptions, setPoloLocationOptions] = useState<
+    Array<{ id: string; label: string; name: string }>
+  >([]);
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
   const [selectedTimeSlotId, setSelectedTimeSlotId] = useState("");
 
@@ -245,6 +255,7 @@ export default function ClassGroupsPage() {
     setCapacity("20");
     setStatus("PLANEJADA");
     setLocation("");
+    setPoloLocationId("");
     setSelectedTimeSlotId("");
     setEditing(null);
     setSessions([]);
@@ -281,6 +292,7 @@ export default function ClassGroupsPage() {
     setCapacity(String(cg.capacity));
     setStatus(cg.status);
     setLocation(cg.location ?? "");
+    setPoloLocationId(cg.poloLocationId ?? cg.poloLocation?.id ?? "");
     const matchingSlot = timeSlots.find(
       (s) => s.startTime === cg.startTime && s.endTime === cg.endTime
     );
@@ -323,20 +335,28 @@ export default function ClassGroupsPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [cgRes, cyclesRes, cRes, tRes, tsRes] = await Promise.all([
+      const [cgRes, cyclesRes, cRes, tRes, tsRes, polosRes] = await Promise.all([
         fetch("/api/class-groups"),
         fetch("/api/cycles"),
         fetch("/api/courses"),
         fetch("/api/teachers"),
         fetch("/api/time-slots?activeOnly=true"),
+        fetch("/api/admin/polos"),
       ]);
 
-      const [cgJson, cyclesJson, cJson, tJson, tsJson] = await Promise.all([
+      const [cgJson, cyclesJson, cJson, tJson, tsJson, polosJson] = await Promise.all([
         parseJsonSafe<{ classGroups: ClassGroup[] }>(cgRes),
         parseJsonSafe<{ cycles: Cycle[] }>(cyclesRes),
         parseJsonSafe<{ courses: Course[] }>(cRes),
         parseJsonSafe<{ teachers: Teacher[] }>(tRes),
         parseJsonSafe<{ timeSlots: TimeSlot[] }>(tsRes),
+        parseJsonSafe<{
+          polos: Array<{
+            name: string;
+            isActive: boolean;
+            locations: Array<{ id: string; name: string; isActive: boolean }>;
+          }>;
+        }>(polosRes),
       ]);
 
       if (!cgRes.ok || !cgJson?.ok)
@@ -351,6 +371,17 @@ export default function ClassGroupsPage() {
       setCourses(cJson!.data.courses);
       setTeachers(tJson!.data.teachers);
       setTimeSlots(tsJson?.ok ? tsJson.data.timeSlots : []);
+      if (polosJson?.ok) {
+        const opts: Array<{ id: string; label: string; name: string }> = [];
+        for (const p of polosJson.data.polos.filter((x) => x.isActive)) {
+          for (const loc of p.locations.filter((l) => l.isActive)) {
+            opts.push({ id: loc.id, label: `${p.name} — ${loc.name}`, name: loc.name });
+          }
+        }
+        setPoloLocationOptions(opts);
+      } else {
+        setPoloLocationOptions([]);
+      }
     } catch (e: unknown) {
       toast.push("error", e instanceof Error ? e.message : "Falha ao carregar dados.");
     } finally {
@@ -391,6 +422,7 @@ export default function ClassGroupsPage() {
         capacity: Number(capacity),
         status,
         location,
+        poloLocationId: poloLocationId || null,
       };
 
       const url = isEditing ? `/api/class-groups/${editing!.id}` : "/api/class-groups";
@@ -1332,6 +1364,32 @@ export default function ClassGroupsPage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Polo / Local (recomendado)</label>
+            <div className="mt-1">
+              <select
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                value={poloLocationId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setPoloLocationId(id);
+                  const opt = poloLocationOptions.find((o) => o.id === id);
+                  if (opt) setLocation(opt.name);
+                }}
+              >
+                <option value="">Sem vínculo a polo</option>
+                {poloLocationOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Vincule a turma a um local cadastrado em Administração → Polos para o coordenador do polo gerenciar as matrículas.
+            </p>
           </div>
 
           <div>
