@@ -97,6 +97,9 @@ export default function LessonEditPage() {
   const toast = useToast();
   const user = useUser();
   const [loading, setLoading] = useState(true);
+  /** Módulo atualmente persistido no banco (usado nas URLs da API). */
+  const [persistedModuleId, setPersistedModuleId] = useState<string | null>(isNew ? moduleIdFromQuery : null);
+  /** Módulo selecionado no formulário (pode diferir até salvar). */
   const [moduleId, setModuleId] = useState<string | null>(isNew ? moduleIdFromQuery : null);
   const [modules, setModules] = useState<ModuleWithLessons[]>([]);
   const [lessonForm, setLessonForm] = useState(emptyLessonForm);
@@ -361,14 +364,15 @@ export default function LessonEditPage() {
   const currentModule = useMemo(() => modules.find((m) => m.id === moduleId), [modules, moduleId]);
 
   const hasUnsavedChanges = useMemo(() => {
-    return JSON.stringify(comparableLessonPayload(lessonForm)) !== initialComparableRef.current;
-  }, [lessonForm]);
+    const moduleChanged = !isNew && moduleId != null && persistedModuleId != null && moduleId !== persistedModuleId;
+    return moduleChanged || JSON.stringify(comparableLessonPayload(lessonForm)) !== initialComparableRef.current;
+  }, [lessonForm, moduleId, persistedModuleId, isNew]);
 
   const tutorialSteps: TutorialStep[] = useMemo(() => {
     if (!moduleId) return [];
     const steps: TutorialStep[] = [
       { target: "[data-tour=\"lesson-edit-back\"]", title: "Voltar", content: "Use este botão para voltar à edição do curso (módulos e aulas)." },
-      { target: "[data-tour=\"lesson-edit-dados\"]", title: "Dados da aula", content: "Preencha o título, ordem, duração e o link do vídeo. Você pode anexar imagens/arquivos e adicionar links de apoio com nome para exibição. O resumo aparece no topo da aula para o aluno." },
+      { target: "[data-tour=\"lesson-edit-dados\"]", title: "Dados da aula", content: "Preencha o título, ordem, duração e o link do vídeo. Na edição você também pode mudar o módulo da aula. Você pode anexar imagens/arquivos e adicionar links de apoio com nome para exibição. O resumo aparece no topo da aula para o aluno." },
       { target: "[data-tour=\"lesson-edit-conteudo\"]", title: "Conteúdo (rich text)", content: "Escreva aqui o conteúdo principal da aula com formatação, listas e links. Esse texto é exibido ao aluno durante a aula. Para incluir uma imagem no conteúdo (rich text), basta copiar a imagem de Arquivos da aula e colar no conteúdo." },
     ];
     if (!isNew) {
@@ -407,6 +411,7 @@ export default function LessonEditPage() {
               return;
             }
             setModuleId(moduleIdFromQuery);
+            setPersistedModuleId(moduleIdFromQuery);
             const next = { ...emptyLessonForm, order: mod.lessons.length };
             setLessonForm(next);
             initialComparableRef.current = JSON.stringify(comparableLessonPayload(next));
@@ -425,6 +430,7 @@ export default function LessonEditPage() {
               return;
             }
             setModuleId(found.mod.id);
+            setPersistedModuleId(found.mod.id);
             const les = found.les;
             const urls = les.attachmentUrls ?? [];
             const names = les.attachmentNames ?? [];
@@ -456,9 +462,9 @@ export default function LessonEditPage() {
   }, [courseId, lessonIdParam, isNew, moduleIdFromQuery, router, toast]);
 
   useEffect(() => {
-    if (!isNew && moduleId && lessonIdParam) {
+    if (!isNew && persistedModuleId && lessonIdParam) {
       setLoadingExercises(true);
-      fetch(`/api/courses/${courseId}/modules/${moduleId}/lessons/${lessonIdParam}/exercises`)
+      fetch(`/api/courses/${courseId}/modules/${persistedModuleId}/lessons/${lessonIdParam}/exercises`)
         .then((r) => r.json() as Promise<ApiResponse<LessonExercise[]>>)
         .then((json) => {
           if (json.ok && json.data) setLessonExercises(json.data);
@@ -467,7 +473,7 @@ export default function LessonEditPage() {
         .catch(() => setLessonExercises([]))
         .finally(() => setLoadingExercises(false));
     }
-  }, [courseId, moduleId, lessonIdParam, isNew]);
+  }, [courseId, persistedModuleId, lessonIdParam, isNew]);
 
   const openExerciseAdd = useCallback(() => {
     setExerciseForm({ question: "", options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] });
@@ -484,7 +490,7 @@ export default function LessonEditPage() {
 
   async function saveExercise(e: React.FormEvent) {
     e.preventDefault();
-    if (!moduleId || !lessonIdParam || lessonIdParam === "new" || savingExercise) return;
+    if (!persistedModuleId || !lessonIdParam || lessonIdParam === "new" || savingExercise) return;
     const question = exerciseForm.question.trim();
     const options = exerciseForm.options.filter((o) => o.text.trim());
     if (!question) {
@@ -501,7 +507,7 @@ export default function LessonEditPage() {
     }
     setSavingExercise(true);
     try {
-      const base = `/api/courses/${courseId}/modules/${moduleId}/lessons/${lessonIdParam}/exercises`;
+      const base = `/api/courses/${courseId}/modules/${persistedModuleId}/lessons/${lessonIdParam}/exercises`;
       const isEdit = exerciseModal?.type === "edit" && exerciseModal?.exercise;
       const url = isEdit ? `${base}/${exerciseModal.exercise!.id}` : base;
       const method = isEdit ? "PATCH" : "POST";
@@ -529,9 +535,9 @@ export default function LessonEditPage() {
   }
 
   async function deleteExercise(ex: LessonExercise) {
-    if (!moduleId || lessonIdParam === "new" || !confirm("Excluir este exercício?")) return;
+    if (!persistedModuleId || lessonIdParam === "new" || !confirm("Excluir este exercício?")) return;
     const res = await fetch(
-      `/api/courses/${courseId}/modules/${moduleId}/lessons/${lessonIdParam}/exercises/${ex.id}`,
+      `/api/courses/${courseId}/modules/${persistedModuleId}/lessons/${lessonIdParam}/exercises/${ex.id}`,
       { method: "DELETE" }
     );
     const json = await res.json() as ApiResponse<{ deleted: boolean }>;
@@ -549,9 +555,10 @@ export default function LessonEditPage() {
     setSavingLesson(true);
     try {
       const duration = lessonForm.durationMinutes === "" ? null : Number(lessonForm.durationMinutes);
+      const apiModuleId = isNew ? moduleId : (persistedModuleId ?? moduleId);
       const url = isNew
-        ? `/api/courses/${courseId}/modules/${moduleId}/lessons`
-        : `/api/courses/${courseId}/modules/${moduleId}/lessons/${lessonIdParam}`;
+        ? `/api/courses/${courseId}/modules/${apiModuleId}/lessons`
+        : `/api/courses/${courseId}/modules/${apiModuleId}/lessons/${lessonIdParam}`;
       const method = isNew ? "POST" : "PATCH";
       const payload = comparableLessonPayload(lessonForm);
       const res = await fetch(url, {
@@ -560,18 +567,19 @@ export default function LessonEditPage() {
         body: JSON.stringify({
           ...payload,
           durationMinutes: Number.isFinite(duration as number) ? duration : null,
+          ...(!isNew && moduleId ? { moduleId } : {}),
         }),
       });
       const text = await res.text();
-      let json: ApiResponse<{ modules?: ModuleWithLessons[]; lesson?: Lesson }>;
+      let json: ApiResponse<{ modules?: ModuleWithLessons[]; lesson?: Lesson; moduleId?: string }>;
       try {
-        json = (text ? JSON.parse(text) : { ok: false }) as ApiResponse<{ modules?: ModuleWithLessons[]; lesson?: Lesson }>;
+        json = (text ? JSON.parse(text) : { ok: false }) as ApiResponse<{ modules?: ModuleWithLessons[]; lesson?: Lesson; moduleId?: string }>;
       } catch {
         if (!res.ok) {
           toast.push("error", res.status === 404 ? "Aula não encontrada." : `Erro ao salvar (${res.status}).`);
           return;
         }
-        json = { ok: false } as ApiResponse<{ modules?: ModuleWithLessons[]; lesson?: Lesson }>;
+        json = { ok: false } as ApiResponse<{ modules?: ModuleWithLessons[]; lesson?: Lesson; moduleId?: string }>;
       }
       if (!res.ok || !json.ok) {
         const errMsg = json && !(json as { ok?: boolean }).ok && "error" in json ? (json as { error?: { message?: string } }).error?.message : null;
@@ -586,6 +594,12 @@ export default function LessonEditPage() {
       if (!isNew) {
         const mods = (json as { data?: { modules?: ModuleWithLessons[] } }).data?.modules;
         if (mods) setModules(mods);
+        const nextModuleId =
+          (json as { data?: { moduleId?: string } }).data?.moduleId ?? moduleId;
+        if (nextModuleId) {
+          setModuleId(nextModuleId);
+          setPersistedModuleId(nextModuleId);
+        }
         initialComparableRef.current = JSON.stringify(comparableLessonPayload(lessonForm));
       }
     } finally {
@@ -613,7 +627,7 @@ export default function LessonEditPage() {
         <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
           {isNew ? "Nova aula" : "Editar aula"}
         </h1>
-        {currentModule && (
+        {currentModule && isNew && (
           <p className="text-sm text-[var(--text-muted)]">
             Módulo {currentModule.order + 1}: {currentModule.title}
           </p>
@@ -627,6 +641,30 @@ export default function LessonEditPage() {
             <h2 className="text-base font-semibold text-[var(--text-primary)]">Dados da aula</h2>
           </div>
           <div className="card-body flex flex-col gap-4">
+            {!isNew && (
+              <div>
+                <label className="text-sm font-medium text-[var(--text-primary)]" htmlFor="lesson-module">
+                  Módulo
+                </label>
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                  Você pode mover esta aula para outro módulo do mesmo curso.
+                </p>
+                <select
+                  id="lesson-module"
+                  className="mt-1 w-full rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm text-[var(--text-primary)]"
+                  value={moduleId ?? ""}
+                  onChange={(e) => setModuleId(e.target.value || null)}
+                >
+                  {[...modules]
+                    .sort((a, b) => a.order - b.order)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        Módulo {m.order + 1}: {m.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-[var(--text-primary)]">Título</label>
               <Input className="mt-1" value={lessonForm.title} onChange={(e) => setLessonForm((f) => ({ ...f, title: e.target.value }))} placeholder="Ex.: Aula 1 - Conceitos iniciais" />

@@ -31,6 +31,8 @@ export const courseLessonSchema = z.object({
   pdfUrl: z.union([z.string().url(), z.literal("")]).optional().nullable(),
   attachmentUrls: z.array(z.string().url()).optional(),
   attachmentNames: z.array(z.string()).optional(),
+  /** Módulo de destino (mesmo curso). Na edição, permite mover a aula entre módulos. */
+  moduleId: z.string().uuid().optional(),
 });
 
 export const courseLessonExerciseOptionSchema = z.object({

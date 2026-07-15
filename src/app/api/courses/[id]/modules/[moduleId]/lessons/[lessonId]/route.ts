@@ -34,9 +34,38 @@ export async function PATCH(request: Request, context: Ctx) {
   const names = (parsed.data.attachmentNames ?? []).slice(0, urls.length).map((s) => String(s).trim());
   while (names.length < urls.length) names.push("");
 
+  let targetModuleId = moduleId;
+  if (parsed.data.moduleId && parsed.data.moduleId !== moduleId) {
+    const targetModule = await prisma.courseModule.findFirst({
+      where: { id: parsed.data.moduleId, courseId },
+      select: { id: true },
+    });
+    if (!targetModule) {
+      return jsonErr("VALIDATION_ERROR", "Módulo de destino não encontrado neste curso.", 400);
+    }
+    targetModuleId = targetModule.id;
+  }
+
+  const orderConflict = await prisma.courseLesson.findFirst({
+    where: {
+      moduleId: targetModuleId,
+      order: parsed.data.order,
+      id: { not: lessonId },
+    },
+    select: { id: true },
+  });
+  if (orderConflict) {
+    return jsonErr(
+      "VALIDATION_ERROR",
+      "Já existe uma aula com esta ordem no módulo selecionado. Altere a ordem antes de salvar.",
+      400,
+    );
+  }
+
   const before = {
     title: lesson.title,
     order: lesson.order,
+    moduleId: lesson.moduleId,
     contentRich: lesson.contentRich,
     summary: lesson.summary,
   };
@@ -44,6 +73,7 @@ export async function PATCH(request: Request, context: Ctx) {
   const updateData = {
     title: parsed.data.title.trim(),
     order: parsed.data.order,
+    ...(targetModuleId !== moduleId ? { moduleId: targetModuleId } : {}),
     durationMinutes: parsed.data.durationMinutes ?? null,
     videoUrl,
     imageUrls: parsed.data.imageUrls ?? [],
@@ -80,6 +110,7 @@ export async function PATCH(request: Request, context: Ctx) {
       after: {
         title: updateData.title,
         order: updateData.order,
+        moduleId: targetModuleId,
         contentRich: updateData.contentRich,
         summary: updateData.summary,
       },
@@ -88,7 +119,7 @@ export async function PATCH(request: Request, context: Ctx) {
   });
 
   const modules = await getModulesWithLessonsByCourseId(courseId);
-  return jsonOk({ modules });
+  return jsonOk({ modules, moduleId: targetModuleId });
 }
 
 export async function DELETE(_request: Request, context: Ctx) {
