@@ -5,18 +5,13 @@ import {
   generateAndUploadCourseCompletionCertificate,
   generateCourseCompletionCertificatePdfBytes,
 } from "@/lib/course-completion-certificate";
+import { studentCertificatePdfFileName } from "@/lib/course-certificate-pdf-naming";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { prisma } from "@/lib/prisma";
 
 function safePdfFileName(studentName: string, enrollmentId: string): string {
-  const slug = (studentName || "aluno")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .toLowerCase()
-    .slice(0, 50);
-  return `certificado-${slug || "aluno"}-${enrollmentId.slice(0, 8)}.pdf`;
+  const used = new Set<string>();
+  return studentCertificatePdfFileName(studentName, used);
 }
 
 /**
@@ -49,6 +44,10 @@ export async function ensureEnrollmentCertificate(
 
   if (!enrollment) {
     throw new Error("Matrícula não encontrada.");
+  }
+
+  if (!enrollment.certificateEligible) {
+    throw new Error("Matrícula não está apta a receber certificado.");
   }
 
   const studentName =

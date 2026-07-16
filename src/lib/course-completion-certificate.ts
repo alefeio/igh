@@ -15,6 +15,7 @@ import {
   FRONT_LAYOUT,
 } from "@/lib/course-certificate-layout";
 import { uploadCertificatePdfToApimages } from "@/lib/holiday-event-certificate";
+import { studentCertificatePdfFileName } from "@/lib/course-certificate-pdf-naming";
 
 const TEMPLATE_PATH = path.join(process.cwd(), "assets", "certificates", "course-completion-template.pdf");
 const FONT_REGULAR_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Regular.ttf");
@@ -262,14 +263,8 @@ export async function generateAndUploadCourseCompletionCertificate(params: {
   input: CourseCompletionCertificateInput;
 }): Promise<{ url: string; publicId: string; fileName: string; pdfBytes: Uint8Array }> {
   const pdfBytes = await generateCourseCompletionCertificatePdfBytes(params.input);
-  const slug = (params.input.courseName || "curso")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .toLowerCase()
-    .slice(0, 40);
-  const fileName = `certificado-${slug}-${params.enrollmentId.slice(0, 8)}.pdf`;
+  const used = new Set<string>();
+  const fileName = studentCertificatePdfFileName(params.input.studentName, used);
   const uploaded = await uploadCertificatePdfToApimages({ pdfBytes, fileName });
   return { ...uploaded, pdfBytes };
 }

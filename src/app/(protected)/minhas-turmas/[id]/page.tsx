@@ -296,7 +296,7 @@ export default function MinhasTurmasDetailPage() {
             <h2 id="cert-heading" className="text-base font-semibold text-[var(--text-primary)]">
               Certificado
             </h2>
-            {e.status === "ENCERRADA" || e.certificateEligibility?.eligible || e.certificateUrl ? (
+            {e.certificateEligibility?.eligible ? (
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <Button
                   type="button"

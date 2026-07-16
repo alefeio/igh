@@ -4,6 +4,11 @@ import { MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
+import {
+  CertificatePagesSelect,
+  certificatePagesQuery,
+  type CertificatePagesMode,
+} from "@/components/certificates/CertificatePagesSelect";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Badge } from "@/components/ui/Badge";
@@ -196,6 +201,7 @@ export default function ClassGroupsPage() {
   const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
   const [downloadingCycleCertsId, setDownloadingCycleCertsId] = useState<string | null>(null);
   const [downloadingSelected, setDownloadingSelected] = useState(false);
+  const [certificatePagesMode, setCertificatePagesMode] = useState<CertificatePagesMode>("both");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [actionsMenuId, setActionsMenuId] = useState<string | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -527,9 +533,12 @@ export default function ClassGroupsPage() {
     setDownloadingCertsId(cg.id);
     setActionsMenuId(null);
     try {
-      const res = await fetch(`/api/class-groups/${cg.id}/certificates-zip`, {
+      const res = await fetch(
+        `/api/class-groups/${cg.id}/certificates-zip?${certificatePagesQuery(certificatePagesMode)}`,
+        {
         credentials: "include",
-      });
+      },
+      );
       if (!res.ok) {
         const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
         toast.push("error", apiErrorMessage(json, "Falha ao baixar certificados."));
@@ -549,11 +558,27 @@ export default function ClassGroupsPage() {
     if (ids.length === 0 || downloadingSelected) return;
     setDownloadingSelected(true);
     try {
+      const pages = certificatePagesMode;
+      if (ids.length === 1) {
+        const onlyId = ids[0]!;
+        const res = await fetch(
+          `/api/class-groups/${onlyId}/certificates-zip?${certificatePagesQuery(pages)}`,
+          { credentials: "include" },
+        );
+        if (!res.ok) {
+          const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+          toast.push("error", apiErrorMessage(json, "Falha ao baixar certificados selecionados."));
+          return;
+        }
+        await downloadBlobResponse(res, `certificados-turma.zip`);
+        toast.push("success", "Download dos certificados iniciado.");
+        return;
+      }
       const res = await fetch("/api/class-groups/certificates-zip", {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ classGroupIds: ids }),
+        body: JSON.stringify({ classGroupIds: ids, pages }),
       });
       if (!res.ok) {
         const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
@@ -691,6 +716,12 @@ export default function ClassGroupsPage() {
         title="Ciclos"
         description="Gerencie os ciclos (número, ano e visibilidade para matrículas no painel e no site)."
       >
+        <div className="mb-3 flex flex-wrap items-end gap-3">
+          <CertificatePagesSelect
+            value={certificatePagesMode}
+            onChange={setCertificatePagesMode}
+          />
+        </div>
         <TableShell>
           <thead>
             <tr>
@@ -715,14 +746,17 @@ export default function ClassGroupsPage() {
                     <Button
                       variant="secondary"
                       disabled={downloadingCycleCertsId != null}
-                      title="Baixar ZIP com certificados de todas as turmas deste ciclo"
+                      title="Baixar ZIP com certificados (um arquivo .zip por curso)"
                       onClick={async () => {
                         if (downloadingCycleCertsId) return;
                         setDownloadingCycleCertsId(c.id);
                         try {
-                          const res = await fetch(`/api/cycles/${c.id}/certificates-zip`, {
+                          const res = await fetch(
+                            `/api/cycles/${c.id}/certificates-zip?${certificatePagesQuery(certificatePagesMode)}`,
+                            {
                             credentials: "include",
-                          });
+                          },
+                          );
                           if (!res.ok) {
                             const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
                             toast.push(
@@ -802,7 +836,11 @@ export default function ClassGroupsPage() {
           </div>
         ) : (
           <>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="mb-3 flex flex-wrap items-end gap-3">
+              <CertificatePagesSelect
+                value={certificatePagesMode}
+                onChange={setCertificatePagesMode}
+              />
               <Button
                 type="button"
                 variant="secondary"

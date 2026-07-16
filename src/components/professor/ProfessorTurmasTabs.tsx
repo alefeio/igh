@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
+import {
+  CertificatePagesSelect,
+  certificatePagesQuery,
+  type CertificatePagesMode,
+} from "@/components/certificates/CertificatePagesSelect";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
@@ -50,6 +55,7 @@ export function ProfessorTurmasTabs() {
   const [loadingTab, setLoadingTab] = useState<TeacherClassGroupTab | null>("em_andamento");
   const [error, setError] = useState<string | null>(null);
   const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
+  const [certificatePagesMode, setCertificatePagesMode] = useState<CertificatePagesMode>("both");
 
   const loadTab = useCallback(async (tab: TeacherClassGroupTab) => {
     setLoadingTab(tab);
@@ -86,9 +92,12 @@ export function ProfessorTurmasTabs() {
     if (downloadingCertsId) return;
     setDownloadingCertsId(cg.id);
     try {
-      const res = await fetch(`/api/class-groups/${cg.id}/certificates-zip`, {
+      const res = await fetch(
+        `/api/class-groups/${cg.id}/certificates-zip?${certificatePagesQuery(certificatePagesMode)}`,
+        {
         credentials: "include",
-      });
+      },
+      );
       if (!res.ok) {
         const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
         toast.push(
@@ -132,7 +141,8 @@ export function ProfessorTurmasTabs() {
       }
       variant="elevated"
     >
-      <div className="mb-4 flex flex-wrap gap-2 border-b border-[var(--card-border)] pb-3">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-[var(--card-border)] pb-3">
+        <div className="flex flex-wrap gap-2">
         {TEACHER_CLASS_GROUP_TABS.map((tab) => {
           const isActive = activeTab === tab;
           return (
@@ -150,6 +160,11 @@ export function ProfessorTurmasTabs() {
             </button>
           );
         })}
+        </div>
+        <CertificatePagesSelect
+          value={certificatePagesMode}
+          onChange={setCertificatePagesMode}
+        />
       </div>
 
       {error && (
