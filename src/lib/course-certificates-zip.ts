@@ -94,13 +94,17 @@ export async function buildCycleCertificatesZipBundle(
     orderBy: [{ student: { name: "asc" } }],
   });
 
-  const byCourse = new Map<string, { courseName: string; rows: EnrollmentRow[] }>();
+  const byCourse = new Map<string, { courseId: string; courseName: string; rows: EnrollmentRow[] }>();
   const cgToCourse = new Map(classGroups.map((cg) => [cg.id, cg.course]));
 
   for (const row of enrollments) {
     const course = cgToCourse.get(row.classGroupId);
     if (!course) continue;
-    const bucket = byCourse.get(course.id) ?? { courseName: course.name, rows: [] };
+    const bucket = byCourse.get(course.id) ?? {
+      courseId: course.id,
+      courseName: course.name,
+      rows: [],
+    };
     bucket.rows.push(row);
     byCourse.set(course.id, bucket);
   }
@@ -108,18 +112,50 @@ export async function buildCycleCertificatesZipBundle(
   const outer = new JSZip();
   const errors: string[] = [];
   let fileCount = 0;
+  const usedZipNames = new Set<string>();
+  const summaryLines: string[] = [
+    "Certificados por curso neste pacote:",
+    "",
+  ];
 
   for (const [, bucket] of [...byCourse.entries()].sort((a, b) =>
     a[1].courseName.localeCompare(b[1].courseName, "pt-BR"),
   )) {
     const inner = new JSZip();
     const added = await addEnrollmentCertificatesToZip(inner, bucket.rows, pages, errors);
-    if (added === 0) continue;
+    if (added === 0) {
+      summaryLines.push(`- ${bucket.courseName}: 0 certificado(s) gerado(s)`);
+      continue;
+    }
     fileCount += added;
     const innerBytes = await inner.generateAsync({ type: "uint8array", compression: "DEFLATE" });
-    const innerName = `${slugPart(bucket.courseName, "curso")}.zip`;
+    // Nome único: evita sobrescrever cursos com slugs iguais (ex.: acentos / nomes parecidos).
+    const baseSlug = slugPart(bucket.courseName, "curso");
+    let innerName = `${baseSlug}.zip`;
+    if (usedZipNames.has(innerName)) {
+      innerName = `${baseSlug}-${bucket.courseId.slice(0, 8)}.zip`;
+    }
+    let n = 2;
+    while (usedZipNames.has(innerName)) {
+      innerName = `${baseSlug}-${bucket.courseId.slice(0, 8)}-${n}.zip`;
+      n += 1;
+    }
+    usedZipNames.add(innerName);
     outer.file(innerName, innerBytes);
+    summaryLines.push(`- ${bucket.courseName}: ${added} certificado(s) → ${innerName}`);
   }
+
+  if (errors.length > 0) {
+    summaryLines.push("", "Falhas:");
+    for (const err of errors.slice(0, 50)) {
+      summaryLines.push(`- ${err}`);
+    }
+    if (errors.length > 50) {
+      summaryLines.push(`… e mais ${errors.length - 50} falha(s).`);
+    }
+  }
+
+  outer.file("resumo-cursos.txt", summaryLines.join("\n") + "\n");
 
   const zipBytes = await outer.generateAsync({ type: "uint8array", compression: "DEFLATE" });
   return { zipBytes, errors, fileCount };

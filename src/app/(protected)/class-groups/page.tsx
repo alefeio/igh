@@ -769,7 +769,10 @@ export default function ClassGroupsPage() {
                             res,
                             `certificados-ciclo-${c.cycle}-${c.year}.zip`,
                           );
-                          toast.push("success", "Download dos certificados do ciclo iniciado.");
+                          toast.push(
+                            "success",
+                            "Download iniciado: o ZIP contém um arquivo .zip por curso e o resumo-cursos.txt. Só entram alunos com Certificado = Sim.",
+                          );
                         } catch {
                           toast.push("error", "Falha ao baixar certificados do ciclo.");
                         } finally {
