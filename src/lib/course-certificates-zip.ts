@@ -45,16 +45,14 @@ export async function addEnrollmentCertificatesToZip(
 }
 
 /**
- * Atualiza flags automáticas (≥70% presença) e, em turmas ENCERRADAS, libera
- * quem ainda não foi bloqueado manualmente pelo professor — backfill para ciclos
- * encerrados antes da feature da flag.
+ * Atualiza flags automáticas (≥70% presença) antes do ZIP.
+ * Não libera alunos abaixo do limiar nem sobrescreve bloqueio manual do professor.
  */
 async function prepareCertificateEligibilityForClassGroups(classGroupIds: string[]): Promise<{
   syncedFromAttendance: number;
-  backfilledEncerrada: number;
 }> {
   if (classGroupIds.length === 0) {
-    return { syncedFromAttendance: 0, backfilledEncerrada: 0 };
+    return { syncedFromAttendance: 0 };
   }
 
   const allEnrollments = await prisma.enrollment.findMany({
@@ -68,31 +66,7 @@ async function prepareCertificateEligibilityForClassGroups(classGroupIds: string
   const allIds = allEnrollments.map((e) => e.id);
   const { enabledIds } = await syncCertificateEligibleFromAttendance(allIds);
 
-  const encerradaGroups = await prisma.classGroup.findMany({
-    where: { id: { in: classGroupIds }, status: "ENCERRADA" },
-    select: { id: true },
-  });
-  const encerradaIds = encerradaGroups.map((g) => g.id);
-
-  let backfilledEncerrada = 0;
-  if (encerradaIds.length > 0) {
-    const result = await prisma.enrollment.updateMany({
-      where: {
-        classGroupId: { in: encerradaIds },
-        status: { in: [...ENROLLMENT_STATUSES] },
-        isPreEnrollment: false,
-        certificateEligible: false,
-        certificateEligibleManual: false,
-      },
-      data: { certificateEligible: true },
-    });
-    backfilledEncerrada = result.count;
-  }
-
-  return {
-    syncedFromAttendance: enabledIds.length,
-    backfilledEncerrada,
-  };
+  return { syncedFromAttendance: enabledIds.length };
 }
 
 /** ZIP único com PDFs na raiz (uma turma). */
@@ -193,7 +167,7 @@ export async function buildCycleCertificatesZipBundle(
   const usedZipNames = new Set<string>();
   const summaryLines: string[] = [
     "Certificados por curso neste pacote:",
-    `(Auto ≥70% presença: ${prep.syncedFromAttendance} liberado(s); turmas ENCERRADAS sem bloqueio manual: ${prep.backfilledEncerrada} liberado(s))`,
+    `(Liberados automaticamente por frequência ≥70%: ${prep.syncedFromAttendance})`,
     "",
   ];
 
