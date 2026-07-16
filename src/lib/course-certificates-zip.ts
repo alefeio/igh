@@ -8,6 +8,7 @@ import {
   slugPart,
   type CertificateZipPages,
 } from "@/lib/course-certificate-pdf-naming";
+import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { generateEnrollmentCertificatePdf } from "@/lib/ensure-enrollment-certificate";
 import { prisma } from "@/lib/prisma";
 
@@ -15,6 +16,8 @@ export type { CertificateZipPages };
 export { parseCertificateZipPages, slugPart, studentCertificatePdfFileName };
 
 type EnrollmentRow = { id: string; student: { name: string } };
+
+const ENROLLMENT_STATUSES = ["ACTIVE", "COMPLETED", "SUSPENDED"] as const;
 
 export async function addEnrollmentCertificatesToZip(
   zip: JSZip,
@@ -41,15 +44,68 @@ export async function addEnrollmentCertificatesToZip(
   return added;
 }
 
+/**
+ * Atualiza flags automáticas (≥70% presença) e, em turmas ENCERRADAS, libera
+ * quem ainda não foi bloqueado manualmente pelo professor — backfill para ciclos
+ * encerrados antes da feature da flag.
+ */
+async function prepareCertificateEligibilityForClassGroups(classGroupIds: string[]): Promise<{
+  syncedFromAttendance: number;
+  backfilledEncerrada: number;
+}> {
+  if (classGroupIds.length === 0) {
+    return { syncedFromAttendance: 0, backfilledEncerrada: 0 };
+  }
+
+  const allEnrollments = await prisma.enrollment.findMany({
+    where: {
+      classGroupId: { in: classGroupIds },
+      status: { in: [...ENROLLMENT_STATUSES] },
+      isPreEnrollment: false,
+    },
+    select: { id: true },
+  });
+  const allIds = allEnrollments.map((e) => e.id);
+  const { enabledIds } = await syncCertificateEligibleFromAttendance(allIds);
+
+  const encerradaGroups = await prisma.classGroup.findMany({
+    where: { id: { in: classGroupIds }, status: "ENCERRADA" },
+    select: { id: true },
+  });
+  const encerradaIds = encerradaGroups.map((g) => g.id);
+
+  let backfilledEncerrada = 0;
+  if (encerradaIds.length > 0) {
+    const result = await prisma.enrollment.updateMany({
+      where: {
+        classGroupId: { in: encerradaIds },
+        status: { in: [...ENROLLMENT_STATUSES] },
+        isPreEnrollment: false,
+        certificateEligible: false,
+        certificateEligibleManual: false,
+      },
+      data: { certificateEligible: true },
+    });
+    backfilledEncerrada = result.count;
+  }
+
+  return {
+    syncedFromAttendance: enabledIds.length,
+    backfilledEncerrada,
+  };
+}
+
 /** ZIP único com PDFs na raiz (uma turma). */
 export async function buildClassGroupCertificatesZip(
   classGroupId: string,
   pages: CertificateZipPages,
 ): Promise<{ zipBytes: Uint8Array; errors: string[]; fileCount: number }> {
+  await prepareCertificateEligibilityForClassGroups([classGroupId]);
+
   const enrollments = await prisma.enrollment.findMany({
     where: {
       classGroupId,
-      status: { in: ["ACTIVE", "COMPLETED", "SUSPENDED"] },
+      status: { in: [...ENROLLMENT_STATUSES] },
       isPreEnrollment: false,
       certificateEligible: true,
     },
@@ -73,40 +129,62 @@ export async function buildCycleCertificatesZipBundle(
     where: { cycleId, status: { not: "CANCELADA" } },
     select: {
       id: true,
+      status: true,
       courseId: true,
       course: { select: { id: true, name: true } },
     },
     orderBy: [{ course: { name: "asc" } }, { startDate: "asc" }],
   });
 
+  const classGroupIds = classGroups.map((cg) => cg.id);
+  const prep = await prepareCertificateEligibilityForClassGroups(classGroupIds);
+
   const enrollments = await prisma.enrollment.findMany({
     where: {
-      classGroupId: { in: classGroups.map((cg) => cg.id) },
-      status: { in: ["ACTIVE", "COMPLETED", "SUSPENDED"] },
+      classGroupId: { in: classGroupIds },
+      status: { in: [...ENROLLMENT_STATUSES] },
       isPreEnrollment: false,
-      certificateEligible: true,
     },
     select: {
       id: true,
       classGroupId: true,
+      certificateEligible: true,
       student: { select: { name: true } },
     },
     orderBy: [{ student: { name: "asc" } }],
   });
 
-  const byCourse = new Map<string, { courseId: string; courseName: string; rows: EnrollmentRow[] }>();
+  type CourseBucket = {
+    courseId: string;
+    courseName: string;
+    totalEnrollments: number;
+    eligibleRows: EnrollmentRow[];
+  };
+
+  const byCourse = new Map<string, CourseBucket>();
   const cgToCourse = new Map(classGroups.map((cg) => [cg.id, cg.course]));
+
+  // Garante uma entrada por curso presente no ciclo (mesmo sem aptos).
+  for (const cg of classGroups) {
+    if (!byCourse.has(cg.course.id)) {
+      byCourse.set(cg.course.id, {
+        courseId: cg.course.id,
+        courseName: cg.course.name,
+        totalEnrollments: 0,
+        eligibleRows: [],
+      });
+    }
+  }
 
   for (const row of enrollments) {
     const course = cgToCourse.get(row.classGroupId);
     if (!course) continue;
-    const bucket = byCourse.get(course.id) ?? {
-      courseId: course.id,
-      courseName: course.name,
-      rows: [],
-    };
-    bucket.rows.push(row);
-    byCourse.set(course.id, bucket);
+    const bucket = byCourse.get(course.id);
+    if (!bucket) continue;
+    bucket.totalEnrollments += 1;
+    if (row.certificateEligible) {
+      bucket.eligibleRows.push({ id: row.id, student: row.student });
+    }
   }
 
   const outer = new JSZip();
@@ -115,21 +193,31 @@ export async function buildCycleCertificatesZipBundle(
   const usedZipNames = new Set<string>();
   const summaryLines: string[] = [
     "Certificados por curso neste pacote:",
+    `(Auto ≥70% presença: ${prep.syncedFromAttendance} liberado(s); turmas ENCERRADAS sem bloqueio manual: ${prep.backfilledEncerrada} liberado(s))`,
     "",
   ];
 
   for (const [, bucket] of [...byCourse.entries()].sort((a, b) =>
     a[1].courseName.localeCompare(b[1].courseName, "pt-BR"),
   )) {
+    const eligibleCount = bucket.eligibleRows.length;
+    if (eligibleCount === 0) {
+      summaryLines.push(
+        `- ${bucket.courseName}: 0 certificado(s) | ${bucket.totalEnrollments} matrícula(s) | nenhum aluno apto (flag Certificado)`,
+      );
+      continue;
+    }
+
     const inner = new JSZip();
-    const added = await addEnrollmentCertificatesToZip(inner, bucket.rows, pages, errors);
+    const added = await addEnrollmentCertificatesToZip(inner, bucket.eligibleRows, pages, errors);
     if (added === 0) {
-      summaryLines.push(`- ${bucket.courseName}: 0 certificado(s) gerado(s)`);
+      summaryLines.push(
+        `- ${bucket.courseName}: 0 gerado(s) de ${eligibleCount} apto(s) | ${bucket.totalEnrollments} matrícula(s)`,
+      );
       continue;
     }
     fileCount += added;
     const innerBytes = await inner.generateAsync({ type: "uint8array", compression: "DEFLATE" });
-    // Nome único: evita sobrescrever cursos com slugs iguais (ex.: acentos / nomes parecidos).
     const baseSlug = slugPart(bucket.courseName, "curso");
     let innerName = `${baseSlug}.zip`;
     if (usedZipNames.has(innerName)) {
@@ -142,7 +230,9 @@ export async function buildCycleCertificatesZipBundle(
     }
     usedZipNames.add(innerName);
     outer.file(innerName, innerBytes);
-    summaryLines.push(`- ${bucket.courseName}: ${added} certificado(s) → ${innerName}`);
+    summaryLines.push(
+      `- ${bucket.courseName}: ${added} certificado(s) | ${eligibleCount} apto(s) | ${bucket.totalEnrollments} matrícula(s) → ${innerName}`,
+    );
   }
 
   if (errors.length > 0) {
@@ -176,10 +266,13 @@ export async function buildMultiClassGroupCertificatesZipBundle(
     orderBy: [{ course: { name: "asc" } }, { startDate: "asc" }],
   });
 
+  const ids = classGroups.map((cg) => cg.id);
+  await prepareCertificateEligibilityForClassGroups(ids);
+
   const enrollments = await prisma.enrollment.findMany({
     where: {
-      classGroupId: { in: classGroups.map((cg) => cg.id) },
-      status: { in: ["ACTIVE", "COMPLETED", "SUSPENDED"] },
+      classGroupId: { in: ids },
+      status: { in: [...ENROLLMENT_STATUSES] },
       isPreEnrollment: false,
       certificateEligible: true,
     },
