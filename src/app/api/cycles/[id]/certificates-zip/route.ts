@@ -51,6 +51,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
         classGroupId: { in: classGroups.map((cg) => cg.id) },
         status: { in: ["ACTIVE", "COMPLETED", "SUSPENDED"] },
         isPreEnrollment: false,
+        certificateEligible: true,
       },
       select: {
         id: true,
@@ -62,7 +63,11 @@ export async function GET(_request: Request, ctx: RouteCtx) {
     });
 
     if (enrollments.length === 0) {
-      return jsonErr("VALIDATION_ERROR", "Não há alunos matriculados nas turmas deste ciclo.", 400);
+      return jsonErr(
+        "VALIDATION_ERROR",
+        "Não há alunos aptos a certificado nas turmas deste ciclo.",
+        400,
+      );
     }
 
     const zip = new JSZip();

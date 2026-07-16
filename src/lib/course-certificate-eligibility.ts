@@ -1,5 +1,6 @@
 import "server-only";
 
+import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { prisma } from "@/lib/prisma";
 
 export type CertificateEligibility = {
@@ -9,19 +10,26 @@ export type CertificateEligibility = {
   /** Matrícula com status COMPLETED (informativo) */
   statusCompleted: boolean;
   classGroupEncerrada: boolean;
+  /** Flag da matrícula: apto a receber certificado (≥70% presença ou liberado pelo professor). */
+  certificateEligible: boolean;
   totalLessons: number;
   completedLessons: number;
   reason: string | null;
 };
 
 /**
- * Por enquanto: certificado disponível quando a turma está ENCERRADA.
+ * Certificado disponível quando a turma está ENCERRADA e a matrícula está apta
+ * (`certificateEligible` — auto com ≥70% de presença ou toggle do professor).
  */
 export async function getCourseCertificateEligibility(enrollmentId: string): Promise<CertificateEligibility> {
+  // Atualiza a flag automática (≥70%) antes de avaliar, sem sobrescrever override do professor.
+  await syncCertificateEligibleFromAttendance([enrollmentId]);
+
   const enrollment = await prisma.enrollment.findUnique({
     where: { id: enrollmentId },
     select: {
       status: true,
+      certificateEligible: true,
       classGroup: { select: { status: true, courseId: true } },
     },
   });
@@ -32,6 +40,7 @@ export async function getCourseCertificateEligibility(enrollmentId: string): Pro
       progressComplete: false,
       statusCompleted: false,
       classGroupEncerrada: false,
+      certificateEligible: false,
       totalLessons: 0,
       completedLessons: 0,
       reason: "Matrícula não encontrada.",
@@ -40,18 +49,31 @@ export async function getCourseCertificateEligibility(enrollmentId: string): Pro
 
   const statusCompleted = enrollment.status === "COMPLETED";
   const classGroupEncerrada = enrollment.classGroup.status === "ENCERRADA";
-  const eligible = classGroupEncerrada;
+  const certificateEligible = enrollment.certificateEligible === true;
+  const eligible = classGroupEncerrada && certificateEligible;
+
+  let reason: string | null = null;
+  if (!eligible) {
+    if (!classGroupEncerrada && !certificateEligible) {
+      reason =
+        "O certificado ficará disponível quando a turma estiver encerrada e a matrícula estiver apta (70% de presença ou liberação do professor).";
+    } else if (!classGroupEncerrada) {
+      reason = "O certificado ficará disponível quando a turma estiver encerrada.";
+    } else {
+      reason =
+        "Esta matrícula não está apta a receber certificado. É necessário 70% de presença ou liberação pelo professor.";
+    }
+  }
 
   return {
     eligible,
     progressComplete: classGroupEncerrada,
     statusCompleted,
     classGroupEncerrada,
+    certificateEligible,
     totalLessons: 0,
     completedLessons: 0,
-    reason: eligible
-      ? null
-      : "O certificado ficará disponível quando a turma estiver encerrada.",
+    reason,
   };
 }
 

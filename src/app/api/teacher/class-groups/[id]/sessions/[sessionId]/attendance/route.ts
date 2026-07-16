@@ -1,5 +1,6 @@
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { applyAttendanceSuspensionRules } from "@/lib/enrollment-attendance-suspension";
+import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { processEmailOutboxBatch } from "@/lib/email/outbox";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
@@ -186,6 +187,8 @@ export async function PATCH(
     rows: savedRows,
     performedByUserId: user.id,
   });
+
+  await syncCertificateEligibleFromAttendance(savedRows.map((r) => r.enrollmentId));
 
   if (suspendedIds.length > 0) {
     await processEmailOutboxBatch(Math.min(25, suspendedIds.length));

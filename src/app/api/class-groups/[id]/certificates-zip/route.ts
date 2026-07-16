@@ -66,13 +66,18 @@ export async function GET(_request: Request, ctx: RouteCtx) {
         classGroupId,
         status: { in: ["ACTIVE", "COMPLETED", "SUSPENDED"] },
         isPreEnrollment: false,
+        certificateEligible: true,
       },
       select: { id: true, student: { select: { name: true } } },
       orderBy: { student: { name: "asc" } },
     });
 
     if (enrollments.length === 0) {
-      return jsonErr("VALIDATION_ERROR", "Não há alunos matriculados nesta turma.", 400);
+      return jsonErr(
+        "VALIDATION_ERROR",
+        "Não há alunos aptos a certificado nesta turma (flag de certificado ou 70% de presença).",
+        400,
+      );
     }
 
     const zip = new JSZip();

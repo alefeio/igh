@@ -19,6 +19,7 @@ type CertificateEligibility = {
   progressComplete: boolean;
   statusCompleted: boolean;
   classGroupEncerrada?: boolean;
+  certificateEligible?: boolean;
   totalLessons: number;
   completedLessons: number;
   reason: string | null;
@@ -331,6 +332,8 @@ export default function MinhasTurmasDetailPage() {
                                   statusCompleted:
                                     prev.enrollment.certificateEligibility?.statusCompleted ?? false,
                                   classGroupEncerrada: true,
+                                  certificateEligible:
+                                    prev.enrollment.certificateEligibility?.certificateEligible ?? true,
                                   totalLessons:
                                     prev.enrollment.certificateEligibility?.totalLessons ?? 0,
                                   completedLessons:

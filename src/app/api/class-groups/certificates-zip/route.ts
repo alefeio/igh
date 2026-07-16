@@ -50,6 +50,7 @@ export async function POST(request: Request) {
         classGroupId: { in: classGroups.map((cg) => cg.id) },
         status: { in: ["ACTIVE", "COMPLETED", "SUSPENDED"] },
         isPreEnrollment: false,
+        certificateEligible: true,
       },
       select: {
         id: true,
@@ -60,7 +61,11 @@ export async function POST(request: Request) {
     });
 
     if (enrollments.length === 0) {
-      return jsonErr("VALIDATION_ERROR", "Não há alunos matriculados nas turmas selecionadas.", 400);
+      return jsonErr(
+        "VALIDATION_ERROR",
+        "Não há alunos aptos a certificado nas turmas selecionadas.",
+        400,
+      );
     }
 
     const zip = new JSZip();

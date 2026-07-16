@@ -35,6 +35,9 @@ type Enrollment = {
   /** Presenças em sessões liberadas / total de sessões liberadas. */
   attendancePresentCount?: number;
   attendanceTotalSessions?: number;
+  attendancePercent?: number | null;
+  /** Apto a receber certificado (≥70% presença ou liberado pelo professor). */
+  certificateEligible?: boolean;
   enrolledAt: string;
   documentationAlert: "yellow" | "red" | null;
 };
@@ -159,6 +162,7 @@ export default function ProfessorTurmaDetailPage() {
   const [lessonProgressByEnrollment, setLessonProgressByEnrollment] = useState<LessonProgressByEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
+  const [togglingCertificateId, setTogglingCertificateId] = useState<string | null>(null);
 
   type ProfLessonQuestion = {
     id: string;
@@ -191,6 +195,59 @@ export default function ProfessorTurmaDetailPage() {
     const json = (await res.json()) as ApiResponse<{ enrollments: Enrollment[] }>;
     if (res.ok && json?.ok) setEnrollments(json.data.enrollments);
   }, [id]);
+
+  async function toggleCertificateEligible(enrollment: Enrollment) {
+    if (togglingCertificateId) return;
+    const next = !(enrollment.certificateEligible === true);
+    setTogglingCertificateId(enrollment.id);
+    setEnrollments((prev) =>
+      prev.map((e) => (e.id === enrollment.id ? { ...e, certificateEligible: next } : e)),
+    );
+    try {
+      const res = await fetch(
+        `/api/teacher/class-groups/${id}/enrollments/${enrollment.id}/certificate-eligible`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ certificateEligible: next }),
+        },
+      );
+      const json = (await res.json()) as ApiResponse<{ enrollment: { certificateEligible: boolean } }>;
+      if (!res.ok || !json?.ok) {
+        setEnrollments((prev) =>
+          prev.map((e) =>
+            e.id === enrollment.id ? { ...e, certificateEligible: enrollment.certificateEligible } : e,
+          ),
+        );
+        toast.push(
+          "error",
+          (json as { error?: { message?: string } })?.error?.message ??
+            "Não foi possível atualizar o certificado.",
+        );
+        return;
+      }
+      setEnrollments((prev) =>
+        prev.map((e) =>
+          e.id === enrollment.id
+            ? { ...e, certificateEligible: json.data.enrollment.certificateEligible }
+            : e,
+        ),
+      );
+      toast.push(
+        "success",
+        next ? "Aluno apto a receber certificado." : "Certificado desabilitado para este aluno.",
+      );
+    } catch {
+      setEnrollments((prev) =>
+        prev.map((e) =>
+          e.id === enrollment.id ? { ...e, certificateEligible: enrollment.certificateEligible } : e,
+        ),
+      );
+      toast.push("error", "Falha de rede ao atualizar certificado.");
+    } finally {
+      setTogglingCertificateId(null);
+    }
+  }
 
   const loadSessions = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${id}/sessions`);
@@ -328,7 +385,8 @@ export default function ProfessorTurmaDetailPage() {
       {
         target: "[data-tour=\"pt-tab-alunos\"]",
         title: "Lista de alunos",
-        content: "Veja os alunos matriculados nesta turma. Alertas em amarelo ou vermelho indicam documentação incompleta.",
+        content:
+          "Veja os alunos matriculados e a frequência. O interruptor Certificado (Sim/Não) libera ou bloqueia a emissão; com 70% de presença a flag ativa sozinha. Alertas em amarelo ou vermelho indicam documentação incompleta.",
       },
       {
         target: "[data-tour=\"pt-tab-exercicios\"]",
@@ -498,7 +556,12 @@ export default function ProfessorTurmaDetailPage() {
           {enrollments.length === 0 ? (
             <p className="p-4 text-sm text-[var(--text-muted)]">Nenhum aluno matriculado.</p>
           ) : (
-            <ul className="divide-y divide-[var(--card-border)]">
+            <>
+              <p className="border-b border-[var(--card-border)] px-4 py-2 text-xs text-[var(--text-muted)]">
+                Certificado: ativa automaticamente com 70% de presença. Você pode liberar ou bloquear
+                manualmente para cada aluno.
+              </p>
+              <ul className="divide-y divide-[var(--card-border)]">
               {enrollments.map((e) => (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -549,17 +612,48 @@ export default function ProfessorTurmaDetailPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
+                  <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
                     <span className="text-xs font-medium tabular-nums text-[var(--text-secondary)]">
                       Frequência: {e.attendancePresentCount ?? 0}/{e.attendanceTotalSessions ?? 0}
+                      {e.attendancePercent != null ? ` (${e.attendancePercent}%)` : ""}
                     </span>
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--text-primary)]">
+                      <span className="text-[var(--text-muted)]">Certificado</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={e.certificateEligible === true}
+                        aria-label={
+                          e.certificateEligible
+                            ? `Desabilitar certificado de ${e.studentName}`
+                            : `Habilitar certificado de ${e.studentName}`
+                        }
+                        disabled={togglingCertificateId === e.id}
+                        onClick={() => void toggleCertificateEligible(e)}
+                        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+                          e.certificateEligible
+                            ? "bg-emerald-600"
+                            : "bg-[var(--card-border)]"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                            e.certificateEligible ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                      <span className="min-w-[1.75rem] font-medium tabular-nums">
+                        {e.certificateEligible ? "Sim" : "Não"}
+                      </span>
+                    </label>
                     <span className="text-xs text-[var(--text-muted)]">
                       Matrícula em {formatDate(e.enrolledAt)}
                     </span>
                   </div>
                 </li>
               ))}
-            </ul>
+              </ul>
+            </>
           )}
         </section>
       )}

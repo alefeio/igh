@@ -852,6 +852,11 @@ model Enrollment {
   certificateFileName   String?
   /// * Data usada no texto do certificado (estável após a 1ª emissão).
   certificateIssuedAt   DateTime?
+  /// * Se true, o aluno está apto a receber certificado nesta matrícula (além da turma encerrada).
+  /// * Passa a true automaticamente com ≥70% de presença; o professor pode alternar manualmente.
+  certificateEligible   Boolean                          @default(false)
+  /// * Se true, certificateEligible foi definido pelo professor e a regra automática de 70% não sobrescreve.
+  certificateEligibleManual Boolean                      @default(false)
   isPreEnrollment       Boolean                          @default(false)
   classGroup            ClassGroup                       @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
   student               Student                          @relation(fields: [studentId], references: [id], onDelete: Cascade)

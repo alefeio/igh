@@ -1,5 +1,6 @@
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
+import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -30,6 +31,7 @@ export async function GET(
       id: true,
       enrolledAt: true,
       status: true,
+      certificateEligible: true,
       student: {
         select: {
           id: true,
@@ -50,6 +52,14 @@ export async function GET(
 
   const enrollmentIds = enrollments.map((e) => e.id);
   const summaries = await getEnrollmentAttendanceSummaries(enrollmentIds);
+
+  // Garante ativação automática para quem já tem ≥70% (sem override manual).
+  await syncCertificateEligibleFromAttendance(enrollmentIds);
+  const refreshedEligible = await prisma.enrollment.findMany({
+    where: { id: { in: enrollmentIds } },
+    select: { id: true, certificateEligible: true },
+  });
+  const eligibleById = new Map(refreshedEligible.map((r) => [r.id, r.certificateEligible]));
 
   function isDataComplete(st: {
     name: string | null;
@@ -97,6 +107,7 @@ export async function GET(
         id: e.id,
         enrolledAt: e.enrolledAt,
         status: e.status,
+        certificateEligible: eligibleById.get(e.id) ?? e.certificateEligible,
         studentId: st.id,
         studentName: st.name,
         studentEmail: st.email,
@@ -105,6 +116,7 @@ export async function GET(
         /** Presenças em aulas da turma (até hoje) / total de aulas elegíveis. */
         attendancePresentCount: attendance?.presentCount ?? 0,
         attendanceTotalSessions: attendance?.totalSessions ?? 0,
+        attendancePercent: attendance?.percent ?? null,
         documentationAlert: docsMissing ? (dataComplete ? "yellow" : "red") : null,
       };
     }),
