@@ -1,5 +1,3 @@
-import { PDFDocument } from "pdf-lib";
-
 export type CertificateZipPages = "front" | "both";
 
 export function parseCertificateZipPages(value: string | null | undefined): CertificateZipPages {
@@ -27,17 +25,4 @@ export function studentCertificatePdfFileName(studentName: string, usedNames: Se
   }
   usedNames.add(fileName);
   return fileName;
-}
-
-export async function sliceCertificatePdfPages(
-  pdfBytes: Uint8Array,
-  pages: CertificateZipPages,
-): Promise<Uint8Array> {
-  if (pages === "both") return pdfBytes;
-  const source = await PDFDocument.load(pdfBytes);
-  if (source.getPageCount() <= 1) return pdfBytes;
-  const target = await PDFDocument.create();
-  const [first] = await target.copyPages(source, [0]);
-  target.addPage(first);
-  return target.save();
 }

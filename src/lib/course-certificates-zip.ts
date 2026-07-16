@@ -4,12 +4,11 @@ import JSZip from "jszip";
 
 import {
   parseCertificateZipPages,
-  sliceCertificatePdfPages,
   studentCertificatePdfFileName,
   slugPart,
   type CertificateZipPages,
 } from "@/lib/course-certificate-pdf-naming";
-import { ensureEnrollmentCertificate } from "@/lib/ensure-enrollment-certificate";
+import { generateEnrollmentCertificatePdf } from "@/lib/ensure-enrollment-certificate";
 import { prisma } from "@/lib/prisma";
 
 export type { CertificateZipPages };
@@ -27,10 +26,12 @@ export async function addEnrollmentCertificatesToZip(
   let added = 0;
   for (const row of enrollments) {
     try {
-      const ensured = await ensureEnrollmentCertificate(row.id, { force: true });
-      const bytes = await sliceCertificatePdfPages(ensured.pdfBytes, pages);
-      const fileName = studentCertificatePdfFileName(row.student.name || ensured.studentName, usedNames);
-      zip.file(fileName, bytes);
+      const generated = await generateEnrollmentCertificatePdf(row.id, { pages });
+      const fileName = studentCertificatePdfFileName(
+        row.student.name || generated.studentName,
+        usedNames,
+      );
+      zip.file(fileName, generated.pdfBytes);
       added += 1;
     } catch (e) {
       const name = row.student.name || row.id;

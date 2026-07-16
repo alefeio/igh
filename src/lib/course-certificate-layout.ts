@@ -1,5 +1,6 @@
 /**
- * Layout do certificado de conclusão (overlay sobre assets/certificates/course-completion-template.pdf).
+ * Layout do certificado de conclusão (overlay sobre
+ * assets/certificates/course-completion-front.pdf e course-completion-back.pdf).
  * Página landscape: 859.92 × 613.2 pt. Origem pdf-lib: canto inferior esquerdo.
  *
  * Coordenadas derivadas do PPTX preenchido (CERTIFICADO INFORMÁTICA BÁSICA.pptx).

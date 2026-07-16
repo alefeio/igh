@@ -14,10 +14,22 @@ import {
   COURSE_CERTIFICATE_MIN_WORKLOAD_HOURS,
   FRONT_LAYOUT,
 } from "@/lib/course-certificate-layout";
-import { uploadCertificatePdfToApimages } from "@/lib/holiday-event-certificate";
+import type { CertificateZipPages } from "@/lib/course-certificate-pdf-naming";
 import { studentCertificatePdfFileName } from "@/lib/course-certificate-pdf-naming";
+import { uploadCertificatePdfToApimages } from "@/lib/holiday-event-certificate";
 
-const TEMPLATE_PATH = path.join(process.cwd(), "assets", "certificates", "course-completion-template.pdf");
+const FRONT_TEMPLATE_PATH = path.join(
+  process.cwd(),
+  "assets",
+  "certificates",
+  "course-completion-front.pdf",
+);
+const BACK_TEMPLATE_PATH = path.join(
+  process.cwd(),
+  "assets",
+  "certificates",
+  "course-completion-back.pdf",
+);
 const FONT_REGULAR_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Regular.ttf");
 const FONT_BOLD_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Bold.ttf");
 
@@ -144,43 +156,18 @@ async function embedRemoteImage(pdfDoc: PDFDocument, url: string | null | undefi
   return null;
 }
 
-export type CourseCompletionCertificateInput = {
-  studentName: string;
-  courseName: string;
-  workloadHours: number | null;
-  moduleTitles: string[];
-  teacherName: string;
-  teacherSignatureUrl: string | null;
-  issuedAt: Date;
-};
-
-export async function generateCourseCompletionCertificatePdfBytes(
+function drawFrontPage(
+  front: PDFPage,
+  font: PDFFont,
+  fontBold: PDFFont,
   input: CourseCompletionCertificateInput,
-): Promise<Uint8Array> {
-  const templateBytes = fs.readFileSync(TEMPLATE_PATH);
-  const pdfDoc = await PDFDocument.load(templateBytes);
-  pdfDoc.registerFontkit(fontkit);
-  const fontRegularBytes = fs.readFileSync(FONT_REGULAR_PATH);
-  const fontBoldBytes = fs.readFileSync(FONT_BOLD_PATH);
-  const font = await pdfDoc.embedFont(fontRegularBytes, { subset: true });
-  const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: true });
-
-  const pages = pdfDoc.getPages();
-  if (pages.length < 2) {
-    throw new Error("Template de certificado inválido (esperado 2 páginas).");
-  }
-  const [front, back] = pages;
-
+) {
   const studentName = (input.studentName || "").trim().toUpperCase() || "ALUNO";
   const courseNameUpper = (input.courseName || "").trim().toUpperCase() || "CURSO";
-  const courseNameDisplay = (input.courseName || "").trim() || "Curso";
   const hours = String(resolveCertificateWorkloadHours(input.workloadHours));
   const dateLabel = formatCertificateDatePtBr(input.issuedAt);
   const frontDate = `${COURSE_CERTIFICATE_CITY_FRONT}, ${dateLabel}`;
-  const backDate = `${COURSE_CERTIFICATE_CITY_BACK}, ${dateLabel}`;
-  const teacherName = (input.teacherName || "").trim() || "Professor";
 
-  // --- Frente ---
   drawSingleLineFitted(front, studentName, {
     ...FRONT_LAYOUT.studentName,
     font: fontBold,
@@ -196,8 +183,21 @@ export async function generateCourseCompletionCertificatePdfBytes(
     ...FRONT_LAYOUT.locationDate,
     font,
   });
+}
 
-  // --- Verso ---
+async function drawBackPage(
+  pdfDoc: PDFDocument,
+  back: PDFPage,
+  font: PDFFont,
+  fontBold: PDFFont,
+  input: CourseCompletionCertificateInput,
+) {
+  const courseNameDisplay = (input.courseName || "").trim() || "Curso";
+  const hours = String(resolveCertificateWorkloadHours(input.workloadHours));
+  const dateLabel = formatCertificateDatePtBr(input.issuedAt);
+  const backDate = `${COURSE_CERTIFICATE_CITY_BACK}, ${dateLabel}`;
+  const teacherName = (input.teacherName || "").trim() || "Professor";
+
   drawSingleLineFitted(back, `Curso de ${courseNameDisplay}`, {
     ...BACK_LAYOUT.courseTitle,
     font: fontBold,
@@ -254,6 +254,69 @@ export async function generateCourseCompletionCertificatePdfBytes(
     ...BACK_LAYOUT.teacherRole,
     font,
   });
+}
+
+export type CourseCompletionCertificateInput = {
+  studentName: string;
+  courseName: string;
+  workloadHours: number | null;
+  moduleTitles: string[];
+  teacherName: string;
+  teacherSignatureUrl: string | null;
+  issuedAt: Date;
+};
+
+export type GenerateCertificateOptions = {
+  /** Padrão: frente e verso. `front` gera só a partir do template de frente. */
+  pages?: CertificateZipPages;
+};
+
+/**
+ * Gera o PDF do certificado a partir dos templates separados
+ * (`course-completion-front.pdf` / `course-completion-back.pdf`).
+ */
+export async function generateCourseCompletionCertificatePdfBytes(
+  input: CourseCompletionCertificateInput,
+  options?: GenerateCertificateOptions,
+): Promise<Uint8Array> {
+  const pagesMode: CertificateZipPages = options?.pages === "front" ? "front" : "both";
+
+  const frontBytes = fs.readFileSync(FRONT_TEMPLATE_PATH);
+  const fontRegularBytes = fs.readFileSync(FONT_REGULAR_PATH);
+  const fontBoldBytes = fs.readFileSync(FONT_BOLD_PATH);
+
+  if (pagesMode === "front") {
+    const pdfDoc = await PDFDocument.load(frontBytes);
+    pdfDoc.registerFontkit(fontkit);
+    const font = await pdfDoc.embedFont(fontRegularBytes, { subset: true });
+    const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: true });
+    const frontPages = pdfDoc.getPages();
+    if (frontPages.length < 1) {
+      throw new Error("Template de frente do certificado inválido.");
+    }
+    drawFrontPage(frontPages[0]!, font, fontBold, input);
+    return pdfDoc.save();
+  }
+
+  const backBytes = fs.readFileSync(BACK_TEMPLATE_PATH);
+  const frontSrc = await PDFDocument.load(frontBytes);
+  const backSrc = await PDFDocument.load(backBytes);
+  if (frontSrc.getPageCount() < 1 || backSrc.getPageCount() < 1) {
+    throw new Error("Templates de certificado inválidos (frente e verso com 1 página cada).");
+  }
+
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.registerFontkit(fontkit);
+  const [frontPage] = await pdfDoc.copyPages(frontSrc, [0]);
+  const [backPage] = await pdfDoc.copyPages(backSrc, [0]);
+  pdfDoc.addPage(frontPage);
+  pdfDoc.addPage(backPage);
+
+  const font = await pdfDoc.embedFont(fontRegularBytes, { subset: true });
+  const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: true });
+  const [front, back] = pdfDoc.getPages();
+  drawFrontPage(front!, font, fontBold, input);
+  await drawBackPage(pdfDoc, back!, font, fontBold, input);
 
   return pdfDoc.save();
 }
@@ -261,8 +324,11 @@ export async function generateCourseCompletionCertificatePdfBytes(
 export async function generateAndUploadCourseCompletionCertificate(params: {
   enrollmentId: string;
   input: CourseCompletionCertificateInput;
+  pages?: CertificateZipPages;
 }): Promise<{ url: string; publicId: string; fileName: string; pdfBytes: Uint8Array }> {
-  const pdfBytes = await generateCourseCompletionCertificatePdfBytes(params.input);
+  const pdfBytes = await generateCourseCompletionCertificatePdfBytes(params.input, {
+    pages: params.pages,
+  });
   const used = new Set<string>();
   const fileName = studentCertificatePdfFileName(params.input.studentName, used);
   const uploaded = await uploadCertificatePdfToApimages({ pdfBytes, fileName });
