@@ -5,7 +5,7 @@ import { createUserNotificationIfNew } from "@/lib/user-notifications";
 
 /** Link do aluno para a seção Dúvidas da aula. */
 function studentLessonForumLink(enrollmentId: string, lessonId: string) {
-  return `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?secao=duvidas#secoes`;
+  return `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?secao=duvidas#ferramentas`;
 }
 
 async function lessonTitleFromId(lessonId: string): Promise<string> {

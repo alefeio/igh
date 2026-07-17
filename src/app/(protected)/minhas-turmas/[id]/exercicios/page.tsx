@@ -44,7 +44,7 @@ type CourseExercisesResponse = {
 };
 
 function lessonExerciseHref(enrollmentId: string, lessonId: string) {
-  return `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?secao=exercicios#secoes`;
+  return `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?secao=exercicios#ferramentas`;
 }
 
 export default function EnrollmentExercisesSummaryPage() {

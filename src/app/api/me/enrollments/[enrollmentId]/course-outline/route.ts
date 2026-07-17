@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
+import { getModulesOutlineByCourseId } from "@/lib/course-modules";
 import { unstable_cache } from "next/cache";
 import {
   STUDENT_VISIBLE_ENROLLMENT_STATUSES,
@@ -31,7 +31,7 @@ type OutlineModule = {
 
 function resolveCourseImageUrl(
   courseImageUrl: string | null | undefined,
-  modules: Awaited<ReturnType<typeof getModulesWithLessonsByCourseId>>
+  modules: Awaited<ReturnType<typeof getModulesOutlineByCourseId>>
 ): string | null {
   const u = courseImageUrl?.trim();
   if (u) return u;
@@ -92,8 +92,8 @@ export async function GET(
   });
 
   const getModulesCached = unstable_cache(
-    async (cid: string) => getModulesWithLessonsByCourseId(cid),
-    ["course-outline-modules"],
+    async (cid: string) => getModulesOutlineByCourseId(cid),
+    ["course-outline-modules-light"],
     { revalidate: 300 }
   );
   const modules = await getModulesCached(courseId);

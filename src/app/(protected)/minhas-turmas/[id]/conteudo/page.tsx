@@ -635,7 +635,7 @@ export default function ConteudoPage() {
                             </span>
                             {prevLessonIdByLessonId.get(lesson.id) && (
                               <Link
-                                href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLessonIdByLessonId.get(lesson.id)}?secao=exercicios#secoes`}
+                                href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLessonIdByLessonId.get(lesson.id)}?secao=exercicios#ferramentas`}
                                 className="text-right text-xs font-bold text-[var(--igh-primary)] hover:underline"
                               >
                                 Ir aos exercícios da aula anterior →

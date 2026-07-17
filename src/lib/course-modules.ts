@@ -26,6 +26,63 @@ export type ModuleWithLessons = {
 };
 
 /**
+ * Lista módulos/aulas com campos leves (sem contentRich/summary/anexos).
+ * Uso: outline de navegação do aluno — evita puxar HTML de todas as aulas.
+ */
+export async function getModulesOutlineByCourseId(courseId: string): Promise<
+  {
+    id: string;
+    title: string;
+    description: string | null;
+    order: number;
+    lessons: {
+      id: string;
+      title: string;
+      order: number;
+      durationMinutes: number | null;
+      videoUrl: string | null;
+      imageUrls: string[];
+    }[];
+  }[]
+> {
+  const modules = await prisma.courseModule.findMany({
+    where: { courseId },
+    orderBy: { order: "asc" },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      order: true,
+      lessons: {
+        orderBy: { order: "asc" },
+        select: {
+          id: true,
+          title: true,
+          order: true,
+          durationMinutes: true,
+          videoUrl: true,
+          imageUrls: true,
+        },
+      },
+    },
+  });
+  return modules.map((m) => ({
+    id: m.id,
+    title: m.title,
+    description: m.description,
+    order: m.order,
+    lessons: m.lessons.map((l) => ({
+      id: l.id,
+      title: l.title,
+      order: l.order,
+      durationMinutes: l.durationMinutes,
+      videoUrl: l.videoUrl,
+      imageUrls: l.imageUrls ?? [],
+    })),
+  }));
+}
+
+/**
  * Lista todos os módulos de um curso com suas aulas, ordenados.
  */
 export async function getModulesWithLessonsByCourseId(

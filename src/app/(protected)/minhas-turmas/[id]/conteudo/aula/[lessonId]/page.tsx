@@ -5,31 +5,30 @@ import {
   ArrowLeft,
   ArrowUp,
   BookMarked,
-  BookOpen,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronUp,
   ClipboardList,
   FileText,
-  GraduationCap,
   Highlighter,
-  ListVideo,
+  History,
   Maximize2,
   MessageCircleQuestion,
   Minimize2,
   Minus,
+  MoreHorizontal,
   Plus,
   StickyNote,
   Type,
+  Wrench,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
-import { DashboardHero, QuickActionGrid, SectionCard } from "@/components/dashboard/DashboardUI";
+import { SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { ForumPostBody } from "@/components/forum/ForumPostBody";
 import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
@@ -227,11 +226,12 @@ export default function AulaConteudoPage() {
   const [replyingToQuestionId, setReplyingToQuestionId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
   const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
-  const headerActionsRef = useRef<HTMLDivElement>(null);
-  /** Ref da seção "Seções da aula" (botões): quando ela some no scroll, mostramos a barra flutuante. */
-  const sectionsBarRef = useRef<HTMLDivElement>(null);
-  const [showFloatingActions, setShowFloatingActions] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [courseNavOpen, setCourseNavOpen] = useState(false);
+  const [progressDetailsOpen, setProgressDetailsOpen] = useState(false);
+  const toolsMenuRef = useRef<HTMLDivElement>(null);
+  const courseNavRef = useRef<HTMLDivElement>(null);
   const SECTION_KEYS = ["trechos", "material", "anotacoes", "exercicios", "duvidas"] as const;
   type SectionKey = (typeof SECTION_KEYS)[number];
   const [openSection, setOpenSection] = useState<SectionKey | null>(null);
@@ -242,8 +242,6 @@ export default function AulaConteudoPage() {
     exercicios: false,
     duvidas: false,
   });
-  /** Menu do painel: true = recolhido (só ícones). No PC expandido por padrão; no mobile (≤767px) minimizado. */
-  const [panelMenuCollapsed, setPanelMenuCollapsed] = useState(false);
   const sectionPanelRef = useRef<HTMLDivElement>(null);
   /** Índice inicial quando a URL ainda não tem ?pagina= (antes de restaurar do progresso). */
   const [initialSlideIndex, setInitialSlideIndex] = useState(0);
@@ -253,8 +251,10 @@ export default function AulaConteudoPage() {
   const [contentFontSizePercent, setContentFontSizePercent] = useState(100);
   const hasSetUrlFromProgressRef = useRef(false);
   const hasAutoCompletedOnLastSlideRef = useRef(false);
-  /** Se a aula atual pode ser acessada (exercícios da aula anterior concluídos). null = ainda verificando. */
+  /** null = ainda verificando; true/false = resultado do bootstrap (sem carregar enunciados). */
   const [prevLessonExercisesComplete, setPrevLessonExercisesComplete] = useState<boolean | null>(null);
+  /** Status leve dos exercícios desta aula (bootstrap); atualizado ao carregar/responder a seção. */
+  const [currentLessonExercisesComplete, setCurrentLessonExercisesComplete] = useState(true);
 
   /**
    * Progresso da aula: este endpoint era chamado muitas vezes (slide change, visibilitychange, unload etc.).
@@ -337,37 +337,32 @@ export default function AulaConteudoPage() {
     [enrollmentId, lessonId, flushProgressPatch]
   );
 
-  /** Abre/fecha a seção e atualiza a URL (?secao= e #secoes) para abrir na âncora Seções da aula. */
+  /** Abre/fecha ferramenta de estudo e atualiza a URL (?secao= e #ferramentas). */
   const openSectionPanel = useCallback(
     (key: SectionKey) => {
       const willClose = openSection === key;
       const next: SectionKey | null = willClose ? null : key;
       setOpenSection(next);
-      if (!willClose) setPanelMenuCollapsed(false);
+      if (next) {
+        setToolsOpen(false);
+        setCourseNavOpen(false);
+        setProgressDetailsOpen(false);
+      }
       const path = `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}`;
       const params = new URLSearchParams(searchParams.toString());
       if (next) params.set("secao", next);
       else params.delete("secao");
       const qs = params.toString();
-      const hash = next ? "#secoes" : "";
+      const hash = next ? "#ferramentas" : "";
       router.replace(qs ? `${path}?${qs}${hash}` : `${path}${hash}`);
       if (next) {
         setTimeout(() => {
-          document.getElementById("secoes")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          document.getElementById("ferramentas")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 150);
       }
     },
     [enrollmentId, lessonId, openSection, router, searchParams]
   );
-
-  /** Viewport: mobile = menu de seções minimizado; desktop (≥ Tailwind md) = expandido. */
-  useLayoutEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    const sync = () => setPanelMenuCollapsed(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
 
   /** Ao carregar ou quando a URL mudar, abre a seção indicada por ?secao= */
   useEffect(() => {
@@ -375,40 +370,38 @@ export default function AulaConteudoPage() {
     const valid = SECTION_KEYS.includes(secao as SectionKey) ? (secao as SectionKey) : null;
     if (valid) {
       setOpenSection(valid);
-      setPanelMenuCollapsed(false);
+      setCourseNavOpen(false);
+      setProgressDetailsOpen(false);
     } else if (secao !== null) {
       setOpenSection(null);
     }
   }, [searchParams]);
 
-  /** Ao abrir uma seção, rola até a âncora "Seções da aula" (com delay para não ser sobrescrito pelo scroll do Next.js). */
+  /** Ao abrir uma seção, rola até a âncora das ferramentas. */
   useEffect(() => {
     if (openSection) {
       const t = setTimeout(() => {
-        document.getElementById("secoes")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById("ferramentas")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 150);
       return () => clearTimeout(t);
     }
   }, [openSection]);
 
-  const loadProgress = useCallback(async () => {
-    if (!enrollmentId || !lessonId) return;
-    try {
-      const res = await fetch(`/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`);
-      const json = (await res.json()) as ApiResponse<LessonProgress>;
-      if (res.ok && json?.ok) setProgress(json.data);
-    } catch {
-      setProgress({
-        completed: false,
-        percentWatched: 0,
-        percentRead: 0,
-        completedAt: null,
-        lastAccessedAt: null,
-        totalMinutesStudied: 0,
-        lastContentPageIndex: null,
-      });
-    }
-  }, [enrollmentId, lessonId]);
+  /** Fecha menus ao clicar fora. */
+  useEffect(() => {
+    if (!toolsOpen && !courseNavOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (toolsOpen && toolsMenuRef.current && !toolsMenuRef.current.contains(target)) {
+        setToolsOpen(false);
+      }
+      if (courseNavOpen && courseNavRef.current && !courseNavRef.current.contains(target)) {
+        setCourseNavOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [toolsOpen, courseNavOpen]);
 
   const loadPassages = useCallback(async () => {
     if (!enrollmentId || !lessonId) return;
@@ -429,6 +422,21 @@ export default function AulaConteudoPage() {
   useEffect(() => {
     setInitialSlideIndex(0);
     hasSetUrlFromProgressRef.current = false;
+    hasAutoCompletedOnLastSlideRef.current = false;
+    setLoadedSections({
+      trechos: false,
+      material: false,
+      anotacoes: false,
+      exercicios: false,
+      duvidas: false,
+    });
+    setExercises([]);
+    setExerciseSelected({});
+    setExerciseResult({});
+    setPassages([]);
+    setNotes([]);
+    setQuestions([]);
+    setOpenSection(null);
   }, [lessonId]);
 
   useEffect(() => {
@@ -450,12 +458,13 @@ export default function AulaConteudoPage() {
     if (!enrollmentId || !lessonId) return;
     async function load() {
       setLoading(true);
+      setPrevLessonExercisesComplete(null);
       try {
-        const [outlineRes, lessonRes] = await Promise.all([
-          fetch(`/api/me/enrollments/${enrollmentId}/course-outline`, { cache: "no-store" }),
-          fetch(`/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/details`, { cache: "no-store" }),
-        ]);
-        const outlineJson = (await outlineRes.json()) as ApiResponse<{
+        const res = await fetch(
+          `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/bootstrap`,
+          { cache: "no-store" }
+        );
+        const json = (await res.json()) as ApiResponse<{
           courseName: string;
           modules: {
             id: string;
@@ -473,8 +482,6 @@ export default function AulaConteudoPage() {
               lastContentPageIndex: number | null;
             }[];
           }[];
-        }>;
-        const lessonJson = (await lessonRes.json()) as ApiResponse<{
           lesson: {
             id: string;
             title: string;
@@ -488,46 +495,25 @@ export default function AulaConteudoPage() {
             attachmentUrls: string[];
             attachmentNames: string[];
             isLiberada: boolean;
-            completed: boolean;
-            lastContentPageIndex: number | null;
           };
+          progress: LessonProgress;
+          favorite: boolean;
+          currentLessonExercisesComplete: boolean;
+          prevLessonExercisesComplete: boolean;
         }>;
 
-        if (!outlineRes.ok || !outlineJson?.ok) {
+        if (!res.ok || !json?.ok) {
           toast.push(
             "error",
-            outlineJson && "error" in outlineJson ? outlineJson.error.message : "Conteúdo não disponível."
+            json && "error" in json ? json.error.message : "Aula não disponível."
           );
-          return;
-        }
-        if (!lessonRes.ok || !lessonJson?.ok) {
-          toast.push(
-            "error",
-            lessonJson && "error" in lessonJson ? lessonJson.error.message : "Aula não disponível."
-          );
-          // Ainda deixa a navegação de módulos/aulas disponível.
-          setData({
-            courseName: outlineJson.data.courseName,
-            modules: outlineJson.data.modules.map((m) => ({
-              ...m,
-              lessons: m.lessons.map((l) => ({
-                ...l,
-                contentRich: null,
-                summary: null,
-                imageUrls: [],
-                pdfUrl: null,
-                attachmentUrls: [],
-                attachmentNames: [],
-              })),
-            })),
-          });
           return;
         }
 
-        const details = lessonJson.data.lesson;
+        const { courseName, modules, lesson: details, progress: prog, favorite } = json.data;
         setData({
-          courseName: outlineJson.data.courseName,
-          modules: outlineJson.data.modules.map((m) => ({
+          courseName,
+          modules: modules.map((m) => ({
             ...m,
             lessons: m.lessons.map((l) => {
               const base: Lesson = {
@@ -543,6 +529,10 @@ export default function AulaConteudoPage() {
             }),
           })),
         });
+        setProgress(prog);
+        setIsFavorite(favorite);
+        setCurrentLessonExercisesComplete(json.data.currentLessonExercisesComplete);
+        setPrevLessonExercisesComplete(json.data.prevLessonExercisesComplete);
       } finally {
         setLoading(false);
       }
@@ -558,17 +548,6 @@ export default function AulaConteudoPage() {
       if (res.ok && json?.ok) setNotes(json.data);
     } catch {
       setNotes([]);
-    }
-  }, [enrollmentId, lessonId]);
-
-  const loadFavorite = useCallback(async () => {
-    if (!enrollmentId || !lessonId) return;
-    try {
-      const res = await fetch(`/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/favorite`);
-      const json = (await res.json()) as ApiResponse<{ favorite: boolean }>;
-      if (res.ok && json?.ok) setIsFavorite(json.data.favorite);
-    } catch {
-      setIsFavorite(false);
     }
   }, [enrollmentId, lessonId]);
 
@@ -592,8 +571,13 @@ export default function AulaConteudoPage() {
         }
         setExerciseSelected(selected);
         setExerciseResult(result);
+        const allAnswered =
+          json.data.exercises.length === 0 ||
+          json.data.exercises.every((ex) => result[ex.id] != null);
+        setCurrentLessonExercisesComplete(allAnswered);
       } else {
         setExercises([]);
+        setCurrentLessonExercisesComplete(true);
       }
     } catch {
       setExercises([]);
@@ -629,80 +613,13 @@ export default function AulaConteudoPage() {
     }
   }, [openSection, loadedSections, loadPassages, loadNotes, loadExercises, loadQuestions]);
 
-  useEffect(() => {
-    if (enrollmentId && lessonId) void loadProgress();
-  }, [enrollmentId, lessonId, loadProgress]);
-
-  // Carrega exercícios em segundo plano para saber se é permitido avançar para a próxima aula.
-  useEffect(() => {
-    if (!enrollmentId || !lessonId) return;
-    if (loadedSections.exercicios) return;
-    void loadExercises().then(() => setLoadedSections((p) => ({ ...p, exercicios: true })));
-  }, [enrollmentId, lessonId, loadExercises, loadedSections.exercicios]);
-
-  // Verifica se os exercícios da aula anterior foram concluídos (bloqueia acesso à aula atual se não).
-  useEffect(() => {
-    if (!enrollmentId || !data?.modules || !lessonId) return;
-    const ordered = getOrderedLessons(data.modules);
-    const idx = ordered.findIndex((l) => l.id === lessonId);
-    if (idx <= 0) {
-      setPrevLessonExercisesComplete(true);
-      return;
-    }
-    setPrevLessonExercisesComplete(null);
-    const prevId = ordered[idx - 1]!.id;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/me/enrollments/${enrollmentId}/lessons/${prevId}/exercises`
-        );
-        const json = (await res.json()) as ApiResponse<{
-          exercises: { id: string }[];
-          answers: { exerciseId: string }[];
-        }>;
-        if (cancelled) return;
-        const exercises = (json?.ok ? json.data?.exercises : undefined) ?? [];
-        const answers = (json?.ok ? json.data?.answers : undefined) ?? [];
-        const allAnswered =
-          exercises.length === 0 ||
-          exercises.every((ex) => answers.some((a) => a.exerciseId === ex.id));
-        setPrevLessonExercisesComplete(res.ok && json?.ok ? allAnswered : true);
-      } catch {
-        if (!cancelled) setPrevLessonExercisesComplete(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [enrollmentId, data?.modules, lessonId]);
-
-  useEffect(() => {
-    if (data && findLesson(data.modules, lessonId)?.lesson.isLiberada) {
-      void loadProgress();
-      void loadFavorite();
-    }
-  }, [data, lessonId, loadProgress, loadFavorite]);
-
-  /** Marca último acesso ao abrir a aula e envia tempo de estudo ao sair. */
+  /** Ao sair da aula, envia tempo de estudo (último acesso já foi tocado no bootstrap). */
   useEffect(() => {
     if (!enrollmentId || !lessonId || !data?.modules) return;
     const lesson = findLesson(data.modules, lessonId)?.lesson;
     if (!lesson?.isLiberada) return;
 
     const startMs = Date.now();
-
-    const touchProgress = async () => {
-      queueProgressPatch({
-        percentWatched: progress?.percentWatched ?? 0,
-        percentRead: progress?.percentRead ?? 0,
-      });
-    };
-
-    void touchProgress().then(() => {
-      void flushProgressPatch({ immediate: true });
-      loadProgress();
-    });
 
     const sendStudyTime = (minutes: number) => {
       if (minutes <= 0) return;
@@ -749,7 +666,7 @@ export default function AulaConteudoPage() {
         void flushProgressPatch({ immediate: true, preferBeacon: true });
       }
     };
-  }, [enrollmentId, lessonId, data?.modules, flushProgressPatch, loadProgress, progress?.percentRead, progress?.percentWatched, queueProgressPatch]);
+  }, [enrollmentId, lessonId, data?.modules, flushProgressPatch, progress?.percentRead, progress?.percentWatched, queueProgressPatch]);
 
   // Só observar o header quando estamos de fato renderizando o card da aula.
   // Se dependermos só de [data, lessonId], o effect pode rodar quando data existe
@@ -807,7 +724,7 @@ export default function AulaConteudoPage() {
     const wrap = contentWrapperRef.current;
     if (!wrap || document.fullscreenElement !== wrap) return;
     wrap.scrollTop = 0;
-    wrap.querySelectorAll(".overflow-auto").forEach((node) => {
+    wrap.querySelectorAll(".overflow-auto, .overflow-y-auto").forEach((node) => {
       (node as HTMLElement).scrollTop = 0;
     });
   }, [contentPageIndex, hasMultiplePages]);
@@ -985,27 +902,7 @@ export default function AulaConteudoPage() {
     [hasMultiplePages, currentContentSection, handleSavePassage]
   );
 
-  // Barra flutuante "Seções da aula": quando a seção #secoes sai do topo da tela, mostra a barra fixa embaixo.
-  useEffect(() => {
-    if (!showLessonCard) return;
-    const updateVisibility = () => {
-      const el = document.getElementById("secoes");
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        // Mostrar barra quando a seção já passou do topo (pequena margem para evitar flicker)
-        setShowFloatingActions(rect.bottom < 8);
-      }
-    };
-    // Rodar após o paint para garantir que #secoes já está no DOM
-    const raf = requestAnimationFrame(updateVisibility);
-    window.addEventListener("scroll", updateVisibility, { passive: true });
-    const t = setTimeout(updateVisibility, 300);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(t);
-      window.removeEventListener("scroll", updateVisibility);
-    };
-  }, [showLessonCard, lessonId]);
+  // (barra flutuante de seções removida — ferramentas ficam no menu discreto)
 
   useEffect(() => {
     if (!showLessonCard) return;
@@ -1048,63 +945,11 @@ export default function AulaConteudoPage() {
     const hasMultiplePages = contentPages.length > 1;
     const steps: TutorialStep[] = [
       {
-        target: "[data-tour=\"aula-voltar\"]",
-        title: "Voltar ao conteúdo",
-        content: "Use este link para retornar à lista de módulos e aulas do curso.",
-      },
-      {
-        target: "[data-tour=\"aula-nav-aulas\"]",
-        title: "Navegação entre aulas",
-        content: "Aqui você pode ir para a aula anterior, para os favoritos ou para a próxima aula.",
-      },
-      {
         target: "[data-tour=\"aula-header\"]",
-        title: "Título da aula",
-        content: "Este é o nome da aula. Você pode marcar como favorita pelo botão ao lado.",
-      },
-      {
-        target: "[data-tour=\"aula-progresso\"]",
-        title: "Progresso da aula",
-        content: "Você pode marcar a aula como concluída manualmente ou ela será concluída automaticamente ao terminar o conteúdo (vídeo e/ou todas as páginas). Os exercícios ficam disponíveis só depois de concluir a aula.",
-      },
-      {
-        target: "[data-tour=\"aula-historico\"]",
-        title: "Histórico de estudo",
-        content: "Aqui aparecem a última vez que você acessou, quanto tempo estudou e quando concluiu a aula.",
-      },
-      {
-        target: "[data-tour=\"aula-btn-trechos\"]",
-        title: "Trechos destacados",
-        content: "Abra esta seção para ver os trechos que você destacou no texto. Para destacar: selecione um trecho no conteúdo e use o botão \"Destacar trecho selecionado\".",
-      },
-      {
-        target: "[data-tour=\"aula-btn-material\"]",
-        title: "Material complementar",
-        content: "Aqui você baixa o PDF da aula e os arquivos de apoio para estudar offline.",
-      },
-      {
-        target: "[data-tour=\"aula-btn-anotacoes\"]",
-        title: "Bloco de anotações",
-        content: "Suas anotações ficam salvas por aula. Você pode informar o minuto do vídeo (opcional) para localizar depois.",
-      },
-      {
-        target: "[data-tour=\"aula-btn-exercicios\"]",
-        title: "Exercícios",
-        content: "Após concluir a aula, os exercícios ficam disponíveis aqui. Responda às questões e verifique suas respostas.",
-      },
-      {
-        target: "[data-tour=\"aula-btn-duvidas\"]",
-        title: "Dúvidas",
-        content: "Envie dúvidas ou comentários sobre a aula. Outros alunos podem responder. Você pode editar ou excluir seus próprios comentários.",
+        title: "Sala de aula",
+        content: "Aqui ficam o título da aula, favoritar, marcar como concluída e os menus de Ferramentas e Navegar no curso.",
       },
     ];
-    if (lesson.summary && lesson.summary.trim()) {
-      steps.push({
-        target: "[data-tour=\"aula-resumo\"]",
-        title: "Resumo rápido",
-        content: "Visão geral do que você vai aprender nesta aula.",
-      });
-    }
     if (lesson.videoUrl) {
       steps.push({
         target: "[data-tour=\"aula-video\"]",
@@ -1115,44 +960,27 @@ export default function AulaConteudoPage() {
     if (lesson.contentRich && lesson.contentRich.trim()) {
       steps.push({
         target: "[data-tour=\"aula-conteudo\"]",
-        title: "Conteúdo escrito da aula",
-        content: "Leia o texto da aula. Abaixo há botões para alterar o tamanho da fonte, destacar trechos e expandir em tela cheia.",
+        title: "Conteúdo da aula",
+        content: "Este é o material principal para estudo. Use fonte, destacar e tela cheia quando precisar.",
       });
       if (hasMultiplePages) {
         steps.push({
           target: "[data-tour=\"aula-slides\"]",
-          title: "Slide anterior e Próximo slide",
-          content: "Quando o conteúdo tem várias seções, use estes botões para navegar entre as páginas. O progresso é salvo automaticamente e a aula pode ser marcada como concluída ao chegar ao último slide.",
+          title: "Navegação entre slides",
+          content: "Os botões de slide ficam na barra inferior, perto dos dedos no celular — inclusive em tela cheia.",
         });
       }
-      steps.push(
-        {
-          target: "[data-tour=\"aula-fonte\"]",
-          title: "Tamanho da fonte",
-          content: "Use estes botões para diminuir ou aumentar o tamanho do texto do conteúdo.",
-        },
-        {
-          target: "[data-tour=\"aula-destacar-trecho\"]",
-          title: "Destacar trecho selecionado",
-          content: "Selecione um trecho do texto e clique neste botão para salvá-lo em \"Trechos destacados\" e revisar depois.",
-        },
-        {
-          target: "[data-tour=\"aula-tela-cheia\"]",
-          title: "Tela cheia",
-          content: "Expanda o conteúdo em tela cheia para leitura mais confortável. Use o mesmo botão ou ESC para sair.",
-        }
-      );
     }
     steps.push(
       {
-        target: null,
-        title: "Barra de atalhos",
-        content: "Ao rolar a página, aparece uma barra na parte inferior com atalhos para destacar trechos, favoritar e abrir as seções. O botão de voltar ao topo fica no canto direito.",
+        target: "[data-tour=\"aula-ferramentas\"]",
+        title: "Ferramentas",
+        content: "Trechos, material, anotações, exercícios, fórum e progresso ficam neste menu, para não competir com o estudo.",
       },
       {
         target: null,
         title: "Tudo pronto!",
-        content: "Assista ao vídeo, leia o conteúdo e faça anotações. Ao concluir a aula, responda aos exercícios. Envie dúvidas na seção Dúvidas. Bom estudo!",
+        content: "Foque no conteúdo. Quando terminar, marque a aula como concluída e abra os exercícios em Ferramentas. Bom estudo!",
       }
     );
     return steps;
@@ -1266,7 +1094,7 @@ export default function AulaConteudoPage() {
             }
           >
             <Link
-              href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLessonForAccess.id}?secao=exercicios#secoes`}
+              href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLessonForAccess.id}?secao=exercicios#ferramentas`}
               className="inline-flex items-center gap-2 rounded-xl bg-[var(--igh-primary)] px-5 py-3 text-sm font-bold text-white shadow-md shadow-[var(--igh-primary)]/25 transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
             >
               <ClipboardList className="h-4 w-4 shrink-0" aria-hidden />
@@ -1337,9 +1165,10 @@ export default function AulaConteudoPage() {
   /** Próxima aula só pode ser aberta quando o cronograma/turma já a liberou (ex.: data da sessão). */
   const nextLessonIsUnlocked = nextLesson?.isLiberada === true;
 
-  const hasExercises = exercises.length > 0;
-  const allExercisesAnswered =
-    hasExercises && exercises.every((ex) => exerciseResult[ex.id] != null);
+  const hasExercises = loadedSections.exercicios ? exercises.length > 0 : !currentLessonExercisesComplete;
+  const allExercisesAnswered = loadedSections.exercicios
+    ? exercises.length === 0 || exercises.every((ex) => exerciseResult[ex.id] != null)
+    : currentLessonExercisesComplete;
   const mustAnswerExercisesBeforeNext = hasExercises && !allExercisesAnswered;
 
   /** Converte "12:34" ou "5" em segundos. Retorna null se vazio ou inválido. */
@@ -1613,10 +1442,16 @@ export default function AulaConteudoPage() {
       );
       const json = (await res.json()) as ApiResponse<{ correct: boolean; correctOptionId: string | null }>;
       if (res.ok && json?.ok) {
-        setExerciseResult((prev) => ({
-          ...prev,
-          [exerciseId]: { correct: json.data!.correct, correctOptionId: json.data!.correctOptionId },
-        }));
+        setExerciseResult((prev) => {
+          const next = {
+            ...prev,
+            [exerciseId]: { correct: json.data!.correct, correctOptionId: json.data!.correctOptionId },
+          };
+          setCurrentLessonExercisesComplete(
+            exercises.length === 0 || exercises.every((ex) => next[ex.id] != null)
+          );
+          return next;
+        });
         toast.push(json.data!.correct ? "success" : "error", json.data!.correct ? "Resposta correta!" : "Resposta incorreta. Veja a correção abaixo.");
       } else {
         const errMsg = json && "error" in json ? (json as { error?: { message?: string } }).error?.message : null;
@@ -1661,6 +1496,7 @@ export default function AulaConteudoPage() {
         }
       }
       const total = exercises.length;
+      setCurrentLessonExercisesComplete(true);
       toast.push(
         "success",
         `Respostas enviadas: ${correctCount} de ${total} acerto${total !== 1 ? "s" : ""}.`
@@ -1681,23 +1517,63 @@ export default function AulaConteudoPage() {
       : null;
 
   return (
-    <div className="flex min-w-0 flex-col gap-8 pb-10 pt-1 sm:gap-10">
+    <div className="flex min-w-0 flex-col gap-4 pb-10 pt-1 sm:gap-5">
       <DashboardTutorial showForStudent={user.role !== "MASTER"} steps={tutorialSteps} storageKey="minhas-turmas-aula-tutorial-done" />
-      {showFloatingActions && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-50 flex flex-wrap items-center justify-center gap-2 border-t border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      {showBackToTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-6 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] shadow-md hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+          title="Voltar ao topo"
+          aria-label="Voltar ao topo"
         >
-          {lesson.contentRich && lesson.contentRich.trim() && (
+          <ArrowUp className="h-5 w-5" aria-hidden />
+        </button>
+      )}
+
+      {/* Header mínimo da sala de aula */}
+      <header
+        className="flex flex-col gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/90 px-3 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-4"
+        data-tour="aula-header"
+      >
+        <div className="flex min-w-0 items-start gap-2 sm:items-center">
+          <Link
+            href={`/minhas-turmas/${enrollmentId}/conteudo`}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] text-[var(--igh-primary)] transition hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+            aria-label="Voltar ao conteúdo do curso"
+            data-tour="aula-voltar"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+          </Link>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium text-[var(--text-muted)]">
+              <span className="text-[var(--igh-primary)]">{moduleTitle}</span>
+              {aulaPosicao ? <span aria-hidden> · </span> : null}
+              {aulaPosicao ? <span>{aulaPosicao}</span> : null}
+            </p>
+            <h1 className="truncate text-base font-bold tracking-tight text-[var(--text-primary)] sm:text-lg">{lesson.title}</h1>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${
+              prog.completed
+                ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
+                : "bg-amber-500/15 text-amber-900 dark:text-amber-200"
+            }`}
+          >
+            {prog.completed ? "Concluída" : "Em andamento"}
+          </span>
+          {!prog.completed && (
             <button
               type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent("highlightable-content-destacar"))}
-              disabled={savingPassage}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
-              title={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
-              aria-label={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
+              onClick={handleMarkComplete}
+              disabled={markingComplete}
+              aria-busy={markingComplete}
+              className="rounded-lg bg-[var(--igh-primary)] px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
             >
-              <Highlighter className="h-5 w-5" aria-hidden />
+              {markingComplete ? "Salvando..." : "Concluir"}
             </button>
           )}
           <button
@@ -1706,429 +1582,389 @@ export default function AulaConteudoPage() {
             disabled={togglingFavorite}
             aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
             aria-pressed={isFavorite}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--card-border)] text-[var(--text-secondary)] transition hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
             title={isFavorite ? "Favorita" : "Favoritar"}
           >
             <span className="text-lg" aria-hidden>{isFavorite ? "★" : "☆"}</span>
           </button>
-          <button type="button" onClick={() => openSectionPanel("trechos")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Trechos destacados" aria-label="Trechos destacados">
-            <BookMarked className="h-5 w-5" aria-hidden />
-          </button>
-          <button type="button" onClick={() => openSectionPanel("material")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Material complementar" aria-label="Material complementar">
-            <FileText className="h-5 w-5" aria-hidden />
-          </button>
-          <button type="button" onClick={() => openSectionPanel("anotacoes")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Bloco de anotações" aria-label="Bloco de anotações">
-            <StickyNote className="h-5 w-5" aria-hidden />
-          </button>
-          <button type="button" onClick={() => openSectionPanel("duvidas")} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2" title="Dúvidas sobre esta aula" aria-label="Dúvidas">
-            <MessageCircleQuestion className="h-5 w-5" aria-hidden />
-          </button>
-          <button type="button" onClick={() => prog?.completed && openSectionPanel("exercicios")} disabled={!prog?.completed} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--card-bg)]" title={prog?.completed ? "Exercícios" : "Conclua a aula para acessar os exercícios"} aria-label="Exercícios">
-            <ClipboardList className="h-5 w-5" aria-hidden />
-          </button>
-        </div>
-      )}
-      {showBackToTop && (
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="fixed right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-secondary)] shadow-md hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-          style={{ bottom: showFloatingActions ? "5.5rem" : "1.5rem" }}
-          title="Voltar ao topo"
-          aria-label="Voltar ao topo"
-        >
-          <ArrowUp className="h-5 w-5" aria-hidden />
-        </button>
-      )}
-      <nav aria-label="Navegação da aula">
-        <Link
-          href={`/minhas-turmas/${enrollmentId}/conteudo`}
-          className="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--igh-primary)]/40 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-          data-tour="aula-voltar"
-        >
-          <ArrowLeft className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
-          Voltar ao conteúdo
-        </Link>
-        <p className="mt-2 text-xs font-medium text-[var(--text-muted)]">
-          <span className="text-[var(--igh-primary)]">{moduleTitle}</span>
-          {aulaPosicao ? <span aria-hidden> · </span> : null}
-          {aulaPosicao ? <span>{aulaPosicao}</span> : null}
-        </p>
-      </nav>
 
-      <nav
-        aria-label="Navegação entre aulas"
-        className="flex flex-nowrap items-center gap-2 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)]/90 px-4 py-3 shadow-sm backdrop-blur-sm"
-        data-tour="aula-nav-aulas"
-      >
-        <div className="flex shrink-0">
-          {prevLesson ? (
-            <Link
-              href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLesson.id}`}
-              aria-label="Aula anterior"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-semibold text-[var(--igh-primary)] transition hover:border-[var(--igh-primary)]/35 hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
-            >
-              <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="hidden sm:inline">Aula anterior</span>
-            </Link>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2">
-              <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="hidden sm:inline">Aula anterior</span>
-            </span>
-          )}
-        </div>
-        <div className="flex min-w-0 flex-1 justify-center">
-          <Link
-            href="/minhas-turmas/favoritos"
-            aria-label="Favoritos"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-semibold text-[var(--igh-primary)] transition hover:border-[var(--igh-primary)]/35 hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
-          >
-            <BookMarked className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="hidden sm:inline">Favoritos</span>
-          </Link>
-        </div>
-        <div className="flex shrink-0">
-          {nextLesson ? (
-            mustAnswerExercisesBeforeNext ? (
-              <button
-                type="button"
-                onClick={() => {
-                  toast.push(
-                    "error",
-                    "Responda todos os exercícios desta aula antes de avançar para a próxima."
-                  );
-                  openSectionPanel("exercicios");
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm text-[var(--text-muted)] transition hover:border-[var(--igh-primary)]/25 hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
-              >
-                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="hidden sm:inline">Próxima aula</span>
-              </button>
-            ) : !nextLessonIsUnlocked ? (
-              <button
-                type="button"
-                onClick={() => {
-                  toast.push(
-                    "error",
-                    "A próxima aula ainda não está liberada pelo cronograma da turma. Volte em breve ou consulte a lista de aulas."
-                  );
-                }}
-                className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2"
-                aria-label="Próxima aula ainda não liberada"
-              >
-                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="hidden sm:inline">Próxima aula</span>
-              </button>
-            ) : (
-              <Link
-                href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`}
-                aria-label="Próxima aula"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-semibold text-[var(--igh-primary)] transition hover:border-[var(--igh-primary)]/35 hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-4 sm:py-2"
-              >
-                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="hidden sm:inline">Próxima aula</span>
-              </Link>
-            )
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm text-[var(--text-muted)] sm:px-4 sm:py-2">
-              <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="hidden sm:inline">Próxima aula</span>
-            </span>
-          )}
-        </div>
-      </nav>
-
-      <div ref={headerActionsRef} data-tour="aula-header">
-        <DashboardHero
-          eyebrow={moduleTitle}
-          title={lesson.title}
-          description={
-            <span>
-              <span className="font-medium text-[var(--text-primary)]">{data.courseName}</span>
-              {aulaPosicao ? (
-                <>
-                  <span className="text-[var(--text-muted)]"> · </span>
-                  <span>{aulaPosicao}</span>
-                </>
-              ) : null}
-            </span>
-          }
-          rightSlot={
+          <div className="relative" ref={toolsMenuRef} data-tour="aula-ferramentas">
             <button
               type="button"
-              onClick={handleToggleFavorite}
-              disabled={togglingFavorite}
-              aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-              aria-pressed={isFavorite}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] shadow-sm transition hover:border-[var(--igh-primary)]/35 hover:bg-[var(--igh-primary)]/5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
-              title={isFavorite ? "Favorita" : "Favoritar"}
+              onClick={() => {
+                setToolsOpen((v) => !v);
+                setCourseNavOpen(false);
+              }}
+              className={`inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                toolsOpen || openSection
+                  ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10 text-[var(--igh-primary)]"
+                  : "border-[var(--card-border)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+              }`}
+              aria-expanded={toolsOpen}
+              aria-haspopup="menu"
             >
-              <span className="text-xl" aria-hidden>
-                {isFavorite ? "★" : "☆"}
-              </span>
+              <Wrench className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">Ferramentas</span>
             </button>
-          }
-        />
-      </div>
-
-      <div className="flex flex-col gap-8">
-          <SectionCard
-            id="progress-heading"
-            title="Progresso e histórico"
-            description="Status da aula e registro do seu estudo nesta lição."
-            variant="elevated"
-            dataTour="aula-progresso"
-          >
-            <div
-              className="flex flex-wrap items-center gap-4 rounded-2xl border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3"
-              data-tour="aula-progresso-inner"
-            >
-              <span
-                className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
-                  prog.completed
-                    ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300"
-                    : "bg-amber-500/15 text-amber-900 dark:text-amber-200"
-                }`}
+            {toolsOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-1.5 shadow-lg"
               >
-                {prog.completed ? "Concluída" : "Em andamento"}
-              </span>
-              {!prog.completed && (
-                <button
-                  type="button"
-                  onClick={handleMarkComplete}
-                  disabled={markingComplete}
-                  aria-busy={markingComplete}
-                  className="rounded-xl bg-[var(--igh-primary)] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-[var(--igh-primary)]/20 transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
-                >
-                  {markingComplete ? "Salvando..." : "Marcar como concluída"}
+                <button type="button" role="menuitem" data-tour="aula-btn-trechos" onClick={() => { openSectionPanel("trechos"); setToolsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]">
+                  <BookMarked className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden /> Trechos destacados
                 </button>
-              )}
-            </div>
+                <button type="button" role="menuitem" data-tour="aula-btn-material" onClick={() => { openSectionPanel("material"); setToolsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]">
+                  <FileText className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden /> Material complementar
+                </button>
+                <button type="button" role="menuitem" data-tour="aula-btn-anotacoes" onClick={() => { openSectionPanel("anotacoes"); setToolsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]">
+                  <StickyNote className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden /> Anotações
+                </button>
+                <button type="button" role="menuitem" data-tour="aula-btn-exercicios" disabled={!prog?.completed} title={prog?.completed ? undefined : "Conclua a aula para acessar os exercícios"} onClick={() => { if (prog?.completed) { openSectionPanel("exercicios"); setToolsOpen(false); } }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:cursor-not-allowed disabled:opacity-50">
+                  <ClipboardList className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden /> Exercícios
+                </button>
+                <button type="button" role="menuitem" data-tour="aula-btn-duvidas" onClick={() => { openSectionPanel("duvidas"); setToolsOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]">
+                  <MessageCircleQuestion className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden /> Fórum
+                </button>
+                <button type="button" role="menuitem" onClick={() => { setProgressDetailsOpen((v) => !v); setOpenSection(null); setToolsOpen(false); setTimeout(() => document.getElementById("ferramentas")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]">
+                  <History className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden /> Progresso e histórico
+                </button>
+                {lesson.summary && lesson.summary.trim() ? (
+                  <button type="button" role="menuitem" onClick={() => { setToolsOpen(false); setTimeout(() => { const el = document.getElementById("aula-resumo") as HTMLDetailsElement | null; if (el) el.open = true; el?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]">
+                    <FileText className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden /> Resumo da aula
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
 
-            <div className="mt-6 border-t border-[var(--card-border)] pt-6" data-tour="aula-historico">
-              <h3 className="mb-3 text-sm font-bold text-[var(--text-primary)]">Histórico de estudo</h3>
-              <dl className="grid gap-4 text-sm sm:grid-cols-3">
-                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-4 py-3">
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Último acesso</dt>
-                  <dd className="mt-1 font-semibold text-[var(--text-primary)]">
-                    {prog.lastAccessedAt ? formatNoteDate(prog.lastAccessedAt) : "—"}
-                  </dd>
-                </div>
-                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-4 py-3">
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Tempo estudado</dt>
-                  <dd className="mt-1 font-semibold text-[var(--text-primary)]">
-                    {formatStudyDuration(prog.totalMinutesStudied)}
-                  </dd>
-                </div>
-                <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-4 py-3">
-                  <dt className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Conclusão</dt>
-                  <dd className="mt-1 font-semibold text-[var(--text-primary)]">
-                    {prog.completedAt ? formatNoteDate(prog.completedAt) : "—"}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          </SectionCard>
+          <div className="relative" ref={courseNavRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setCourseNavOpen((v) => !v);
+                setToolsOpen(false);
+              }}
+              className={`inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                courseNavOpen
+                  ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10 text-[var(--igh-primary)]"
+                  : "border-[var(--card-border)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+              }`}
+              aria-expanded={courseNavOpen}
+              aria-haspopup="menu"
+              data-tour="aula-nav-aulas"
+            >
+              <MoreHorizontal className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="hidden sm:inline">Navegar</span>
+            </button>
+            {courseNavOpen && (
+              <div role="menu" className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-1.5 shadow-lg">
+                {prevLesson ? (
+                  <Link role="menuitem" href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${prevLesson.id}`} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]" onClick={() => setCourseNavOpen(false)}>
+                    <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden /> Aula anterior
+                  </Link>
+                ) : (
+                  <span className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-[var(--text-muted)]"><ChevronLeft className="h-4 w-4 shrink-0" aria-hidden /> Aula anterior</span>
+                )}
+                {nextLesson ? (
+                  mustAnswerExercisesBeforeNext ? (
+                    <button type="button" role="menuitem" onClick={() => { setCourseNavOpen(false); toast.push("error", "Responda todos os exercícios desta aula antes de avançar para a próxima."); openSectionPanel("exercicios"); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]">
+                      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden /> Próxima aula
+                    </button>
+                  ) : !nextLessonIsUnlocked ? (
+                    <button type="button" role="menuitem" onClick={() => { setCourseNavOpen(false); toast.push("error", "A próxima aula ainda não está liberada pelo cronograma da turma. Volte em breve ou consulte a lista de aulas."); }} className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[var(--text-muted)]">
+                      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden /> Próxima aula
+                    </button>
+                  ) : (
+                    <Link role="menuitem" href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]" onClick={() => setCourseNavOpen(false)}>
+                      <ChevronRight className="h-4 w-4 shrink-0" aria-hidden /> Próxima aula
+                    </Link>
+                  )
+                ) : (
+                  <span className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-[var(--text-muted)]"><ChevronRight className="h-4 w-4 shrink-0" aria-hidden /> Próxima aula</span>
+                )}
+                <Link role="menuitem" href="/minhas-turmas/favoritos" className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]" onClick={() => setCourseNavOpen(false)}>
+                  <BookMarked className="h-4 w-4 shrink-0" aria-hidden /> Favoritos
+                </Link>
+                <Link role="menuitem" href={`/minhas-turmas/${enrollmentId}/conteudo`} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]" onClick={() => setCourseNavOpen(false)}>
+                  <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden /> Conteúdo do curso
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
 
-          {/* Menu do painel: no PC expandido (nomes visíveis); no mobile só ícones até expandir. */}
-          <div ref={sectionsBarRef} id="secoes" className="scroll-mt-24" data-tour="aula-secoes">
-          <SectionCard
-            title="Seções da aula"
-            description="Trechos salvos, material, anotações, exercícios (após concluir a aula) e fórum."
-          >
-            <nav aria-label="Seções da aula" className="flex flex-wrap items-center gap-2">
-            {!panelMenuCollapsed ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => openSectionPanel("trechos")}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                    openSection === "trechos"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  aria-pressed={openSection === "trechos"}
-                  data-tour="aula-btn-trechos"
-                >
-                  <BookMarked className="h-4 w-4 shrink-0" aria-hidden />
-                  Trechos destacados
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openSectionPanel("material")}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                    openSection === "material"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  aria-pressed={openSection === "material"}
-                  data-tour="aula-btn-material"
-                >
-                  <FileText className="h-4 w-4 shrink-0" aria-hidden />
-                  Material complementar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openSectionPanel("anotacoes")}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                    openSection === "anotacoes"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  aria-pressed={openSection === "anotacoes"}
-                  data-tour="aula-btn-anotacoes"
-                >
-                  <StickyNote className="h-4 w-4 shrink-0" aria-hidden />
-                  Bloco de anotações
-                </button>
-                <button
-                  type="button"
-                  onClick={() => prog?.completed && openSectionPanel("exercicios")}
-                  disabled={!prog?.completed}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--card-bg)] ${
-                    openSection === "exercicios"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  aria-pressed={openSection === "exercicios"}
-                  title={prog?.completed ? undefined : "Conclua a aula para acessar os exercícios"}
-                  data-tour="aula-btn-exercicios"
-                >
-                  <ClipboardList className="h-4 w-4 shrink-0" aria-hidden />
-                  Exercícios
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openSectionPanel("duvidas")}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                    openSection === "duvidas"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  aria-pressed={openSection === "duvidas"}
-                  data-tour="aula-btn-duvidas"
-                >
-                  <MessageCircleQuestion className="h-4 w-4 shrink-0" aria-hidden />
-                  Fórum
-                </button>
+      {/* Palco: vídeo + conteúdo */}
+      <div className="flex flex-col gap-4">
+          {lesson.videoUrl && (
+            <section className="overflow-hidden rounded-xl border border-[var(--card-border)] bg-black shadow-sm" data-tour="aula-video" aria-label="Vídeo da aula">
+              <div className="aspect-video w-full">
+                <LessonVideoPlayer videoUrl={lesson.videoUrl} />
+              </div>
+            </section>
+          )}
+
+          {lesson.contentRich && lesson.contentRich.trim() && (
+            <div id="conteudo" className="scroll-mt-20" data-tour="aula-conteudo">
+              <div
+                ref={contentWrapperRef}
+                className={
+                  isContentFullscreen
+                    ? "flex h-[100dvh] flex-col overflow-hidden bg-[var(--card-bg)]"
+                    : "flex flex-col overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-sm"
+                }
+              >
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 border-b border-[var(--card-border)] px-3 py-2">
+                  <div className="flex items-center gap-1" data-tour="aula-fonte">
+                    <button
+                      type="button"
+                      onClick={() => setContentFontSizePercent((p) => Math.max(50, p - 10))}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-50"
+                      title="Diminuir fonte"
+                      aria-label="Diminuir fonte do texto"
+                      disabled={contentFontSizePercent <= 50}
+                    >
+                      <Type className="mr-0.5 h-4 w-4" aria-hidden />
+                      <Minus className="h-3 w-3" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setContentFontSizePercent((p) => Math.min(200, p + 10))}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-50"
+                      title="Aumentar fonte"
+                      aria-label="Aumentar fonte do texto"
+                      disabled={contentFontSizePercent >= 200}
+                    >
+                      <Type className="mr-0.5 h-4 w-4" aria-hidden />
+                      <Plus className="h-3 w-3" aria-hidden />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent("highlightable-content-destacar"))}
+                    disabled={savingPassage}
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
+                    title={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
+                    aria-label={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
+                    data-tour="aula-destacar-trecho"
+                  >
+                    <Highlighter className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="hidden sm:inline">{savingPassage ? "Salvando..." : "Destacar"}</span>
+                  </button>
+                  {!isContentFullscreen && (
+                    <button
+                      type="button"
+                      onClick={() => contentWrapperRef.current?.requestFullscreen()}
+                      className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                      title="Tela cheia"
+                      aria-label="Expandir em tela cheia"
+                      data-tour="aula-tela-cheia"
+                    >
+                      <Maximize2 className="h-4 w-4" aria-hidden />
+                      <span className="hidden sm:inline">Tela cheia</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className={`min-h-0 flex-1 overflow-auto px-4 py-4 ${isContentFullscreen ? "sm:px-8" : ""}`} style={{ minHeight: isContentFullscreen ? undefined : "12rem" }}>
+                  <div
+                    className="origin-top-left"
+                    style={{
+                      width: `${10000 / contentFontSizePercent}%`,
+                      transform: `scale(${contentFontSizePercent / 100})`,
+                    }}
+                  >
+                    <HighlightableContentViewer
+                      content={contentToShow}
+                      passages={passagesForCurrentPage}
+                      onSavePassage={handleSavePassageForPage}
+                      saving={savingPassage}
+                      hideDestacarButton
+                      onWarning={(msg) => toast.push("error", msg)}
+                    />
+                  </div>
+                </div>
+
+                {(hasMultiplePages || isContentFullscreen) && (
+                  <nav
+                    aria-label="Páginas do conteúdo"
+                    data-tour="aula-slides"
+                    className="flex shrink-0 items-center justify-between gap-2 border-t border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-3"
+                    style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+                  >
+                    {hasMultiplePages ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const prev = Math.max(0, contentPageIndex - 1);
+                            const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+                            navigator.sendBeacon(apiUrl, new Blob([JSON.stringify({ lastContentPageIndex: prev })], { type: "application/json" }));
+                            persistSlideIndex(prev, "clique Slide anterior");
+                            router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${prev + 1}#conteudo`);
+                            if (!isContentFullscreen) {
+                              setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                            }
+                          }}
+                          disabled={contentPageIndex === 0}
+                          aria-label="Slide anterior"
+                          className="inline-flex min-h-11 min-w-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm font-semibold text-[var(--text-primary)] hover:border-[var(--igh-primary)]/40 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:flex-none sm:px-4"
+                        >
+                          <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
+                          <span className="hidden sm:inline">Anterior</span>
+                        </button>
+                        <span className="shrink-0 px-2 text-sm font-medium text-[var(--text-muted)]">
+                          {contentPageIndex + 1}/{contentPages.length}
+                        </span>
+                        {contentPageIndex === contentPages.length - 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+                              navigator.sendBeacon(apiUrl, new Blob([JSON.stringify({ lastContentPageIndex: 0 })], { type: "application/json" }));
+                              persistSlideIndex(0, "clique Primeiro slide");
+                              router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=1#conteudo`);
+                              if (!isContentFullscreen) {
+                                setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                              }
+                            }}
+                            aria-label="Primeiro slide"
+                            className="inline-flex min-h-11 min-w-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm font-semibold text-[var(--text-primary)] hover:border-[var(--igh-primary)]/40 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:flex-none sm:px-4"
+                          >
+                            <ChevronsLeft className="h-5 w-5 shrink-0" aria-hidden />
+                            <span className="hidden sm:inline">Início</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = contentPageIndex + 1;
+                              const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
+                              navigator.sendBeacon(apiUrl, new Blob([JSON.stringify({ lastContentPageIndex: next })], { type: "application/json" }));
+                              persistSlideIndex(next, "clique Próximo slide");
+                              router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${next + 1}#conteudo`);
+                              if (!isContentFullscreen) {
+                                setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+                              }
+                            }}
+                            aria-label="Próximo slide"
+                            className="inline-flex min-h-11 min-w-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm font-semibold text-[var(--text-primary)] hover:border-[var(--igh-primary)]/40 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:flex-none sm:px-4"
+                          >
+                            <span className="hidden sm:inline">Próximo</span>
+                            <ChevronRight className="h-5 w-5 shrink-0" aria-hidden />
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <span className="flex-1" aria-hidden />
+                    )}
+                    {isContentFullscreen && (
+                      <button
+                        type="button"
+                        onClick={() => document.exitFullscreen()}
+                        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm font-semibold text-[var(--text-primary)] hover:border-[var(--igh-primary)]/40 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                        title="Sair da tela cheia"
+                        aria-label="Sair da tela cheia"
+                      >
+                        <Minimize2 className="h-4 w-4" aria-hidden />
+                        <span className="hidden sm:inline">Sair</span>
+                      </button>
+                    )}
+                  </nav>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!lesson.videoUrl && !(lesson.contentRich && lesson.contentRich.trim()) && lesson.imageUrls.length === 0 && !(lesson.summary && lesson.summary.trim()) && (!lesson.attachmentUrls || lesson.attachmentUrls.length === 0) && (
+            <SectionCard title="Conteúdo" description="Esta aula ainda não tem material principal cadastrado.">
+              <p className="text-center text-sm text-[var(--text-muted)]">Nenhum conteúdo adicional para esta aula.</p>
+            </SectionCard>
+          )}
+
+          {/* CTA pós-estudo: próxima aula */}
+          {nextLesson && prog.completed && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/80 px-4 py-3">
+              <p className="text-sm text-[var(--text-muted)]">Continue o curso</p>
+              {mustAnswerExercisesBeforeNext ? (
                 <button
                   type="button"
                   onClick={() => {
-                    setPanelMenuCollapsed(true);
+                    toast.push("error", "Responda todos os exercícios desta aula antes de avançar para a próxima.");
+                    openSectionPanel("exercicios");
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--igh-primary)] px-4 py-2.5 text-sm font-bold text-white"
+                >
+                  Ir aos exercícios <ChevronRight className="h-4 w-4" aria-hidden />
+                </button>
+              ) : nextLessonIsUnlocked ? (
+                <Link
+                  href={`/minhas-turmas/${enrollmentId}/conteudo/aula/${nextLesson.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--igh-primary)] px-4 py-2.5 text-sm font-bold text-white"
+                >
+                  Próxima aula <ChevronRight className="h-4 w-4" aria-hidden />
+                </Link>
+              ) : null}
+            </div>
+          )}
+
+          {/* Ferramentas sob demanda */}
+          <div id="ferramentas" className="scroll-mt-24" data-tour="aula-secoes">
+            {(openSection || progressDetailsOpen) && (
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Ferramentas da aula</p>
+                <button
+                  type="button"
+                  onClick={() => {
                     setOpenSection(null);
+                    setProgressDetailsOpen(false);
                     const path = `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}`;
                     const params = new URLSearchParams(searchParams.toString());
                     params.delete("secao");
                     const qs = params.toString();
-                    router.replace(qs ? `${path}?${qs}#secoes` : `${path}#secoes`);
-                    setTimeout(() => {
-                      document.getElementById("secoes")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }, 150);
+                    router.replace(qs ? `${path}?${qs}` : path);
                   }}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                  title="Recolher menu"
-                  aria-label="Recolher menu"
+                  className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-[var(--text-muted)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)]"
+                  aria-label="Fechar painel"
                 >
-                  <ChevronUp className="h-4 w-4 shrink-0" aria-hidden />
-                  Recolher
+                  <X className="h-3.5 w-3.5" aria-hidden /> Fechar
                 </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => openSectionPanel("trechos")}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                    openSection === "trechos"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  title="Trechos destacados"
-                  aria-label="Trechos destacados"
-                  aria-pressed={openSection === "trechos"}
-                  data-tour="aula-btn-trechos"
-                >
-                  <BookMarked className="h-5 w-5" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openSectionPanel("material")}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                    openSection === "material"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  title="Material complementar"
-                  aria-label="Material complementar"
-                  aria-pressed={openSection === "material"}
-                  data-tour="aula-btn-material"
-                >
-                  <FileText className="h-5 w-5" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openSectionPanel("anotacoes")}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                    openSection === "anotacoes"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  title="Bloco de anotações"
-                  aria-label="Bloco de anotações"
-                  aria-pressed={openSection === "anotacoes"}
-                  data-tour="aula-btn-anotacoes"
-                >
-                  <StickyNote className="h-5 w-5" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => prog?.completed && openSectionPanel("exercicios")}
-                  disabled={!prog?.completed}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[var(--card-bg)] ${
-                    openSection === "exercicios"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  title={prog?.completed ? "Exercícios" : "Conclua a aula para acessar os exercícios"}
-                  aria-label="Exercícios"
-                  aria-pressed={openSection === "exercicios"}
-                  data-tour="aula-btn-exercicios"
-                >
-                  <ClipboardList className="h-5 w-5" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openSectionPanel("duvidas")}
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                    openSection === "duvidas"
-                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
-                      : "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
-                  }`}
-                  title="Dúvidas"
-                  aria-label="Dúvidas"
-                  aria-pressed={openSection === "duvidas"}
-                  data-tour="aula-btn-duvidas"
-                >
-                  <MessageCircleQuestion className="h-5 w-5" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanelMenuCollapsed(false)}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                  title="Expandir menu"
-                  aria-label="Expandir menu"
-                >
-                  <ChevronDown className="h-5 w-5" aria-hidden />
-                </button>
-              </>
+              </div>
             )}
-            </nav>
-          </SectionCard>
-          </div>
+
+            {progressDetailsOpen && (
+              <div className="mb-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)]/95 p-4 shadow-sm sm:p-5" data-tour="aula-progresso">
+                <h2 className="mb-3 text-base font-semibold text-[var(--text-primary)]">Progresso e histórico</h2>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${prog.completed ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300" : "bg-amber-500/15 text-amber-900 dark:text-amber-200"}`}>
+                    {prog.completed ? "Concluída" : "Em andamento"}
+                  </span>
+                  {!prog.completed && (
+                    <button type="button" onClick={handleMarkComplete} disabled={markingComplete} className="rounded-lg bg-[var(--igh-primary)] px-3 py-2 text-sm font-bold text-white disabled:opacity-60">
+                      {markingComplete ? "Salvando..." : "Marcar como concluída"}
+                    </button>
+                  )}
+                </div>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3" data-tour="aula-historico">
+                  <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2.5">
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Último acesso</dt>
+                    <dd className="mt-1 font-semibold text-[var(--text-primary)]">{prog.lastAccessedAt ? formatNoteDate(prog.lastAccessedAt) : "—"}</dd>
+                  </div>
+                  <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2.5">
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Tempo estudado</dt>
+                    <dd className="mt-1 font-semibold text-[var(--text-primary)]">{formatStudyDuration(prog.totalMinutesStudied)}</dd>
+                  </div>
+                  <div className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-3 py-2.5">
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Conclusão</dt>
+                    <dd className="mt-1 font-semibold text-[var(--text-primary)]">{prog.completedAt ? formatNoteDate(prog.completedAt) : "—"}</dd>
+                  </div>
+                </dl>
+              </div>
+            )}
 
           {openSection && (
-            <div ref={sectionPanelRef} className="scroll-mt-24 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)]/95 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+            <div ref={sectionPanelRef} className="scroll-mt-24 mt-3 rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)]/95 p-4 shadow-sm backdrop-blur-sm sm:p-5">
               {openSection === "trechos" && (
                 <div>
                   <h2 className="mb-2 text-base font-semibold text-[var(--text-primary)]">Trechos destacados</h2>
@@ -2303,6 +2139,7 @@ export default function AulaConteudoPage() {
                               onClick={() => {
                                 setExerciseResult({});
                                 setExerciseSelected({});
+                                setCurrentLessonExercisesComplete(false);
                               }}
                               className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
                             >
@@ -2538,15 +2375,11 @@ export default function AulaConteudoPage() {
             </div>
           )}
 
-          {lesson.summary && lesson.summary.trim() && (
-            <SectionCard
-              title="Resumo rápido da aula"
-              description="O que você vai aprender nesta lição."
-              variant="elevated"
-              dataTour="aula-resumo"
-            >
-              <div className="rounded-xl border border-[var(--igh-primary)]/25 bg-[var(--igh-primary)]/5 px-4 py-4">
-                <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-[var(--text-secondary)]">
+
+            {lesson.summary && lesson.summary.trim() && (
+              <details id="aula-resumo" className="scroll-mt-24 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/80 px-4 py-3" data-tour="aula-resumo">
+                <summary className="cursor-pointer text-sm font-semibold text-[var(--text-secondary)]">Resumo da aula</summary>
+                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-relaxed text-[var(--text-secondary)]">
                   {lesson.summary
                     .trim()
                     .split(/\n/)
@@ -2556,298 +2389,11 @@ export default function AulaConteudoPage() {
                       <li key={i}>{line.replace(/^[•\-*]\s*/, "")}</li>
                     ))}
                 </ul>
-              </div>
-            </SectionCard>
-          )}
-
-          {lesson.videoUrl && (
-            <SectionCard title="Vídeo da aula" variant="elevated" dataTour="aula-video">
-              <div className="flex justify-center overflow-hidden rounded-xl bg-black shadow-inner">
-                <div className="aspect-video w-full max-w-3xl">
-                  <LessonVideoPlayer videoUrl={lesson.videoUrl} />
-                </div>
-              </div>
-            </SectionCard>
-          )}
-
-          {lesson.contentRich && lesson.contentRich.trim() && (
-            <div id="conteudo" className="scroll-mt-24" data-tour="aula-conteudo">
-            <SectionCard
-              title="Conteúdo para leitura"
-              description="Páginas do material, tamanho da fonte, destaques e tela cheia."
-            >
-              <div
-                ref={contentWrapperRef}
-                className={`rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 ${isContentFullscreen ? "min-h-screen overflow-y-auto overflow-x-hidden p-6" : ""}`}
-              >
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  {hasMultiplePages ? (
-                    <nav aria-label="Páginas do conteúdo" className="flex flex-wrap items-center gap-2" data-tour="aula-slides">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const prev = Math.max(0, contentPageIndex - 1);
-                          const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
-                          const body = JSON.stringify({ lastContentPageIndex: prev });
-                          console.log("[Slide] Clique em Slide anterior → sendBeacon + fetch índice", prev, "(página", prev + 1, ")");
-                          navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
-                          persistSlideIndex(prev, "clique Slide anterior");
-                          router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${prev + 1}#conteudo`);
-                          setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-                        }}
-                        disabled={contentPageIndex === 0}
-                        aria-label="Slide anterior"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-3 sm:py-1.5"
-                      >
-                        <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
-                        <span className="hidden sm:inline">Slide anterior</span>
-                      </button>
-                      <span className="text-sm text-[var(--text-muted)]">
-                        <span className="hidden sm:inline">Página </span>
-                        {contentPageIndex + 1}/{contentPages.length}
-                      </span>
-                      {contentPageIndex === contentPages.length - 1 ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const first = 0;
-                            const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
-                            const body = JSON.stringify({ lastContentPageIndex: first });
-                            navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
-                            persistSlideIndex(first, "clique Primeiro slide");
-                            router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=1#conteudo`);
-                            setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-                          }}
-                          aria-label="Primeiro slide"
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-3 sm:py-1.5"
-                        >
-                          <ChevronsLeft className="h-4 w-4 shrink-0" aria-hidden />
-                          <span className="hidden sm:inline">Primeiro slide</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = contentPageIndex + 1;
-                            const apiUrl = `/api/me/enrollments/${enrollmentId}/lesson-progress/${lessonId}`;
-                            const body = JSON.stringify({ lastContentPageIndex: next });
-                            console.log("[Slide] Clique em Próximo slide → sendBeacon + fetch índice", next, "(página", next + 1, ")");
-                            navigator.sendBeacon(apiUrl, new Blob([body], { type: "application/json" }));
-                            persistSlideIndex(next, "clique Próximo slide");
-                            router.replace(`/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}?pagina=${next + 1}#conteudo`);
-                            setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-                          }}
-                          aria-label="Próximo slide"
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-3 sm:py-1.5"
-                        >
-                          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
-                          <span className="hidden sm:inline">Próximo slide</span>
-                        </button>
-                      )}
-                    </nav>
-                  ) : (
-                    <span aria-hidden />
-                  )}
-                  <div className="flex items-center gap-1" data-tour="aula-fonte">
-                    <button
-                      type="button"
-                      onClick={() => setContentFontSizePercent((p) => Math.max(50, p - 10))}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-50"
-                      title="Diminuir fonte"
-                      aria-label="Diminuir fonte do texto"
-                      disabled={contentFontSizePercent <= 50}
-                    >
-                      <Type className="mr-0.5 h-4 w-4" aria-hidden />
-                      <Minus className="h-3 w-3" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setContentFontSizePercent((p) => Math.min(200, p + 10))}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-50"
-                      title="Aumentar fonte"
-                      aria-label="Aumentar fonte do texto"
-                      disabled={contentFontSizePercent >= 200}
-                    >
-                      <Type className="mr-0.5 h-4 w-4" aria-hidden />
-                      <Plus className="h-3 w-3" aria-hidden />
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => window.dispatchEvent(new CustomEvent("highlightable-content-destacar"))}
-                    disabled={savingPassage}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60 sm:px-3 sm:py-1.5"
-                    title={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
-                    aria-label={savingPassage ? "Salvando..." : "Destacar trecho selecionado"}
-                    data-tour="aula-destacar-trecho"
-                  >
-                    <Highlighter className="h-4 w-4 shrink-0" aria-hidden />
-                    <span className="hidden sm:inline">{savingPassage ? "Salvando..." : "Destacar trecho selecionado"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      document.fullscreenElement === contentWrapperRef.current
-                        ? document.exitFullscreen()
-                        : contentWrapperRef.current?.requestFullscreen()
-                    }
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-bg)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 sm:px-3 sm:py-1.5"
-                    title={isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}
-                    aria-label={isContentFullscreen ? "Sair da tela cheia" : "Expandir em tela cheia"}
-                    data-tour="aula-tela-cheia"
-                  >
-                    {isContentFullscreen ? (
-                      <Minimize2 className="h-4 w-4" aria-hidden />
-                    ) : (
-                      <Maximize2 className="h-4 w-4" aria-hidden />
-                    )}
-                    <span className="hidden sm:inline">{isContentFullscreen ? "Sair da tela cheia" : "Tela cheia"}</span>
-                  </button>
-                </div>
-                <div className="overflow-auto" style={{ minHeight: "12rem" }}>
-                  <div
-                    className="origin-top-left"
-                    style={{
-                      width: `${10000 / contentFontSizePercent}%`,
-                      transform: `scale(${contentFontSizePercent / 100})`,
-                    }}
-                  >
-                    <HighlightableContentViewer
-                      content={contentToShow}
-                      passages={passagesForCurrentPage}
-                      onSavePassage={handleSavePassageForPage}
-                      saving={savingPassage}
-                      hideDestacarButton
-                      onWarning={(msg) => toast.push("error", msg)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </SectionCard>
-            </div>
-          )}
-
-
-          {!lesson.videoUrl && !(lesson.contentRich && lesson.contentRich.trim()) && lesson.imageUrls.length === 0 && !(lesson.summary && lesson.summary.trim()) && (!lesson.attachmentUrls || lesson.attachmentUrls.length === 0) && (
-            <SectionCard title="Conteúdo" description="Esta aula ainda não tem material principal cadastrado.">
-              <p className="text-center text-sm text-[var(--text-muted)]">Nenhum conteúdo adicional para esta aula.</p>
-            </SectionCard>
-          )}
-
-          <section id="anotacoes-legacy" className="hidden" aria-hidden>
-            <h2 id="anotacoes-heading" className="mb-1 text-base font-semibold text-[var(--text-primary)]">
-              Bloco de anotações
-            </h2>
-            <p className="mb-4 text-xs text-[var(--text-muted)]">
-              Suas anotações ficam salvas por aula. Opcionalmente, informe o minuto do vídeo (ex.: 12:34 ou 5).
-            </p>
-            <div className="mb-4 flex flex-col gap-3">
-              <label htmlFor="note-content" className="sr-only">Texto da anotação</label>
-              <textarea
-                id="note-content"
-                value={noteContent}
-                onChange={(e) => setNoteContent(e.target.value)}
-                placeholder="Digite sua anotação..."
-                rows={3}
-                className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <label htmlFor="note-minute" className="text-xs text-[var(--text-muted)]">
-                  Minuto do vídeo (opcional):
-                </label>
-                <input
-                  id="note-minute"
-                  type="text"
-                  value={noteVideoMinute}
-                  onChange={(e) => setNoteVideoMinute(e.target.value)}
-                  placeholder="ex: 12:34 ou 5"
-                  className="w-24 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveNote}
-                  disabled={savingNote || !noteContent.trim()}
-                  aria-busy={savingNote}
-                  className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-60"
-                >
-                  {savingNote ? "Salvando..." : "Salvar anotação"}
-                </button>
-              </div>
-            </div>
-            {notes.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-6 text-center text-sm text-[var(--text-muted)]">
-                Nenhuma anotação ainda. Use o campo acima para registrar suas ideias durante a aula.
-              </p>
-            ) : (
-              <ul className="space-y-3">
-                {notes.map((note) => (
-                  <li
-                    key={note.id}
-                    className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs text-[var(--text-muted)]">
-                        <span>{formatNoteDate(note.createdAt)}</span>
-                        {note.videoTimestampLabel != null && (
-                          <span className="font-medium text-[var(--igh-secondary)]">
-                            · Vídeo {note.videoTimestampLabel}
-                          </span>
-                        )}
-                      </div>
-                      <p className="whitespace-pre-wrap text-[var(--text-primary)]">{note.content}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteNote(note.id)}
-                      className="shrink-0 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 focus-visible:outline focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-                      title="Excluir anotação"
-                    >
-                      Excluir
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              </details>
             )}
-          </section>
-
+          </div>
       </div>
-
-        <section aria-label="Atalhos úteis" className="pb-2">
-          <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">Atalhos úteis</h2>
-          <p className="mb-4 text-sm text-[var(--text-muted)]">Volte ao curso, veja exercícios da turma ou sua matrícula.</p>
-          <QuickActionGrid
-            items={[
-              {
-                href: `/minhas-turmas/${enrollmentId}/conteudo`,
-                label: "Conteúdo do curso",
-                description: "Módulos e lista de aulas",
-                icon: BookOpen,
-                accent: "from-[var(--igh-primary)] to-violet-600",
-              },
-              {
-                href: `/minhas-turmas/${enrollmentId}/exercicios`,
-                label: "Exercícios da turma",
-                description: "Acertos e revisão por aula",
-                icon: ListVideo,
-                accent: "from-sky-500 to-cyan-600",
-              },
-              {
-                href: `/minhas-turmas/${enrollmentId}`,
-                label: "Detalhe da turma",
-                description: "Informações da matrícula",
-                icon: GraduationCap,
-                accent: "from-slate-600 to-slate-800",
-              },
-              {
-                href: "/minhas-turmas/favoritos",
-                label: "Favoritos",
-                description: "Aulas salvas",
-                icon: BookMarked,
-                accent: "from-amber-500 to-orange-600",
-              },
-            ]}
-          />
-        </section>
     </div>
   );
 }
+
