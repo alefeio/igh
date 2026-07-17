@@ -1,6 +1,6 @@
 import "server-only";
 
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
@@ -302,30 +302,108 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
   return { cycle: { cycle: cycle.cycle, year: cycle.year }, turmaRows, courseRows };
 }
 
-export function buildCycleClassGroupsReportXlsx(params: {
+const HEADER_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FF1F4E79" },
+};
+const HEADER_FONT: Partial<ExcelJS.Font> = {
+  bold: true,
+  color: { argb: "FFFFFFFF" },
+  size: 11,
+  name: "Calibri",
+};
+const TITLE_FONT: Partial<ExcelJS.Font> = {
+  bold: true,
+  size: 14,
+  color: { argb: "FF1F4E79" },
+  name: "Calibri",
+};
+const BODY_FONT: Partial<ExcelJS.Font> = { name: "Calibri", size: 11 };
+const THIN_BORDER: Partial<ExcelJS.Borders> = {
+  top: { style: "thin", color: { argb: "FFB0B0B0" } },
+  left: { style: "thin", color: { argb: "FFB0B0B0" } },
+  bottom: { style: "thin", color: { argb: "FFB0B0B0" } },
+  right: { style: "thin", color: { argb: "FFB0B0B0" } },
+};
+const ALT_ROW_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFF2F2F2" },
+};
+
+function autoWidth(worksheet: ExcelJS.Worksheet, min = 8, max = 42) {
+  worksheet.columns.forEach((column) => {
+    if (!column || typeof column.eachCell !== "function") return;
+    let longest = min;
+    column.eachCell({ includeEmpty: true }, (cell) => {
+      const v = cell.value;
+      let len = 0;
+      if (v == null) len = 0;
+      else if (typeof v === "object" && "text" in v && typeof (v as { text?: string }).text === "string") {
+        len = (v as { text: string }).text.length;
+      } else if (typeof v === "object" && "result" in v) {
+        len = String((v as { result?: unknown }).result ?? "").length;
+      } else {
+        len = String(v).length;
+      }
+      if (len > longest) longest = len;
+    });
+    column.width = Math.min(max, Math.max(min, longest + 2));
+  });
+}
+
+function styleHeaderRow(row: ExcelJS.Row, colCount: number) {
+  row.height = 22;
+  row.font = HEADER_FONT;
+  row.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+  for (let c = 1; c <= colCount; c++) {
+    const cell = row.getCell(c);
+    cell.fill = HEADER_FILL;
+    cell.border = THIN_BORDER;
+    cell.font = HEADER_FONT;
+  }
+}
+
+function styleDataRow(row: ExcelJS.Row, colCount: number, alt: boolean) {
+  row.font = BODY_FONT;
+  row.alignment = { vertical: "middle", wrapText: true };
+  for (let c = 1; c <= colCount; c++) {
+    const cell = row.getCell(c);
+    cell.border = THIN_BORDER;
+    if (alt) cell.fill = ALT_ROW_FILL;
+  }
+}
+
+function setNum(cell: ExcelJS.Cell, value: number | null | undefined, format?: string) {
+  if (value == null || Number.isNaN(value)) {
+    cell.value = "—";
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    return;
+  }
+  cell.value = value;
+  if (format) cell.numFmt = format;
+  cell.alignment = { horizontal: "right", vertical: "middle" };
+}
+
+export async function buildCycleClassGroupsReportXlsx(params: {
   cycle: { cycle: number; year: number };
   turmaRows: CycleClassGroupReportRow[];
   courseRows: CycleCourseReportRow[];
-}): Buffer {
-  const glossario = [
-    ["Campo", "Significado"],
-    ["Inscritos", "Matrículas com status ACTIVE"],
-    ["Suspensos", "Matrículas com status SUSPENDED"],
-    ["Base formação", "Inscritos (ACTIVE) + Suspensos"],
-    [
-      "Formados",
-      "Alunos com Certificado = Sim (aptos) e turma ENCERRADA",
-    ],
-    ["Taxa formados %", "Formados ÷ Base formação × 100"],
-    [
-      "Freq. média %",
-      "Média das frequências individuais (ACTIVE e SUSPENDED); sessões até hoje, exceto canceladas",
-    ],
-    ["Ocupação %", "Inscritos ÷ Capacidade × 100"],
-    ["Turmas incluídas", "Todas do ciclo, exceto CANCELADA (inclui INTERNO e EXTERNO)"],
-  ];
+}): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Cadastro Cursos IGH";
+  wb.created = new Date();
+  const title = `Relatório do ciclo ${params.cycle.cycle}/${params.cycle.year}`;
+  const generatedAt = new Date().toLocaleString("pt-BR", { timeZone: "America/Belem" });
 
-  const turmaHeader = [
+  // --- Turmas ---
+  const wsTurmas = wb.addWorksheet("Turmas", {
+    views: [{ state: "frozen", ySplit: 2, showGridLines: false }],
+    properties: { defaultRowHeight: 18 },
+  });
+
+  const turmaHeaders = [
     "Ciclo",
     "Curso",
     "Professor(es)",
@@ -347,32 +425,64 @@ export function buildCycleClassGroupsReportXlsx(params: {
     "Fim",
   ];
 
-  const turmaAoA = [
-    turmaHeader,
-    ...params.turmaRows.map((r) => [
-      r.cycleLabel,
-      r.courseName,
-      r.teachers,
-      r.daysOfWeek,
-      r.schedule,
-      r.location,
-      r.statusLabel,
-      r.capacity,
-      r.inscritos,
-      r.ocupacaoPercent ?? "",
-      r.suspensos,
-      r.cancelados,
-      r.baseFormacao,
-      r.formados,
-      r.taxaFormadosPercent ?? "",
-      r.frequenciaMediaPercent ?? "",
-      r.sessoes,
-      r.startDate,
-      r.endDate,
-    ]),
-  ];
+  wsTurmas.mergeCells(1, 1, 1, turmaHeaders.length);
+  const titleCell = wsTurmas.getCell(1, 1);
+  titleCell.value = `${title} — Turmas`;
+  titleCell.font = TITLE_FONT;
+  titleCell.alignment = { vertical: "middle", horizontal: "left" };
+  wsTurmas.getRow(1).height = 26;
 
-  const courseHeader = [
+  const headerRowTurmas = wsTurmas.getRow(2);
+  turmaHeaders.forEach((h, i) => {
+    headerRowTurmas.getCell(i + 1).value = h;
+  });
+  styleHeaderRow(headerRowTurmas, turmaHeaders.length);
+
+  params.turmaRows.forEach((r, idx) => {
+    const row = wsTurmas.getRow(idx + 3);
+    row.getCell(1).value = r.cycleLabel;
+    row.getCell(2).value = r.courseName;
+    row.getCell(3).value = r.teachers;
+    row.getCell(4).value = r.daysOfWeek;
+    row.getCell(5).value = r.schedule;
+    row.getCell(6).value = r.location || "—";
+    row.getCell(7).value = r.statusLabel;
+    setNum(row.getCell(8), r.capacity, "0");
+    setNum(row.getCell(9), r.inscritos, "0");
+    setNum(row.getCell(10), r.ocupacaoPercent, "0.0");
+    setNum(row.getCell(11), r.suspensos, "0");
+    setNum(row.getCell(12), r.cancelados, "0");
+    setNum(row.getCell(13), r.baseFormacao, "0");
+    setNum(row.getCell(14), r.formados, "0");
+    setNum(row.getCell(15), r.taxaFormadosPercent, "0.0");
+    setNum(row.getCell(16), r.frequenciaMediaPercent, "0.0");
+    setNum(row.getCell(17), r.sessoes, "0");
+    row.getCell(18).value = r.startDate || "—";
+    row.getCell(19).value = r.endDate || "—";
+    row.getCell(18).alignment = { horizontal: "center", vertical: "middle" };
+    row.getCell(19).alignment = { horizontal: "center", vertical: "middle" };
+    styleDataRow(row, turmaHeaders.length, idx % 2 === 1);
+  });
+
+  const turmaLastRow = 2 + params.turmaRows.length;
+  if (params.turmaRows.length > 0) {
+    wsTurmas.autoFilter = {
+      from: { row: 2, column: 1 },
+      to: { row: turmaLastRow, column: turmaHeaders.length },
+    };
+  }
+  autoWidth(wsTurmas);
+  wsTurmas.getColumn(2).width = Math.max(Number(wsTurmas.getColumn(2).width ?? 20), 28);
+  wsTurmas.getColumn(3).width = Math.max(Number(wsTurmas.getColumn(3).width ?? 16), 22);
+  wsTurmas.getColumn(6).width = Math.max(Number(wsTurmas.getColumn(6).width ?? 14), 20);
+
+  // --- Por curso ---
+  const wsCurso = wb.addWorksheet("Por curso", {
+    views: [{ state: "frozen", ySplit: 2, showGridLines: false }],
+    properties: { defaultRowHeight: 18 },
+  });
+
+  const courseHeaders = [
     "Curso",
     "Turmas",
     "Capacidade total",
@@ -385,26 +495,88 @@ export function buildCycleClassGroupsReportXlsx(params: {
     "Freq. média %",
   ];
 
-  const courseAoA = [
-    courseHeader,
-    ...params.courseRows.map((r) => [
-      r.courseName,
-      r.turmas,
-      r.capacity,
-      r.inscritos,
-      r.ocupacaoPercent ?? "",
-      r.suspensos,
-      r.formados,
-      r.baseFormacao,
-      r.taxaFormadosPercent ?? "",
-      r.frequenciaMediaPercent ?? "",
-    ]),
+  wsCurso.mergeCells(1, 1, 1, courseHeaders.length);
+  const courseTitle = wsCurso.getCell(1, 1);
+  courseTitle.value = `${title} — Resumo por curso`;
+  courseTitle.font = TITLE_FONT;
+  courseTitle.alignment = { vertical: "middle", horizontal: "left" };
+  wsCurso.getRow(1).height = 26;
+
+  const headerRowCurso = wsCurso.getRow(2);
+  courseHeaders.forEach((h, i) => {
+    headerRowCurso.getCell(i + 1).value = h;
+  });
+  styleHeaderRow(headerRowCurso, courseHeaders.length);
+
+  params.courseRows.forEach((r, idx) => {
+    const row = wsCurso.getRow(idx + 3);
+    row.getCell(1).value = r.courseName;
+    setNum(row.getCell(2), r.turmas, "0");
+    setNum(row.getCell(3), r.capacity, "0");
+    setNum(row.getCell(4), r.inscritos, "0");
+    setNum(row.getCell(5), r.ocupacaoPercent, "0.0");
+    setNum(row.getCell(6), r.suspensos, "0");
+    setNum(row.getCell(7), r.formados, "0");
+    setNum(row.getCell(8), r.baseFormacao, "0");
+    setNum(row.getCell(9), r.taxaFormadosPercent, "0.0");
+    setNum(row.getCell(10), r.frequenciaMediaPercent, "0.0");
+    styleDataRow(row, courseHeaders.length, idx % 2 === 1);
+  });
+
+  const courseLastRow = 2 + params.courseRows.length;
+  if (params.courseRows.length > 0) {
+    wsCurso.autoFilter = {
+      from: { row: 2, column: 1 },
+      to: { row: courseLastRow, column: courseHeaders.length },
+    };
+  }
+  autoWidth(wsCurso);
+  wsCurso.getColumn(1).width = Math.max(Number(wsCurso.getColumn(1).width ?? 20), 32);
+
+  // --- Glossário ---
+  const wsGloss = wb.addWorksheet("Glossário", {
+    views: [{ state: "frozen", ySplit: 2, showGridLines: false }],
+    properties: { defaultRowHeight: 22 },
+  });
+
+  wsGloss.mergeCells(1, 1, 1, 2);
+  const glossTitle = wsGloss.getCell(1, 1);
+  glossTitle.value = `${title} — Glossário (gerado em ${generatedAt})`;
+  glossTitle.font = TITLE_FONT;
+  glossTitle.alignment = { vertical: "middle", horizontal: "left" };
+  wsGloss.getRow(1).height = 26;
+
+  const glossHeader = wsGloss.getRow(2);
+  glossHeader.getCell(1).value = "Campo";
+  glossHeader.getCell(2).value = "Significado";
+  styleHeaderRow(glossHeader, 2);
+
+  const glossario: [string, string][] = [
+    ["Inscritos", "Matrículas com status ACTIVE"],
+    ["Suspensos", "Matrículas com status SUSPENDED"],
+    ["Base formação", "Inscritos (ACTIVE) + Suspensos"],
+    ["Formados", "Alunos com Certificado = Sim (aptos) e turma ENCERRADA"],
+    ["Taxa formados %", "Formados ÷ Base formação × 100"],
+    [
+      "Freq. média %",
+      "Média das frequências individuais (ACTIVE e SUSPENDED); sessões até hoje, exceto canceladas",
+    ],
+    ["Ocupação %", "Inscritos ÷ Capacidade × 100"],
+    ["Turmas incluídas", "Todas do ciclo, exceto CANCELADA (inclui INTERNO e EXTERNO)"],
   ];
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(turmaAoA), "Turmas");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(courseAoA), "Por curso");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(glossario), "Glossário");
+  glossario.forEach(([campo, significado], idx) => {
+    const row = wsGloss.getRow(idx + 3);
+    row.getCell(1).value = campo;
+    row.getCell(2).value = significado;
+    styleDataRow(row, 2, idx % 2 === 1);
+    row.getCell(1).font = { ...BODY_FONT, bold: true };
+    row.getCell(2).alignment = { vertical: "middle", wrapText: true };
+  });
 
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  wsGloss.getColumn(1).width = 22;
+  wsGloss.getColumn(2).width = 92;
+
+  const buffer = await wb.xlsx.writeBuffer();
+  return Buffer.from(buffer);
 }

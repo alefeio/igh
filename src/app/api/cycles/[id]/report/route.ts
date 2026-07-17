@@ -25,7 +25,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
       );
     }
 
-    const buffer = buildCycleClassGroupsReportXlsx(report);
+    const buffer = await buildCycleClassGroupsReportXlsx(report);
     const fileName = `relatorio-ciclo-${report.cycle.cycle}-${report.cycle.year}.xlsx`;
     const outBytes = Uint8Array.from(buffer);
 
