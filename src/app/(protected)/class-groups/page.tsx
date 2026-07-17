@@ -200,6 +200,7 @@ export default function ClassGroupsPage() {
   const [cycleSaving, setCycleSaving] = useState(false);
   const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
   const [downloadingCycleCertsId, setDownloadingCycleCertsId] = useState<string | null>(null);
+  const [downloadingCycleReportId, setDownloadingCycleReportId] = useState<string | null>(null);
   const [downloadingSelected, setDownloadingSelected] = useState(false);
   const [certificatePagesMode, setCertificatePagesMode] = useState<CertificatePagesMode>("both");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -745,7 +746,40 @@ export default function ClassGroupsPage() {
                   <div className="flex flex-wrap justify-end gap-2">
                     <Button
                       variant="secondary"
-                      disabled={downloadingCycleCertsId != null}
+                      disabled={downloadingCycleReportId != null || downloadingCycleCertsId != null}
+                      title="Excel: turmas e resumo por curso (inscritos, formados, frequência)"
+                      onClick={async () => {
+                        if (downloadingCycleReportId) return;
+                        setDownloadingCycleReportId(c.id);
+                        try {
+                          const res = await fetch(`/api/cycles/${c.id}/report`, {
+                            credentials: "include",
+                          });
+                          if (!res.ok) {
+                            const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+                            toast.push(
+                              "error",
+                              apiErrorMessage(json, "Falha ao baixar o relatório do ciclo."),
+                            );
+                            return;
+                          }
+                          await downloadBlobResponse(
+                            res,
+                            `relatorio-ciclo-${c.cycle}-${c.year}.xlsx`,
+                          );
+                          toast.push("success", "Download do relatório do ciclo iniciado.");
+                        } catch {
+                          toast.push("error", "Falha ao baixar o relatório do ciclo.");
+                        } finally {
+                          setDownloadingCycleReportId(null);
+                        }
+                      }}
+                    >
+                      {downloadingCycleReportId === c.id ? "Gerando…" : "Relatório do ciclo"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={downloadingCycleCertsId != null || downloadingCycleReportId != null}
                       title="Baixar ZIP com certificados (um arquivo .zip por curso)"
                       onClick={async () => {
                         if (downloadingCycleCertsId) return;
