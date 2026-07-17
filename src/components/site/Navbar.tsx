@@ -163,9 +163,20 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
               </Link>
             </div>
           ) : (
-            <Link href="/login" className="ml-2 rounded-lg bg-[var(--igh-accent)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--igh-accent-hover)] min-h-[44px] inline-flex items-center justify-center">
-              Área do Aluno
-            </Link>
+            <div className="ml-2 flex items-center gap-2">
+              <Link
+                href="/login"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-[var(--igh-border)] px-3 py-2 text-sm font-medium text-[var(--igh-secondary)] hover:bg-[var(--igh-surface)]"
+              >
+                Entrar
+              </Link>
+              <Link
+                href="/inscreva"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--igh-primary-hover)]"
+              >
+                Começar agora
+              </Link>
+            </div>
           )}
         </div>
         <button
@@ -202,7 +213,22 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
                 </Link>
               </>
             ) : (
-              <Link href="/login" className="rounded-lg bg-[var(--igh-accent)] px-4 py-2 text-sm font-semibold text-white" onClick={() => setOpen(false)}>Área do Aluno</Link>
+              <>
+                <Link
+                  href="/inscreva"
+                  className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white"
+                  onClick={() => setOpen(false)}
+                >
+                  Começar agora
+                </Link>
+                <Link
+                  href="/login"
+                  className="rounded-lg border border-[var(--igh-border)] px-4 py-2 text-sm font-medium text-[var(--igh-secondary)]"
+                  onClick={() => setOpen(false)}
+                >
+                  Entrar
+                </Link>
+              </>
             )}
           </div>
         </div>

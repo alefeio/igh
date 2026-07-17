@@ -22,6 +22,8 @@ export { FormacoesSection } from "./FormacoesSection";
 export { HomeAudiencePathsStrip } from "./HomeAudiencePathsStrip";
 export { HomePublicRatingStrip } from "./HomePublicRatingStrip";
 export { HomeStudentJourneySection } from "./HomeStudentJourneySection";
+export { HomeObjectiveTrails } from "./HomeObjectiveTrails";
+export { HomeHowItWorksSection } from "./HomeHowItWorksSection";
 export { HeroBannerCarousel } from "./HeroBannerCarousel";
 export { ImageCarousel } from "./ImageCarousel";
 export { CommunityCtaHomeSection } from "./CommunityCtaHomeSection";

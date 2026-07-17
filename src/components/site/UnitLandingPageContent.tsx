@@ -4,10 +4,37 @@ import { UnitSideHeader } from "@/components/site/UnitSideHeader";
 
 type Props = { unit: SiteUnitPublic };
 
+type UnitCourseCard = {
+  id: string;
+  name: string;
+  slug?: string;
+  description: string | null;
+  imageUrl: string | null;
+};
+
 export function UnitLandingPageContent({ unit }: Props) {
   const brandLabel = `IGH — ${unit.city}`.toUpperCase();
   const cityState = `${unit.city}, ${unit.state}`;
   const cityStateShort = `${unit.city}/${unit.state}`;
+  const whatsappHref = `https://wa.me/${unit.whatsapp ?? "5599991032924"}`;
+
+  const courses: UnitCourseCard[] = unit.courses?.length
+    ? unit.courses
+    : [
+        {
+          id: "fallback-1",
+          name: "Informática Básica",
+          description:
+            "Aprenda ferramentas essenciais para estudar, trabalhar e usar melhor o computador no dia a dia.",
+          imageUrl: null,
+        },
+        {
+          id: "fallback-2",
+          name: "Manutenção de Computadores",
+          description: "Entenda componentes, montagem, limpeza, diagnóstico e cuidados com equipamentos.",
+          imageUrl: null,
+        },
+      ];
 
   return (
     <div className={styles.page}>
@@ -34,16 +61,11 @@ export function UnitLandingPageContent({ unit }: Props) {
               </p>
 
               <div className="botoes">
-                <a href="#cursos" className="botao botao-principal">
-                  Ver cursos
+                <a href="/inscreva" className="botao botao-principal">
+                  Quero me inscrever
                 </a>
-                <a
-                  href={`https://wa.me/${unit.whatsapp ?? "5599991032924"}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="botao botao-secundario"
-                >
-                  Falar no WhatsApp
+                <a href="#cursos" className="botao botao-secundario">
+                  Ver cursos
                 </a>
               </div>
             </div>
@@ -72,34 +94,35 @@ export function UnitLandingPageContent({ unit }: Props) {
             </div>
 
             <div className="grid-cursos">
-              {(unit.courses?.length
-                ? unit.courses
-                : [
-                    {
-                      id: "fallback-1",
-                      name: "Informática Básica",
-                      description:
-                        "Aprenda ferramentas essenciais para estudar, trabalhar e usar melhor o computador no dia a dia.",
-                      imageUrl: null,
-                    },
-                    {
-                      id: "fallback-2",
-                      name: "Manutenção de Computadores",
-                      description: "Entenda componentes, montagem, limpeza, diagnóstico e cuidados com equipamentos.",
-                      imageUrl: null,
-                    },
-                  ]
-              ).map((c) => (
-                <article key={c.id} className="card-curso">
-                  {c.imageUrl ? (
-                    <div className="curso-capa">
-                      <img src={c.imageUrl} alt={`Capa do curso ${c.name}`} loading="lazy" />
+              {courses.map((c) => {
+                const isRealCourse = !c.id.startsWith("fallback-");
+                const enrollHref = isRealCourse
+                  ? `/inscreva?courseId=${encodeURIComponent(c.id)}`
+                  : "/inscreva";
+                const detailsHref = c.slug ? `/cursos/${encodeURIComponent(c.slug)}` : null;
+
+                return (
+                  <article key={c.id} className="card-curso">
+                    {c.imageUrl ? (
+                      <div className="curso-capa">
+                        <img src={c.imageUrl} alt={`Capa do curso ${c.name}`} loading="lazy" />
+                      </div>
+                    ) : null}
+                    <h3>{c.name}</h3>
+                    <p>{c.description ?? ""}</p>
+                    <div className="botoes" style={{ marginTop: "1rem", flexWrap: "wrap" }}>
+                      <a href={enrollHref} className="botao botao-principal">
+                        Inscrever-se
+                      </a>
+                      {detailsHref ? (
+                        <a href={detailsHref} className="botao botao-secundario">
+                          Ver detalhes
+                        </a>
+                      ) : null}
                     </div>
-                  ) : null}
-                  <h3>{c.name}</h3>
-                  <p>{c.description ?? ""}</p>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -177,7 +200,7 @@ export function UnitLandingPageContent({ unit }: Props) {
 
             <p>Dê o próximo passo. Conhecimento pode transformar sua rotina, sua confiança e suas oportunidades.</p>
 
-            <a href="#contato" className="botao botao-principal">
+            <a href="/inscreva" className="botao botao-principal">
               Quero me inscrever
             </a>
           </div>
@@ -206,14 +229,19 @@ export function UnitLandingPageContent({ unit }: Props) {
                 <strong>Cidade:</strong> {cityState}
               </p>
 
-              <a
-                href={`https://wa.me/${unit.whatsapp ?? "5599991032924"}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="botao botao-principal"
-              >
-                Chamar no WhatsApp
-              </a>
+              <div className="botoes" style={{ marginTop: "1rem", flexDirection: "column" }}>
+                <a href="/inscreva" className="botao botao-principal">
+                  Ir para inscrição
+                </a>
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="botao botao-secundario"
+                >
+                  Chamar no WhatsApp
+                </a>
+              </div>
             </div>
           </div>
         </section>

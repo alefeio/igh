@@ -1,4 +1,14 @@
-import { PageHeader, Section, FormacoesSection, Card, Button } from "@/components/site";
+import { enrollmentFaqItems } from "@/content";
+import {
+  FAQ,
+  PageHeader,
+  Section,
+  FormacoesSection,
+  Card,
+  Button,
+  HomeObjectiveTrails,
+  HomeHowItWorksSection,
+} from "@/components/site";
 import {
   getFormationsForFilter,
   getCoursesForSite,
@@ -8,23 +18,28 @@ import {
 
 export const metadata = {
   title: "Formações | IGH",
-  description: "Trilhas em Programação, Dados, UX/UI, Marketing. Pré-requisito: Informática Básica.",
+  description:
+    "Catálogo de formações profissionais em tecnologia. Busque por tema, objetivo ou trilha. Pré-requisito: Informática Básica.",
 };
 
-type Props = { searchParams: Promise<{ formacao?: string }> };
+type Props = {
+  searchParams: Promise<{ formacao?: string; q?: string; objetivo?: string }>;
+};
 
 export default async function FormacoesPage({ searchParams }: Props) {
-  const { formacao: formacaoSlug } = await searchParams;
+  const { formacao: formacaoSlug, q: searchQuery, objetivo } = await searchParams;
 
   const [formations, courses, comoFunciona, formacoesPage] = await Promise.all([
     getFormationsForFilter(),
-    getCoursesForSite(formacaoSlug),
+    getCoursesForSite(),
     Promise.resolve(getComoFuncionaFormacao()),
     getFormacoesPageForSite(),
   ]);
 
   const headerTitle = formacoesPage?.title?.trim() || "Formações e Cursos";
-  const headerSubtitle = formacoesPage?.subtitle?.trim() || "Pré-requisito: Informática Básica.";
+  const headerSubtitle =
+    formacoesPage?.subtitle?.trim() ||
+    "Catálogo amplo de formação profissional. Pré-requisito: Informática Básica.";
   const headerImageUrl = formacoesPage?.headerImageUrl?.trim() || null;
 
   return (
@@ -35,15 +50,23 @@ export default async function FormacoesPage({ searchParams }: Props) {
         backgroundImageUrl={headerImageUrl}
       />
 
-      <Section title="Formações">
+      <HomeObjectiveTrails basePath="/formacoes" />
+
+      <Section id="catalogo" title="Catálogo de cursos">
         <FormacoesSection
           formations={formations}
           courses={courses}
           formacaoSlug={formacaoSlug}
+          initialQuery={searchQuery ?? ""}
+          initialObjetivo={objetivo}
         />
       </Section>
 
-      <Section title="Como funciona a formação" background="muted">
+      <HomeHowItWorksSection />
+
+      <FAQ items={enrollmentFaqItems} title="Dúvidas sobre a matrícula" />
+
+      <Section title="Estrutura da formação" background="muted">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {comoFunciona.map((etapa, i) => (
             <Card key={i} as="article">

@@ -427,7 +427,7 @@ export type SiteUnitPublic = {
   benefitsBullets: string[];
   benefitsImageUrl: string | null;
   galleryImages: string[];
-  courses: { id: string; name: string; description: string | null; imageUrl: string | null }[];
+  courses: { id: string; name: string; slug: string; description: string | null; imageUrl: string | null }[];
 };
 
 /** Unidade pública (landing local) por slug (ex.: "codo"). */
@@ -465,13 +465,14 @@ export async function getSiteUnitPublicBySlug(slug: string): Promise<SiteUnitPub
           courses: unit.courses.map((c) => ({
             id: c.course.id,
             name: c.course.name,
+            slug: c.course.slug,
             description: c.course.description ?? null,
             imageUrl: c.course.imageUrl ?? null,
           })),
         } satisfies SiteUnitPublic;
       },
-      [`site-unit-public-v1:${clean}`],
-      { revalidate: 120, tags: [`site-unit-public-v1:${clean}`] },
+      [`site-unit-public-v2:${clean}`],
+      { revalidate: 120, tags: [`site-unit-public-v2:${clean}`] },
     )();
   } catch {
     return null;
@@ -638,12 +639,48 @@ export type CourseForSite = {
   formationId: string | null;
   formationTitle: string | null;
   formationSlug: string | null;
+  /** Há turma PLANEJADA com vaga e ciclo liberado para inscrição. */
+  hasOpenClassGroups?: boolean;
   /** Preenchido apenas em getCourseBySlug (detalhe). */
   modules?: ModuleForSiteDetail[];
 };
 
+/**
+ * IDs de cursos com pelo menos uma turma aberta para pré-matrícula (PLANEJADA, com vaga).
+ */
+export async function getCourseIdsWithOpenClassGroups(): Promise<Set<string>> {
+  try {
+    const ids = await unstable_cache(
+      async () => {
+        const classGroups = await prisma.classGroup.findMany({
+          where: {
+            status: "PLANEJADA",
+            course: { status: "ACTIVE" },
+            cycle: { isVisibleForEnrollments: true },
+          },
+          select: {
+            courseId: true,
+            capacity: true,
+            enrollments: { where: { status: "ACTIVE" }, select: { id: true } },
+          },
+        });
+        return classGroups
+          .filter((cg) => cg.enrollments.length < cg.capacity)
+          .map((cg) => cg.courseId);
+      },
+      ["course-ids-open-enrollments-v1"],
+      { revalidate: 60 }
+    )();
+    return new Set(ids);
+  } catch {
+    return new Set();
+  }
+}
+
 export async function getCoursesForSite(formationSlug?: string): Promise<CourseForSite[]> {
   try {
+    const openIds = await getCourseIdsWithOpenClassGroups();
+
     if (formationSlug) {
       const formation = await prisma.siteFormation.findFirst({
         where: { slug: formationSlug, isActive: true },
@@ -681,6 +718,7 @@ export async function getCoursesForSite(formationSlug?: string): Promise<CourseF
           formationId: formation.id,
           formationTitle: formation.title,
           formationSlug: formation.slug,
+          hasOpenClassGroups: openIds.has(fc.course!.id),
         }));
     }
 
@@ -716,6 +754,7 @@ export async function getCoursesForSite(formationSlug?: string): Promise<CourseF
         formationId: first?.id ?? null,
         formationTitle: first?.title ?? null,
         formationSlug: first?.slug ?? null,
+        hasOpenClassGroups: openIds.has(c.id),
       };
     });
   } catch {
@@ -956,7 +995,10 @@ export async function getCourseBySlug(slug: string): Promise<CourseForSite | nul
     });
     if (!course) return null;
     const first = course.siteFormations[0]?.formation;
-    const modulesWithLessons = await getModulesWithLessonsByCourseId(course.id);
+    const [modulesWithLessons, openIds] = await Promise.all([
+      getModulesWithLessonsByCourseId(course.id),
+      getCourseIdsWithOpenClassGroups(),
+    ]);
     const modules: ModuleForSiteDetail[] = modulesWithLessons.map((m) => ({
       id: m.id,
       title: m.title,
@@ -980,6 +1022,7 @@ export async function getCourseBySlug(slug: string): Promise<CourseForSite | nul
       formationId: first?.id ?? null,
       formationTitle: first?.title ?? null,
       formationSlug: first?.slug ?? null,
+      hasOpenClassGroups: openIds.has(course.id),
       modules,
     };
   } catch {

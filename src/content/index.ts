@@ -1,6 +1,6 @@
 export { statsImpact } from "./stats";
 export { parceiros } from "./parceiros";
-export { faqItems } from "./faq";
+export { faqItems, enrollmentFaqItems } from "./faq";
 export { depoimentos } from "./depoimentos";
 export { projetosList, getProjetoBySlug } from "./projetos";
 export type { ProjetoSlug } from "./projetos";

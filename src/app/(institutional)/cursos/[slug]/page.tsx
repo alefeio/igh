@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Container, Section, Button } from "@/components/site";
+import { Badge, Container, Section, Button } from "@/components/site";
 import { getCourseBySlug } from "@/lib/site-data";
 import { CourseCtaFloating } from "./CourseCtaFloating";
 
@@ -47,6 +47,11 @@ export default async function CursoSlugPage({ params }: Props) {
         )}
         <Container className="relative z-10 py-16 sm:py-24">
           <div className="mx-auto max-w-3xl text-center">
+            <div className="mb-4 flex justify-center">
+              <Badge tone={course.hasOpenClassGroups ? "primary" : "default"}>
+                {course.hasOpenClassGroups ? "Turmas abertas" : "Em breve"}
+              </Badge>
+            </div>
             <h1 className="text-3xl font-bold tracking-tight text-[var(--igh-secondary)] sm:text-4xl lg:text-5xl">
               {course.name}
             </h1>
@@ -68,18 +73,40 @@ export default async function CursoSlugPage({ params }: Props) {
             <span aria-hidden>/</span>
             <span className="text-[var(--igh-secondary)]">{course.name}</span>
           </nav>
-          <Button
-            as="link"
-            href={`/inscreva?courseId=${encodeURIComponent(course.id)}`}
-            variant="primary"
-            size="lg"
-            className="w-full shrink-0 sm:w-auto"
-          >
-            Inscreva-se
-          </Button>
+          {course.hasOpenClassGroups ? (
+            <Button
+              as="link"
+              href={`/inscreva?courseId=${encodeURIComponent(course.id)}`}
+              variant="primary"
+              size="lg"
+              className="w-full shrink-0 sm:w-auto"
+            >
+              Inscreva-se
+            </Button>
+          ) : (
+            <Button
+              as="link"
+              href="/formacoes"
+              variant="outline"
+              size="lg"
+              className="w-full shrink-0 sm:w-auto"
+            >
+              Ver outras formações
+            </Button>
+          )}
         </div>
 
-        <CourseCtaFloating courseId={course.id} />
+        {!course.hasOpenClassGroups && (
+          <p className="mb-6 rounded-lg border border-[var(--igh-border)] bg-[var(--igh-surface)] px-4 py-3 text-sm text-[var(--igh-muted)]">
+            Ainda não há turmas com vagas abertas para este curso. Você pode explorar o conteúdo abaixo e
+            voltar quando houver inscrição disponível, ou escolher outra formação no catálogo.
+          </p>
+        )}
+
+        <CourseCtaFloating
+          courseId={course.id}
+          hasOpenClassGroups={course.hasOpenClassGroups === true}
+        />
 
         {course.description && (
           <p className="mb-8 w-full text-lg text-[var(--igh-muted)]">

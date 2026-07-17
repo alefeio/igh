@@ -7,11 +7,12 @@ const FALLBACK_LINKS = [
   { label: "Início", href: "/" },
   { label: "Sobre", href: "/sobre" },
   { label: "Formações", href: "/formacoes" },
+  { label: "Inscreva-se", href: "/inscreva" },
   { label: "Projetos", href: "/projetos" },
   { label: "Notícias", href: "/noticias" },
   { label: "Transparência", href: "/transparencia" },
   { label: "Contato", href: "/contato" },
-  { label: "Área do Aluno", href: "/login" },
+  { label: "Entrar", href: "/login" },
 ];
 
 function hasSubItems(items: MenuItemPublic[]): boolean {
@@ -131,16 +132,28 @@ export function Footer({ menuItems, settings }: FooterProps) {
                   ))}
                   <li>
                     <Link
+                      href="/inscreva"
+                      className="text-sm font-medium text-white/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
+                    >
+                      Inscreva-se
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
                       href="/login"
                       className="text-sm font-medium text-white/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
                     >
-                      Área do Aluno
+                      Entrar
                     </Link>
                   </li>
                 </>
               ) : (
                 (menuItems && menuItems.length > 0
-                  ? [...menuItems.flatMap((i) => [i, ...(i.children || [])]), { label: "Área do Aluno", href: "/login", id: "login", order: 999, isExternal: false, children: [] } as MenuItemPublic]
+                  ? [
+                      ...menuItems.flatMap((i) => [i, ...(i.children || [])]),
+                      { label: "Inscreva-se", href: "/inscreva", id: "inscreva", order: 998, isExternal: false, children: [] } as MenuItemPublic,
+                      { label: "Entrar", href: "/login", id: "login", order: 999, isExternal: false, children: [] } as MenuItemPublic,
+                    ]
                   : FALLBACK_LINKS.map((link) => ({ ...link, id: link.href, order: 0, isExternal: false, children: [] } as MenuItemPublic))
                 ).map((link) => (
                   <li key={link.href}>

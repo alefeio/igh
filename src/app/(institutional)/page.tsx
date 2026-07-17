@@ -3,7 +3,6 @@ import {
   Section,
   Button,
   Card,
-  Stats,
   Testimonials,
   CTASection,
   FAQ,
@@ -11,7 +10,8 @@ import {
   FormacoesSection,
   HomeAudiencePathsStrip,
   HomePublicRatingStrip,
-  HomeStudentJourneySection,
+  HomeObjectiveTrails,
+  HomeHowItWorksSection,
   HeroBannerCarousel,
   StudentRankingShowcase,
   PlatformExperienceHomeSection,
@@ -19,6 +19,7 @@ import {
   CommunityCtaHomeSection,
 } from "@/components/site";
 import { statsImpact } from "@/content";
+import { enrollmentFaqItems } from "@/content";
 import {
   getFormationsForFilter,
   getCoursesForSite,
@@ -34,20 +35,22 @@ import {
 import { getSessionUserFromCookie } from "@/lib/auth";
 
 export const metadata = {
-  title: "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital",
+  title: "Instituto Gustavo Hessel | Formação profissional em tecnologia",
   description:
-    "Formações gratuitas em programação, dados, UX/UI e mais. Inclusão digital e recondicionamento de computadores.",
+    "Formação profissional gratuita em programação, dados, UX/UI e mais. Inscreva-se e comece sua trilha no IGH.",
   openGraph: {
-    title: "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital",
+    title: "Instituto Gustavo Hessel | Formação profissional em tecnologia",
     description:
-      "Formações gratuitas em programação, dados, UX/UI e mais. Inclusão digital e recondicionamento de computadores.",
+      "Formação profissional gratuita em programação, dados, UX/UI e mais. Inscreva-se e comece sua trilha no IGH.",
   },
 };
 
-type Props = { searchParams: Promise<{ formacao?: string }> };
+type Props = {
+  searchParams: Promise<{ formacao?: string; q?: string; objetivo?: string }>;
+};
 
 export default async function HomePage({ searchParams }: Props) {
-  const { formacao: formacaoSlug } = await searchParams;
+  const { formacao: formacaoSlug, q: searchQuery, objetivo } = await searchParams;
 
   const [
     formations,
@@ -63,19 +66,20 @@ export default async function HomePage({ searchParams }: Props) {
     sessionUser,
   ] = await Promise.all([
     getFormationsForFilter(),
-    getCoursesForSite(formacaoSlug),
+    // Catálogo amplo: carrega todos para busca/objetivo client-side
+    getCoursesForSite(),
     getBanners(),
     getPartners(),
     getFaqItems(),
     getTestimonials(),
     getNewsPostsForSite(),
-    getPublicStudentRanking(15),
+    getPublicStudentRanking(5),
     getPublicPlatformExperienceBlock(),
     getPublicMotherCampaignMessages(18),
     getSessionUserFromCookie(),
   ]);
 
-  const recentPosts = newsPosts.slice(0, 4).map((p) => {
+  const recentPosts = newsPosts.slice(0, 2).map((p) => {
     let date = "";
     if (p.publishedAt) {
       const d = p.publishedAt;
@@ -92,8 +96,11 @@ export default async function HomePage({ searchParams }: Props) {
   });
 
   const courses = coursesFull;
-
-  const faqItems = faqItemsFromDb.map((i) => ({ pergunta: i.question, resposta: i.answer }));
+  const enrollmentFaq = enrollmentFaqItems;
+  const faqItems = [
+    ...enrollmentFaq,
+    ...faqItemsFromDb.map((i) => ({ pergunta: i.question, resposta: i.answer })),
+  ];
   const depoimentos = testimonialsFromDb.map((t) => ({
     nome: t.name,
     role: t.roleOrContext ?? "",
@@ -103,32 +110,48 @@ export default async function HomePage({ searchParams }: Props) {
 
   return (
     <>
-      {/* Hero / Carrossel de banners */}
       {banners.length > 0 ? (
         <HeroBannerCarousel banners={banners} />
       ) : (
-        <section className="flex min-h-screen flex-col justify-center bg-[var(--igh-surface)] py-16 sm:py-24">
+        <section className="flex min-h-[70vh] flex-col justify-center bg-[var(--igh-surface)] py-16 sm:min-h-[80vh] sm:py-24">
           <Container>
             <div className="mx-auto max-w-3xl text-center">
               <h1 className="text-3xl font-bold tracking-tight text-[var(--igh-secondary)] sm:text-4xl lg:text-5xl">
-                Formação em tecnologia que transforma vidas
+                Formação profissional em tecnologia, no seu ritmo
               </h1>
               <p className="mt-4 text-lg text-[var(--igh-muted)]">
-                Missão social e inclusão digital com trilhas em tecnologia — e uma experiência de estudo com suporte
-                online: aulas, turma, avisos e ranking num só lugar. Pré-requisito: Informática Básica.
+                Cursos e trilhas gratuitas para começar ou avançar na carreira — com aulas, exercícios e certificado.
+                Pré-requisito: Informática Básica.
               </p>
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-                <Button as="link" href="/formacoes" variant="primary" size="lg">
-                  Ver formações
+              <form
+                action="/formacoes"
+                method="get"
+                role="search"
+                className="mx-auto mt-8 max-w-xl"
+                aria-label="Buscar no catálogo"
+              >
+                <label htmlFor="home-hero-busca" className="sr-only">
+                  Buscar curso, tema ou formação
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="home-hero-busca"
+                    name="q"
+                    type="search"
+                    placeholder="Buscar curso, tema ou formação…"
+                    className="min-h-[48px] flex-1 rounded-xl border border-[var(--igh-border)] bg-[var(--card-bg)] px-4 text-sm text-[var(--igh-secondary)] placeholder:text-[var(--igh-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)]/30"
+                  />
+                  <Button type="submit" variant="secondary" size="lg" className="shrink-0">
+                    Buscar
+                  </Button>
+                </div>
+              </form>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+                <Button as="link" href="/inscreva" variant="primary" size="lg">
+                  Quero me inscrever
                 </Button>
-                <Button as="link" href="/contato#inscreva" variant="secondary" size="lg">
-                  Inscrever-se
-                </Button>
-                <Button as="link" href="/login" variant="outline" size="lg">
-                  Área do aluno
-                </Button>
-                <Button as="link" href="/projetos/doacoes-recebidas" variant="accent" size="lg">
-                  Doe equipamentos
+                <Button as="link" href="/formacoes" variant="outline" size="lg">
+                  Ver catálogo
                 </Button>
               </div>
             </div>
@@ -137,44 +160,74 @@ export default async function HomePage({ searchParams }: Props) {
       )}
 
       <HomeAudiencePathsStrip />
-      <CommunityCtaHomeSection
-        sessionUser={sessionUser ? { name: sessionUser.name, role: sessionUser.role } : null}
-      />
-      <HomePublicRatingStrip block={platformExperienceBlock} />
+      <HomePublicRatingStrip block={platformExperienceBlock} stats={statsImpact} />
+      <HomeObjectiveTrails basePath="/" />
 
-      {/* Prova de impacto */}
-      <Stats items={statsImpact} />
+      <div id="catalogo" className="scroll-mt-24">
+        <Section
+          title="Formações e Cursos"
+          subtitle="Catálogo amplo: busque por tema, filtre por formação ou escolha um objetivo acima."
+        >
+          <FormacoesSection
+            formations={formations}
+            courses={courses}
+            formacaoSlug={formacaoSlug}
+            initialQuery={searchQuery ?? ""}
+            initialObjetivo={objetivo}
+            basePath="/"
+          />
+          <div className="mt-8 text-center">
+            <Button as="link" href="/inscreva" variant="primary" size="lg">
+              Quero me inscrever
+            </Button>
+          </div>
+        </Section>
+      </div>
 
-      {/* Formações e Cursos */}
-      <Section
-        title="Formações e Cursos"
-        subtitle="Trilhas técnicas com projeto integrador e foco em carreira."
-      >
-        <FormacoesSection
-          formations={formations}
-          courses={courses}
-          formacaoSlug={formacaoSlug}
-          basePath="/"
-        />
-        <div className="mt-8 text-center">
-          <Button as="link" href="/inscreva" variant="primary" size="lg">
-            Quero me inscrever
-          </Button>
-        </div>
-      </Section>
-
-      <HomeStudentJourneySection />
+      <HomeHowItWorksSection />
 
       <MothersDayMessagesHomeSection
         items={mothersDaySection.items}
         participationOpen={mothersDaySection.participationOpen}
       />
 
+      <CTASection
+        title="Pronto para começar sua formação?"
+        subtitle="Inscreva-se em uma turma e acompanhe suas aulas na plataforma do IGH."
+        primaryCTA={{ label: "Quero me inscrever", href: "/inscreva" }}
+        secondaryCTAs={[{ label: "Ver todas as formações", href: "/formacoes" }]}
+      />
+
+      <Testimonials
+        subtitle={
+          <>
+            Histórias de quem passou por aqui. Para médias e comentários sobre a experiência na plataforma, veja{" "}
+            <a
+              href="#avaliacoes-alunos"
+              className="font-semibold text-[var(--igh-primary)] underline decoration-[var(--igh-primary)]/40 underline-offset-2 hover:decoration-[var(--igh-primary)]"
+            >
+              o que os alunos avaliam
+            </a>
+            .
+          </>
+        }
+        items={depoimentos}
+        courses={courses.map((c) => ({ id: c.id, name: c.name }))}
+      />
+
+      {faqItems.length > 0 && (
+        <FAQ items={faqItems} title="Dúvidas sobre matrícula e o IGH" />
+      )}
+
+      {/* Secundário: comunidade, ranking compacto, avaliações, projetos, notícias */}
+      <CommunityCtaHomeSection
+        sessionUser={sessionUser ? { name: sessionUser.name, role: sessionUser.role } : null}
+      />
+
       {studentRanking.length > 0 && <StudentRankingShowcase items={studentRanking} />}
 
       <PlatformExperienceHomeSection block={platformExperienceBlock} />
 
-      {/* Projetos e sustentabilidade */}
       <Section
         title="Projetos e sustentabilidade"
         subtitle="CRC e Computadores para Inclusão: recondicionamento e doação de equipamentos."
@@ -200,60 +253,31 @@ export default async function HomePage({ searchParams }: Props) {
             </Button>
           </Card>
         </div>
-        <div className="mt-8 text-center">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Button as="link" href="/projetos" variant="outline" size="lg">
             Ver todos os projetos
           </Button>
-        </div>
-      </Section>
-
-      {/* Blog / Notícias — antes de “O que dizem nossos alunos” */}
-      <Section title="Notícias" subtitle="Acompanhe as novidades do IGH.">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {recentPosts.map((post) => (
-            <BlogCard key={post.slug} post={post} />
-          ))}
-        </div>
-        <div className="mt-8 text-center">
-          <Button as="link" href="/noticias" variant="outline" size="lg">
-            Ver todas as notícias
+          <Button as="link" href="/projetos/doacoes-recebidas" variant="outline" size="lg">
+            Doe equipamentos
           </Button>
         </div>
       </Section>
 
-      {/* Depoimentos */}
-      <Testimonials
-        subtitle={
-          <>
-            Histórias de quem passou por aqui. Para médias e comentários sobre a experiência na plataforma, veja{" "}
-            <a
-              href="#avaliacoes-alunos"
-              className="font-semibold text-[var(--igh-primary)] underline decoration-[var(--igh-primary)]/40 underline-offset-2 hover:decoration-[var(--igh-primary)]"
-            >
-              o que os alunos avaliam
-            </a>
-            .
-          </>
-        }
-        items={depoimentos}
-        courses={courses.map((c) => ({ id: c.id, name: c.name }))}
-      />
+      {recentPosts.length > 0 && (
+        <Section title="Notícias" subtitle="Novidades do IGH.">
+          <div className="grid gap-6 sm:grid-cols-2">
+            {recentPosts.map((post) => (
+              <BlogCard key={post.slug} post={post} />
+            ))}
+          </div>
+          <div className="mt-8 text-center">
+            <Button as="link" href="/noticias" variant="outline" size="lg">
+              Ver todas as notícias
+            </Button>
+          </div>
+        </Section>
+      )}
 
-      {/* CTA — antes de Perguntas frequentes e Parceiros */}
-      <CTASection
-        title="Pronto para começar?"
-        subtitle="Inscreva-se em uma formação, fale com a gente ou doe equipamentos."
-        primaryCTA={{ label: "Quero me inscrever", href: "/inscreva" }}
-        secondaryCTAs={[
-          { label: "Fale com o IGH", href: "/contato" },
-          { label: "Doe equipamentos", href: "/projetos/doacoes-recebidas" },
-        ]}
-      />
-
-      {/* FAQ */}
-      {faqItems.length > 0 && <FAQ items={faqItems} />}
-
-      {/* Parceiros */}
       <Section title="Parceiros e apoio" background="muted">
         <div className="flex flex-wrap items-center justify-center gap-8">
           {partners.length === 0 ? (

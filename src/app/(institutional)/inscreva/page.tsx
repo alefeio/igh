@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { PageHeader, Section } from "@/components/site";
+import { FAQ, PageHeader, Section } from "@/components/site";
+import { enrollmentFaqItems } from "@/content";
 import { getInscrevaPageForSite } from "@/lib/site-data";
 import { InscrevaForm } from "./InscrevaForm";
 
@@ -39,6 +40,7 @@ export default async function InscrevaPage() {
           </Suspense>
         </div>
       </Section>
+      <FAQ items={enrollmentFaqItems} title="Dúvidas sobre a matrícula" />
     </>
   );
 }

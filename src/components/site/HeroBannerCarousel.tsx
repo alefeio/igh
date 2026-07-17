@@ -101,12 +101,59 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
                 </p>
               )}
               {banner.ctaLabel && banner.ctaHref ? (
-                <div className="mt-8">
-                  <Button as="link" href={banner.ctaHref} variant="primary" size="lg">
-                    {banner.ctaLabel}
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                  {banner.ctaHref.includes("/inscreva") ? (
+                    <Button as="link" href={banner.ctaHref} variant="primary" size="lg">
+                      {banner.ctaLabel}
+                    </Button>
+                  ) : (
+                    <>
+                      <Button as="link" href="/inscreva" variant="primary" size="lg">
+                        Começar agora
+                      </Button>
+                      <Button as="link" href={banner.ctaHref} variant="secondary" size="lg">
+                        {banner.ctaLabel}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                  <Button as="link" href="/inscreva" variant="primary" size="lg">
+                    Começar agora
+                  </Button>
+                  <Button as="link" href="/formacoes" variant="secondary" size="lg">
+                    Ver formações
                   </Button>
                 </div>
-              ) : null}
+              )}
+              <form
+                action="/formacoes"
+                method="get"
+                role="search"
+                className="mx-auto mt-5 max-w-md"
+                aria-label="Buscar no catálogo"
+              >
+                <label htmlFor={`banner-busca-${banner.id}`} className="sr-only">
+                  Buscar curso, tema ou formação
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id={`banner-busca-${banner.id}`}
+                    name="q"
+                    type="search"
+                    placeholder="Buscar no catálogo…"
+                    className={`min-h-[44px] flex-1 rounded-lg border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)]/40 ${
+                      banner.imageUrl
+                        ? "border-white/40 bg-black/35 text-white placeholder:text-white/70"
+                        : "border-[var(--igh-border)] bg-[var(--card-bg)] text-[var(--igh-secondary)] placeholder:text-[var(--igh-muted)]"
+                    }`}
+                  />
+                  <Button type="submit" variant={banner.imageUrl ? "secondary" : "outline"} size="sm" className="shrink-0">
+                    Buscar
+                  </Button>
+                </div>
+              </form>
             </div>
           </Container>
         </div>
