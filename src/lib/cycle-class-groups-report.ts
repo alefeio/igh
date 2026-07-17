@@ -332,31 +332,64 @@ const ALT_ROW_FILL: ExcelJS.Fill = {
   fgColor: { argb: "FFF2F2F2" },
 };
 
-function autoWidth(worksheet: ExcelJS.Worksheet, min = 8, max = 42) {
+/** Comprimento exibido do valor da célula (para calcular largura da coluna). */
+function cellDisplayLength(value: ExcelJS.CellValue): number {
+  if (value == null || value === "") return 0;
+  if (typeof value === "number") {
+    // Formatos 0 / 0.0 ainda cabem em poucos dígitos + margem.
+    return Math.max(String(value).length, 4);
+  }
+  if (typeof value === "boolean") return value ? 4 : 5;
+  if (typeof value === "string") return value.length;
+  if (value instanceof Date) return 10;
+  if (typeof value === "object") {
+    if ("richText" in value && Array.isArray((value as ExcelJS.CellRichTextValue).richText)) {
+      return (value as ExcelJS.CellRichTextValue).richText.reduce(
+        (sum, part) => sum + (part.text?.length ?? 0),
+        0,
+      );
+    }
+    if ("text" in value && typeof (value as ExcelJS.CellHyperlinkValue).text === "string") {
+      return (value as ExcelJS.CellHyperlinkValue).text.length;
+    }
+    if ("result" in value) {
+      return cellDisplayLength((value as ExcelJS.CellFormulaValue).result as ExcelJS.CellValue);
+    }
+  }
+  return String(value).length;
+}
+
+/**
+ * Largura de cada coluna = maior texto da coluna (cabeçalho/dados),
+ * sem esticar para preencher a janela e sem cortar o conteúdo.
+ * Ignora a linha de título (merged).
+ */
+function fitColumnWidthsToContent(
+  worksheet: ExcelJS.Worksheet,
+  options?: { skipRows?: number[]; minWidth?: number; padding?: number },
+) {
+  const skipRows = new Set(options?.skipRows ?? [1]);
+  const minWidth = options?.minWidth ?? 8;
+  const padding = options?.padding ?? 2;
+
   worksheet.columns.forEach((column) => {
     if (!column || typeof column.eachCell !== "function") return;
-    let longest = min;
-    column.eachCell({ includeEmpty: true }, (cell) => {
-      const v = cell.value;
-      let len = 0;
-      if (v == null) len = 0;
-      else if (typeof v === "object" && "text" in v && typeof (v as { text?: string }).text === "string") {
-        len = (v as { text: string }).text.length;
-      } else if (typeof v === "object" && "result" in v) {
-        len = String((v as { result?: unknown }).result ?? "").length;
-      } else {
-        len = String(v).length;
-      }
-      if (len > longest) longest = len;
+    let longest = minWidth;
+    column.eachCell({ includeEmpty: false }, (cell, rowNumber) => {
+      if (skipRows.has(rowNumber)) return;
+      const len = cellDisplayLength(cell.value);
+      // Cabeçalho em negrito costuma precisar de 1 caractere a mais.
+      const adjusted = rowNumber === 2 ? len + 1 : len;
+      if (adjusted > longest) longest = adjusted;
     });
-    column.width = Math.min(max, Math.max(min, longest + 2));
+    column.width = Math.max(minWidth, longest + padding);
   });
 }
 
 function styleHeaderRow(row: ExcelJS.Row, colCount: number) {
   row.height = 22;
   row.font = HEADER_FONT;
-  row.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+  row.alignment = { vertical: "middle", horizontal: "center", wrapText: false };
   for (let c = 1; c <= colCount; c++) {
     const cell = row.getCell(c);
     cell.fill = HEADER_FILL;
@@ -367,7 +400,8 @@ function styleHeaderRow(row: ExcelJS.Row, colCount: number) {
 
 function styleDataRow(row: ExcelJS.Row, colCount: number, alt: boolean) {
   row.font = BODY_FONT;
-  row.alignment = { vertical: "middle", wrapText: true };
+  // Sem wrap: a largura da coluna acompanha o texto inteiro.
+  row.alignment = { vertical: "middle", wrapText: false };
   for (let c = 1; c <= colCount; c++) {
     const cell = row.getCell(c);
     cell.border = THIN_BORDER;
@@ -471,10 +505,7 @@ export async function buildCycleClassGroupsReportXlsx(params: {
       to: { row: turmaLastRow, column: turmaHeaders.length },
     };
   }
-  autoWidth(wsTurmas);
-  wsTurmas.getColumn(2).width = Math.max(Number(wsTurmas.getColumn(2).width ?? 20), 28);
-  wsTurmas.getColumn(3).width = Math.max(Number(wsTurmas.getColumn(3).width ?? 16), 22);
-  wsTurmas.getColumn(6).width = Math.max(Number(wsTurmas.getColumn(6).width ?? 14), 20);
+  fitColumnWidthsToContent(wsTurmas);
 
   // --- Por curso ---
   const wsCurso = wb.addWorksheet("Por curso", {
@@ -530,8 +561,7 @@ export async function buildCycleClassGroupsReportXlsx(params: {
       to: { row: courseLastRow, column: courseHeaders.length },
     };
   }
-  autoWidth(wsCurso);
-  wsCurso.getColumn(1).width = Math.max(Number(wsCurso.getColumn(1).width ?? 20), 32);
+  fitColumnWidthsToContent(wsCurso);
 
   // --- Glossário ---
   const wsGloss = wb.addWorksheet("Glossário", {
@@ -574,8 +604,10 @@ export async function buildCycleClassGroupsReportXlsx(params: {
     row.getCell(2).alignment = { vertical: "middle", wrapText: true };
   });
 
-  wsGloss.getColumn(1).width = 22;
-  wsGloss.getColumn(2).width = 92;
+  // Glossário: Campo pelo maior rótulo; Significado com largura confortável + wrap.
+  fitColumnWidthsToContent(wsGloss, { padding: 2 });
+  wsGloss.getColumn(2).width = Math.max(Number(wsGloss.getColumn(2).width ?? 40), 60);
+  wsGloss.getColumn(2).alignment = { vertical: "middle", wrapText: true };
 
   const buffer = await wb.xlsx.writeBuffer();
   return Buffer.from(buffer);
