@@ -172,6 +172,8 @@ export default function ClassGroupsPage() {
   const [editingCycle, setEditingCycle] = useState<Cycle | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilters, setStatusFilters] = useState<ClassGroup["status"][]>([]);
+  /** Quando false, lista só turmas dos ciclos marcados como visíveis p/ matrículas (ciclo atual). */
+  const [includeOtherCycles, setIncludeOtherCycles] = useState(false);
   const [editing, setEditing] = useState<ClassGroup | null>(null);
 
   const [cycleId, setCycleId] = useState(DEFAULT_CYCLE_ID);
@@ -614,8 +616,20 @@ export default function ClassGroupsPage() {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
 
+  const currentCycleIds = useMemo(
+    () => cycles.filter((c) => c.isVisibleForEnrollments).map((c) => c.id),
+    [cycles],
+  );
+
   const visibleItems = useMemo(() => {
     let list = items;
+    if (!includeOtherCycles && currentCycleIds.length > 0) {
+      const allowed = new Set(currentCycleIds);
+      list = list.filter((cg) => {
+        const cid = cg.cycleId ?? cg.cycle?.id;
+        return !!cid && allowed.has(cid);
+      });
+    }
     if (statusFilters.length > 0) {
       list = list.filter((cg) => statusFilters.includes(cg.status));
     }
@@ -640,7 +654,7 @@ export default function ClassGroupsPage() {
       });
     }
     return list;
-  }, [items, statusFilters, searchQuery]);
+  }, [items, statusFilters, searchQuery, includeOtherCycles, currentCycleIds]);
 
   function toggleStatusFilter(status: ClassGroup["status"]) {
     setStatusFilters((prev) =>
@@ -665,8 +679,8 @@ export default function ClassGroupsPage() {
         title="Turmas"
         description={
           canMutate
-            ? "Todas as turmas do sistema. Pesquise por curso, data de início ou horário e filtre por status."
-            : "Todas as turmas do sistema (consulta). Pesquise por curso, data de início ou horário e filtre por status."
+            ? "Por padrão, só as turmas do ciclo atual (visível para matrículas). Pesquise e filtre por status."
+            : "Por padrão, só as turmas do ciclo atual (consulta). Pesquise e filtre por status."
         }
         rightSlot={
           canMutate ? (
@@ -693,6 +707,15 @@ export default function ClassGroupsPage() {
               className="theme-input w-full rounded-md border px-3 py-2 text-sm"
             />
           </div>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
+            <input
+              type="checkbox"
+              checked={includeOtherCycles}
+              onChange={(e) => setIncludeOtherCycles(e.target.checked)}
+              className="h-4 w-4 rounded border-[var(--card-border)]"
+            />
+            Incluir outros ciclos
+          </label>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-[var(--text-muted)]">Status:</span>
             {STATUS_OPTIONS.map(({ value, label }) => (
@@ -711,6 +734,16 @@ export default function ClassGroupsPage() {
             ))}
           </div>
         </div>
+        {!includeOtherCycles && currentCycleIds.length > 0 && (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">
+            Exibindo ciclos visíveis para matrículas
+            {cycles
+              .filter((c) => c.isVisibleForEnrollments)
+              .map((c) => ` ${c.cycle}/${c.year}`)
+              .join(",")}
+            . Marque “Incluir outros ciclos” para ver o restante.
+          </p>
+        )}
       </SectionCard>
 
       <SectionCard
