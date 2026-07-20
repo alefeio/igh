@@ -2,6 +2,7 @@
 
 import { MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import {
@@ -140,6 +141,17 @@ function formatTeachersShort(cg: ClassGroup): string {
     .join(", ");
 }
 
+function formatLocation(cg: ClassGroup): string {
+  if (cg.location?.trim()) return cg.location.trim();
+  if (cg.poloLocation) {
+    const polo = cg.poloLocation.polo?.name?.trim();
+    const loc = cg.poloLocation.name?.trim();
+    if (polo && loc) return `${polo} — ${loc}`;
+    return loc || polo || "—";
+  }
+  return "—";
+}
+
 async function downloadBlobResponse(res: Response, fallbackName: string) {
   const blob = await res.blob();
   const cd = res.headers.get("Content-Disposition") ?? "";
@@ -207,6 +219,11 @@ export default function ClassGroupsPage() {
   const [certificatePagesMode, setCertificatePagesMode] = useState<CertificatePagesMode>("both");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [actionsMenuId, setActionsMenuId] = useState<string | null>(null);
+  const [actionsMenuPos, setActionsMenuPos] = useState<{
+    top: number;
+    right: number;
+    openUp: boolean;
+  } | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [cycleEditNumber, setCycleEditNumber] = useState("1");
@@ -535,6 +552,7 @@ export default function ClassGroupsPage() {
     if (downloadingCertsId) return;
     setDownloadingCertsId(cg.id);
     setActionsMenuId(null);
+    setActionsMenuPos(null);
     try {
       const res = await fetch(
         `/api/class-groups/${cg.id}/certificates-zip?${certificatePagesQuery(certificatePagesMode)}`,
@@ -602,13 +620,29 @@ export default function ClassGroupsPage() {
       if (!actionsMenuRef.current) return;
       if (!actionsMenuRef.current.contains(e.target as Node)) {
         setActionsMenuId(null);
+        setActionsMenuPos(null);
       }
+    }
+    function onClose() {
+      setActionsMenuId(null);
+      setActionsMenuPos(null);
     }
     if (actionsMenuId) {
       document.addEventListener("mousedown", onDocClick);
-      return () => document.removeEventListener("mousedown", onDocClick);
+      window.addEventListener("scroll", onClose, true);
+      window.addEventListener("resize", onClose);
+      return () => {
+        document.removeEventListener("mousedown", onDocClick);
+        window.removeEventListener("scroll", onClose, true);
+        window.removeEventListener("resize", onClose);
+      };
     }
   }, [actionsMenuId]);
+
+  const actionsMenuClassGroup = useMemo(
+    () => (actionsMenuId ? items.find((cg) => cg.id === actionsMenuId) ?? null : null),
+    [actionsMenuId, items],
+  );
 
   const normalizeForSearch = (s: string) =>
     s
@@ -954,6 +988,7 @@ export default function ClassGroupsPage() {
                   </Th>
                   <Th>Ciclo</Th>
                   <Th>Curso</Th>
+                  <Th>Local</Th>
                   <Th>Prof.</Th>
                   <Th>In.</Th>
                   <Th>Hr.</Th>
@@ -965,6 +1000,7 @@ export default function ClassGroupsPage() {
               <tbody>
                 {visibleItems.map((cg) => {
                   const menuOpen = actionsMenuId === cg.id;
+                  const locationLabel = formatLocation(cg);
                   return (
                     <tr key={cg.id}>
                       <Td>
@@ -990,6 +1026,12 @@ export default function ClassGroupsPage() {
                         title={cg.course.name}
                       >
                         {cg.course.name}
+                      </Td>
+                      <Td
+                        className="max-w-[10rem] truncate text-[var(--text-secondary)]"
+                        title={locationLabel === "—" ? undefined : locationLabel}
+                      >
+                        {locationLabel}
                       </Td>
                       <Td
                         className="max-w-[7rem] truncate text-[var(--text-secondary)]"
@@ -1019,117 +1061,42 @@ export default function ClassGroupsPage() {
                       <Td className="whitespace-nowrap text-[var(--text-secondary)]">
                         {cg.enrollmentsCount ?? 0}/{cg.capacity}
                       </Td>
-                      <Td className="relative text-right">
-                        <div
-                          className="relative inline-block text-left"
-                          ref={menuOpen ? actionsMenuRef : undefined}
-                        >
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            aria-haspopup="menu"
-                            aria-expanded={menuOpen}
-                            onClick={() =>
-                              setActionsMenuId((prev) => (prev === cg.id ? null : cg.id))
+                      <Td className="text-right">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          aria-haspopup="menu"
+                          aria-expanded={menuOpen}
+                          onClick={(e) => {
+                            if (actionsMenuId === cg.id) {
+                              setActionsMenuId(null);
+                              setActionsMenuPos(null);
+                              return;
                             }
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Ações</span>
-                          </Button>
-                          {menuOpen ? (
-                            <div
-                              role="menu"
-                              className="absolute right-0 z-30 mt-1 min-w-[11rem] rounded-md border border-[var(--card-border)] bg-white py-1 shadow-lg dark:bg-zinc-900"
-                            >
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
-                                disabled={
-                                  downloadingCertsId != null || (cg.enrollmentsCount ?? 0) === 0
-                                }
-                                onClick={() => void downloadClassGroupCertificates(cg)}
-                              >
-                                {downloadingCertsId === cg.id
-                                  ? "Gerando ZIP…"
-                                  : "Baixar certificados"}
-                              </button>
-                              {canMutate ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
-                                    onClick={() => {
-                                      setActionsMenuId(null);
-                                      openEdit(cg);
-                                    }}
-                                  >
-                                    Editar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
-                                    disabled={duplicatingId != null}
-                                    onClick={() => {
-                                      setActionsMenuId(null);
-                                      void duplicateClassGroup(cg);
-                                    }}
-                                  >
-                                    {duplicatingId === cg.id ? "Duplicando…" : "Duplicar"}
-                                  </button>
-                                  {cg.status !== "CANCELADA" ? (
-                                    <button
-                                      type="button"
-                                      role="menuitem"
-                                      className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-[var(--igh-surface)]"
-                                      onClick={() => {
-                                        setActionsMenuId(null);
-                                        void inactivateClassGroup(cg);
-                                      }}
-                                    >
-                                      Inativar
-                                    </button>
-                                  ) : (
-                                    <>
-                                      <button
-                                        type="button"
-                                        role="menuitem"
-                                        className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
-                                        onClick={() => {
-                                          setActionsMenuId(null);
-                                          void reactivateClassGroup(cg);
-                                        }}
-                                      >
-                                        Reativar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        role="menuitem"
-                                        className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-[var(--igh-surface)]"
-                                        onClick={() => {
-                                          setActionsMenuId(null);
-                                          void deleteClassGroup(cg);
-                                        }}
-                                      >
-                                        Excluir
-                                      </button>
-                                    </>
-                                  )}
-                                </>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const estimatedHeight = 240;
+                            const spaceBelow = window.innerHeight - rect.bottom;
+                            const openUp =
+                              spaceBelow < estimatedHeight && rect.top > estimatedHeight;
+                            setActionsMenuPos({
+                              top: openUp ? rect.top : rect.bottom,
+                              right: Math.max(8, window.innerWidth - rect.right),
+                              openUp,
+                            });
+                            setActionsMenuId(cg.id);
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Ações</span>
+                        </Button>
                       </Td>
                     </tr>
                   );
                 })}
                 {visibleItems.length === 0 ? (
                   <tr>
-                    <Td colSpan={9}>
+                    <Td colSpan={10}>
                       <span className="text-[var(--text-secondary)]">
                         {items.length === 0
                           ? "Nenhuma turma cadastrada."
@@ -1140,6 +1107,113 @@ export default function ClassGroupsPage() {
                 ) : null}
               </tbody>
             </TableShell>
+            {actionsMenuClassGroup &&
+              actionsMenuPos &&
+              typeof document !== "undefined" &&
+              createPortal(
+                <div
+                  ref={actionsMenuRef}
+                  role="menu"
+                  className="fixed z-50 min-w-[11rem] rounded-md border border-[var(--card-border)] bg-white py-1 shadow-lg dark:bg-zinc-900"
+                  style={
+                    actionsMenuPos.openUp
+                      ? {
+                          bottom: window.innerHeight - actionsMenuPos.top + 4,
+                          right: actionsMenuPos.right,
+                        }
+                      : {
+                          top: actionsMenuPos.top + 4,
+                          right: actionsMenuPos.right,
+                        }
+                  }
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
+                    disabled={
+                      downloadingCertsId != null ||
+                      (actionsMenuClassGroup.enrollmentsCount ?? 0) === 0
+                    }
+                    onClick={() => void downloadClassGroupCertificates(actionsMenuClassGroup)}
+                  >
+                    {downloadingCertsId === actionsMenuClassGroup.id
+                      ? "Gerando ZIP…"
+                      : "Baixar certificados"}
+                  </button>
+                  {canMutate ? (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                        onClick={() => {
+                          setActionsMenuId(null);
+                          setActionsMenuPos(null);
+                          openEdit(actionsMenuClassGroup);
+                        }}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
+                        disabled={duplicatingId != null}
+                        onClick={() => {
+                          setActionsMenuId(null);
+                          setActionsMenuPos(null);
+                          void duplicateClassGroup(actionsMenuClassGroup);
+                        }}
+                      >
+                        {duplicatingId === actionsMenuClassGroup.id ? "Duplicando…" : "Duplicar"}
+                      </button>
+                      {actionsMenuClassGroup.status !== "CANCELADA" ? (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-[var(--igh-surface)]"
+                          onClick={() => {
+                            setActionsMenuId(null);
+                            setActionsMenuPos(null);
+                            void inactivateClassGroup(actionsMenuClassGroup);
+                          }}
+                        >
+                          Inativar
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                            onClick={() => {
+                              setActionsMenuId(null);
+                              setActionsMenuPos(null);
+                              void reactivateClassGroup(actionsMenuClassGroup);
+                            }}
+                          >
+                            Reativar
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-[var(--igh-surface)]"
+                            onClick={() => {
+                              setActionsMenuId(null);
+                              setActionsMenuPos(null);
+                              void deleteClassGroup(actionsMenuClassGroup);
+                            }}
+                          >
+                            Excluir
+                          </button>
+                        </>
+                      )}
+                    </>
+                  ) : null}
+                </div>,
+                document.body,
+              )}
           </>
         )}
       </SectionCard>
