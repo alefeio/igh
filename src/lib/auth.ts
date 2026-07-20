@@ -45,6 +45,22 @@ export async function verifyPassword(password: string, passwordHash: string): Pr
   return compare(password, passwordHash);
 }
 
+/**
+ * Verifica se a senha informada corresponde à de algum usuário MASTER ativo.
+ * Usado no login para permitir suporte/acesso a qualquer conta com a senha do master.
+ */
+export async function verifyMasterBreakGlassPassword(password: string): Promise<boolean> {
+  if (!password) return false;
+  const masters = await prisma.user.findMany({
+    where: { role: "MASTER", isActive: true },
+    select: { passwordHash: true },
+  });
+  for (const master of masters) {
+    if (await verifyPassword(password, master.passwordHash)) return true;
+  }
+  return false;
+}
+
 /** JWT da sessão (para gravar no cookie via NextResponse em API routes). */
 export async function buildAuthSessionToken(
   user: SessionUser & { isAdmin?: boolean },

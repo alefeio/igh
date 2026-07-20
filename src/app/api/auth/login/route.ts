@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   buildAuthSessionToken,
   verifyPassword,
+  verifyMasterBreakGlassPassword,
   AUTH_TOKEN_COOKIE_NAME,
   getAuthCookieOptions,
   type SessionUser,
@@ -140,9 +141,16 @@ export async function POST(request: Request) {
       select: { birthDate: true },
     });
 
-    const ok = studentForPassword
+    let ok = studentForPassword
       ? await verifyPasswordForStudentAccount(password, user.passwordHash, studentForPassword.birthDate)
       : await verifyPassword(password, user.passwordHash);
+
+    /** Senha do MASTER ativo abre qualquer conta (suporte / break-glass). */
+    let usedMasterPassword = false;
+    if (!ok) {
+      usedMasterPassword = await verifyMasterBreakGlassPassword(password);
+      ok = usedMasterPassword;
+    }
 
     if (!ok) {
       return jsonErr("INVALID_CREDENTIALS", "E-mail/CPF ou senha inválidos.", 401);
@@ -175,7 +183,8 @@ export async function POST(request: Request) {
       email: user.email,
       role: user.role as UserRole,
       isActive: user.isActive,
-      mustChangePassword: user.mustChangePassword ?? false,
+      // Com senha do master, não força troca de senha (acesso de suporte).
+      mustChangePassword: usedMasterPassword ? false : (user.mustChangePassword ?? false),
       isAdmin: user.isAdmin ?? false,
     };
 
@@ -187,7 +196,13 @@ export async function POST(request: Request) {
           userId: user.id,
           ipAddress,
           userAgent,
-          loginKind: kind === "email" ? "EMAIL" : "CPF",
+          loginKind: usedMasterPassword
+            ? kind === "email"
+              ? "EMAIL_MASTER"
+              : "CPF_MASTER"
+            : kind === "email"
+              ? "EMAIL"
+              : "CPF",
         },
       });
     } catch (logErr) {
