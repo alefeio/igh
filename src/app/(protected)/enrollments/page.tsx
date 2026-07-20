@@ -119,6 +119,7 @@ export default function EnrollmentsPage() {
   const user = useUser();
   const toast = useToast();
   const isMaster = user.role === "MASTER";
+  const isPoloCoordinator = user.role === "POLO_COORDINATOR";
   const canOverrideEnrollment = isMaster || user.role === "COORDINATOR";
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Enrollment[]>([]);
@@ -235,19 +236,43 @@ export default function EnrollmentsPage() {
 
   const visibleCycleIds = useMemo(() => cycles.filter((c) => c.isVisibleForEnrollments).map((c) => c.id), [cycles]);
   const modalCycleIds = useMemo(() => {
+    // Coordenador de polo: todas as turmas do polo (API já escopa), em qualquer ciclo.
+    if (isPoloCoordinator) return cycles.map((c) => c.id);
     const base = visibleCycleIds;
     if (!canOverrideEnrollment) return base;
     return Array.from(new Set([...base, ...extraModalCycleIds]));
-  }, [visibleCycleIds, extraModalCycleIds, canOverrideEnrollment]);
+  }, [visibleCycleIds, extraModalCycleIds, canOverrideEnrollment, isPoloCoordinator, cycles]);
 
   const classGroupsForModal = useMemo(() => {
+    if (isPoloCoordinator) {
+      return allClassGroups;
+    }
     if (modalCycleIds.length === 0) return [];
     const allowed = new Set(modalCycleIds);
     return allClassGroups.filter((cg) => {
       const cid = cg.cycle?.id ?? cg.cycleId;
       return !!cid && allowed.has(cid);
     });
-  }, [allClassGroups, modalCycleIds]);
+  }, [allClassGroups, modalCycleIds, isPoloCoordinator]);
+
+  function isClassGroupSelectableForEnrollment(cg: ClassGroup): boolean {
+    const permiteMatriculaPadrao =
+      cg.status === "PLANEJADA" ||
+      cg.status === "ABERTA" ||
+      cg.status === "EM_ANDAMENTO";
+    const isInterno = cg.status === "INTERNO";
+    const isExterno = cg.status === "EXTERNO";
+    // Coordenador de polo: enxerga todas as turmas do polo aptas a matrícula (inclui interno/externo).
+    if (isPoloCoordinator) {
+      return permiteMatriculaPadrao || isInterno || isExterno;
+    }
+    const canSeeExterno = user?.role === "ADMIN" || isMaster || user?.role === "COORDINATOR";
+    return (
+      permiteMatriculaPadrao ||
+      (canOverrideEnrollment && isInterno) ||
+      (canSeeExterno && isExterno)
+    );
+  }
 
   const searchStudents = useCallback(
     async (q: string) => {
@@ -271,6 +296,10 @@ export default function EnrollmentsPage() {
 
   useEffect(() => {
     void load();
+    // Coordenador de polo: carrega todas as turmas do polo (mesmo sem matrícula) para filtros/gráficos.
+    if (user.role === "POLO_COORDINATOR") {
+      void loadFormOptions();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -329,6 +358,22 @@ export default function EnrollmentsPage() {
       if (!cur) byClassGroup.set(cg.id, { classGroup: cg, count: 1 });
       else cur.count++;
     }
+
+    // Coordenador de polo: inclui todas as turmas do polo (API), mesmo sem matrícula no filtro atual.
+    if (isPoloCoordinator && allClassGroups.length > 0) {
+      const allowedCycles = new Set(cycleFilterIds);
+      for (const cg of allClassGroups) {
+        if (byClassGroup.has(cg.id)) continue;
+        if (cycleFilterIds.length === 0) continue;
+        const cid = cg.cycleId ?? cg.cycle?.id;
+        if (!cid || !allowedCycles.has(cid)) continue;
+        byClassGroup.set(cg.id, {
+          classGroup: cg,
+          count: cg.enrollmentsCount ?? 0,
+        });
+      }
+    }
+
     const byCourse = new Map<string, { courseName: string; turmas: { classGroup: ClassGroup; count: number }[] }>();
     for (const { classGroup, count } of byClassGroup.values()) {
       const cid = classGroup.course.id;
@@ -376,7 +421,7 @@ export default function EnrollmentsPage() {
       .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
 
     return { courses, teachers, total: list.length, totalCapacity };
-  }, [itemsForView]);
+  }, [itemsForView, isPoloCoordinator, allClassGroups, cycleFilterIds]);
 
   /** Lista de professores para exibir: da API ou, se vazia, únicos que aparecem nas matrículas (no intervalo). */
   const teachersToDisplay = useMemo(() => {
@@ -1738,21 +1783,7 @@ export default function EnrollmentsPage() {
             >
               <option value="">Selecione</option>
               {classGroupsForModal
-                .filter((cg) => {
-                  const permiteMatriculaPadrao =
-                    cg.status === "PLANEJADA" ||
-                    cg.status === "ABERTA" ||
-                    cg.status === "EM_ANDAMENTO";
-                  const isInterno = cg.status === "INTERNO";
-                  const isExterno = cg.status === "EXTERNO";
-                  const canSeeExterno = user?.role === "ADMIN" || isMaster || user?.role === "COORDINATOR";
-                  const permitidaParaMatricula =
-                    permiteMatriculaPadrao ||
-                    (canOverrideEnrollment && isInterno) ||
-                    (canSeeExterno && isExterno);
-                  if (!permitidaParaMatricula) return false;
-                  return true;
-                })
+                .filter(isClassGroupSelectableForEnrollment)
                 .map((cg) => {
                   const cap = cg.capacity ?? 0;
                   const count = cg.enrollmentsCount ?? 0;
@@ -1848,19 +1879,7 @@ export default function EnrollmentsPage() {
                 {classGroupsForModal
                   .filter((cg) => {
                     const isCurrent = cg.id === editingEnrollment.classGroup.id;
-                    const permiteMatriculaPadrao =
-                      cg.status === "PLANEJADA" ||
-                      cg.status === "ABERTA" ||
-                      cg.status === "EM_ANDAMENTO";
-                    const isInterno = cg.status === "INTERNO";
-                    const isExterno = cg.status === "EXTERNO";
-                    const canSeeExterno = user?.role === "ADMIN" || isMaster || user?.role === "COORDINATOR";
-                    return (
-                      permiteMatriculaPadrao ||
-                      (canOverrideEnrollment && isInterno) ||
-                      (canSeeExterno && isExterno) ||
-                      isCurrent
-                    );
+                    return isCurrent || isClassGroupSelectableForEnrollment(cg);
                   })
                   .map((cg) => {
                     const isCurrent = cg.id === editingEnrollment.classGroup.id;

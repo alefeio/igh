@@ -12,7 +12,7 @@ import { templateStudentWelcome } from "@/lib/email/templates";
 import { generateTempPassword } from "@/lib/password";
 import { hashPassword } from "@/lib/auth";
 import {
-  enrollmentWhereForPoloCoordinator,
+  buildEnrollmentWhereForPoloCoordinator,
   poloCoordinatorOwnsClassGroup,
 } from "@/lib/polo-coordinator-scope";
 
@@ -33,11 +33,15 @@ export async function GET() {
     }
   }
 
+  const poloEnrollmentWhere = isPoloCoordinator
+    ? await buildEnrollmentWhereForPoloCoordinator(user.id)
+    : undefined;
+
   const enrollments = await prisma.enrollment.findMany({
     where: isTeacher && teacherId
       ? { classGroup: { teacherId } }
       : isPoloCoordinator
-        ? enrollmentWhereForPoloCoordinator(user.id)
+        ? poloEnrollmentWhere
         : undefined,
     orderBy: { enrolledAt: "desc" },
     include: {

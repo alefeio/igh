@@ -13,7 +13,7 @@ import {
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import { DEFAULT_CYCLE_ID } from "@/lib/cycles";
 import { classGroupTeacherAccessWhere, syncClassGroupTeachers, validateTeacherIds } from "@/lib/class-group-teachers";
-import { classGroupWhereForPoloCoordinator } from "@/lib/polo-coordinator-scope";
+import { buildClassGroupWhereForPoloCoordinator } from "@/lib/polo-coordinator-scope";
 
 export async function GET() {
   try {
@@ -35,11 +35,15 @@ export async function GET() {
       }
     }
 
+    const poloWhere = isPoloCoordinator
+      ? await buildClassGroupWhereForPoloCoordinator(user.id)
+      : undefined;
+
     const classGroups = await prisma.classGroup.findMany({
       where: isTeacher && teacherId
         ? classGroupTeacherAccessWhere(teacherId)
         : isPoloCoordinator
-          ? classGroupWhereForPoloCoordinator(user.id)
+          ? poloWhere
           : undefined,
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       include: {
