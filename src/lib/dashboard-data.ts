@@ -1108,7 +1108,10 @@ export async function getTeacherAcompanhamentoPagePayload(
   );
   const accessMap = new Map(accessProgressTeacher.map((r) => [r.enrollmentId, r._count.id]));
   const attMap = new Map(attendanceTeacher.map((r) => [r.enrollmentId, r._count.id]));
-  const fqMap = new Map(forumQTeacher.map((r) => [r.enrollmentId, r._count.id]));
+  const fqMap = new Map<string, number>();
+  for (const row of forumQTeacher) {
+    if (row.enrollmentId) fqMap.set(row.enrollmentId, row._count.id);
+  }
   const frMap = new Map(forumRTeacher.map((r) => [r.enrollmentId, r._count.id]));
 
   const completedByCg = foldEnrollmentMetricToClassGroup(enrollmentToCg, completedMap);

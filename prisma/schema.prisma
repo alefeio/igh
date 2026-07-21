@@ -382,6 +382,7 @@ model Teacher {
   classGroups           ClassGroup[]
   classGroupTeachers    ClassGroupTeacher[]
   lessonQuestionReplies LessonQuestionTeacherReply[]
+  lessonQuestionsAuthored EnrollmentLessonQuestion[] @relation("LessonQuestionTeacherAuthor")
   examsCreated          ClassGroupExam[]             @relation("ExamCreatedByTeacher")
   holidayEventsResponsibleFor Holiday[]              @relation("HolidayResponsibleTeacher")
   holidayEventAttendancesMarked HolidayEventRegistration[] @relation("HolidayEventAttendanceMarkedByTeacher")
@@ -934,18 +935,21 @@ model EnrollmentLessonProgress {
 /// * Dúvida ou comentário do aluno sobre a aula (fórum por aula).
 model EnrollmentLessonQuestion {
   id             String                          @id @default(uuid())
-  enrollmentId   String
+  enrollmentId   String?
+  teacherAuthorId String?
   lessonId       String
   content        String
   /// * Fotos anexadas à publicação no fórum da aula (URLs no Apimages).
   imageUrls      String[]                        @default([])
   createdAt      DateTime                        @default(now())
   updatedAt      DateTime                        @updatedAt
-  enrollment     Enrollment                      @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  enrollment     Enrollment?                     @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  teacherAuthor  Teacher?                        @relation("LessonQuestionTeacherAuthor", fields: [teacherAuthorId], references: [id], onDelete: Cascade)
   replies        EnrollmentLessonQuestionReply[]
   teacherReplies LessonQuestionTeacherReply[]
 
   @@index([enrollmentId, lessonId])
+  @@index([teacherAuthorId])
   @@index([lessonId])
 }
 

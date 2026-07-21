@@ -24,6 +24,7 @@ export async function GET(
       enrollment: {
         select: { id: true, student: { select: { name: true } } },
       },
+      teacherAuthor: { select: { name: true } },
       replies: {
         orderBy: { createdAt: "asc" },
         include: {
@@ -51,7 +52,8 @@ export async function GET(
       createdAt: q.createdAt.toISOString(),
       updatedAt: q.updatedAt.toISOString(),
       enrollmentId: q.enrollmentId,
-      authorName: q.enrollment.student.name,
+      authorName: q.teacherAuthor?.name ?? q.enrollment?.student.name ?? "Professor",
+      authorRole: q.teacherAuthor ? "TEACHER" : "STUDENT",
       replies: q.replies.map((r) => ({
         id: r.id,
         content: r.content,

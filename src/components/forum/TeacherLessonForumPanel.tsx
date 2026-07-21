@@ -9,8 +9,9 @@ type LessonQuestionReply = {
   id: string;
   content: string;
   createdAt: string;
-  enrollmentId: string;
+  enrollmentId: string | null;
   authorName: string;
+  authorRole?: "TEACHER" | "STUDENT";
 };
 type LessonTeacherReply = { id: string; content: string; createdAt: string; teacherName: string };
 type LessonQuestion = {
@@ -18,8 +19,9 @@ type LessonQuestion = {
   content: string;
   createdAt: string;
   updatedAt?: string;
-  enrollmentId: string;
+  enrollmentId: string | null;
   authorName: string;
+  authorRole?: "TEACHER" | "STUDENT";
   replies?: LessonQuestionReply[];
   teacherReplies?: LessonTeacherReply[];
 };
@@ -177,7 +179,10 @@ export function TeacherLessonForumPanel({
             {questions.map((q) => (
               <li key={q.id} className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 text-sm">
                 <div className="mb-2 flex flex-wrap items-baseline gap-2 text-xs text-[var(--text-muted)]">
-                  <span className="font-semibold text-[var(--text-primary)]">{q.authorName}</span>
+                  <span className="font-semibold text-[var(--text-primary)]">
+                    {q.authorName}
+                    {q.authorRole === "TEACHER" ? " · Professor" : ""}
+                  </span>
                   <span>{formatForumDate(q.createdAt)}</span>
                 </div>
                 <p className="whitespace-pre-wrap text-[var(--text-primary)]">{q.content}</p>

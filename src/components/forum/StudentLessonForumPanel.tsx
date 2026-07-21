@@ -12,8 +12,9 @@ type LessonQuestionReply = {
   id: string;
   content: string;
   createdAt: string;
-  enrollmentId: string;
+  enrollmentId: string | null;
   authorName: string;
+  authorRole?: "TEACHER" | "STUDENT";
 };
 type LessonTeacherReply = { id: string; content: string; createdAt: string; teacherName: string };
 type LessonQuestion = {
@@ -22,8 +23,9 @@ type LessonQuestion = {
   imageUrls?: string[];
   createdAt: string;
   updatedAt?: string;
-  enrollmentId: string;
+  enrollmentId: string | null;
   authorName: string;
+  authorRole?: "TEACHER" | "STUDENT";
   replies?: LessonQuestionReply[];
   teacherReplies?: LessonTeacherReply[];
 };
@@ -291,7 +293,10 @@ export function StudentLessonForumPanel({
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex flex-wrap items-baseline gap-2 text-xs text-[var(--text-muted)]">
-                      <span className="font-medium text-[var(--text-secondary)]">{q.authorName}</span>
+                      <span className="font-medium text-[var(--text-secondary)]">
+                        {q.authorName}
+                        {q.authorRole === "TEACHER" ? " · Professor" : ""}
+                      </span>
                       <span>{formatForumDate(q.createdAt)}</span>
                       {q.updatedAt && q.updatedAt !== q.createdAt && <span className="italic">(editado)</span>}
                     </div>

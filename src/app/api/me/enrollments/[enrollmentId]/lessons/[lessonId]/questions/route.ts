@@ -68,6 +68,7 @@ export async function GET(
       enrollment: {
         select: { id: true, student: { select: { name: true } } },
       },
+      teacherAuthor: { select: { name: true } },
       replies: {
         orderBy: { createdAt: "asc" },
         include: {
@@ -92,8 +93,9 @@ export async function GET(
     imageUrls?: string[];
     createdAt: Date;
     updatedAt: Date;
-    enrollmentId: string;
-    enrollment: { student: { name: string } };
+    enrollmentId: string | null;
+    enrollment: { student: { name: string } } | null;
+    teacherAuthor?: { name: string } | null;
     replies: Array<{
       id: string;
       content: string;

@@ -6,8 +6,9 @@ type QuestionWithRelations = {
   imageUrls?: string[];
   createdAt: Date;
   updatedAt: Date;
-  enrollmentId: string;
-  enrollment: { student: { name: string } };
+  enrollmentId: string | null;
+  enrollment: { student: { name: string } } | null;
+  teacherAuthor?: { name: string } | null;
   replies?: Array<{
     id: string;
     content: string;
@@ -32,7 +33,8 @@ export function serializeForumQuestion(q: QuestionWithRelations) {
     createdAt: q.createdAt.toISOString(),
     updatedAt: q.updatedAt.toISOString(),
     enrollmentId: q.enrollmentId,
-    authorName: q.enrollment.student.name,
+    authorName: q.teacherAuthor?.name ?? q.enrollment?.student.name ?? "Professor",
+    authorRole: q.teacherAuthor ? "TEACHER" : "STUDENT",
     replies: (q.replies ?? []).map((r) => ({
       id: r.id,
       content: r.content,

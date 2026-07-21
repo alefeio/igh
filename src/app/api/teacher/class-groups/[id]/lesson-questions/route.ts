@@ -2,12 +2,17 @@ import { prisma } from "@/lib/prisma";
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { requireRole } from "@/lib/auth";
 import { mapStaffOrTeacherReplyName } from "@/lib/course-forum-reply-display";
+import {
+  isForumPostEmpty,
+  parseForumImageUrls,
+  stripRichTextToPlain,
+} from "@/lib/forum-question-content";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 async function assertTeacherOwnsClassGroup(userId: string, classGroupId: string) {
   const teacher = await prisma.teacher.findFirst({
     where: { userId, deletedAt: null },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (!teacher) return null;
   const cg = await prisma.classGroup.findFirst({
@@ -53,6 +58,13 @@ export async function GET(
     take: 300,
     include: {
       enrollment: { select: { student: { select: { name: true } } } },
+      teacherAuthor: { select: { name: true } },
+      replies: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          enrollment: { select: { student: { select: { name: true } } } },
+        },
+      },
       teacherReplies: {
         orderBy: { createdAt: "asc" },
         include: {
@@ -78,7 +90,14 @@ export async function GET(
         imageUrls: q.imageUrls ?? [],
         createdAt: q.createdAt.toISOString(),
         updatedAt: q.updatedAt.toISOString(),
-        authorName: q.enrollment.student.name,
+        authorName: q.teacherAuthor?.name ?? q.enrollment?.student.name ?? "Professor",
+        authorRole: q.teacherAuthor ? "TEACHER" : "STUDENT",
+        replies: q.replies.map((r) => ({
+          id: r.id,
+          content: r.content,
+          createdAt: r.createdAt.toISOString(),
+          authorName: r.enrollment.student.name,
+        })),
         teacherReplies: q.teacherReplies.map((r) => ({
           id: r.id,
           content: r.content,
@@ -87,5 +106,67 @@ export async function GET(
         })),
       };
     }),
+  });
+}
+
+/** Publica um novo tópico do professor no fórum da aula. */
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const user = await requireRole(["TEACHER"]);
+  const { id: classGroupId } = await context.params;
+  const ctx = await assertTeacherOwnsClassGroup(user.id, classGroupId);
+  if (!ctx) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+
+  let body: { lessonId?: string; content?: string; imageUrls?: unknown } = {};
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return jsonErr("BAD_REQUEST", "JSON inválido.", 400);
+  }
+
+  const lessonId = typeof body.lessonId === "string" ? body.lessonId.trim() : "";
+  const rawContent = typeof body.content === "string" ? body.content : "";
+  const imageUrls = parseForumImageUrls(body.imageUrls);
+  if (!lessonId) return jsonErr("BAD_REQUEST", "Aula não informada.", 400);
+  if (isForumPostEmpty(rawContent, imageUrls)) {
+    return jsonErr("BAD_REQUEST", "Escreva uma mensagem ou anexe ao menos uma foto.", 400);
+  }
+
+  const lesson = await prisma.courseLesson.findFirst({
+    where: { id: lessonId, module: { courseId: ctx.courseId } },
+    select: { id: true },
+  });
+  if (!lesson) return jsonErr("NOT_FOUND", "Aula não encontrada neste curso.", 404);
+
+  const topic = await prisma.enrollmentLessonQuestion.create({
+    data: {
+      enrollmentId: null,
+      teacherAuthorId: ctx.teacher.id,
+      lessonId,
+      content: stripRichTextToPlain(rawContent).length > 0 ? rawContent : "",
+      imageUrls,
+    },
+    select: {
+      id: true,
+      content: true,
+      imageUrls: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  return jsonOk({
+    id: topic.id,
+    lessonId,
+    content: topic.content,
+    imageUrls: topic.imageUrls,
+    createdAt: topic.createdAt.toISOString(),
+    updatedAt: topic.updatedAt.toISOString(),
+    authorName: ctx.teacher.name,
+    authorRole: "TEACHER",
+    replies: [],
+    teacherReplies: [],
   });
 }

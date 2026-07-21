@@ -42,6 +42,7 @@ export async function GET(
         enrollment: {
           select: { id: true, student: { select: { name: true } } },
         },
+        teacherAuthor: { select: { name: true } },
         replies: {
           orderBy: { createdAt: "asc" },
           include: {

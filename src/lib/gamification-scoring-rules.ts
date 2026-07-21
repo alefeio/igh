@@ -12,7 +12,7 @@ export type ExerciseAnswerForScoring = {
 };
 
 export type ForumActivityForScoring = {
-  enrollmentId: string;
+  enrollmentId: string | null;
   lessonId: string;
   createdAt: Date;
 };
@@ -71,7 +71,7 @@ export function countFirstForumParticipations(
 } {
   const firstAt = new Map<string, Date>();
   for (const row of [...questions, ...replies]) {
-    if (!row.lessonId) continue;
+    if (!row.enrollmentId || !row.lessonId) continue;
     const key = `${row.enrollmentId}:${row.lessonId}`;
     const prev = firstAt.get(key);
     if (!prev || earlier(row.createdAt, prev)) firstAt.set(key, row.createdAt);

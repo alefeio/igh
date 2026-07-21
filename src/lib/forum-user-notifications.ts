@@ -16,6 +16,14 @@ async function lessonTitleFromId(lessonId: string): Promise<string> {
   return l?.title ?? "Aula";
 }
 
+async function courseNameFromLessonId(lessonId: string): Promise<string> {
+  const lesson = await prisma.courseLesson.findUnique({
+    where: { id: lessonId },
+    select: { module: { select: { course: { select: { name: true } } } } },
+  });
+  return lesson?.module.course.name ?? "Curso";
+}
+
 /** Nova dúvida na aula: notifica o professor da turma. */
 export async function notifyTeacherOfNewForumQuestion(questionId: string): Promise<void> {
   const q = await prisma.enrollmentLessonQuestion.findUnique({
@@ -36,8 +44,8 @@ export async function notifyTeacherOfNewForumQuestion(questionId: string): Promi
       },
     },
   });
-  const teacherUserId = q?.enrollment.classGroup.teacher.userId;
-  if (!q || !teacherUserId) return;
+  const teacherUserId = q?.enrollment?.classGroup.teacher.userId;
+  if (!q || !q.enrollment || !teacherUserId) return;
 
   const courseName = q.enrollment.classGroup.course.name;
   const lessonTitle = await lessonTitleFromId(q.lessonId);
@@ -65,6 +73,9 @@ export async function notifyParticipantsAfterStudentForumReply(
       id: true,
       lessonId: true,
       enrollmentId: true,
+      teacherAuthor: {
+        select: { user: { select: { id: true } } },
+      },
       enrollment: {
         select: {
           student: { select: { userId: true, name: true } },
@@ -87,25 +98,26 @@ export async function notifyParticipantsAfterStudentForumReply(
   });
   if (!q) return;
 
-  const courseName = q.enrollment.classGroup.course.name;
+  const courseName = await courseNameFromLessonId(q.lessonId);
   const lessonTitle = await lessonTitleFromId(q.lessonId);
   const baseBody = `${courseName} — ${lessonTitle}: nova resposta no fórum.`;
 
-  const teacherUserId = q.enrollment.classGroup.teacher.userId;
+  const teacherUserId =
+    q.teacherAuthor?.user?.id ?? q.enrollment?.classGroup.teacher.userId;
   if (teacherUserId) {
     await createUserNotificationIfNew({
       userId: teacherUserId,
       kind: "FORUM_ACTIVITY",
       title: "Nova resposta no fórum",
       body: baseBody,
-      linkUrl: studentLessonForumLink(q.enrollmentId, q.lessonId),
+      linkUrl: studentLessonForumLink(authorEnrollmentId, q.lessonId),
       dedupeKey: `forum_st_reply:${replyId}:t`,
     });
   }
 
   const recipientIds = new Set<string>();
 
-  const authorUserId = q.enrollment.student.userId;
+  const authorUserId = q.enrollment?.student.userId;
   if (authorUserId && q.enrollmentId !== authorEnrollmentId) {
     recipientIds.add(authorUserId);
   }
@@ -123,7 +135,7 @@ export async function notifyParticipantsAfterStudentForumReply(
       kind: "FORUM_ACTIVITY",
       title: "Nova resposta no fórum",
       body: baseBody,
-      linkUrl: studentLessonForumLink(q.enrollmentId, q.lessonId),
+      linkUrl: studentLessonForumLink(authorEnrollmentId, q.lessonId),
       dedupeKey: `forum_st_reply:${replyId}:${uid}`,
     });
   }
@@ -147,6 +159,7 @@ export async function notifyParticipantsAfterTeacherForumReply(
       },
       replies: {
         select: {
+          enrollmentId: true,
           enrollment: { select: { student: { select: { userId: true } } } },
         },
       },
@@ -154,25 +167,25 @@ export async function notifyParticipantsAfterTeacherForumReply(
   });
   if (!q) return;
 
-  const courseName = q.enrollment.classGroup.course.name;
+  const courseName = await courseNameFromLessonId(q.lessonId);
   const lessonTitle = await lessonTitleFromId(q.lessonId);
   const baseBody = `${courseName} — ${lessonTitle}: resposta no fórum da aula.`;
 
-  const recipientIds = new Set<string>();
-  const mainAuthor = q.enrollment.student.userId;
-  if (mainAuthor) recipientIds.add(mainAuthor);
+  const recipients = new Map<string, string>();
+  const mainAuthor = q.enrollment?.student.userId;
+  if (mainAuthor && q.enrollmentId) recipients.set(mainAuthor, q.enrollmentId);
   for (const r of q.replies) {
     const uid = r.enrollment.student.userId;
-    if (uid) recipientIds.add(uid);
+    if (uid) recipients.set(uid, r.enrollmentId);
   }
 
-  for (const uid of recipientIds) {
+  for (const [uid, enrollmentId] of recipients) {
     await createUserNotificationIfNew({
       userId: uid,
       kind: "FORUM_ACTIVITY",
       title: "Resposta no fórum da aula",
       body: baseBody,
-      linkUrl: studentLessonForumLink(q.enrollmentId, q.lessonId),
+      linkUrl: studentLessonForumLink(enrollmentId, q.lessonId),
       dedupeKey: `forum_teacher_reply:${replyId}:${uid}`,
     });
   }

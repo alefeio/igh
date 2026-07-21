@@ -81,6 +81,8 @@ type LessonQuestion = {
   createdAt: string;
   updatedAt: string;
   authorName: string;
+  authorRole?: "TEACHER" | "STUDENT";
+  replies?: { id: string; content: string; createdAt: string; authorName: string }[];
   teacherReplies: { id: string; content: string; createdAt: string; teacherName: string }[];
 };
 
@@ -126,6 +128,9 @@ export default function ProfessorApresentarAulaPage() {
   const [noteContent, setNoteContent] = useState("");
   const [questions, setQuestions] = useState<LessonQuestion[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [newTopicContent, setNewTopicContent] = useState("");
+  const [newTopicImageUrls, setNewTopicImageUrls] = useState<string[]>([]);
+  const [postingTopic, setPostingTopic] = useState(false);
   const [replyContentByQuestionId, setReplyContentByQuestionId] = useState<Record<string, string>>({});
   const [replyImageUrlsByQuestionId, setReplyImageUrlsByQuestionId] = useState<Record<string, string[]>>({});
   const [replyingQuestionId, setReplyingQuestionId] = useState<string | null>(null);
@@ -235,6 +240,33 @@ export default function ProfessorApresentarAulaPage() {
   useEffect(() => {
     void loadQuestions();
   }, [loadQuestions]);
+
+  const handleCreateTopic = useCallback(async () => {
+    if (isForumPostEmpty(newTopicContent, newTopicImageUrls)) return;
+    setPostingTopic(true);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${classGroupId}/lesson-questions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lessonId,
+          content: newTopicContent,
+          imageUrls: newTopicImageUrls,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<LessonQuestion>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao publicar no fórum.");
+        return;
+      }
+      setQuestions((prev) => [...prev, json.data]);
+      setNewTopicContent("");
+      setNewTopicImageUrls([]);
+      toast.push("success", "Publicação criada no fórum da aula.");
+    } finally {
+      setPostingTopic(false);
+    }
+  }, [classGroupId, lessonId, newTopicContent, newTopicImageUrls, toast]);
 
   const presentationPath = `/professor/turmas/${classGroupId}/apresentar/${lessonId}`;
   const base = `/professor/turmas/${classGroupId}/apresentar`;
@@ -1385,8 +1417,30 @@ export default function ProfessorApresentarAulaPage() {
                 <div>
                   <h2 className="mb-1 text-base font-semibold text-[var(--text-primary)]">Fórum da aula</h2>
                   <p className="mb-4 text-xs text-[var(--text-muted)]">
-                    Dúvidas dos alunos nesta aula.
+                    Publique uma orientação para a turma ou responda às participações dos alunos.
                   </p>
+                  {teacherControlsVisible && (
+                    <div className="mb-5 rounded-xl border border-[var(--igh-primary)]/25 bg-[var(--igh-primary)]/5 p-4">
+                      <h3 className="mb-1 text-sm font-semibold text-[var(--text-primary)]">
+                        Nova publicação do professor
+                      </h3>
+                      <p className="mb-3 text-xs text-[var(--text-muted)]">
+                        A publicação aparecerá como um novo tópico para os alunos desta aula.
+                      </p>
+                      <ForumPostComposer
+                        content={newTopicContent}
+                        onContentChange={setNewTopicContent}
+                        imageUrls={newTopicImageUrls}
+                        onImageUrlsChange={setNewTopicImageUrls}
+                        onSubmit={() => void handleCreateTopic()}
+                        submitting={postingTopic}
+                        submitLabel="Publicar no fórum"
+                        placeholder="Escreva uma orientação, pergunta ou comentário para a turma…"
+                        minEditorHeight="120px"
+                        uploadSignaturePath={TEACHER_FORUM_UPLOAD}
+                      />
+                    </div>
+                  )}
                   {loadingQuestions ? (
                     <p className="text-sm text-[var(--text-muted)]">Carregando fórum…</p>
                   ) : questions.length === 0 ? (
@@ -1399,7 +1453,9 @@ export default function ProfessorApresentarAulaPage() {
                           className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/10 p-4"
                         >
                           <p className="text-xs font-semibold text-[var(--text-muted)]">
-                            {q.authorName} · {new Date(q.createdAt).toLocaleString("pt-BR")}
+                            {q.authorName}
+                            {q.authorRole === "TEACHER" ? " · Professor" : ""} ·{" "}
+                            {new Date(q.createdAt).toLocaleString("pt-BR")}
                           </p>
                           <ForumPostBody
                             content={q.content}
@@ -1407,6 +1463,25 @@ export default function ProfessorApresentarAulaPage() {
                             altPrefix={`Foto de ${q.authorName}`}
                             className="mt-2"
                           />
+                          {q.replies && q.replies.length > 0 && (
+                            <div className="mt-3 space-y-3 border-l border-[var(--card-border)] pl-3">
+                              <p className="text-xs font-semibold text-[var(--text-muted)]">
+                                Comentários dos alunos
+                              </p>
+                              {q.replies.map((r) => (
+                                <div key={r.id}>
+                                  <p className="text-xs text-[var(--text-muted)]">
+                                    {r.authorName} · {new Date(r.createdAt).toLocaleString("pt-BR")}
+                                  </p>
+                                  <ForumPostBody
+                                    content={r.content}
+                                    altPrefix={`Comentário de ${r.authorName}`}
+                                    className="mt-1"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           {q.teacherReplies?.length > 0 && (
                             <div className="mt-3 space-y-3 border-l border-[var(--card-border)] pl-3">
                               {q.teacherReplies.map((r) => (
