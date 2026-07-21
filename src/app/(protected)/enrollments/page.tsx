@@ -198,16 +198,23 @@ export default function EnrollmentsPage() {
   async function load() {
     setLoading(true);
     try {
-      const [enrollmentsRes, teachersRes, cyclesRes] = await Promise.all([
+      const [enrollmentsRes, teachersRes, cyclesRes, classGroupsRes] = await Promise.all([
         fetch("/api/enrollments", { cache: "no-store" }),
         fetch("/api/teachers?status=active", { cache: "no-store" }),
         fetch("/api/cycles", { cache: "no-store" }),
+        fetch("/api/class-groups", { cache: "no-store" }),
       ]);
       const enrollmentsJson = await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes);
       const teachersJson = await parseJson<{ teachers: { id: string; name: string }[] }>(teachersRes);
       const cyclesJson = await parseJson<{ cycles: Cycle[] }>(cyclesRes);
+      const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
       if (enrollmentsRes.ok && enrollmentsJson?.ok) setItems(enrollmentsJson.data.enrollments);
       else toast.push("error", "Falha ao carregar matrículas.");
+      if (classGroupsRes.ok && classGroupsJson?.ok) {
+        setAllClassGroups(classGroupsJson.data.classGroups);
+      } else {
+        toast.push("error", "Falha ao carregar as turmas.");
+      }
       const teachersList = teachersJson?.ok && Array.isArray(teachersJson.data?.teachers)
         ? teachersJson.data.teachers.map((t) => ({ id: t.id, name: t.name }))
         : [];
@@ -296,10 +303,6 @@ export default function EnrollmentsPage() {
 
   useEffect(() => {
     void load();
-    // Coordenador de polo: carrega todas as turmas do polo (mesmo sem matrícula) para filtros/gráficos.
-    if (user.role === "POLO_COORDINATOR") {
-      void loadFormOptions();
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -352,26 +355,28 @@ export default function EnrollmentsPage() {
   const dashboard = useMemo(() => {
     const list = itemsForView;
     const byClassGroup = new Map<string, { classGroup: ClassGroup; count: number }>();
-    for (const e of list) {
-      const cg = e.classGroup;
-      const cur = byClassGroup.get(cg.id);
-      if (!cur) byClassGroup.set(cg.id, { classGroup: cg, count: 1 });
-      else cur.count++;
+    const allowedCycles = new Set(cycleFilterIds);
+
+    // A capacidade deve considerar todas as turmas dos ciclos selecionados,
+    // inclusive as que ainda não possuem nenhuma matrícula.
+    for (const cg of allClassGroups) {
+      const cid = cg.cycleId ?? cg.cycle?.id;
+      if (!cid || !allowedCycles.has(cid)) continue;
+      byClassGroup.set(cg.id, {
+        classGroup: cg,
+        count: cg.enrollmentsCount ?? 0,
+      });
     }
 
-    // Coordenador de polo: inclui todas as turmas do polo (API), mesmo sem matrícula no filtro atual.
-    if (isPoloCoordinator && allClassGroups.length > 0) {
-      const allowedCycles = new Set(cycleFilterIds);
-      for (const cg of allClassGroups) {
-        if (byClassGroup.has(cg.id)) continue;
-        if (cycleFilterIds.length === 0) continue;
-        const cid = cg.cycleId ?? cg.cycle?.id;
-        if (!cid || !allowedCycles.has(cid)) continue;
-        byClassGroup.set(cg.id, {
-          classGroup: cg,
-          count: cg.enrollmentsCount ?? 0,
-        });
-      }
+    // Fallback enquanto/quanto a API de turmas não trouxer alguma turma já
+    // presente nas matrículas. Conta somente matrículas ativas como vagas preenchidas.
+    for (const e of list) {
+      if (e.status !== "ACTIVE" || byClassGroup.has(e.classGroup.id)) continue;
+      const cg = e.classGroup;
+      const activeCount = list.filter(
+        (row) => row.status === "ACTIVE" && row.classGroup.id === cg.id,
+      ).length;
+      byClassGroup.set(cg.id, { classGroup: cg, count: activeCount });
     }
 
     const byCourse = new Map<string, { courseName: string; turmas: { classGroup: ClassGroup; count: number }[] }>();
@@ -421,7 +426,7 @@ export default function EnrollmentsPage() {
       .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
 
     return { courses, teachers, total: list.length, totalCapacity };
-  }, [itemsForView, isPoloCoordinator, allClassGroups, cycleFilterIds]);
+  }, [itemsForView, allClassGroups, cycleFilterIds]);
 
   /** Lista de professores para exibir: da API ou, se vazia, únicos que aparecem nas matrículas (no intervalo). */
   const teachersToDisplay = useMemo(() => {
@@ -539,7 +544,7 @@ export default function EnrollmentsPage() {
     [teachersToDisplay, dashboard.teachers]
   );
 
-  /** Por curso: totais (capacidade e alunos) e turmas para gráfico + detalhes. */
+  /** Por curso: total de vagas, vagas preenchidas e todas as turmas do ciclo. */
   const courseChartsData = useMemo(
     () =>
       dashboard.courses.map(([courseId, { courseName, turmas }]) => {
@@ -1107,20 +1112,24 @@ export default function EnrollmentsPage() {
           <SectionCard
             id="enrollments-summary-heading"
             title="Vagas por curso e turma"
-            description="Total de capacidade (azul) e de alunos (vermelho) por curso. Use o botão em cada gráfico para ver detalhes por turma."
+            description="Total de vagas (azul) e vagas preenchidas (vermelho) em todas as turmas dos ciclos selecionados."
             variant="elevated"
           >
             {dashboard.courses.length === 0 ? (
-              <p className="mt-3 text-sm text-[var(--text-secondary)]">Nenhuma matrícula para exibir.</p>
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">Nenhuma turma para exibir.</p>
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {courseChartsData.map(({ courseId, courseName, chartData, turmas }) => (
+                  {courseChartsData.map(
+                    ({ courseId, courseName, totalCapacidade, totalAlunos, chartData, turmas }) => (
                     <div
                       key={courseId}
                       className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4"
                     >
                       <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-2">{courseName}</h3>
+                      <p className="mb-2 text-xs text-[var(--text-muted)]">
+                        {totalAlunos} de {totalCapacidade} vagas preenchidas
+                      </p>
                       <div className="h-[180px] w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -1138,15 +1147,20 @@ export default function EnrollmentsPage() {
                                 borderRadius: "6px",
                               }}
                               labelStyle={{ color: "var(--text-primary)" }}
-                              formatter={(value: number | undefined, name?: string) => [value ?? 0, name === "capacidade" ? "Capacidade" : "Alunos"]}
+                              formatter={(value: number | undefined, name?: string) => [
+                                value ?? 0,
+                                name === "capacidade" ? "Total de vagas" : "Vagas preenchidas",
+                              ]}
                               labelFormatter={() => courseName}
                             />
                             <Legend
                               wrapperStyle={{ fontSize: "11px" }}
-                              formatter={(value) => (value === "capacidade" ? "Capacidade" : "Alunos")}
+                              formatter={(value) =>
+                                value === "capacidade" ? "Total de vagas" : "Vagas preenchidas"
+                              }
                             />
                             <Bar dataKey="capacidade" fill="#2563eb" radius={[4, 4, 0, 0]} name="capacidade" />
-                            <Bar dataKey="alunos" fill="#dc2626" radius={[4, 4, 0, 0]} name="alunos" />
+                            <Bar dataKey="alunos" fill="#dc2626" radius={[4, 4, 0, 0]} name="preenchidas" />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
@@ -1197,7 +1211,8 @@ export default function EnrollmentsPage() {
                         </ul>
                       )}
                     </div>
-                  ))}
+                    ),
+                  )}
                 </div>
                 <div className="mt-4 border-t border-[var(--card-border)] pt-3">
                   <span className="text-sm font-medium text-[var(--text-primary)]">Total de matrículas: </span>
