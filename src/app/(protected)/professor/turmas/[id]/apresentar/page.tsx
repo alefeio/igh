@@ -52,7 +52,7 @@ export default function ProfessorApresentarIndexPage() {
       <DashboardHero
         eyebrow="Professor"
         title="Modo apresentação"
-        description={`Escolha uma aula de “${courseName || "…"}” para exibir em sala (slides, vídeo e material).`}
+        description={`Escolha uma aula de “${courseName || "…"}” para ensinar em sala — palco limpo, kit e quiz sob demanda.`}
         rightSlot={
           <Link
             href={`/professor/turmas/${classGroupId}`}
@@ -65,7 +65,7 @@ export default function ProfessorApresentarIndexPage() {
 
       <SectionCard
         title="Aulas do curso"
-        description="Abre em tela cheia amigável para projetor ou compartilhamento de tela."
+        description="Abra a aula, foque no conteúdo e use Projetar slide quando for projetar."
         variant="elevated"
       >
         {loading ? (
