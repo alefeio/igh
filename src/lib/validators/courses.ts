@@ -44,6 +44,7 @@ export const courseLessonExerciseSchema = z
   .object({
     question: z.string().min(1, "Pergunta é obrigatória"),
     order: z.number().int().min(0).optional(),
+    answerJustification: z.string().optional().nullable(),
     options: z.array(courseLessonExerciseOptionSchema).min(2, "Adicione pelo menos 2 opções").max(10, "Máximo 10 opções"),
   })
   .refine((data) => data.options.some((o) => o.isCorrect), { message: "Marque pelo menos uma opção como correta", path: ["options"] });

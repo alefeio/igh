@@ -33,6 +33,7 @@ export async function GET(_request: Request, context: Ctx) {
     lessonId: ex.lessonId,
     order: ex.order,
     question: ex.question,
+    answerJustification: ex.answerJustification,
     options: ex.options.map((o) => ({
       id: o.id,
       text: o.text,
@@ -65,14 +66,19 @@ export async function POST(request: Request, context: Ctx) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { question, order, options } = parsed.data;
+  const { question, order, options, answerJustification } = parsed.data;
   const orderVal = order ?? 0;
+  const justification =
+    typeof answerJustification === "string" && answerJustification.trim()
+      ? answerJustification.trim()
+      : null;
 
   const exercise = await prisma.courseLessonExercise.create({
     data: {
       lessonId,
       question: question.trim(),
       order: orderVal,
+      answerJustification: justification,
     },
   });
 
@@ -96,6 +102,7 @@ export async function POST(request: Request, context: Ctx) {
     lessonId: created.lessonId,
     order: created.order,
     question: created.question,
+    answerJustification: created.answerJustification,
     options: created.options.map((o) => ({
       id: o.id,
       text: o.text,

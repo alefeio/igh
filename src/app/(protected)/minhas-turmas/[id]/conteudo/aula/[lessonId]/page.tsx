@@ -195,7 +195,13 @@ export default function AulaConteudoPage() {
   const [savingPassage, setSavingPassage] = useState(false);
   const [removingPassageId, setRemovingPassageId] = useState<string | null>(null);
   type ExerciseOption = { id: string; text: string };
-  type LessonExercise = { id: string; order: number; question: string; options: ExerciseOption[] };
+  type LessonExercise = {
+    id: string;
+    order: number;
+    question: string;
+    answerJustification?: string | null;
+    options: ExerciseOption[];
+  };
   const [exercises, setExercises] = useState<LessonExercise[]>([]);
   const [exerciseSelected, setExerciseSelected] = useState<Record<string, string>>({});
   const [exerciseResult, setExerciseResult] = useState<Record<string, { correct: boolean; correctOptionId: string | null }>>({});
@@ -558,7 +564,7 @@ export default function AulaConteudoPage() {
         `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/exercises`
       );
       const json = (await res.json()) as ApiResponse<{
-        exercises: { id: string; order: number; question: string; options: { id: string; text: string; order: number }[] }[];
+        exercises: { id: string; order: number; question: string; answerJustification?: string | null; options: { id: string; text: string; order: number }[] }[];
         answers: { exerciseId: string; selectedOptionId: string; correct: boolean; correctOptionId: string | null }[];
       }>;
       if (res.ok && json?.ok && json.data) {
@@ -2184,30 +2190,42 @@ export default function AulaConteudoPage() {
                                 })}
                               </ul>
                               {result ? (
-                                <div className="mt-3 flex flex-wrap items-center gap-3">
-                                  <p className={`text-sm font-medium ${result.correct ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                                    {result.correct ? "✓ Correto!" : "✗ Incorreto."}
-                                  </p>
-                                  {!result.correct && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setExerciseResult((prev) => {
-                                          const next = { ...prev };
-                                          delete next[ex.id];
-                                          return next;
-                                        });
-                                        setExerciseSelected((prev) => {
-                                          const next = { ...prev };
-                                          delete next[ex.id];
-                                          return next;
-                                        });
-                                      }}
-                                      className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                                    >
-                                      Refazer
-                                    </button>
-                                  )}
+                                <div className="mt-3 flex flex-col gap-2">
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <p className={`text-sm font-medium ${result.correct ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                                      {result.correct ? "✓ Correto!" : "✗ Incorreto."}
+                                    </p>
+                                    {!result.correct && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setExerciseResult((prev) => {
+                                            const next = { ...prev };
+                                            delete next[ex.id];
+                                            return next;
+                                          });
+                                          setExerciseSelected((prev) => {
+                                            const next = { ...prev };
+                                            delete next[ex.id];
+                                            return next;
+                                          });
+                                        }}
+                                        className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                                      >
+                                        Refazer
+                                      </button>
+                                    )}
+                                  </div>
+                                  {ex.answerJustification?.trim() ? (
+                                    <div className="rounded-lg border border-[var(--igh-primary)]/25 bg-[var(--igh-primary)]/5 px-3 py-2.5 text-sm text-[var(--text-secondary)]">
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--igh-primary)]">
+                                        Justificativa
+                                      </p>
+                                      <p className="mt-1 whitespace-pre-wrap leading-relaxed">
+                                        {ex.answerJustification.trim()}
+                                      </p>
+                                    </div>
+                                  ) : null}
                                 </div>
                               ) : isFirstTimeExercises ? (
                                 <p className="mt-2 text-xs text-[var(--text-muted)]">Use o botão ao final para verificar todas as respostas.</p>

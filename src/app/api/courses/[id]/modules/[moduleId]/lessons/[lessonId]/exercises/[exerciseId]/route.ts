@@ -31,13 +31,21 @@ export async function PATCH(request: Request, context: Ctx) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { question, order, options } = parsed.data;
+  const { question, order, options, answerJustification } = parsed.data;
   const orderVal = order ?? exercise.order;
+  const justification =
+    typeof answerJustification === "string" && answerJustification.trim()
+      ? answerJustification.trim()
+      : null;
 
   await prisma.$transaction([
     prisma.courseLessonExercise.update({
       where: { id: exerciseId },
-      data: { question: question.trim(), order: orderVal },
+      data: {
+        question: question.trim(),
+        order: orderVal,
+        answerJustification: justification,
+      },
     }),
     prisma.courseLessonExerciseOption.deleteMany({ where: { exerciseId } }),
     prisma.courseLessonExerciseOption.createMany({
@@ -61,6 +69,7 @@ export async function PATCH(request: Request, context: Ctx) {
     lessonId: updated.lessonId,
     order: updated.order,
     question: updated.question,
+    answerJustification: updated.answerJustification,
     options: updated.options.map((o) => ({
       id: o.id,
       text: o.text,

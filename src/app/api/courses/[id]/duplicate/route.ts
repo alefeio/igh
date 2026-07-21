@@ -136,6 +136,7 @@ export async function POST(
                 lessonId: newLessonId,
                 order: ex.order,
                 question: ex.question,
+                answerJustification: ex.answerJustification,
               },
             });
             for (const opt of ex.options) {

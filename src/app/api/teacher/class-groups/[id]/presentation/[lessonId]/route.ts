@@ -75,6 +75,7 @@ export async function GET(
       id: ex.id,
       order: ex.order,
       question: ex.question,
+      answerJustification: ex.answerJustification,
       options: ex.options.map((o) => ({
         id: o.id,
         order: o.order,

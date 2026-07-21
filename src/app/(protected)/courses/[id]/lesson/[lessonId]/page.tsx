@@ -26,7 +26,14 @@ type Lesson = { id: string; title: string; order: number; durationMinutes: numbe
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
 
 type LessonExerciseOption = { id: string; text: string; isCorrect: boolean; order: number };
-type LessonExercise = { id: string; lessonId: string; order: number; question: string; options: LessonExerciseOption[] };
+type LessonExercise = {
+  id: string;
+  lessonId: string;
+  order: number;
+  question: string;
+  answerJustification?: string | null;
+  options: LessonExerciseOption[];
+};
 
 const emptyLessonForm = {
   title: "",
@@ -109,7 +116,11 @@ export default function LessonEditPage() {
   const [lessonExercises, setLessonExercises] = useState<LessonExercise[]>([]);
   const [loadingExercises, setLoadingExercises] = useState(false);
   const [exerciseModal, setExerciseModal] = useState<{ type: "add" | "edit"; exercise?: LessonExercise } | null>(null);
-  const [exerciseForm, setExerciseForm] = useState({ question: "", options: [] as { text: string; isCorrect: boolean }[] });
+  const [exerciseForm, setExerciseForm] = useState({
+    question: "",
+    answerJustification: "",
+    options: [] as { text: string; isCorrect: boolean }[],
+  });
   const [savingExercise, setSavingExercise] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const contentSectionRef = useRef<HTMLDivElement>(null);
@@ -476,14 +487,28 @@ export default function LessonEditPage() {
   }, [courseId, persistedModuleId, lessonIdParam, isNew]);
 
   const openExerciseAdd = useCallback(() => {
-    setExerciseForm({ question: "", options: [{ text: "", isCorrect: true }, { text: "", isCorrect: false }] });
+    setExerciseForm({
+      question: "",
+      answerJustification: "",
+      options: [
+        { text: "", isCorrect: true },
+        { text: "", isCorrect: false },
+      ],
+    });
     setExerciseModal({ type: "add" });
   }, []);
 
   const openExerciseEdit = useCallback((ex: LessonExercise) => {
     setExerciseForm({
       question: ex.question,
-      options: ex.options.length >= 2 ? ex.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect })) : [{ text: "", isCorrect: true }, { text: "", isCorrect: false }],
+      answerJustification: ex.answerJustification ?? "",
+      options:
+        ex.options.length >= 2
+          ? ex.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect }))
+          : [
+              { text: "", isCorrect: true },
+              { text: "", isCorrect: false },
+            ],
     });
     setExerciseModal({ type: "edit", exercise: ex });
   }, []);
@@ -516,6 +541,7 @@ export default function LessonEditPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
+          answerJustification: exerciseForm.answerJustification.trim() || null,
           order: isEdit ? exerciseModal.exercise!.order : lessonExercises.length,
           options: options.map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect })),
         }),
@@ -829,6 +855,12 @@ export default function LessonEditPage() {
                         <li key={o.id}>{o.text}{o.isCorrect ? " ✓" : ""}</li>
                       ))}
                     </ul>
+                    {ex.answerJustification?.trim() ? (
+                      <p className="mb-2 text-xs text-[var(--text-muted)]">
+                        <span className="font-medium text-[var(--text-secondary)]">Justificativa:</span>{" "}
+                        {ex.answerJustification.trim()}
+                      </p>
+                    ) : null}
                     <div className="flex gap-2">
                       <Button type="button" variant="secondary" size="sm" onClick={() => openExerciseEdit(ex)}>Editar</Button>
                       <Button type="button" variant="secondary" size="sm" className="text-red-600" onClick={() => deleteExercise(ex)}>Excluir</Button>
@@ -959,6 +991,19 @@ export default function LessonEditPage() {
                 ))}
                 <Button type="button" variant="secondary" size="sm" onClick={() => setExerciseForm((f) => ({ ...f, options: [...f.options, { text: "", isCorrect: false }] }))}>+ Opção</Button>
               </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[var(--text-primary)]">
+                Justificativa da resposta certa{" "}
+                <span className="font-normal text-[var(--text-muted)]">(opcional)</span>
+              </label>
+              <textarea
+                className="mt-1 w-full min-h-[72px] rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
+                value={exerciseForm.answerJustification}
+                onChange={(e) => setExerciseForm((f) => ({ ...f, answerJustification: e.target.value }))}
+                placeholder="Explique por que a opção marcada está correta. O aluno verá isso após responder."
+                rows={3}
+              />
             </div>
             <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
               <Button type="button" variant="secondary" onClick={() => setExerciseModal(null)} disabled={savingExercise}>Cancelar</Button>

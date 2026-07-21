@@ -455,15 +455,17 @@ model CourseLesson {
 
 /// * Exercício de múltipla escolha vinculado à aula.
 model CourseLessonExercise {
-  id        String                           @id @default(uuid())
-  lessonId  String
-  order     Int                              @default(0)
-  question  String
-  createdAt DateTime                         @default(now())
-  updatedAt DateTime                         @updatedAt
-  lesson    CourseLesson                     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  options   CourseLessonExerciseOption[]
-  answers   EnrollmentLessonExerciseAnswer[]
+  id                   String                           @id @default(uuid())
+  lessonId             String
+  order                Int                              @default(0)
+  question             String
+  /// * Justificativa opcional da resposta correta (exibida ao aluno após responder).
+  answerJustification  String?
+  createdAt            DateTime                         @default(now())
+  updatedAt            DateTime                         @updatedAt
+  lesson               CourseLesson                     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  options              CourseLessonExerciseOption[]
+  answers              EnrollmentLessonExerciseAnswer[]
 
   @@index([lessonId])
 }

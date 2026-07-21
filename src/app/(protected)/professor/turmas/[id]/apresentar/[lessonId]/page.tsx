@@ -70,6 +70,7 @@ type ExercisePayload = {
   id: string;
   order: number;
   question: string;
+  answerJustification?: string | null;
   options: { id: string; order: number; text: string; isCorrect: boolean }[];
 };
 
@@ -1522,6 +1523,16 @@ export default function ProfessorApresentarAulaPage() {
                               );
                             })}
                           </ul>
+                          {ex.answerJustification?.trim() ? (
+                            <div className="mt-3 rounded-lg border border-[var(--igh-primary)]/25 bg-[var(--igh-primary)]/5 px-3 py-2.5 text-sm text-[var(--text-secondary)]">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--igh-primary)]">
+                                Justificativa
+                              </p>
+                              <p className="mt-1 whitespace-pre-wrap leading-relaxed">
+                                {ex.answerJustification.trim()}
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>
