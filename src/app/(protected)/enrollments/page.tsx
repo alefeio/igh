@@ -1282,53 +1282,55 @@ export default function EnrollmentsPage() {
                   onChange={(e) => setDateTo(e.target.value)}
                 />
               </div>
-              {turmaOptions.length > 0 && (
-                <div>
-                  <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
-                    Turmas
-                  </span>
-                  <CheckboxMultiSelect
-                    label="Turmas"
-                    options={turmaOptions}
-                    selectedIds={turmaFilterIds}
-                    onChange={setTurmaFilterIds}
-                  />
-                </div>
-              )}
-              {cycles.length > 0 && (
-                <div className="min-w-[min(100%,480px)] max-w-full">
-                  <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
-                    Ciclos
-                  </span>
-                  <div className="flex min-h-[44px] flex-wrap items-center gap-3 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
-                    {cycles.map((cycle) => {
-                      const checked = cycleFilterIds.includes(cycle.id);
-                      return (
-                        <label key={cycle.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(event) => {
-                              setCycleFilterIds((previous) =>
-                                event.target.checked
-                                  ? previous.includes(cycle.id)
-                                    ? previous
-                                    : [...previous, cycle.id]
-                                  : previous.filter((id) => id !== cycle.id)
-                              );
-                            }}
-                            className="h-4 w-4 accent-[var(--igh-primary)]"
-                          />
-                          {`Ciclo ${cycle.cycle}/${cycle.year}`}
-                          {!cycle.isVisibleForEnrollments && (
-                            <span className="text-xs text-[var(--text-muted)]">(oculto)</span>
-                          )}
-                        </label>
-                      );
-                    })}
+              <div className="flex w-full flex-wrap items-end gap-3">
+                {cycles.length > 0 && (
+                  <div className="min-w-[min(100%,480px)] max-w-full">
+                    <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                      Ciclos
+                    </span>
+                    <div className="flex min-h-[44px] flex-wrap items-center gap-3 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+                      {cycles.map((cycle) => {
+                        const checked = cycleFilterIds.includes(cycle.id);
+                        return (
+                          <label key={cycle.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) => {
+                                setCycleFilterIds((previous) =>
+                                  event.target.checked
+                                    ? previous.includes(cycle.id)
+                                      ? previous
+                                      : [...previous, cycle.id]
+                                    : previous.filter((id) => id !== cycle.id)
+                                );
+                              }}
+                              className="h-4 w-4 accent-[var(--igh-primary)]"
+                            />
+                            {`Ciclo ${cycle.cycle}/${cycle.year}`}
+                            {!cycle.isVisibleForEnrollments && (
+                              <span className="text-xs text-[var(--text-muted)]">(oculto)</span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+                {turmaOptions.length > 0 && (
+                  <div>
+                    <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                      Turmas
+                    </span>
+                    <CheckboxMultiSelect
+                      label="Turmas"
+                      options={turmaOptions}
+                      selectedIds={turmaFilterIds}
+                      onChange={setTurmaFilterIds}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </section>
 
