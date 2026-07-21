@@ -262,6 +262,7 @@ export default function AulaConteudoPage() {
   const [prevLessonExercisesComplete, setPrevLessonExercisesComplete] = useState<boolean | null>(null);
   /** Status leve dos exercícios desta aula (bootstrap); atualizado ao carregar/responder a seção. */
   const [currentLessonExercisesComplete, setCurrentLessonExercisesComplete] = useState(true);
+  const exerciseGateWasActiveRef = useRef(false);
 
   /**
    * Progresso da aula: este endpoint era chamado muitas vezes (slide change, visibilitychange, unload etc.).
@@ -619,6 +620,60 @@ export default function AulaConteudoPage() {
       setLoadedSections((p) => ({ ...p, material: true }));
     }
   }, [openSection, loadedSections, loadPassages, loadNotes, loadExercises, loadQuestions]);
+
+  /**
+   * Depois que a aula é concluída, exercícios pendentes viram a única etapa visível.
+   * Ao responder todos, restaura o palco e fecha qualquer ferramenta automaticamente.
+   */
+  const exerciseGateActive =
+    progress?.completed === true && !currentLessonExercisesComplete;
+
+  useEffect(() => {
+    const path = `/minhas-turmas/${enrollmentId}/conteudo/aula/${lessonId}`;
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (exerciseGateActive) {
+      exerciseGateWasActiveRef.current = true;
+      setOpenSection("exercicios");
+      setToolsOpen(false);
+      setCourseNavOpen(false);
+      setProgressDetailsOpen(false);
+      if (params.get("secao") !== "exercicios") {
+        params.set("secao", "exercicios");
+        router.replace(`${path}?${params.toString()}#ferramentas`);
+      }
+      setTimeout(() => {
+        document.getElementById("ferramentas")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 80);
+      return;
+    }
+
+    if (exerciseGateWasActiveRef.current) {
+      exerciseGateWasActiveRef.current = false;
+      setOpenSection(null);
+      setToolsOpen(false);
+      setCourseNavOpen(false);
+      setProgressDetailsOpen(false);
+      params.delete("secao");
+      const qs = params.toString();
+      router.replace(qs ? `${path}?${qs}` : path);
+      setTimeout(() => {
+        document.getElementById("conteudo")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 80);
+    }
+  }, [
+    enrollmentId,
+    exerciseGateActive,
+    lessonId,
+    router,
+    searchParams,
+  ]);
 
   /** Ao sair da aula, envia tempo de estudo (último acesso já foi tocado no bootstrap). */
   useEffect(() => {
@@ -1598,6 +1653,7 @@ export default function AulaConteudoPage() {
           <div className="relative" ref={toolsMenuRef} data-tour="aula-ferramentas">
             <button
               type="button"
+              disabled={exerciseGateActive}
               onClick={() => {
                 setToolsOpen((v) => !v);
                 setCourseNavOpen(false);
@@ -1607,13 +1663,20 @@ export default function AulaConteudoPage() {
                   ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10 text-[var(--igh-primary)]"
                   : "border-[var(--card-border)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
               }`}
-              aria-expanded={toolsOpen}
+              aria-expanded={exerciseGateActive ? false : toolsOpen}
               aria-haspopup="menu"
+              title={exerciseGateActive ? "Finalize os exercícios para liberar as ferramentas" : undefined}
             >
-              <Wrench className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="hidden sm:inline">Ferramentas</span>
+              {exerciseGateActive ? (
+                <ClipboardList className="h-4 w-4 shrink-0" aria-hidden />
+              ) : (
+                <Wrench className="h-4 w-4 shrink-0" aria-hidden />
+              )}
+              <span className="hidden sm:inline">
+                {exerciseGateActive ? "Exercícios pendentes" : "Ferramentas"}
+              </span>
             </button>
-            {toolsOpen && (
+            {toolsOpen && !exerciseGateActive && (
               <div
                 role="menu"
                 className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-1.5 shadow-lg"
@@ -1702,9 +1765,24 @@ export default function AulaConteudoPage() {
         </div>
       </header>
 
+      {exerciseGateActive && (
+        <div
+          className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-sm font-semibold text-[var(--text-primary)]">
+            Aula concluída — finalize os exercícios
+          </p>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Responda todas as questões abaixo para liberar novamente o vídeo, o conteúdo e as ferramentas da aula.
+          </p>
+        </div>
+      )}
+
       {/* Palco: vídeo + conteúdo */}
       <div className="flex flex-col gap-4">
-          {lesson.videoUrl && (
+          {!exerciseGateActive && lesson.videoUrl && (
             <section className="overflow-hidden rounded-xl border border-[var(--card-border)] bg-black shadow-sm" data-tour="aula-video" aria-label="Vídeo da aula">
               <div className="aspect-video w-full">
                 <LessonVideoPlayer videoUrl={lesson.videoUrl} />
@@ -1712,7 +1790,7 @@ export default function AulaConteudoPage() {
             </section>
           )}
 
-          {lesson.contentRich && lesson.contentRich.trim() && (
+          {!exerciseGateActive && lesson.contentRich && lesson.contentRich.trim() && (
             <div id="conteudo" className="scroll-mt-20" data-tour="aula-conteudo">
               <div
                 ref={contentWrapperRef}
@@ -1884,14 +1962,14 @@ export default function AulaConteudoPage() {
             </div>
           )}
 
-          {!lesson.videoUrl && !(lesson.contentRich && lesson.contentRich.trim()) && lesson.imageUrls.length === 0 && !(lesson.summary && lesson.summary.trim()) && (!lesson.attachmentUrls || lesson.attachmentUrls.length === 0) && (
+          {!exerciseGateActive && !lesson.videoUrl && !(lesson.contentRich && lesson.contentRich.trim()) && lesson.imageUrls.length === 0 && !(lesson.summary && lesson.summary.trim()) && (!lesson.attachmentUrls || lesson.attachmentUrls.length === 0) && (
             <SectionCard title="Conteúdo" description="Esta aula ainda não tem material principal cadastrado.">
               <p className="text-center text-sm text-[var(--text-muted)]">Nenhum conteúdo adicional para esta aula.</p>
             </SectionCard>
           )}
 
           {/* CTA pós-estudo: próxima aula */}
-          {nextLesson && prog.completed && (
+          {!exerciseGateActive && nextLesson && prog.completed && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/80 px-4 py-3">
               <p className="text-sm text-[var(--text-muted)]">Continue o curso</p>
               {mustAnswerExercisesBeforeNext ? (
@@ -1920,8 +1998,11 @@ export default function AulaConteudoPage() {
           <div id="ferramentas" className="scroll-mt-24" data-tour="aula-secoes">
             {(openSection || progressDetailsOpen) && (
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Ferramentas da aula</p>
-                <button
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  {exerciseGateActive ? "Etapa obrigatória" : "Ferramentas da aula"}
+                </p>
+                {!exerciseGateActive && (
+                  <button
                   type="button"
                   onClick={() => {
                     setOpenSection(null);
@@ -1936,7 +2017,8 @@ export default function AulaConteudoPage() {
                   aria-label="Fechar painel"
                 >
                   <X className="h-3.5 w-3.5" aria-hidden /> Fechar
-                </button>
+                  </button>
+                )}
               </div>
             )}
 
@@ -2398,7 +2480,7 @@ export default function AulaConteudoPage() {
           )}
 
 
-            {lesson.summary && lesson.summary.trim() && (
+            {!exerciseGateActive && lesson.summary && lesson.summary.trim() && (
               <details id="aula-resumo" className="scroll-mt-24 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/80 px-4 py-3" data-tour="aula-resumo">
                 <summary className="cursor-pointer text-sm font-semibold text-[var(--text-secondary)]">Resumo da aula</summary>
                 <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-relaxed text-[var(--text-secondary)]">

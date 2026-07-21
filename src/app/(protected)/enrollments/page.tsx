@@ -53,6 +53,14 @@ function formatDaysOrderedPt(days: string[] | undefined | null): string {
   return sorted.join(", ");
 }
 
+/** Normaliza string removendo acentos: permite digitar "Jose" e encontrar "José". */
+function normalizeForSearch(value: string): string {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 type Student = { id: string; name: string; email: string | null; phone?: string | null };
 type Course = { id: string; name: string };
 type Teacher = { id: string; name: string };
@@ -87,6 +95,108 @@ type Enrollment = {
   attendanceTotalSessions?: number;
   attendancePercent?: number | null;
 };
+
+const CLASS_GROUP_STATUS_OPTIONS = [
+  { value: "PLANEJADA", label: "Planejada" },
+  { value: "ABERTA", label: "Aberta" },
+  { value: "EM_ANDAMENTO", label: "Em andamento" },
+  { value: "ENCERRADA", label: "Encerrada" },
+  { value: "CANCELADA", label: "Cancelada" },
+  { value: "INTERNO", label: "Interno" },
+  { value: "EXTERNO", label: "Externo" },
+] as const;
+
+const DEFAULT_ENROLLMENT_CLASS_GROUP_STATUSES = [
+  "PLANEJADA",
+  "ABERTA",
+  "EM_ANDAMENTO",
+  "INTERNO",
+  "EXTERNO",
+];
+
+function CheckboxMultiSelect({
+  label,
+  options,
+  selectedIds,
+  onChange,
+}: {
+  label: string;
+  options: { id: string; label: string }[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const buttonLabel =
+    selectedIds.length === 0
+      ? `Todas as ${label.toLowerCase()}`
+      : selectedIds.length === 1
+        ? options.find((option) => option.id === selectedIds[0])?.label ?? `1 ${label.toLowerCase()}`
+        : `${selectedIds.length} ${label.toLowerCase()} selecionadas`;
+
+  return (
+    <div ref={ref} className="relative min-w-[min(100%,360px)] max-w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="theme-input flex min-h-[44px] w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <span className="truncate">{buttonLabel}</span>
+        <span aria-hidden className="text-xs text-[var(--text-muted)]">▾</span>
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-multiselectable="true"
+          className="absolute left-0 z-40 mt-1 max-h-72 w-full min-w-[320px] overflow-y-auto rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 shadow-lg"
+        >
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="mb-1 w-full rounded-md px-2 py-2 text-left text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)]"
+          >
+            Selecionar todas
+          </button>
+          {options.map((option) => {
+            const checked = selectedIds.includes(option.id);
+            return (
+              <label
+                key={option.id}
+                className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(event) => {
+                    onChange(
+                      event.target.checked
+                        ? [...selectedIds, option.id]
+                        : selectedIds.filter((id) => id !== option.id)
+                    );
+                  }}
+                  className="mt-0.5 h-4 w-4 accent-[var(--igh-primary)]"
+                />
+                <span>{option.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 async function parseJson<T>(res: Response): Promise<ApiResponse<T> | null> {
   const text = await res.text();
@@ -132,7 +242,6 @@ export default function EnrollmentsPage() {
   const [editRemovingCert, setEditRemovingCert] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [allClassGroups, setAllClassGroups] = useState<ClassGroup[]>([]);
-  const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [studentId, setStudentId] = useState("");
   const [classGroupId, setClassGroupId] = useState("");
@@ -177,13 +286,17 @@ export default function EnrollmentsPage() {
   const [page, setPage] = useState(1);
   const [statusFilterState, setStatusFilterState] = useState("");
   const [preEnrollmentFilterState, setPreEnrollmentFilterState] = useState<"" | "pre" | "confirmed">("");
-  const [turmaFilterId, setTurmaFilterId] = useState("");
+  const [turmaFilterIds, setTurmaFilterIds] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cycleFilterIds, setCycleFilterIds] = useState<string[]>([]);
   const cycleFilterInitializedRef = useRef(false);
+  const [filtersHydrated, setFiltersHydrated] = useState(false);
   /** No modal de matrícula (Master/Coord): incluir turmas de ciclos não visíveis, se marcados. */
   const [extraModalCycleIds, setExtraModalCycleIds] = useState<string[]>([]);
+  const [modalClassGroupStatuses, setModalClassGroupStatuses] = useState<string[]>(
+    DEFAULT_ENROLLMENT_CLASS_GROUP_STATUSES
+  );
   const [showTeacherDetails, setShowTeacherDetails] = useState(false);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
   const toggleCourseDetails = useCallback((courseId: string) => {
@@ -195,17 +308,99 @@ export default function EnrollmentsPage() {
     });
   }, []);
 
+  const filtersStorageKey = `enrollments:filters:v1:${user.id}`;
+  const modalStatusStorageKey = `enrollments:new-statuses:v1:${user.id}`;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(filtersStorageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          listFilter?: string;
+          statusFilterState?: string;
+          preEnrollmentFilterState?: "" | "pre" | "confirmed";
+          turmaFilterIds?: string[];
+          dateFrom?: string;
+          dateTo?: string;
+          cycleFilterIds?: string[];
+          pageSize?: number;
+        };
+        setListFilter(saved.listFilter ?? "");
+        setStatusFilterState(saved.statusFilterState ?? "");
+        setPreEnrollmentFilterState(saved.preEnrollmentFilterState ?? "");
+        setTurmaFilterIds(Array.isArray(saved.turmaFilterIds) ? saved.turmaFilterIds : []);
+        setDateFrom(saved.dateFrom ?? "");
+        setDateTo(saved.dateTo ?? "");
+        if (Array.isArray(saved.cycleFilterIds)) {
+          setCycleFilterIds(saved.cycleFilterIds);
+          cycleFilterInitializedRef.current = true;
+        }
+        if ([20, 50, 100, 200, 500].includes(saved.pageSize ?? 0)) {
+          setPageSize(saved.pageSize!);
+        }
+      }
+
+      const savedStatuses = JSON.parse(
+        localStorage.getItem(modalStatusStorageKey) ?? "null"
+      ) as string[] | null;
+      if (Array.isArray(savedStatuses)) setModalClassGroupStatuses(savedStatuses);
+    } catch {
+      // Mantém os padrões quando o armazenamento estiver indisponível ou inválido.
+    } finally {
+      setFiltersHydrated(true);
+    }
+  }, [filtersStorageKey, modalStatusStorageKey]);
+
+  useEffect(() => {
+    if (!filtersHydrated) return;
+    try {
+      localStorage.setItem(
+        filtersStorageKey,
+        JSON.stringify({
+          listFilter,
+          statusFilterState,
+          preEnrollmentFilterState,
+          turmaFilterIds,
+          dateFrom,
+          dateTo,
+          cycleFilterIds,
+          pageSize,
+        })
+      );
+    } catch {
+      // Armazenamento pode estar indisponível em navegação privada.
+    }
+  }, [
+    cycleFilterIds,
+    dateFrom,
+    dateTo,
+    filtersHydrated,
+    filtersStorageKey,
+    listFilter,
+    pageSize,
+    preEnrollmentFilterState,
+    statusFilterState,
+    turmaFilterIds,
+  ]);
+
+  useEffect(() => {
+    if (!filtersHydrated) return;
+    try {
+      localStorage.setItem(modalStatusStorageKey, JSON.stringify(modalClassGroupStatuses));
+    } catch {
+      // Armazenamento pode estar indisponível em navegação privada.
+    }
+  }, [filtersHydrated, modalClassGroupStatuses, modalStatusStorageKey]);
+
   async function load() {
     setLoading(true);
     try {
-      const [enrollmentsRes, teachersRes, cyclesRes, classGroupsRes] = await Promise.all([
+      const [enrollmentsRes, cyclesRes, classGroupsRes] = await Promise.all([
         fetch("/api/enrollments", { cache: "no-store" }),
-        fetch("/api/teachers?status=active", { cache: "no-store" }),
         fetch("/api/cycles", { cache: "no-store" }),
         fetch("/api/class-groups", { cache: "no-store" }),
       ]);
       const enrollmentsJson = await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes);
-      const teachersJson = await parseJson<{ teachers: { id: string; name: string }[] }>(teachersRes);
       const cyclesJson = await parseJson<{ cycles: Cycle[] }>(cyclesRes);
       const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
       if (enrollmentsRes.ok && enrollmentsJson?.ok) setItems(enrollmentsJson.data.enrollments);
@@ -215,11 +410,6 @@ export default function EnrollmentsPage() {
       } else {
         toast.push("error", "Falha ao carregar as turmas.");
       }
-      const teachersList = teachersJson?.ok && Array.isArray(teachersJson.data?.teachers)
-        ? teachersJson.data.teachers.map((t) => ({ id: t.id, name: t.name }))
-        : [];
-      setAllTeachers(teachersList);
-
       const cyclesList = cyclesJson?.ok && Array.isArray(cyclesJson.data?.cycles) ? cyclesJson.data.cycles : [];
       setCycles(cyclesList);
       if (!cycleFilterInitializedRef.current) {
@@ -269,6 +459,7 @@ export default function EnrollmentsPage() {
       cg.status === "EM_ANDAMENTO";
     const isInterno = cg.status === "INTERNO";
     const isExterno = cg.status === "EXTERNO";
+    if (canOverrideEnrollment) return true;
     // Coordenador de polo: enxerga todas as turmas do polo aptas a matrícula (inclui interno/externo).
     if (isPoloCoordinator) {
       return permiteMatriculaPadrao || isInterno || isExterno;
@@ -280,6 +471,28 @@ export default function EnrollmentsPage() {
       (canSeeExterno && isExterno)
     );
   }
+
+  const filteredClassGroupsForModal = useMemo(
+    () =>
+      classGroupsForModal.filter(
+        (cg) =>
+          isClassGroupSelectableForEnrollment(cg) &&
+          !!cg.status &&
+          modalClassGroupStatuses.includes(cg.status)
+      ),
+    // A função depende apenas dos papéis já incluídos no ciclo de renderização.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [classGroupsForModal, modalClassGroupStatuses, canOverrideEnrollment, isPoloCoordinator, user.role]
+  );
+
+  useEffect(() => {
+    if (
+      classGroupId &&
+      !filteredClassGroupsForModal.some((classGroup) => classGroup.id === classGroupId)
+    ) {
+      setClassGroupId("");
+    }
+  }, [classGroupId, filteredClassGroupsForModal]);
 
   const searchStudents = useCallback(
     async (q: string) => {
@@ -326,7 +539,7 @@ export default function EnrollmentsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterId, dateFrom, dateTo, cycleFilterIds]);
+  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterIds, dateFrom, dateTo, cycleFilterIds]);
 
   /** Matrículas no intervalo de datas (quando informado); senão todas. Usado em dashboard, listagem e exportações. */
   const itemsForView = useMemo(() => {
@@ -352,19 +565,58 @@ export default function EnrollmentsPage() {
     });
   }, [items, dateFrom, dateTo, cycleFilterIds]);
 
+  /** Fonte única dos filtros: alimenta cards, gráficos, vagas, professores e listagem. */
+  const filteredItems = useMemo(() => {
+    let list = itemsForView;
+    const q = listFilter.trim();
+    if (q.length > 0) {
+      const qNorm = normalizeForSearch(q);
+      list = list.filter(
+        (e) =>
+          normalizeForSearch(e.student.name).includes(qNorm) ||
+          (e.student.email != null && normalizeForSearch(e.student.email).includes(qNorm)) ||
+          normalizeForSearch(e.classGroup.course.name).includes(qNorm)
+      );
+    }
+    if (statusFilterState) list = list.filter((e) => e.status === statusFilterState);
+    if (preEnrollmentFilterState === "pre") list = list.filter((e) => e.isPreEnrollment);
+    if (preEnrollmentFilterState === "confirmed") {
+      list = list.filter((e) => e.enrollmentConfirmedAt != null);
+    }
+    if (turmaFilterIds.length > 0) {
+      const allowed = new Set(turmaFilterIds);
+      list = list.filter((e) => allowed.has(e.classGroup.id));
+    }
+    return list;
+  }, [
+    itemsForView,
+    listFilter,
+    preEnrollmentFilterState,
+    statusFilterState,
+    turmaFilterIds,
+  ]);
+
   const dashboard = useMemo(() => {
-    const list = itemsForView;
+    const list = filteredItems;
     const byClassGroup = new Map<string, { classGroup: ClassGroup; count: number }>();
     const allowedCycles = new Set(cycleFilterIds);
+    const allowedClassGroups = new Set(turmaFilterIds);
+    const activeByClassGroup = new Map<string, number>();
+    for (const enrollment of list) {
+      if (enrollment.status !== "ACTIVE") continue;
+      const id = enrollment.classGroup.id;
+      activeByClassGroup.set(id, (activeByClassGroup.get(id) ?? 0) + 1);
+    }
 
     // A capacidade deve considerar todas as turmas dos ciclos selecionados,
     // inclusive as que ainda não possuem nenhuma matrícula.
     for (const cg of allClassGroups) {
       const cid = cg.cycleId ?? cg.cycle?.id;
       if (!cid || !allowedCycles.has(cid)) continue;
+      if (allowedClassGroups.size > 0 && !allowedClassGroups.has(cg.id)) continue;
       byClassGroup.set(cg.id, {
         classGroup: cg,
-        count: cg.enrollmentsCount ?? 0,
+        count: activeByClassGroup.get(cg.id) ?? 0,
       });
     }
 
@@ -426,82 +678,65 @@ export default function EnrollmentsPage() {
       .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
 
     return { courses, teachers, total: list.length, totalCapacity };
-  }, [itemsForView, allClassGroups, cycleFilterIds]);
+  }, [filteredItems, allClassGroups, cycleFilterIds, turmaFilterIds]);
 
-  /** Lista de professores para exibir: da API ou, se vazia, únicos que aparecem nas matrículas (no intervalo). */
+  /** Professores presentes no recorte filtrado. */
   const teachersToDisplay = useMemo(() => {
-    if (allTeachers.length > 0) return allTeachers;
     const seen = new Map<string, Teacher>();
-    for (const e of itemsForView) {
+    for (const e of filteredItems) {
       const t = e.classGroup.teacher;
       if (t && !seen.has(t.id)) seen.set(t.id, t);
     }
     return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  }, [allTeachers, itemsForView]);
+  }, [filteredItems]);
 
   const activeCountByClassGroup = useMemo(() => {
     const m = new Map<string, number>();
-    for (const e of itemsForView) {
+    for (const e of items) {
       if (e.status !== "ACTIVE") continue;
       const id = e.classGroup.id;
       m.set(id, (m.get(id) ?? 0) + 1);
     }
     return m;
-  }, [itemsForView]);
+  }, [items]);
 
   const kpis = useMemo(() => {
-    const active = itemsForView.filter((e) => e.status === "ACTIVE").length;
-    const pre = itemsForView.filter((e) => e.isPreEnrollment).length;
-    const confirmed = itemsForView.filter((e) => e.enrollmentConfirmedAt != null).length;
-    return { total: itemsForView.length, active, pre, confirmed };
-  }, [itemsForView]);
-
-  /** Normaliza string removendo acentos: permite digitar "Jose" e encontrar "José". */
-  const normalizeForSearch = (s: string) =>
-    String(s)
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-
-  const filteredItems = useMemo(() => {
-    let list = itemsForView;
-    const q = listFilter.trim();
-    if (q.length > 0) {
-      const qNorm = normalizeForSearch(q);
-      list = list.filter(
-        (e) =>
-          normalizeForSearch(e.student.name).includes(qNorm) ||
-          (e.student.email != null && normalizeForSearch(e.student.email).includes(qNorm)) ||
-          normalizeForSearch(e.classGroup.course.name).includes(qNorm)
-      );
-    }
-    if (statusFilterState) list = list.filter((e) => e.status === statusFilterState);
-    if (preEnrollmentFilterState === "pre") list = list.filter((e) => e.isPreEnrollment);
-    if (preEnrollmentFilterState === "confirmed") list = list.filter((e) => e.enrollmentConfirmedAt != null);
-    if (turmaFilterId) list = list.filter((e) => e.classGroup.id === turmaFilterId);
-    return list;
-  }, [itemsForView, listFilter, statusFilterState, preEnrollmentFilterState, turmaFilterId]);
+    const active = filteredItems.filter((e) => e.status === "ACTIVE").length;
+    const pre = filteredItems.filter((e) => e.isPreEnrollment).length;
+    const confirmed = filteredItems.filter((e) => e.enrollmentConfirmedAt != null).length;
+    return { total: filteredItems.length, active, pre, confirmed };
+  }, [filteredItems]);
 
   const turmaOptions = useMemo(() => {
     const opts: { id: string; label: string }[] = [];
-    for (const [, { courseName, turmas }] of dashboard.courses) {
-      for (const { classGroup: cg } of turmas) {
-        const start = formatDateOnly(cg.startDate);
-        const line = formatClassGroupTurmaLine({
-          course: { name: courseName },
-          location: cg.location ?? null,
-          daysOfWeek: cg.daysOfWeek,
-          startTime: cg.startTime,
-          endTime: cg.endTime,
-        });
-        opts.push({
-          id: cg.id,
-          label: `${line} · início ${start}`,
-        });
-      }
+    const allowedCycles = new Set(cycleFilterIds);
+    for (const cg of allClassGroups) {
+      const cycleId = cg.cycleId ?? cg.cycle?.id;
+      if (!cycleId || !allowedCycles.has(cycleId)) continue;
+      const start = formatDateOnly(cg.startDate);
+      const line = formatClassGroupTurmaLine({
+        course: { name: cg.course.name },
+        location: cg.location ?? null,
+        daysOfWeek: cg.daysOfWeek,
+        startTime: cg.startTime,
+        endTime: cg.endTime,
+      });
+      opts.push({
+        id: cg.id,
+        label: `${line} · início ${start}`,
+      });
     }
-    return opts;
-  }, [dashboard.courses]);
+    return opts.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  }, [allClassGroups, cycleFilterIds]);
+
+  useEffect(() => {
+    if (loading) return;
+    const available = new Set(turmaOptions.map((option) => option.id));
+    setTurmaFilterIds((previous) => {
+      const next = previous.filter((id) => available.has(id));
+      return next.length === previous.length ? previous : next;
+    });
+  }, [loading, turmaOptions]);
 
   const totalFiltered = filteredItems.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
@@ -511,14 +746,20 @@ export default function EnrollmentsPage() {
     return filteredItems.slice(start, start + pageSize);
   }, [filteredItems, pageSafe, pageSize]);
 
-  const pieData = dashboard.courses.map(([, { courseName, turmas }]) => ({
-    name: courseName,
-    value: turmas.reduce((s, t) => s + t.count, 0),
-  }));
+  const pieData = useMemo(() => {
+    const byCourse = new Map<string, number>();
+    for (const enrollment of filteredItems) {
+      const name = enrollment.classGroup.course.name;
+      byCourse.set(name, (byCourse.get(name) ?? 0) + 1);
+    }
+    return [...byCourse.entries()]
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  }, [filteredItems]);
 
   const columnData = useMemo(() => {
     const byDay = new Map<string, number>();
-    for (const e of itemsForView) {
+    for (const e of filteredItems) {
       const d = formatDateOnly(e.enrolledAt);
       if (d) byDay.set(d, (byDay.get(d) ?? 0) + 1);
     }
@@ -531,7 +772,7 @@ export default function EnrollmentsPage() {
         return da - db;
       })
       .map(([data, quantidade]) => ({ data, quantidade }));
-  }, [itemsForView]);
+  }, [filteredItems]);
 
   const teacherChartData = useMemo(
     () =>
@@ -909,7 +1150,7 @@ export default function EnrollmentsPage() {
               >
                 Exportar Excel
               </Button>
-              <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf || itemsForView.length === 0}>
+              <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf || filteredItems.length === 0}>
                 {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
               </Button>
             </div>
@@ -934,6 +1175,163 @@ export default function EnrollmentsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
+          <section className="card" aria-labelledby="enrollments-filters-heading">
+            <header className="card-header flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 id="enrollments-filters-heading" className="text-base font-semibold text-[var(--text-primary)]">
+                  Filtros
+                </h2>
+                <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+                  Aplicados a todos os indicadores, gráficos e à listagem.
+                </p>
+              </div>
+              {(listFilter ||
+                statusFilterState ||
+                preEnrollmentFilterState ||
+                turmaFilterIds.length > 0 ||
+                dateFrom ||
+                dateTo ||
+                cycleFilterIds.some((id) => !visibleCycleIds.includes(id)) ||
+                visibleCycleIds.some((id) => !cycleFilterIds.includes(id))) && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setListFilter("");
+                    setStatusFilterState("");
+                    setPreEnrollmentFilterState("");
+                    setTurmaFilterIds([]);
+                    setDateFrom("");
+                    setDateTo("");
+                    setCycleFilterIds(visibleCycleIds);
+                  }}
+                >
+                  Limpar filtros
+                </Button>
+              )}
+            </header>
+            <div className="card-body flex flex-wrap items-end gap-3">
+              <div className="min-w-[220px] flex-1">
+                <label htmlFor="enrollments-list-filter" className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                  Busca
+                </label>
+                <Input
+                  id="enrollments-list-filter"
+                  type="search"
+                  value={listFilter}
+                  onChange={(e) => setListFilter(e.target.value)}
+                  placeholder="Nome, e-mail ou curso..."
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label htmlFor="enrollments-status-filter" className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                  Status da matrícula
+                </label>
+                <select
+                  id="enrollments-status-filter"
+                  value={statusFilterState}
+                  onChange={(e) => setStatusFilterState(e.target.value)}
+                  className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
+                >
+                  <option value="">Todos os status</option>
+                  {Object.entries(ENROLLMENT_STATUS_LABELS).map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="enrollments-pre-filter" className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                  Tipo
+                </label>
+                <select
+                  id="enrollments-pre-filter"
+                  value={preEnrollmentFilterState}
+                  onChange={(e) =>
+                    setPreEnrollmentFilterState(
+                      (e.target.value || "") as "" | "pre" | "confirmed"
+                    )
+                  }
+                  className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
+                >
+                  <option value="">Todas</option>
+                  <option value="pre">Só pré-matrículas</option>
+                  <option value="confirmed">Só confirmadas</option>
+                </select>
+              </div>
+              <div className="min-w-[140px]">
+                <label htmlFor="enrollments-date-from" className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                  Matrícula de
+                </label>
+                <Input
+                  id="enrollments-date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
+              <div className="min-w-[140px]">
+                <label htmlFor="enrollments-date-to" className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                  Matrícula até
+                </label>
+                <Input
+                  id="enrollments-date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
+              {turmaOptions.length > 0 && (
+                <div>
+                  <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                    Turmas
+                  </span>
+                  <CheckboxMultiSelect
+                    label="Turmas"
+                    options={turmaOptions}
+                    selectedIds={turmaFilterIds}
+                    onChange={setTurmaFilterIds}
+                  />
+                </div>
+              )}
+              {cycles.length > 0 && (
+                <div className="min-w-[min(100%,480px)] max-w-full">
+                  <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                    Ciclos
+                  </span>
+                  <div className="flex min-h-[44px] flex-wrap items-center gap-3 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+                    {cycles.map((cycle) => {
+                      const checked = cycleFilterIds.includes(cycle.id);
+                      return (
+                        <label key={cycle.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+                              setCycleFilterIds((previous) =>
+                                event.target.checked
+                                  ? previous.includes(cycle.id)
+                                    ? previous
+                                    : [...previous, cycle.id]
+                                  : previous.filter((id) => id !== cycle.id)
+                              );
+                            }}
+                            className="h-4 w-4 accent-[var(--igh-primary)]"
+                          />
+                          {`Ciclo ${cycle.cycle}/${cycle.year}`}
+                          {!cycle.isVisibleForEnrollments && (
+                            <span className="text-xs text-[var(--text-muted)]">(oculto)</span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
           {kpis.pre > 0 && isMaster && (
             <div
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30"
@@ -949,7 +1347,6 @@ export default function EnrollmentsPage() {
                 onClick={() => {
                   setPreEnrollmentFilterState("pre");
                   setStatusFilterState("");
-                  setTurmaFilterId("");
                 }}
               >
                 Filtrar e confirmar
@@ -963,9 +1360,9 @@ export default function EnrollmentsPage() {
             </h2>
             <button
               type="button"
-              onClick={() => { setStatusFilterState(""); setPreEnrollmentFilterState(""); setTurmaFilterId(""); }}
+              onClick={() => { setStatusFilterState(""); setPreEnrollmentFilterState(""); }}
               className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                !statusFilterState && !preEnrollmentFilterState && !turmaFilterId
+                !statusFilterState && !preEnrollmentFilterState
                   ? "border-[var(--igh-primary)]/50 bg-[var(--igh-primary)]/5"
                   : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/30"
               }`}
@@ -975,9 +1372,9 @@ export default function EnrollmentsPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setStatusFilterState("ACTIVE"); setPreEnrollmentFilterState(""); setTurmaFilterId(""); }}
+              onClick={() => { setStatusFilterState("ACTIVE"); setPreEnrollmentFilterState(""); }}
               className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                statusFilterState === "ACTIVE" && !preEnrollmentFilterState && !turmaFilterId
+                statusFilterState === "ACTIVE" && !preEnrollmentFilterState
                   ? "border-green-500/50 bg-green-500/5"
                   : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/30"
               }`}
@@ -987,7 +1384,7 @@ export default function EnrollmentsPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setPreEnrollmentFilterState("pre"); setStatusFilterState(""); setTurmaFilterId(""); }}
+              onClick={() => { setPreEnrollmentFilterState("pre"); setStatusFilterState(""); }}
               className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
                 preEnrollmentFilterState === "pre"
                   ? "border-amber-500/50 bg-amber-500/5"
@@ -999,7 +1396,7 @@ export default function EnrollmentsPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setPreEnrollmentFilterState("confirmed"); setStatusFilterState(""); setTurmaFilterId(""); }}
+              onClick={() => { setPreEnrollmentFilterState("confirmed"); setStatusFilterState(""); }}
               className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
                 preEnrollmentFilterState === "confirmed"
                   ? "border-[var(--igh-primary)]/50 bg-[var(--igh-primary)]/5"
@@ -1197,7 +1594,7 @@ export default function EnrollmentsPage() {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setTurmaFilterId(cg.id);
+                                      setTurmaFilterIds([cg.id]);
                                       document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
                                     }}
                                     className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
@@ -1329,7 +1726,7 @@ export default function EnrollmentsPage() {
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            setTurmaFilterId(cg.id);
+                                            setTurmaFilterIds([cg.id]);
                                             document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
                                           }}
                                           className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
@@ -1366,162 +1763,21 @@ export default function EnrollmentsPage() {
                     : `Exibindo ${totalFiltered} matrícula(s)`}
                 </p>
               </div>
-              <div className="flex flex-wrap items-end gap-3">
-                {(listFilter || statusFilterState || preEnrollmentFilterState || turmaFilterId || dateFrom || dateTo) && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setListFilter("");
-                      setStatusFilterState("");
-                      setPreEnrollmentFilterState("");
-                      setTurmaFilterId("");
-                      setDateFrom("");
-                      setDateTo("");
-                      setCycleFilterIds(cycles.filter((c) => c.isVisibleForEnrollments).map((c) => c.id));
-                    }}
-                  >
-                    Limpar filtros
-                  </Button>
-                )}
-                <div className="min-w-[140px]">
-                  <label htmlFor="enrollments-date-from" className="sr-only">
-                    Data de matrícula (de)
-                  </label>
-                  <Input
-                    id="enrollments-date-from"
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="min-w-[140px]"
-                  />
-                </div>
-                <div className="min-w-[140px]">
-                  <label htmlFor="enrollments-date-to" className="sr-only">
-                    Data de matrícula (até)
-                  </label>
-                  <Input
-                    id="enrollments-date-to"
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="min-w-[140px]"
-                  />
-                </div>
-                <div className="min-w-[200px]">
-                  <label htmlFor="enrollments-list-filter" className="sr-only">
-                    Buscar por nome, e-mail ou curso
-                  </label>
-                  <Input
-                    id="enrollments-list-filter"
-                    type="search"
-                    value={listFilter}
-                    onChange={(e) => setListFilter(e.target.value)}
-                    placeholder="Nome, e-mail ou curso..."
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="enrollments-status-filter" className="sr-only">
-                    Status
-                  </label>
-                  <select
-                    id="enrollments-status-filter"
-                    value={statusFilterState}
-                    onChange={(e) => setStatusFilterState(e.target.value)}
-                    className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
-                  >
-                    <option value="">Todos os status</option>
-                    {Object.entries(ENROLLMENT_STATUS_LABELS).map(([val, label]) => (
-                      <option key={val} value={val}>{label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="enrollments-pre-filter" className="sr-only">
-                    Tipo de matrícula
-                  </label>
-                  <select
-                    id="enrollments-pre-filter"
-                    value={preEnrollmentFilterState}
-                    onChange={(e) => setPreEnrollmentFilterState((e.target.value || "") as "" | "pre" | "confirmed")}
-                    className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
-                  >
-                    <option value="">Todas</option>
-                    <option value="pre">Só pré-matrículas</option>
-                    <option value="confirmed">Só confirmadas</option>
-                  </select>
-                </div>
-                {turmaOptions.length > 0 && (
-                  <div className="min-w-[min(100%,420px)] max-w-full">
-                    <label htmlFor="enrollments-turma-filter" className="sr-only">
-                      Turma
-                    </label>
-                    <select
-                      id="enrollments-turma-filter"
-                      value={turmaFilterId}
-                      onChange={(e) => setTurmaFilterId(e.target.value)}
-                      className="theme-input min-h-[44px] w-full rounded-md border px-3 py-2 text-sm sm:h-10"
-                    >
-                      <option value="">Todas as turmas</option>
-                      {turmaOptions.map((o) => (
-                        <option key={o.id} value={o.id}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {cycles.length > 0 && (
-                  <div className="min-w-[min(100%,520px)] max-w-full">
-                    <div className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
-                      <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                        Ciclos
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-3">
-                        {cycles.map((c) => {
-                          const checked = cycleFilterIds.includes(c.id);
-                          return (
-                            <label key={c.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => {
-                                  const nextChecked = e.target.checked;
-                                  setCycleFilterIds((prev) => {
-                                    if (nextChecked) return prev.includes(c.id) ? prev : [...prev, c.id];
-                                    return prev.filter((id) => id !== c.id);
-                                  });
-                                }}
-                              />
-                              {`Ciclo ${c.cycle}/${c.year}`}
-                              {!c.isVisibleForEnrollments ? (
-                                <span className="text-xs text-[var(--text-muted)]">(oculto)</span>
-                              ) : null}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label htmlFor="enrollments-page-size" className="sr-only">
-                    Registros por página
-                  </label>
-                  <select
-                    id="enrollments-page-size"
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Number(e.target.value))}
-                    className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
-                  >
-                    <option value={20}>20 por página</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                    <option value={200}>200</option>
-                    <option value={500}>500</option>
-                  </select>
-                </div>
-              </div>
+              <label htmlFor="enrollments-page-size" className="sr-only">
+                Registros por página
+              </label>
+              <select
+                id="enrollments-page-size"
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
+              >
+                <option value={20}>20 por página</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+                <option value={500}>500</option>
+              </select>
             </header>
             <div className="card-body overflow-x-auto">
             <Table>
@@ -1788,6 +2044,46 @@ export default function EnrollmentsPage() {
               </div>
             </div>
           )}
+          <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)]/20 p-3">
+            <div className="text-sm font-medium text-[var(--text-primary)]">
+              Status das turmas
+            </div>
+            <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+              Marque os status que devem aparecer no campo Turma. A seleção fica salva para seus próximos cadastros.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+              {CLASS_GROUP_STATUS_OPTIONS.map((option) => {
+                const checked = modalClassGroupStatuses.includes(option.value);
+                return (
+                  <label
+                    key={option.value}
+                    className="flex items-center gap-2 text-sm text-[var(--text-secondary)]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) => {
+                        setModalClassGroupStatuses((previous) =>
+                          event.target.checked
+                            ? previous.includes(option.value)
+                              ? previous
+                              : [...previous, option.value]
+                            : previous.filter((status) => status !== option.value)
+                        );
+                      }}
+                      className="h-4 w-4 accent-[var(--igh-primary)]"
+                    />
+                    {option.label}
+                  </label>
+                );
+              })}
+            </div>
+            {modalClassGroupStatuses.length === 0 && (
+              <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">
+                Selecione pelo menos um status para listar turmas.
+              </p>
+            )}
+          </div>
           <div>
             <label className="text-sm font-medium">Turma</label>
             <select
@@ -1797,15 +2093,14 @@ export default function EnrollmentsPage() {
               required
             >
               <option value="">Selecione</option>
-              {classGroupsForModal
-                .filter(isClassGroupSelectableForEnrollment)
-                .map((cg) => {
+              {filteredClassGroupsForModal.map((cg) => {
                   const cap = cg.capacity ?? 0;
                   const count = cg.enrollmentsCount ?? 0;
                   const isFull = cap > 0 && count >= cap;
                   const disabled = !canOverrideEnrollment && isFull;
                   const label = [
                     cg.course.name,
+                    CLASS_GROUP_STATUS_OPTIONS.find((option) => option.value === cg.status)?.label ?? cg.status,
                     `Início ${formatDateOnly(cg.startDate)}`,
                     `${cg.startTime}-${cg.endTime}`,
                     Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? formatDaysOrderedPt(cg.daysOfWeek) : null,
