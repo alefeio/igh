@@ -35,17 +35,17 @@ export default async function EspacoMakerPage() {
           className="prose prose-lg mx-auto max-w-3xl text-[var(--igh-muted)] [&_h2]:mt-10 [&_h2]:text-[var(--igh-secondary)] [&_li]:marker:text-[var(--igh-primary)] [&_strong]:text-[var(--igh-secondary)]"
           dangerouslySetInnerHTML={{ __html: content }}
         />
-        <div className="mx-auto mt-10 flex max-w-3xl flex-wrap gap-3">
+        {/* <div className="mx-auto mt-10 flex max-w-3xl flex-wrap gap-3">
           <Button as="link" href="/projetos/crc" variant="outline">
             Conhecer o CRC
           </Button>
           <Button as="link" href="/projetos/computadores-para-inclusao" variant="outline">
             Computadores para Inclusão
           </Button>
-        </div>
+        </div> */}
       </Section>
 
-      <CTASection
+      {/* <CTASection
         title="Venha aprender, criar e transformar"
         subtitle="Consulte as turmas disponíveis e faça parte dessa experiência."
         primaryCTA={{ label: "Ver cursos e turmas disponíveis", href: "/formacoes" }}
@@ -53,7 +53,7 @@ export default async function EspacoMakerPage() {
           { label: "Falar com o IGH", href: "/contato" },
           { label: "Conhecer os projetos do Instituto", href: "/projetos" },
         ]}
-      />
+      /> */}
     </>
   );
 }
