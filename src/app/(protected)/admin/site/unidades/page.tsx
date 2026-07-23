@@ -228,12 +228,23 @@ export default function UnidadesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = (await res.json()) as ApiResponse<{ item: Unit }>;
+      const json = (await res.json()) as ApiResponse<{
+        item?: Unit;
+        pending?: boolean;
+        message?: string;
+      }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error?.message : "Falha ao salvar unidade.");
         return;
       }
-      toast.push("success", "Unidade salva.");
+      toast.push(
+        "success",
+        json.data.pending
+          ? json.data.message ?? "Alteração enviada para aprovação do Master."
+          : editing
+            ? "Unidade atualizada."
+            : "Unidade criada."
+      );
       setOpen(false);
       resetForm();
       await load();
@@ -245,12 +256,21 @@ export default function UnidadesPage() {
   async function removeUnit(u: Unit) {
     if (!confirm(`Excluir a unidade "${u.city}/${u.state}"?`)) return;
     const res = await fetch(`/api/admin/site/units/${u.id}`, { method: "DELETE" });
-    const json = (await res.json().catch(() => null)) as ApiResponse<{ deleted?: boolean }> | null;
+    const json = (await res.json().catch(() => null)) as ApiResponse<{
+      deleted?: boolean;
+      pending?: boolean;
+      message?: string;
+    }> | null;
     if (!res.ok || !json?.ok) {
       toast.push("error", json && "ok" in json && json.ok === false ? json.error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Unidade excluída.");
+    toast.push(
+      "success",
+      json.data.pending
+        ? json.data.message ?? "Exclusão enviada para aprovação do Master."
+        : "Unidade excluída."
+    );
     await load();
   }
 
