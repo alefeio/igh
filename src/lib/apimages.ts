@@ -35,6 +35,7 @@ export function getSiteUploadFolder(
   kind:
     | "logo"
     | "favicon"
+    | "qrcode"
     | "banners"
     | "partners"
     | "formations"
@@ -45,6 +46,7 @@ export function getSiteUploadFolder(
     | "about"
     | "inscreva"
     | "contato"
+    | "espaco-maker"
     | "teachers"
     | "onboarding"
     | "legal",

@@ -26,5 +26,6 @@ export { HomeObjectiveTrails } from "./HomeObjectiveTrails";
 export { HomeHowItWorksSection } from "./HomeHowItWorksSection";
 export { HeroBannerCarousel } from "./HeroBannerCarousel";
 export { ImageCarousel } from "./ImageCarousel";
+export { MediaCarousel } from "./MediaCarousel";
 export { CommunityCtaHomeSection } from "./CommunityCtaHomeSection";
 export { PublicIghCalendar } from "./PublicIghCalendar";

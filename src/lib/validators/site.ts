@@ -31,6 +31,14 @@ export const siteContatoPageSchema = z.object({
   headerImageUrl: z.string().url().optional().or(z.literal("")).nullable(),
 });
 
+// SiteEspacoMakerPage (singleton)
+export const siteEspacoMakerPageSchema = z.object({
+  title: z.string().optional().nullable(),
+  subtitle: z.string().optional().nullable(),
+  content: z.string().optional().nullable(),
+  mediaUrls: z.array(z.string().url().or(z.literal(""))).optional(),
+});
+
 // SiteSettings (singleton)
 export const siteSettingsSchema = z.object({
   siteName: z.string().optional(),

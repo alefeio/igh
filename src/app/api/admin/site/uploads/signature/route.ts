@@ -20,6 +20,7 @@ const bodySchema = z
       "about",
       "inscreva",
       "contato",
+      "espaco-maker",
       "teachers",
       "onboarding",
       "legal",

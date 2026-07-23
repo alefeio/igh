@@ -1240,6 +1240,18 @@ model SiteContatoPage {
   updatedAt      DateTime @updatedAt
 }
 
+/** Página institucional Espaço Maker (singleton). */
+model SiteEspacoMakerPage {
+  id        String   @id @default(uuid())
+  title     String?
+  subtitle  String?
+  content   String?
+  /** URLs de imagens e/ou vídeos do carrossel (ordem de exibição). */
+  mediaUrls String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model SiteProject {
   id            String   @id @default(uuid())
   title         String

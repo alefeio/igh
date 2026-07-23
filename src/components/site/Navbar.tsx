@@ -20,6 +20,7 @@ const FALLBACK_LINKS: MenuItemPublic[] = [
     { id: "4c", label: "Doações Recebidas", href: "/projetos/doacoes-recebidas", order: 2, isExternal: false, children: [] },
     { id: "4d", label: "Entregas", href: "/projetos/entregas", order: 3, isExternal: false, children: [] },
   ]},
+  { id: "4e", label: "Espaço Maker", href: "/espaco-maker", order: 3.5, isExternal: false, children: [] },
   { id: "5", label: "Notícias", href: "/noticias", order: 4, isExternal: false, children: [] },
   { id: "5b", label: "Calendário", href: "/calendario", order: 4.5, isExternal: false, children: [] },
   { id: "6", label: "Transparência", href: "/transparencia", order: 5, isExternal: false, children: [] },

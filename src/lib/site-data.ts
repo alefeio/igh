@@ -149,6 +149,29 @@ export async function getContatoPageForSite(): Promise<ContatoPageForSite | null
   }
 }
 
+// --- Página Espaço Maker ---
+export type EspacoMakerPageForSite = {
+  title: string | null;
+  subtitle: string | null;
+  content: string | null;
+  mediaUrls: string[];
+};
+
+export async function getEspacoMakerPageForSite(): Promise<EspacoMakerPageForSite | null> {
+  try {
+    const row = await prisma.siteEspacoMakerPage.findFirst({ orderBy: { updatedAt: "desc" } });
+    if (!row) return null;
+    return {
+      title: row.title,
+      subtitle: row.subtitle,
+      content: row.content,
+      mediaUrls: Array.isArray(row.mediaUrls) ? row.mediaUrls : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 // --- Banners ---
 export type BannerPublic = { id: string; title: string | null; subtitle: string | null; ctaLabel: string | null; ctaHref: string | null; imageUrl: string | null; order: number };
 

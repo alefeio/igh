@@ -1,75 +1,66 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createPendingSiteChange } from "@/lib/pending-site-change";
-import { siteMenuItemSchema, reorderSchema } from "@/lib/validators/site";
+import { siteNewsCategorySchema } from "@/lib/validators/site";
 
-export async function GET() {
+type Context = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, context: Context) {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const { id } = await context.params;
 
-  const items = await prisma.siteMenuItem.findMany({
-    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-    include: {
-      children: { orderBy: [{ order: "asc" }] },
+  const item = await prisma.siteNewsCategory.findUnique({ where: { id } });
+  if (!item) return jsonErr("NOT_FOUND", "Categoria não encontrada.", 404);
+  return jsonOk({ item });
+}
+
+export async function PATCH(request: Request, context: Context) {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const { id } = await context.params;
+
+  const body = await request.json().catch(() => null);
+  const parsed = siteNewsCategorySchema.safeParse(body);
+  if (!parsed.success) {
+    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+  }
+
+  const existing = await prisma.siteNewsCategory.findUnique({ where: { id } });
+  if (!existing) return jsonErr("NOT_FOUND", "Categoria não encontrada.", 404);
+
+  const slugVal = parsed.data.slug || parsed.data.name.toLowerCase().replace(/\s+/g, "-");
+  if (slugVal !== existing.slug) {
+    const dup = await prisma.siteNewsCategory.findFirst({
+      where: { slug: slugVal, NOT: { id } },
+      select: { id: true },
+    });
+    if (dup) return jsonErr("DUPLICATE_SLUG", "Slug em uso.", 409);
+  }
+
+  const item = await prisma.siteNewsCategory.update({
+    where: { id },
+    data: {
+      name: parsed.data.name,
+      slug: slugVal,
+      order: parsed.data.order ?? undefined,
+      isActive: parsed.data.isActive ?? undefined,
     },
   });
-  const roots = items.filter((i) => !i.parentId);
-  const withChildren = roots.map((r) => ({
-    ...r,
-    children: items.filter((c) => c.parentId === r.id),
-  }));
-  return jsonOk({ items: withChildren, flat: items });
+  return jsonOk({ item });
 }
 
-export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+export async function DELETE(_request: Request, context: Context) {
+  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const { id } = await context.params;
 
-  const body = await request.json().catch(() => null);
-  const parsed = siteMenuItemSchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
-  }
-
-  const { label, href, order, parentId, isExternal, isVisible } = parsed.data;
-  const maxOrder = await prisma.siteMenuItem.aggregate({
-    _max: { order: true },
-    where: { parentId: parentId ?? null },
+  const existing = await prisma.siteNewsCategory.findUnique({
+    where: { id },
+    include: { _count: { select: { posts: true } } },
   });
-  const payload = {
-    label,
-    href,
-    order: order ?? (maxOrder._max.order ?? -1) + 1,
-    parentId: parentId ?? null,
-    isExternal: isExternal ?? false,
-    isVisible: isVisible ?? true,
-  };
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_menu_item", "create", null, payload);
-    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." }, { status: 201 });
+  if (!existing) return jsonErr("NOT_FOUND", "Categoria não encontrada.", 404);
+  if (existing._count.posts > 0) {
+    return jsonErr("CONFLICT", "Existem notícias nesta categoria. Remova-as ou altere a categoria antes.", 409);
   }
-  const item = await prisma.siteMenuItem.create({
-    data: { ...payload, parentId: payload.parentId ?? undefined },
-  });
-  return jsonOk({ item }, { status: 201 });
-}
 
-export async function PATCH(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
-
-  const body = await request.json().catch(() => null);
-  const parsed = reorderSchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
-  }
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_menu", "update", null, { ids: parsed.data.ids });
-    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." });
-  }
-  await prisma.$transaction(
-    parsed.data.ids.map((id, index) =>
-      prisma.siteMenuItem.update({ where: { id }, data: { order: index } })
-    )
-  );
-  const items = await prisma.siteMenuItem.findMany({ orderBy: [{ order: "asc" }] });
-  return jsonOk({ items });
+  await prisma.siteNewsCategory.delete({ where: { id } });
+  return jsonOk({ deleted: true });
 }

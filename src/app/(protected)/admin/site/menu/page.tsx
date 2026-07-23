@@ -65,12 +65,23 @@ export default function MenuPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label: label.trim(), href: href.trim(), isVisible }),
       });
-      const json = (await res.json()) as ApiResponse<{ item: MenuItem }>;
+      const json = (await res.json()) as ApiResponse<{
+        item?: MenuItem;
+        pending?: boolean;
+        message?: string;
+      }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
         return;
       }
-      toast.push("success", editing ? "Item atualizado." : "Item criado.");
+      toast.push(
+        "success",
+        json.data.pending
+          ? json.data.message ?? "Alteração enviada para aprovação do Master."
+          : editing
+            ? "Item atualizado."
+            : "Item criado."
+      );
       setOpen(false);
       load();
     } finally {

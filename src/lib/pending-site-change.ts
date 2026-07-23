@@ -22,7 +22,8 @@ export type PendingChangeEntityType =
   | "site_formation_courses"
   | "site_formacoes_page"
   | "site_inscreva_page"
-  | "site_contato_page";
+  | "site_contato_page"
+  | "site_espaco_maker_page";
 
 export async function createPendingSiteChange(
   requestedByUserId: string,
@@ -183,6 +184,31 @@ async function applyPendingChange(pending: {
             title: (payload.title as string) ?? null,
             subtitle: (payload.subtitle as string) ?? null,
             headerImageUrl: (payload.headerImageUrl as string) ?? null,
+          },
+        });
+      }
+      return;
+    }
+    case "site_espaco_maker_page": {
+      const mediaUrls = Array.isArray(payload.mediaUrls)
+        ? (payload.mediaUrls as string[]).filter((u) => typeof u === "string" && u.trim())
+        : [];
+      const data = {
+        title: payload.title ?? undefined,
+        subtitle: payload.subtitle ?? undefined,
+        content: payload.content ?? undefined,
+        mediaUrls,
+      };
+      const existing = await prisma.siteEspacoMakerPage.findFirst({ orderBy: { updatedAt: "desc" } });
+      if (existing) {
+        await prisma.siteEspacoMakerPage.update({ where: { id: existing.id }, data });
+      } else {
+        await prisma.siteEspacoMakerPage.create({
+          data: {
+            title: (payload.title as string) ?? null,
+            subtitle: (payload.subtitle as string) ?? null,
+            content: (payload.content as string) ?? null,
+            mediaUrls,
           },
         });
       }

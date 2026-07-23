@@ -9,6 +9,7 @@ const FALLBACK_LINKS = [
   { label: "Formações", href: "/formacoes" },
   { label: "Inscreva-se", href: "/inscreva" },
   { label: "Projetos", href: "/projetos" },
+  { label: "Espaço Maker", href: "/espaco-maker" },
   { label: "Notícias", href: "/noticias" },
   { label: "Transparência", href: "/transparencia" },
   { label: "Contato", href: "/contato" },

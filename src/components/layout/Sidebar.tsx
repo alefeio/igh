@@ -120,6 +120,7 @@ const ITEMS: Item[] = [
   { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/contato-pagina", label: "Página de contato", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/sobre", label: "Página Sobre", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/espaco-maker", label: "Página Espaço Maker", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/formacoes-pagina", label: "Página de formações", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/inscreva-pagina", label: "Página Inscreva-se", adminOrMaster: true, category: "Site" },
   { href: "/admin/site/projetos", label: "Projetos", adminOrMaster: true, category: "Site" },

@@ -34,6 +34,10 @@ const ENTITY_LABELS: Record<string, string> = {
   site_transparency_document: "Documento (Transparência)",
   site_formation: "Formação",
   site_formation_courses: "Cursos da formação",
+  site_formacoes_page: "Página de formações",
+  site_inscreva_page: "Página Inscreva-se",
+  site_contato_page: "Página de contato",
+  site_espaco_maker_page: "Página Espaço Maker",
 };
 
 const ACTION_LABELS: Record<string, string> = {

@@ -186,6 +186,27 @@ export default async function HomePage({ searchParams }: Props) {
 
       <HomeHowItWorksSection />
 
+      <Section
+        title="Espaço Maker IGH"
+        subtitle="Tecnologia, criatividade e inclusão por meio do aprender fazendo."
+        background="muted"
+      >
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-[var(--igh-muted)] sm:text-lg">
+            Ambiente colaborativo com impressão 3D, corte a laser, robótica e manutenção de equipamentos —
+            integrado ao Centro de Recondicionamento de Computadores e ao programa Computadores para Inclusão.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Button as="link" href="/espaco-maker" variant="primary" size="lg">
+              Conhecer o Espaço Maker
+            </Button>
+            <Button as="link" href="/formacoes" variant="outline" size="lg">
+              Ver cursos e turmas
+            </Button>
+          </div>
+        </div>
+      </Section>
+
       <MothersDayMessagesHomeSection
         items={mothersDaySection.items}
         participationOpen={mothersDaySection.participationOpen}

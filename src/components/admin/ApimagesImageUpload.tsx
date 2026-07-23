@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { isVideoUrl } from "@/lib/media-url";
 
 async function readResponseJson(res: Response): Promise<unknown> {
   const text = await res.text();
@@ -29,6 +30,7 @@ export type SiteUploadKind =
   | "about"
   | "inscreva"
   | "contato"
+  | "espaco-maker"
   | "teachers"
   | "onboarding"
   | "legal";
@@ -55,6 +57,7 @@ export function ApimagesImageUpload({
 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const currentIsVideo = isVideoUrl(currentUrl);
 
   const uploadOne = useCallback(
     async (file: File): Promise<string | null> => {
@@ -132,13 +135,23 @@ export function ApimagesImageUpload({
             rel="noopener noreferrer"
             className="text-sm text-blue-600 underline"
           >
-            Ver imagem atual
+            Ver {currentIsVideo ? "vídeo" : "imagem"} atual
           </a>
         )}
       </div>
       {currentUrl && (
         <div className="mt-1">
-          <img src={currentUrl} alt="Preview" className="max-h-24 rounded border border-[var(--card-border)] object-cover" />
+          {currentIsVideo ? (
+            <video
+              src={currentUrl}
+              className="max-h-28 rounded border border-[var(--card-border)] bg-black object-contain"
+              controls
+              muted
+              playsInline
+            />
+          ) : (
+            <img src={currentUrl} alt="Preview" className="max-h-24 rounded border border-[var(--card-border)] object-cover" />
+          )}
         </div>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
