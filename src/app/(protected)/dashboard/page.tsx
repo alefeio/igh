@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { isStudentEnrollmentActiveInClassGroup } from "@/lib/student-enrollment-access";
 import {
   BookOpen,
   CalendarDays,
@@ -770,6 +771,20 @@ function DashboardStudent({
     totalLessonsTotal > 0 ? Math.round((totalLessonsCompleted / totalLessonsTotal) * 100) : 0;
 
   const suspendedEnrollments = enrollments.filter((e) => e.enrollmentStatus === "SUSPENDED");
+  const activeCourseEnrollments = enrollments.filter((e) =>
+    isStudentEnrollmentActiveInClassGroup({
+      enrollmentStatus: e.enrollmentStatus,
+      classGroupStatus: e.status,
+    })
+  );
+  const otherCourseEnrollments = enrollments.filter(
+    (e) =>
+      e.enrollmentStatus !== "SUSPENDED" &&
+      !isStudentEnrollmentActiveInClassGroup({
+        enrollmentStatus: e.enrollmentStatus,
+        classGroupStatus: e.status,
+      })
+  );
 
   const continueBlock =
     enrollments.length > 0 && continueLink && continueLabel ? (
@@ -959,7 +974,7 @@ function DashboardStudent({
         </SectionCard>
       )}
 
-      {enrollments.length > 0 ? (
+      {activeCourseEnrollments.length > 0 || otherCourseEnrollments.length > 0 ? (
         <>
           <section aria-labelledby="cursos-heading">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -972,16 +987,36 @@ function DashboardStudent({
                 </p>
               </div>
               <span className="rounded-full bg-[var(--igh-surface)] px-3 py-1 text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                {activeEnrollmentsCount === 1
-                  ? "1 matrícula ativa"
-                  : `${activeEnrollmentsCount} matrículas ativas`}
+                {activeEnrollmentsCount === 0
+                  ? "Nenhuma matrícula ativa"
+                  : activeEnrollmentsCount === 1
+                    ? "1 matrícula ativa"
+                    : `${activeEnrollmentsCount} matrículas ativas`}
               </span>
             </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {enrollments.map((e) => (
-                <CourseCard key={e.id} enrollment={e} />
-              ))}
-            </div>
+            {activeCourseEnrollments.length > 0 ? (
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {activeCourseEnrollments.map((e) => (
+                  <CourseCard key={e.id} enrollment={e} />
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/40 px-4 py-6 text-sm text-[var(--text-muted)]">
+                Não há turmas em andamento no momento. Cursos encerrados ficam disponíveis em Minhas turmas.
+              </p>
+            )}
+            {otherCourseEnrollments.length > 0 ? (
+              <div className="mt-8">
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                  Cursos encerrados ou concluídos
+                </h3>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {otherCourseEnrollments.map((e) => (
+                    <CourseCard key={e.id} enrollment={e} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="mt-6">
               <Link
                 href="/minhas-turmas"

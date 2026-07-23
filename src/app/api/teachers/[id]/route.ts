@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { requireStaffWrite, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateTeacherSchema } from "@/lib/validators/teachers";
+import { birthDateInputToDate } from "@/lib/validators/person-contact";
+import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 import { createAuditLog } from "@/lib/audit";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
@@ -101,6 +103,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     });
   }
 
+  const phoneDigits =
+    parsed.data.phone === undefined
+      ? undefined
+      : parsed.data.phone === ""
+        ? null
+        : (parsed.data.phone.replace(/\D/g, "") || null);
+  const birthDateProvided = parsed.data.birthDate !== undefined;
+  const birthDateValue = birthDateProvided ? birthDateInputToDate(parsed.data.birthDate) : undefined;
+
   const isReactivating =
     (parsed.data.isActive === true && !existing.isActive) || existing.deletedAt != null;
 
@@ -108,7 +119,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     where: { id },
     data: {
       name: parsed.data.name ?? existing.name,
-      phone: parsed.data.phone === "" ? null : (parsed.data.phone ?? existing.phone),
+      phone: phoneDigits !== undefined ? phoneDigits : existing.phone,
       email: newEmail ?? existing.email,
       isActive: parsed.data.isActive ?? existing.isActive,
       ...(parsed.data.photoUrl !== undefined
@@ -122,10 +133,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     },
   });
 
-  if (isReactivating && teacherUserId) {
+  if (teacherUserId) {
     await prisma.user.update({
       where: { id: teacherUserId },
-      data: { isActive: true },
+      data: {
+        ...(isReactivating ? { isActive: true } : {}),
+        ...(parsed.data.name != null ? { name: parsed.data.name } : {}),
+        ...(newEmail ? { email: newEmail } : {}),
+        ...(phoneDigits !== undefined ? { whatsapp: phoneDigits } : {}),
+        ...(birthDateProvided ? { birthDate: birthDateValue } : {}),
+      },
     });
   }
 
@@ -137,7 +154,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     performedByUserId: user.id,
   });
 
-  return jsonOk({ teacher: updated });
+  if (teacherUserId && birthDateProvided) {
+    await maybeSendBirthdayGreetingForUser(teacherUserId);
+  }
+
+  return jsonOk({
+    teacher: {
+      ...updated,
+      birthDate: birthDateProvided
+        ? birthDateValue
+          ? birthDateValue.toISOString().slice(0, 10)
+          : null
+        : undefined,
+    },
+  });
 }
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {

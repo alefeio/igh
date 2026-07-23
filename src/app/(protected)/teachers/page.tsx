@@ -33,6 +33,7 @@ type Teacher = {
   name: string;
   email: string | null;
   phone: string | null;
+  birthDate: string | null;
   photoUrl: string | null;
   signatureUrl: string | null;
   isActive: boolean;
@@ -56,6 +57,7 @@ export default function TeachersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [signatureUrl, setSignatureUrl] = useState("");
   const [isActive, setIsActive] = useState(true);
@@ -68,6 +70,7 @@ export default function TeachersPage() {
     setName("");
     setEmail("");
     setPhone("");
+    setBirthDate("");
     setPhotoUrl("");
     setSignatureUrl("");
     setIsActive(true);
@@ -84,6 +87,7 @@ export default function TeachersPage() {
     setName(t.name);
     setEmail(t.email ?? "");
     setPhone(t.phone ?? "");
+    setBirthDate(t.birthDate ?? "");
     setPhotoUrl(t.photoUrl ?? "");
     setSignatureUrl(t.signatureUrl ?? "");
     setIsActive(t.isActive);
@@ -119,6 +123,7 @@ export default function TeachersPage() {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
+        birthDate: birthDate.trim() || "",
         isActive,
       };
       if (editing) {
@@ -351,6 +356,15 @@ export default function TeachersPage() {
             <div className="mt-1">
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Data de nascimento</label>
+            <div className="mt-1">
+              <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Usada para e-mail e notificação de aniversário.
+            </p>
           </div>
           <div>
             <label className="text-sm font-medium">Foto (opcional)</label>

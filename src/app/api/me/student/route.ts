@@ -3,6 +3,7 @@ import { getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getOrCreateStudentForUser } from "@/lib/student-account";
 import { updateStudentSchema } from "@/lib/validators/students";
+import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 
 /** Retorna o aluno vinculado ao usuário logado (role STUDENT). Se não for STUDENT ou não tiver aluno, retorna student: null. */
 export async function GET() {
@@ -154,11 +155,17 @@ export async function PATCH(request: Request) {
     data: updateData,
   });
 
-  if (student.userId && updated.email) {
+  if (student.userId) {
     await prisma.user.update({
       where: { id: student.userId },
-      data: { name: updated.name, email: updated.email },
+      data: {
+        name: updated.name,
+        ...(updated.email ? { email: updated.email } : {}),
+        whatsapp: updated.phone?.replace(/\D/g, "") || null,
+        birthDate: updated.birthDate,
+      },
     });
+    await maybeSendBirthdayGreetingForUser(student.userId);
   }
 
   return jsonOk({ student: updated });

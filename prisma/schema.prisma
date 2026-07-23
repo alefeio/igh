@@ -30,6 +30,8 @@ model User {
   passwordHash                 String
   /// * WhatsApp / celular (dígitos). Pedido no cadastro rápido para inscrição em eventos.
   whatsapp                     String?
+  /// * Data de nascimento (para aniversário e cadastro). Alunos também mantêm em Student.
+  birthDate                    DateTime?                    @db.Date
   role                         UserRole
   isActive                     Boolean                      @default(true)
   createdAt                    DateTime                     @default(now())

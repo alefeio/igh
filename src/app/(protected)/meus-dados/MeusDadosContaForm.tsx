@@ -11,6 +11,8 @@ type ProfilePayload = {
   name: string;
   email: string;
   role: string;
+  phone: string | null;
+  birthDate: string | null;
   teacher: {
     id: string;
     name: string;
@@ -36,7 +38,7 @@ export function MeusDadosContaForm({ roleLabel }: { roleLabel: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [isTeacher, setIsTeacher] = useState(false);
+  const [birthDate, setBirthDate] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,9 +51,8 @@ export function MeusDadosContaForm({ roleLabel }: { roleLabel: string }) {
       }
       setName(json.data.name);
       setEmail(json.data.email);
-      const teacher = json.data.teacher;
-      setIsTeacher(!!teacher);
-      setPhone(teacher?.phone ? formatPhoneBr(teacher.phone) : "");
+      setPhone(json.data.phone ? formatPhoneBr(json.data.phone) : "");
+      setBirthDate(json.data.birthDate ?? "");
     } finally {
       setLoading(false);
     }
@@ -65,18 +66,16 @@ export function MeusDadosContaForm({ roleLabel }: { roleLabel: string }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const body: { name: string; email: string; phone?: string } = {
-        name: name.trim(),
-        email: email.trim(),
-      };
-      if (isTeacher) {
-        body.phone = phone.replace(/\D/g, "");
-      }
       const res = await fetch("/api/me/account/profile", {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.replace(/\D/g, ""),
+          birthDate: birthDate.trim() || "",
+        }),
       });
       const json = (await res.json()) as ApiResponse<unknown>;
       if (!res.ok || !json?.ok) {
@@ -129,21 +128,35 @@ export function MeusDadosContaForm({ roleLabel }: { roleLabel: string }) {
           required
         />
       </div>
-      {isTeacher ? (
-        <div>
-          <label htmlFor="me-phone" className="text-sm font-medium text-[var(--text-primary)]">
-            Telefone / WhatsApp
-          </label>
-          <Input
-            id="me-phone"
-            className="mt-1"
-            value={phone}
-            onChange={(e) => setPhone(formatPhoneBr(e.target.value))}
-            autoComplete="tel"
-            placeholder="(00) 00000-0000"
-          />
-        </div>
-      ) : null}
+      <div>
+        <label htmlFor="me-phone" className="text-sm font-medium text-[var(--text-primary)]">
+          Telefone / WhatsApp
+        </label>
+        <Input
+          id="me-phone"
+          className="mt-1"
+          value={phone}
+          onChange={(e) => setPhone(formatPhoneBr(e.target.value))}
+          autoComplete="tel"
+          placeholder="(00) 00000-0000"
+        />
+      </div>
+      <div>
+        <label htmlFor="me-birthDate" className="text-sm font-medium text-[var(--text-primary)]">
+          Data de nascimento
+        </label>
+        <Input
+          id="me-birthDate"
+          type="date"
+          className="mt-1"
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
+          autoComplete="bday"
+        />
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          Usada para o e-mail e a notificação de aniversário.
+        </p>
+      </div>
       <div>
         <Button type="submit" disabled={saving}>
           {saving ? "Salvando…" : "Salvar alterações"}

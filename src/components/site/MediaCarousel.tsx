@@ -14,6 +14,11 @@ type MediaCarouselProps = {
    * para colar no cabeçalho da página.
    */
   fullBleed?: boolean;
+  /**
+   * Deslize contínuo lento da esquerda para a direita;
+   * pausa com o mouse em cima.
+   */
+  autoScroll?: boolean;
 };
 
 function MediaThumb({ url, fullBleed }: { url: string; fullBleed?: boolean }) {
@@ -177,6 +182,7 @@ export function MediaCarousel({
   className = "",
   visibleCount = 3,
   fullBleed = false,
+  autoScroll = false,
 }: MediaCarouselProps) {
   const items = useMemo(() => urls.map((u) => u.trim()).filter(Boolean), [urls]);
   const n = items.length;
@@ -184,6 +190,8 @@ export function MediaCarousel({
   const [isNarrow, setIsNarrow] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [portalReady, setPortalReady] = useState(false);
+  const [hoverPaused, setHoverPaused] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
     setPortalReady(true);
@@ -197,8 +205,17 @@ export function MediaCarousel({
     return () => mq.removeEventListener("change", apply);
   }, []);
 
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReduceMotion(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
   const perView = isNarrow ? 1 : Math.min(visibleCount, Math.max(n, 1));
   const maxStart = Math.max(0, n - perView);
+  const useMarquee = autoScroll && n > 1 && !reduceMotion;
 
   useEffect(() => {
     setIndex((i) => Math.min(i, maxStart));
@@ -217,6 +234,92 @@ export function MediaCarousel({
   );
 
   if (n === 0) return null;
+
+  const lightbox =
+    portalReady &&
+    lightboxIndex != null &&
+    createPortal(
+      <MediaLightbox
+        items={items}
+        activeIndex={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onChange={setLightboxIndex}
+      />,
+      document.body
+    );
+
+  if (useMarquee) {
+    // Duplicar a faixa para loop contínuo; duração proporcional à quantidade de itens.
+    const loop = [...items, ...items];
+    const total = loop.length;
+    const durationSec = Math.max(24, n * 8);
+    const paused = hoverPaused || lightboxIndex != null;
+    const trackWidthPercent = (total / perView) * 100;
+    const itemWidthPercent = 100 / total;
+
+    return (
+      <div
+        className={`relative w-full overflow-hidden ${className}`}
+        onMouseEnter={() => setHoverPaused(true)}
+        onMouseLeave={() => setHoverPaused(false)}
+      >
+        <style>{`
+          @keyframes media-carousel-ltr {
+            from { transform: translate3d(-50%, 0, 0); }
+            to { transform: translate3d(0, 0, 0); }
+          }
+          .media-carousel-marquee-track {
+            display: flex;
+            animation: media-carousel-ltr var(--marquee-duration, 40s) linear infinite;
+            will-change: transform;
+          }
+          .media-carousel-marquee-track.is-paused {
+            animation-play-state: paused;
+          }
+        `}</style>
+        <div
+          className={`media-carousel-marquee-track ${paused ? "is-paused" : ""}`}
+          style={{
+            width: `${trackWidthPercent}%`,
+            ["--marquee-duration" as string]: `${durationSec}s`,
+          }}
+        >
+          {loop.map((url, i) => {
+            const absoluteIndex = i % n;
+            return (
+              <button
+                key={`${i}-${url}`}
+                type="button"
+                onClick={() => setLightboxIndex(absoluteIndex)}
+                className={`group relative shrink-0 cursor-zoom-in overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                  fullBleed
+                    ? "aspect-[16/10] sm:aspect-[16/9] lg:aspect-[21/9]"
+                    : `aspect-[4/3] ${fullBleed ? "" : "px-1.5"}`
+                }`}
+                style={{ width: `${itemWidthPercent}%` }}
+                aria-label={isVideoUrl(url) ? "Abrir vídeo" : "Abrir imagem"}
+              >
+                <span
+                  className={
+                    fullBleed
+                      ? "absolute inset-0"
+                      : "absolute inset-1.5 overflow-hidden rounded-lg"
+                  }
+                >
+                  <MediaThumb url={url} fullBleed={fullBleed} />
+                  <span
+                    className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/15"
+                    aria-hidden
+                  />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {lightbox}
+      </div>
+    );
+  }
 
   const windowItems = items.slice(index, index + perView);
   const showArrows = n > perView;
@@ -307,17 +410,7 @@ export function MediaCarousel({
         </div>
       )}
 
-      {portalReady &&
-        lightboxIndex != null &&
-        createPortal(
-          <MediaLightbox
-            items={items}
-            activeIndex={lightboxIndex}
-            onClose={() => setLightboxIndex(null)}
-            onChange={setLightboxIndex}
-          />,
-          document.body
-        )}
+      {lightbox}
     </div>
   );
 }

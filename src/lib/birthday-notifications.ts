@@ -25,6 +25,14 @@ export type BirthdayNotifyRunResult = {
   skipped: number;
 };
 
+export type BirthdayGreetingResult = {
+  matchedToday: boolean;
+  notificationSent: boolean;
+  emailSent: boolean;
+  emailSkipped: boolean;
+  emailFailed: boolean;
+};
+
 function firstName(fullName: string): string {
   const t = fullName.trim();
   if (!t) return "você";
@@ -37,12 +45,137 @@ type BirthdayRow = {
   email: string | null;
 };
 
+/** True se mês/dia da data (UTC date-only) coincidem com o dia atual no Brasil. */
+export function isBirthdayToday(birthDate: Date | null | undefined): boolean {
+  if (!birthDate) return false;
+  if (!(birthDate instanceof Date) || Number.isNaN(birthDate.getTime())) return false;
+  if (birthDate.getTime() <= Date.UTC(1970, 0, 1)) return false;
+  const today = getBrazilTodayDateOnly();
+  return (
+    birthDate.getUTCMonth() === today.getUTCMonth() &&
+    birthDate.getUTCDate() === today.getUTCDate()
+  );
+}
+
+async function sendBirthdayGreetingToRow(
+  row: BirthdayRow,
+  year: number
+): Promise<{
+  notificationSent: boolean;
+  emailSent: boolean;
+  emailSkipped: boolean;
+  emailFailed: boolean;
+}> {
+  const displayName = row.name?.trim() || "você";
+  const fn = firstName(displayName);
+
+  const notificationSent = await createUserNotificationIfNew({
+    userId: row.userId,
+    kind: UserNotificationKind.BIRTHDAY,
+    title: "Feliz aniversário!",
+    body: `Parabéns, ${fn}! Desejamos um dia muito especial e um ano cheio de conquistas.`,
+    linkUrl: "/dashboard",
+    dedupeKey: `birthday:${row.userId}:${year}`,
+  });
+
+  const toEmail = row.email?.trim().toLowerCase() || null;
+  if (!toEmail) {
+    return {
+      notificationSent,
+      emailSent: false,
+      emailSkipped: true,
+      emailFailed: false,
+    };
+  }
+
+  const entityId = `${row.userId}:${year}`;
+  if (
+    await hasEmailPendingOrSent({
+      emailType: "birthday",
+      entityType: "User",
+      entityId,
+    })
+  ) {
+    return {
+      notificationSent,
+      emailSent: false,
+      emailSkipped: true,
+      emailFailed: false,
+    };
+  }
+
+  const { subject, html } = templateBirthdayCongratulations({ name: displayName });
+  const result = await sendEmailAndRecord({
+    to: toEmail,
+    subject,
+    html,
+    emailType: "birthday",
+    entityType: "User",
+    entityId,
+  });
+
+  return {
+    notificationSent,
+    emailSent: result.success,
+    emailSkipped: false,
+    emailFailed: !result.success,
+  };
+}
+
 /**
- * Notifica e envia e-mail de aniversário para usuários com data de nascimento
- * (cadastro de aluno vinculado) coincidente com o dia atual no calendário do Brasil.
+ * Se o usuário (ativo) faz aniversário hoje (User.birthDate ou fallback Student.birthDate),
+ * envia notificação + e-mail. Idempotente no ano civil via dedupe.
  *
- * Cobre qualquer papel (aluno, professor, admin, coordenador etc.) desde que exista
- * `Student.birthDate` ligado a um `User` ativo.
+ * Use após criar/atualizar conta com data de nascimento.
+ */
+export async function maybeSendBirthdayGreetingForUser(
+  userId: string
+): Promise<BirthdayGreetingResult> {
+  const today = getBrazilTodayDateOnly();
+  const month = today.getUTCMonth() + 1;
+  const day = today.getUTCDate();
+  const year = today.getUTCFullYear();
+
+  const rows = await prisma.$queryRaw<BirthdayRow[]>`
+    SELECT
+      u.id AS "userId",
+      u."name" AS "name",
+      u."email" AS "email"
+    FROM "User" u
+    LEFT JOIN "Student" s
+      ON s."userId" = u.id
+      AND s."deletedAt" IS NULL
+    WHERE u.id = ${userId}
+      AND u."isActive" = true
+      AND COALESCE(u."birthDate", s."birthDate") IS NOT NULL
+      AND COALESCE(u."birthDate", s."birthDate") > DATE '1970-01-01'
+      AND EXTRACT(MONTH FROM COALESCE(u."birthDate", s."birthDate"))::int = ${month}
+      AND EXTRACT(DAY FROM COALESCE(u."birthDate", s."birthDate"))::int = ${day}
+    LIMIT 1
+  `;
+
+  const row = rows[0];
+  if (!row) {
+    return {
+      matchedToday: false,
+      notificationSent: false,
+      emailSent: false,
+      emailSkipped: false,
+      emailFailed: false,
+    };
+  }
+
+  const result = await sendBirthdayGreetingToRow(row, year);
+  return {
+    matchedToday: true,
+    ...result,
+  };
+}
+
+/**
+ * Notifica e envia e-mail de aniversário para usuários cuja data de nascimento
+ * (User.birthDate ou, se ausente, Student.birthDate) coincide com o dia atual
+ * no calendário do Brasil.
  *
  * Dedupe in-app: `birthday:{userId}:{year}`.
  * Dedupe e-mail: SentEmail/Outbox `birthday` + entityId `{userId}:{year}`.
@@ -53,20 +186,20 @@ export async function runBirthdayNotificationsForToday(): Promise<BirthdayNotify
   const day = today.getUTCDate();
   const year = today.getUTCFullYear();
 
-  // birthDate > 1970-01-01 exclui placeholder Epoch usado em contas sem data real.
   const rows = await prisma.$queryRaw<BirthdayRow[]>`
     SELECT
-      s."userId" AS "userId",
-      COALESCE(NULLIF(TRIM(u."name"), ''), s."name") AS "name",
+      u.id AS "userId",
+      u."name" AS "name",
       u."email" AS "email"
-    FROM "Student" s
-    INNER JOIN "User" u ON u.id = s."userId"
-    WHERE s."deletedAt" IS NULL
-      AND s."userId" IS NOT NULL
-      AND u."isActive" = true
-      AND s."birthDate" > DATE '1970-01-01'
-      AND EXTRACT(MONTH FROM s."birthDate")::int = ${month}
-      AND EXTRACT(DAY FROM s."birthDate")::int = ${day}
+    FROM "User" u
+    LEFT JOIN "Student" s
+      ON s."userId" = u.id
+      AND s."deletedAt" IS NULL
+    WHERE u."isActive" = true
+      AND COALESCE(u."birthDate", s."birthDate") IS NOT NULL
+      AND COALESCE(u."birthDate", s."birthDate") > DATE '1970-01-01'
+      AND EXTRACT(MONTH FROM COALESCE(u."birthDate", s."birthDate"))::int = ${month}
+      AND EXTRACT(DAY FROM COALESCE(u."birthDate", s."birthDate"))::int = ${day}
   `;
 
   let notificationsSent = 0;
@@ -76,50 +209,12 @@ export async function runBirthdayNotificationsForToday(): Promise<BirthdayNotify
   let emailsFailed = 0;
 
   for (const row of rows) {
-    const displayName = row.name?.trim() || "você";
-    const fn = firstName(displayName);
-
-    const created = await createUserNotificationIfNew({
-      userId: row.userId,
-      kind: UserNotificationKind.BIRTHDAY,
-      title: "Feliz aniversário!",
-      body: `Parabéns, ${fn}! Desejamos um dia muito especial e um ano cheio de conquistas.`,
-      linkUrl: "/dashboard",
-      dedupeKey: `birthday:${row.userId}:${year}`,
-    });
-    if (created) notificationsSent += 1;
+    const result = await sendBirthdayGreetingToRow(row, year);
+    if (result.notificationSent) notificationsSent += 1;
     else notificationsSkipped += 1;
-
-    const toEmail = row.email?.trim().toLowerCase() || null;
-    if (!toEmail) {
-      emailsSkipped += 1;
-      continue;
-    }
-
-    const entityId = `${row.userId}:${year}`;
-    if (
-      await hasEmailPendingOrSent({
-        emailType: "birthday",
-        entityType: "User",
-        entityId,
-      })
-    ) {
-      emailsSkipped += 1;
-      continue;
-    }
-
-    const { subject, html } = templateBirthdayCongratulations({ name: displayName });
-    const result = await sendEmailAndRecord({
-      to: toEmail,
-      subject,
-      html,
-      emailType: "birthday",
-      entityType: "User",
-      entityId,
-    });
-
-    if (result.success) emailsSent += 1;
-    else emailsFailed += 1;
+    if (result.emailSent) emailsSent += 1;
+    else if (result.emailFailed) emailsFailed += 1;
+    else emailsSkipped += 1;
   }
 
   return {

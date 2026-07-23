@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, requireStaffWrite, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createTeacherSchema } from "@/lib/validators/teachers";
+import { birthDateInputToDate } from "@/lib/validators/person-contact";
+import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 import { createAuditLog } from "@/lib/audit";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
@@ -20,9 +22,21 @@ export async function GET(request: Request) {
         ? { deletedAt: { not: null } }
         : {};
 
-  const teachers = await prisma.teacher.findMany({
+  const teachersRaw = await prisma.teacher.findMany({
     where,
     orderBy: { createdAt: "desc" },
+    include: {
+      user: { select: { birthDate: true, whatsapp: true } },
+    },
+  });
+
+  const teachers = teachersRaw.map((t) => {
+    const { user, ...rest } = t;
+    return {
+      ...rest,
+      phone: rest.phone || user?.whatsapp || null,
+      birthDate: user?.birthDate ? user.birthDate.toISOString().slice(0, 10) : null,
+    };
   });
 
   return jsonOk({ teachers });
@@ -42,6 +56,9 @@ export async function POST(request: Request) {
     select: { id: true },
   });
 
+  const phoneDigits = parsed.data.phone?.replace(/\D/g, "") || null;
+  const birthDateValue = birthDateInputToDate(parsed.data.birthDate);
+
   let teacher: { id: string; name: string; email: string | null; userId: string | null; [key: string]: unknown };
   let emailSent = false;
 
@@ -58,12 +75,19 @@ export async function POST(request: Request) {
     teacher = await prisma.teacher.create({
       data: {
         name: parsed.data.name,
-        phone: parsed.data.phone || null,
+        phone: phoneDigits,
         email: parsed.data.email,
         photoUrl: parsed.data.photoUrl?.trim() || null,
         signatureUrl: parsed.data.signatureUrl?.trim() || null,
         isActive: true,
         userId: existingUser.id,
+      },
+    });
+    await prisma.user.update({
+      where: { id: existingUser.id },
+      data: {
+        ...(phoneDigits ? { whatsapp: phoneDigits } : {}),
+        ...(birthDateValue ? { birthDate: birthDateValue } : parsed.data.birthDate === null ? { birthDate: null } : {}),
       },
     });
     linkedToExistingUser = true;
@@ -96,12 +120,14 @@ export async function POST(request: Request) {
         role: "TEACHER",
         isActive: true,
         mustChangePassword: true,
+        whatsapp: phoneDigits,
+        birthDate: birthDateValue,
       },
     });
     teacher = await prisma.teacher.create({
       data: {
         name: parsed.data.name,
-        phone: parsed.data.phone || null,
+        phone: phoneDigits,
         email: parsed.data.email,
         photoUrl: parsed.data.photoUrl?.trim() || null,
         signatureUrl: parsed.data.signatureUrl?.trim() || null,
@@ -140,6 +166,10 @@ export async function POST(request: Request) {
     diff: { after: teacher },
     performedByUserId: user.id,
   });
+
+  if (teacher.userId) {
+    await maybeSendBirthdayGreetingForUser(teacher.userId);
+  }
 
   return jsonOk({ teacher, emailSent, linkedToExistingUser }, { status: 201 });
 }

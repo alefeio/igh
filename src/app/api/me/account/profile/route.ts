@@ -2,14 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateMeAccountSchema } from "@/lib/validators/me-account";
+import {
+  birthDateInputToDate,
+  birthDateToInputValue,
+} from "@/lib/validators/person-contact";
+import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 
-const STAFF_ROLES = ["MASTER", "ADMIN", "TEACHER"] as const;
+const STAFF_ROLES = ["MASTER", "ADMIN", "TEACHER", "COORDINATOR", "POLO_COORDINATOR"] as const;
 
 function isStaffRole(role: string): role is (typeof STAFF_ROLES)[number] {
   return (STAFF_ROLES as readonly string[]).includes(role);
 }
 
-/** Perfil da conta para edição em Meus dados (Master, Admin, Professor). */
+/** Perfil da conta para edição em Meus dados (staff). */
 export async function GET() {
   const user = await getSessionUserFromCookie();
   if (!user || !isStaffRole(user.role)) {
@@ -22,6 +27,8 @@ export async function GET() {
       name: true,
       email: true,
       role: true,
+      whatsapp: true,
+      birthDate: true,
     },
   });
 
@@ -34,10 +41,14 @@ export async function GET() {
     select: { id: true, name: true, phone: true, email: true, photoUrl: true },
   });
 
+  const phone = teacher?.phone?.trim() || db.whatsapp || null;
+
   return jsonOk({
     name: db.name,
     email: db.email,
     role: db.role,
+    phone,
+    birthDate: birthDateToInputValue(db.birthDate),
     teacher: teacher
       ? {
           id: teacher.id,
@@ -84,33 +95,42 @@ export async function PATCH(request: Request) {
   }
 
   const nameTrim = data.name.trim();
+  const phoneDigits = data.phone;
+  const birthDate = birthDateInputToDate(data.birthDate);
 
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: user.id },
-      data: { name: nameTrim, email: emailNorm },
+      data: {
+        name: nameTrim,
+        email: emailNorm,
+        whatsapp: phoneDigits,
+        birthDate,
+      },
     });
 
-    if (existing.role === "TEACHER") {
-      const teacher = await tx.teacher.findFirst({
-        where: { userId: user.id, deletedAt: null },
+    const teacher = await tx.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+    });
+    if (teacher) {
+      await tx.teacher.update({
+        where: { id: teacher.id },
+        data: {
+          name: nameTrim,
+          email: emailNorm,
+          phone: phoneDigits,
+        },
       });
-      if (teacher) {
-        await tx.teacher.update({
-          where: { id: teacher.id },
-          data: {
-            name: nameTrim,
-            email: emailNorm,
-            phone: data.phone?.trim() ? data.phone.trim() : null,
-          },
-        });
-      }
     }
   });
+
+  await maybeSendBirthdayGreetingForUser(user.id);
 
   return jsonOk({
     name: nameTrim,
     email: emailNorm,
     role: existing.role,
+    phone: phoneDigits,
+    birthDate: data.birthDate,
   });
 }

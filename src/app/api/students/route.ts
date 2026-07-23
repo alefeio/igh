@@ -8,6 +8,7 @@ import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
 import { birthDateToStudentPasswordParts } from "@/lib/student-password";
+import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
@@ -212,6 +213,13 @@ export async function POST(request: Request) {
       data: { userId: existingUser.id },
     });
     student.userId = existingUser.id;
+    await prisma.user.update({
+      where: { id: existingUser.id },
+      data: {
+        birthDate,
+        whatsapp: student.phone?.replace(/\D/g, "") || null,
+      },
+    });
     if (emailTrimmed) {
       const { subject, html } = templateAddedAsStudent({ name: student.name, email: emailTrimmed });
       await sendEmailAndRecord({
@@ -238,6 +246,8 @@ export async function POST(request: Request) {
         role: "STUDENT",
         isActive: true,
         mustChangePassword: true,
+        birthDate,
+        whatsapp: student.phone?.replace(/\D/g, "") || null,
       },
     });
     await prisma.student.update({
@@ -272,6 +282,10 @@ export async function POST(request: Request) {
     diff: { after: student },
     performedByUserId: user.id,
   });
+
+  if (student.userId) {
+    await maybeSendBirthdayGreetingForUser(student.userId);
+  }
 
   return jsonOk({ student, linkedToExistingUser: !!existingUser }, { status: 201 });
 }

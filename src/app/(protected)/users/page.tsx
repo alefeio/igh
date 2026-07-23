@@ -23,6 +23,8 @@ type AdminUser = {
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
   isActive: boolean;
+  phone?: string | null;
+  birthDate?: string | null;
   createdAt: string;
 };
 
@@ -61,9 +63,13 @@ export default function UsersPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [createRole, setCreateRole] = useState<StaffAccessRole>("ADMIN");
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editBirthDate, setEditBirthDate] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
   const [editAccessRole, setEditAccessRole] = useState<StaffAccessRole>("ADMIN");
@@ -103,6 +109,8 @@ export default function UsersPage() {
     setEditing(u);
     setEditName(u.name);
     setEditEmail(u.email);
+    setEditPhone(u.phone ?? "");
+    setEditBirthDate(u.birthDate ?? "");
     setEditPassword("");
     setEditIsActive(u.isActive);
     if (u.role === "ADMIN" || u.role === "COORDINATOR" || u.role === "POLO_COORDINATOR") {
@@ -120,12 +128,16 @@ export default function UsersPage() {
         name: string;
         email: string;
         isActive: boolean;
+        phone?: string;
+        birthDate?: string;
         password?: string;
         role?: StaffAccessRole;
       } = {
         name: editName,
         email: editEmail,
         isActive: editIsActive,
+        phone: editPhone.replace(/\D/g, ""),
+        birthDate: editBirthDate.trim(),
       };
       if (editPassword.trim() !== "") payload.password = editPassword;
       if (
@@ -203,7 +215,13 @@ export default function UsersPage() {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, email, role: createRole }),
+        body: JSON.stringify({
+          name,
+          email,
+          role: createRole,
+          phone: phone.replace(/\D/g, ""),
+          birthDate: birthDate.trim(),
+        }),
       });
       const json = (await res.json()) as ApiResponse<{
         user: { id: string };
@@ -396,6 +414,27 @@ export default function UsersPage() {
             </div>
           </div>
           <div>
+            <label className="text-sm font-medium">Telefone / WhatsApp</label>
+            <div className="mt-1">
+              <Input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Data de nascimento</label>
+            <div className="mt-1">
+              <Input
+                type="date"
+                value={editBirthDate}
+                onChange={(e) => setEditBirthDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
             <label className="text-sm font-medium">Nova senha (opcional)</label>
             <div className="mt-1">
               <PasswordInput
@@ -443,6 +482,8 @@ export default function UsersPage() {
           setOpen(false);
           setName("");
           setEmail("");
+          setPhone("");
+          setBirthDate("");
           setCreateRole("ADMIN");
         }}
       >
@@ -457,6 +498,23 @@ export default function UsersPage() {
             <label className="text-sm font-medium">E-mail</label>
             <div className="mt-1">
               <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Telefone / WhatsApp</label>
+            <div className="mt-1">
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Data de nascimento</label>
+            <div className="mt-1">
+              <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
             </div>
           </div>
           <div>

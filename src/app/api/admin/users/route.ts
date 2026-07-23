@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, hashPassword } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAdminSchema } from "@/lib/validators/users";
+import { birthDateInputToDate } from "@/lib/validators/person-contact";
+import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 import { createAuditLog } from "@/lib/audit";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
@@ -47,12 +49,29 @@ export async function GET() {
       isCoordinator: true,
       isPoloCoordinator: true,
       isActive: true,
+      whatsapp: true,
+      birthDate: true,
       createdAt: true,
       updatedAt: true,
     },
   });
 
-  return jsonOk({ users });
+  return jsonOk({
+    users: users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      isAdmin: u.isAdmin,
+      isCoordinator: u.isCoordinator,
+      isPoloCoordinator: u.isPoloCoordinator,
+      isActive: u.isActive,
+      phone: u.whatsapp,
+      birthDate: u.birthDate ? u.birthDate.toISOString().slice(0, 10) : null,
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt,
+    })),
+  });
 }
 
 export async function POST(request: Request) {
@@ -64,7 +83,8 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { name, email, role: targetRole = "ADMIN" } = parsed.data;
+  const { name, email, role: targetRole = "ADMIN", phone, birthDate } = parsed.data;
+  const birthDateValue = birthDateInputToDate(birthDate);
   const existing = await prisma.user.findUnique({
     where: { email },
     select: {
@@ -109,6 +129,8 @@ export async function POST(request: Request) {
       data: {
         ...overlay,
         ...(name.trim() && name.trim() !== existing.name ? { name: name.trim() } : {}),
+        ...(phone !== undefined ? { whatsapp: phone } : {}),
+        ...(birthDate !== undefined ? { birthDate: birthDateValue } : {}),
       },
       select: {
         id: true,
@@ -119,6 +141,8 @@ export async function POST(request: Request) {
         isCoordinator: true,
         isPoloCoordinator: true,
         isActive: true,
+        whatsapp: true,
+        birthDate: true,
       },
     });
     await createAuditLog({
@@ -163,6 +187,10 @@ export async function POST(request: Request) {
       performedByUserId: master.id,
     });
 
+    if (birthDate !== undefined) {
+      await maybeSendBirthdayGreetingForUser(updated.id);
+    }
+
     return jsonOk(
       {
         user: updated,
@@ -183,8 +211,18 @@ export async function POST(request: Request) {
       role: targetRole,
       isActive: true,
       mustChangePassword: true,
+      whatsapp: phone,
+      birthDate: birthDateValue,
     },
-    select: { id: true, name: true, email: true, role: true, isActive: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+      whatsapp: true,
+      birthDate: true,
+    },
   });
 
   await createAuditLog({
@@ -240,6 +278,8 @@ export async function POST(request: Request) {
     },
     performedByUserId: master.id,
   });
+
+  await maybeSendBirthdayGreetingForUser(created.id);
 
   return jsonOk(
     {

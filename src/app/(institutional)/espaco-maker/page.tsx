@@ -27,7 +27,7 @@ export default async function EspacoMakerPage() {
         subtitle={subtitle}
         below={
           mediaUrls.length > 0 ? (
-            <MediaCarousel urls={mediaUrls} fullBleed className="w-full" />
+            <MediaCarousel urls={mediaUrls} fullBleed autoScroll className="w-full" />
           ) : undefined
         }
       />

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ensurePendingDocumentRemindersForStudent } from "@/lib/document-reminder-notifications";
-import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
+import { STUDENT_VISIBLE_ENROLLMENT_STATUSES, isStudentEnrollmentActiveInClassGroup } from "@/lib/student-enrollment-access";
 import {
   aggregateFirstExerciseAnswers,
   countFirstForumParticipations,
@@ -464,7 +464,10 @@ export async function loadStudentDashboardMetrics(
   const forumRepliesCount = 0;
   const recommended = enrollments.find(
     (e) =>
-      e.enrollmentStatus === "ACTIVE" &&
+      isStudentEnrollmentActiveInClassGroup({
+        enrollmentStatus: e.enrollmentStatus,
+        classGroupStatus: e.status,
+      }) &&
       e.lessonsTotal > 0 &&
       e.lessonsCompleted > 0 &&
       e.lessonsCompleted < e.lessonsTotal
@@ -531,7 +534,12 @@ export async function loadStudentDashboardMetrics(
   return {
     role: "STUDENT",
     roleLabel,
-    activeEnrollmentsCount: enrollments.filter((e) => e.enrollmentStatus === "ACTIVE").length,
+    activeEnrollmentsCount: enrollments.filter((e) =>
+      isStudentEnrollmentActiveInClassGroup({
+        enrollmentStatus: e.enrollmentStatus,
+        classGroupStatus: e.status,
+      })
+    ).length,
     enrollments,
     totalLessonsCompleted,
     totalLessonsTotal,

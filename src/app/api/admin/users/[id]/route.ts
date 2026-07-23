@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, requireRole, requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateAdminSchema } from "@/lib/validators/users";
+import { birthDateInputToDate } from "@/lib/validators/person-contact";
+import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateAdminRoleAssigned, templateCoordinatorRoleAssigned } from "@/lib/email/templates";
@@ -29,9 +31,41 @@ const userSelect = {
   isCoordinator: true,
   isPoloCoordinator: true,
   isActive: true,
+  whatsapp: true,
+  birthDate: true,
   createdAt: true,
   updatedAt: true,
 } as const;
+
+function mapUser(u: {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isAdmin: boolean;
+  isCoordinator: boolean;
+  isPoloCoordinator: boolean;
+  isActive: boolean;
+  whatsapp: string | null;
+  birthDate: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    isAdmin: u.isAdmin,
+    isCoordinator: u.isCoordinator,
+    isPoloCoordinator: u.isPoloCoordinator,
+    isActive: u.isActive,
+    phone: u.whatsapp,
+    birthDate: u.birthDate ? u.birthDate.toISOString().slice(0, 10) : null,
+    createdAt: u.createdAt,
+    updatedAt: u.updatedAt,
+  };
+}
 
 export async function PATCH(request: Request, ctx: Ctx) {
   const actor = await requireStaffWrite();
@@ -78,6 +112,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
     role?: "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR";
     passwordHash?: string;
     mustChangePassword?: boolean;
+    whatsapp?: string | null;
+    birthDate?: Date | null;
   } = {};
 
   if (parsed.data.name !== undefined) {
@@ -91,6 +127,12 @@ export async function PATCH(request: Request, ctx: Ctx) {
   }
   if (parsed.data.role !== undefined) {
     data.role = parsed.data.role;
+  }
+  if (parsed.data.phone !== undefined) {
+    data.whatsapp = parsed.data.phone;
+  }
+  if (parsed.data.birthDate !== undefined) {
+    data.birthDate = birthDateInputToDate(parsed.data.birthDate);
   }
 
   if (parsed.data.email !== undefined) {
@@ -165,7 +207,11 @@ export async function PATCH(request: Request, ctx: Ctx) {
     });
   }
 
-  return jsonOk({ user: updated });
+  if (parsed.data.birthDate !== undefined) {
+    await maybeSendBirthdayGreetingForUser(id);
+  }
+
+  return jsonOk({ user: mapUser(updated) });
 }
 
 export async function DELETE(request: Request, ctx: Ctx) {

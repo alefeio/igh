@@ -63,7 +63,7 @@ export default async function MeusDadosPage() {
         <DashboardHero
           eyebrow="Conta"
           title="Meus dados"
-          description="Atualize seu nome, e-mail de acesso e, se for professor, o telefone de contato."
+          description="Atualize seu nome, e-mail, telefone e data de nascimento."
         />
         <SectionCard
           title="Dados da conta"

@@ -6,6 +6,7 @@ import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
 import { birthDateToStudentPasswordParts } from "@/lib/student-password";
+import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 
 export async function GET(
   _request: Request,
@@ -194,6 +195,13 @@ export async function PATCH(
         data: { userId: linkToUserId },
       });
       (updated as { userId: string | null }).userId = linkToUserId;
+      await prisma.user.update({
+        where: { id: linkToUserId },
+        data: {
+          birthDate: updated.birthDate,
+          whatsapp: updated.phone?.replace(/\D/g, "") || null,
+        },
+      });
       const linkedUser = await prisma.user.findUnique({
         where: { id: linkToUserId },
         select: { name: true, email: true },
@@ -213,6 +221,7 @@ export async function PATCH(
           performedByUserId: user.id,
         });
       }
+      await maybeSendBirthdayGreetingForUser(linkToUserId);
     } else if (existing.userId) {
       await prisma.user.update({
         where: { id: existing.userId },
@@ -220,6 +229,8 @@ export async function PATCH(
           name: updated.name,
           email: updated.email,
           isActive: true,
+          birthDate: updated.birthDate,
+          whatsapp: updated.phone?.replace(/\D/g, "") || null,
         },
       });
       if (emailWasAddedOrChanged) {
@@ -237,6 +248,7 @@ export async function PATCH(
           performedByUserId: user.id,
         });
       }
+      await maybeSendBirthdayGreetingForUser(existing.userId);
     } else {
       const { password: birthDateAsPassword, formatted: birthDateFormatted } =
         birthDateToStudentPasswordParts(updated.birthDate);
@@ -249,6 +261,8 @@ export async function PATCH(
           role: "STUDENT",
           isActive: true,
           mustChangePassword: true,
+          birthDate: updated.birthDate,
+          whatsapp: updated.phone?.replace(/\D/g, "") || null,
         },
       });
       await prisma.student.update({
@@ -271,6 +285,7 @@ export async function PATCH(
         entityId: id,
         performedByUserId: user.id,
       });
+      await maybeSendBirthdayGreetingForUser(createdUser.id);
     }
   } else if (existing.userId) {
     await prisma.user.update({
