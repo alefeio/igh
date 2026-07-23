@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { isVideoUrl } from "@/lib/media-url";
 
 type MediaCarouselProps = {
@@ -15,19 +16,20 @@ type MediaCarouselProps = {
   fullBleed?: boolean;
 };
 
-function MediaSlide({ url, fullBleed }: { url: string; fullBleed?: boolean }) {
-  const mediaClass = fullBleed
-    ? "h-full w-full bg-black object-cover"
-    : "h-full w-full rounded-lg bg-black object-cover";
-
+function MediaThumb({ url, fullBleed }: { url: string; fullBleed?: boolean }) {
   if (isVideoUrl(url)) {
     return (
       <video
         src={url}
-        className={mediaClass}
-        controls
+        className={
+          fullBleed
+            ? "pointer-events-none h-full w-full bg-black object-cover"
+            : "pointer-events-none h-full w-full rounded-lg bg-black object-cover"
+        }
+        muted
         playsInline
         preload="metadata"
+        aria-hidden
       />
     );
   }
@@ -35,9 +37,138 @@ function MediaSlide({ url, fullBleed }: { url: string; fullBleed?: boolean }) {
     <img
       src={url}
       alt=""
-      className={fullBleed ? "h-full w-full object-cover" : "h-full w-full rounded-lg object-cover"}
+      className={
+        fullBleed
+          ? "pointer-events-none h-full w-full object-cover"
+          : "pointer-events-none h-full w-full rounded-lg object-cover"
+      }
       loading="lazy"
     />
+  );
+}
+
+function MediaLightbox({
+  items,
+  activeIndex,
+  onClose,
+  onChange,
+}: {
+  items: string[];
+  activeIndex: number;
+  onClose: () => void;
+  onChange: (index: number) => void;
+}) {
+  const url = items[activeIndex];
+  const n = items.length;
+  const canNav = n > 1;
+
+  const go = useCallback(
+    (delta: number) => {
+      onChange((activeIndex + delta + n) % n);
+    },
+    [activeIndex, n, onChange]
+  );
+
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") go(-1);
+      if (e.key === "ArrowRight") go(1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [go, onClose]);
+
+  if (!url) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 sm:p-8"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Visualização da mídia"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-3 top-3 z-20 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-5 sm:top-5"
+        aria-label="Fechar"
+      >
+        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      {canNav && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            go(-1);
+          }}
+          className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:left-4"
+          aria-label="Mídia anterior"
+        >
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      )}
+
+      {canNav && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            go(1);
+          }}
+          className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-4"
+          aria-label="Próxima mídia"
+        >
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
+
+      <div
+        className="relative flex max-h-full max-w-6xl items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {isVideoUrl(url) ? (
+          <video
+            key={url}
+            src={url}
+            className="max-h-[85vh] max-w-full rounded-lg bg-black object-contain"
+            controls
+            autoPlay
+            playsInline
+          />
+        ) : (
+          <img
+            key={url}
+            src={url}
+            alt=""
+            className="max-h-[85vh] max-w-full rounded-lg object-contain"
+          />
+        )}
+      </div>
+
+      {canNav && (
+        <p className="absolute bottom-4 left-0 right-0 text-center text-sm text-white/80">
+          {activeIndex + 1} / {n}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -51,6 +182,12 @@ export function MediaCarousel({
   const n = items.length;
   const [index, setIndex] = useState(0);
   const [isNarrow, setIsNarrow] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -91,18 +228,28 @@ export function MediaCarousel({
           perView === 1 ? "grid-cols-1" : perView === 2 ? "grid-cols-2" : "grid-cols-3"
         }`}
       >
-        {windowItems.map((url, i) => (
-          <div
-            key={`${index}-${i}-${url}`}
-            className={`overflow-hidden ${
-              fullBleed
-                ? "aspect-[16/10] sm:aspect-[16/9] lg:aspect-[21/9]"
-                : "aspect-[4/3] rounded-lg"
-            }`}
-          >
-            <MediaSlide url={url} fullBleed={fullBleed} />
-          </div>
-        ))}
+        {windowItems.map((url, i) => {
+          const absoluteIndex = index + i;
+          return (
+            <button
+              key={`${index}-${i}-${url}`}
+              type="button"
+              onClick={() => setLightboxIndex(absoluteIndex)}
+              className={`group relative cursor-zoom-in overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
+                fullBleed
+                  ? "aspect-[16/10] sm:aspect-[16/9] lg:aspect-[21/9]"
+                  : "aspect-[4/3] rounded-lg"
+              }`}
+              aria-label={isVideoUrl(url) ? "Abrir vídeo" : "Abrir imagem"}
+            >
+              <MediaThumb url={url} fullBleed={fullBleed} />
+              <span
+                className="pointer-events-none absolute inset-0 bg-black/0 transition group-hover:bg-black/15"
+                aria-hidden
+              />
+            </button>
+          );
+        })}
       </div>
 
       {showArrows && (
@@ -159,6 +306,18 @@ export function MediaCarousel({
           ))}
         </div>
       )}
+
+      {portalReady &&
+        lightboxIndex != null &&
+        createPortal(
+          <MediaLightbox
+            items={items}
+            activeIndex={lightboxIndex}
+            onClose={() => setLightboxIndex(null)}
+            onChange={setLightboxIndex}
+          />,
+          document.body
+        )}
     </div>
   );
 }
