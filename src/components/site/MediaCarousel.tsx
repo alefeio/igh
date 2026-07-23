@@ -8,24 +8,45 @@ type MediaCarouselProps = {
   className?: string;
   /** Quantidade de itens visíveis por vez (desktop). Em telas menores cai para 1. */
   visibleCount?: number;
+  /**
+   * Faixa em largura total, sem gaps/arredondamentos entre itens —
+   * para colar no cabeçalho da página.
+   */
+  fullBleed?: boolean;
 };
 
-function MediaSlide({ url }: { url: string }) {
+function MediaSlide({ url, fullBleed }: { url: string; fullBleed?: boolean }) {
+  const mediaClass = fullBleed
+    ? "h-full w-full bg-black object-cover"
+    : "h-full w-full rounded-lg bg-black object-cover";
+
   if (isVideoUrl(url)) {
     return (
       <video
         src={url}
-        className="h-full w-full rounded-lg bg-black object-cover"
+        className={mediaClass}
         controls
         playsInline
         preload="metadata"
       />
     );
   }
-  return <img src={url} alt="" className="h-full w-full rounded-lg object-cover" loading="lazy" />;
+  return (
+    <img
+      src={url}
+      alt=""
+      className={fullBleed ? "h-full w-full object-cover" : "h-full w-full rounded-lg object-cover"}
+      loading="lazy"
+    />
+  );
 }
 
-export function MediaCarousel({ urls, className = "", visibleCount = 3 }: MediaCarouselProps) {
+export function MediaCarousel({
+  urls,
+  className = "",
+  visibleCount = 3,
+  fullBleed = false,
+}: MediaCarouselProps) {
   const items = useMemo(() => urls.map((u) => u.trim()).filter(Boolean), [urls]);
   const n = items.length;
   const [index, setIndex] = useState(0);
@@ -64,15 +85,22 @@ export function MediaCarousel({ urls, className = "", visibleCount = 3 }: MediaC
   const showArrows = n > perView;
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative w-full ${className}`}>
       <div
-        className={`grid gap-3 ${
+        className={`grid w-full ${fullBleed ? "gap-0" : "gap-3"} ${
           perView === 1 ? "grid-cols-1" : perView === 2 ? "grid-cols-2" : "grid-cols-3"
         }`}
       >
         {windowItems.map((url, i) => (
-          <div key={`${index}-${i}-${url}`} className="aspect-[4/3] overflow-hidden rounded-lg">
-            <MediaSlide url={url} />
+          <div
+            key={`${index}-${i}-${url}`}
+            className={`overflow-hidden ${
+              fullBleed
+                ? "aspect-[16/10] sm:aspect-[16/9] lg:aspect-[21/9]"
+                : "aspect-[4/3] rounded-lg"
+            }`}
+          >
+            <MediaSlide url={url} fullBleed={fullBleed} />
           </div>
         ))}
       </div>
@@ -82,7 +110,9 @@ export function MediaCarousel({ urls, className = "", visibleCount = 3 }: MediaC
           <button
             type="button"
             onClick={() => go(-1)}
-            className="absolute left-0 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/55 p-2.5 text-white shadow-md hover:bg-black/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:left-2 sm:translate-x-0"
+            className={`absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/55 p-2.5 text-white shadow-md hover:bg-black/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+              fullBleed ? "left-3 sm:left-4" : "left-0 -translate-x-1/2 sm:left-2 sm:translate-x-0"
+            }`}
             aria-label="Anterior"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -92,7 +122,9 @@ export function MediaCarousel({ urls, className = "", visibleCount = 3 }: MediaC
           <button
             type="button"
             onClick={() => go(1)}
-            className="absolute right-0 top-1/2 z-10 translate-x-1/2 -translate-y-1/2 rounded-full bg-black/55 p-2.5 text-white shadow-md hover:bg-black/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-2 sm:translate-x-0"
+            className={`absolute top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/55 p-2.5 text-white shadow-md hover:bg-black/75 focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+              fullBleed ? "right-3 sm:right-4" : "right-0 translate-x-1/2 sm:right-2 sm:translate-x-0"
+            }`}
             aria-label="Próximo"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -103,14 +135,24 @@ export function MediaCarousel({ urls, className = "", visibleCount = 3 }: MediaC
       )}
 
       {showArrows && (
-        <div className="mt-3 flex justify-center gap-1.5">
+        <div
+          className={`flex justify-center gap-1.5 ${
+            fullBleed ? "absolute bottom-3 left-0 right-0 z-10" : "mt-3"
+          }`}
+        >
           {Array.from({ length: maxStart + 1 }).map((_, i) => (
             <button
               key={i}
               type="button"
               onClick={() => setIndex(i)}
               className={`h-2 rounded-full transition-colors ${
-                i === index ? "w-6 bg-[var(--igh-primary)]" : "w-2 bg-[var(--igh-muted)]/50 hover:bg-[var(--igh-muted)]"
+                i === index
+                  ? fullBleed
+                    ? "w-6 bg-white"
+                    : "w-6 bg-[var(--igh-primary)]"
+                  : fullBleed
+                    ? "w-2 bg-white/50 hover:bg-white/80"
+                    : "w-2 bg-[var(--igh-muted)]/50 hover:bg-[var(--igh-muted)]"
               }`}
               aria-label={`Ir para posição ${i + 1}`}
             />

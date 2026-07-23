@@ -202,9 +202,11 @@ export default function AdminEspacoMakerPage() {
           </div>
 
           {mediaUrls.some((u) => u.trim()) && (
-            <div className="mt-4">
-              <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">Pré-visualização do carrossel</p>
-              <MediaCarousel urls={mediaUrls} />
+            <div className="mt-4 overflow-hidden rounded-md border border-[var(--card-border)]">
+              <p className="mb-0 border-b border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-xs font-medium text-[var(--text-muted)]">
+                Pré-visualização do carrossel (largura total no site)
+              </p>
+              <MediaCarousel urls={mediaUrls} fullBleed />
             </div>
           )}
         </div>
