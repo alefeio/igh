@@ -1,10 +1,28 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteTestimonialSchema } from "@/lib/validators/site";
 
 type RouteCtx = { params: Promise<{ id: string }> };
+
+function testimonialPrevious(existing: {
+  name: string;
+  roleOrContext: string | null;
+  quote: string;
+  photoUrl: string | null;
+  order: number;
+  isActive: boolean;
+}) {
+  return {
+    name: existing.name,
+    roleOrContext: existing.roleOrContext,
+    quote: existing.quote,
+    photoUrl: existing.photoUrl,
+    order: existing.order,
+    isActive: existing.isActive,
+  };
+}
 
 export async function PATCH(request: Request, ctx: RouteCtx) {
   const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
@@ -26,11 +44,12 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
     order: parsed.data.order ?? existing.order,
     isActive: parsed.data.isActive ?? existing.isActive,
   };
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_testimonial", "update", id, payload);
+  if (
+    await enqueueIfAdmin(user, "site_testimonial", "update", id, payload, testimonialPrevious(existing))
+  ) {
     return jsonOk({
       pending: true,
-      message: "Alteração enviada para aprovação do Master.",
+      message: PENDING_SITE_CHANGE_MESSAGE,
       item: existing,
     });
   }
@@ -49,11 +68,14 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
 }
 
 export async function DELETE(_request: Request, ctx: RouteCtx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const existing = await prisma.siteTestimonial.findUnique({ where: { id } });
   if (!existing) {
     return jsonErr("NOT_FOUND", "Depoimento não encontrado.", 404);
+  }
+  if (await enqueueIfAdmin(user, "site_testimonial", "delete", id, {}, testimonialPrevious(existing))) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteTestimonial.delete({ where: { id } });
   return jsonOk({ deleted: true });

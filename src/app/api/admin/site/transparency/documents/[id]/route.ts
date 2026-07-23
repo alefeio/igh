@@ -1,13 +1,32 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteTransparencyDocumentUpdateSchema } from "@/lib/validators/site";
+
+function documentPrevious(existing: {
+  categoryId: string;
+  title: string;
+  description: string | null;
+  date: Date | null;
+  fileUrl: string | null;
+  isActive: boolean;
+}) {
+  return {
+    categoryId: existing.categoryId,
+    title: existing.title,
+    description: existing.description,
+    date: existing.date ? existing.date.toISOString() : null,
+    fileUrl: existing.fileUrl,
+    isActive: existing.isActive,
+  };
+}
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await context.params;
 
   const existing = await prisma.siteTransparencyDocument.findUnique({ where: { id } });
@@ -23,6 +42,31 @@ export async function PATCH(
   if (d.categoryId !== undefined) {
     const category = await prisma.siteTransparencyCategory.findUnique({ where: { id: d.categoryId } });
     if (!category) return jsonErr("NOT_FOUND", "Categoria nao encontrada.", 404);
+  }
+
+  const payload: Record<string, unknown> = {};
+  if (d.categoryId !== undefined) payload.categoryId = d.categoryId;
+  if (d.title !== undefined) payload.title = d.title;
+  if (d.description !== undefined) payload.description = d.description ?? null;
+  if (d.date !== undefined) payload.date = d.date ?? null;
+  if (d.fileUrl !== undefined) payload.fileUrl = d.fileUrl || null;
+  if (d.isActive !== undefined) payload.isActive = d.isActive;
+
+  if (Object.keys(payload).length === 0) {
+    return jsonErr("VALIDATION_ERROR", "Nenhum campo para atualizar.", 400);
+  }
+
+  if (
+    await enqueueIfAdmin(
+      user,
+      "site_transparency_document",
+      "update",
+      id,
+      payload,
+      documentPrevious(existing)
+    )
+  ) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
 
   const data: {
@@ -41,10 +85,6 @@ export async function PATCH(
   if (d.fileUrl !== undefined) data.fileUrl = d.fileUrl || null;
   if (d.isActive !== undefined) data.isActive = d.isActive;
 
-  if (Object.keys(data).length === 0) {
-    return jsonErr("VALIDATION_ERROR", "Nenhum campo para atualizar.", 400);
-  }
-
   const item = await prisma.siteTransparencyDocument.update({
     where: { id },
     data,
@@ -58,11 +98,24 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await context.params;
 
   const existing = await prisma.siteTransparencyDocument.findUnique({ where: { id } });
   if (!existing) return jsonErr("NOT_FOUND", "Documento não encontrado.", 404);
+
+  if (
+    await enqueueIfAdmin(
+      user,
+      "site_transparency_document",
+      "delete",
+      id,
+      {},
+      documentPrevious(existing)
+    )
+  ) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
+  }
 
   await prisma.siteTransparencyDocument.delete({ where: { id } });
   return jsonOk({ deleted: true });

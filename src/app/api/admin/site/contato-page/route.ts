@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteContatoPageSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -22,11 +22,17 @@ export async function PATCH(request: Request) {
     subtitle: parsed.data.subtitle ?? null,
     headerImageUrl: parsed.data.headerImageUrl?.trim() ? parsed.data.headerImageUrl.trim() : null,
   };
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_contato_page", "update", null, payload);
-    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." });
-  }
   const existing = await prisma.siteContatoPage.findFirst({ orderBy: { updatedAt: "desc" } });
+  const previous = existing
+    ? {
+        title: existing.title,
+        subtitle: existing.subtitle,
+        headerImageUrl: existing.headerImageUrl,
+      }
+    : null;
+  if (await enqueueIfAdmin(user, "site_contato_page", "update", null, payload, previous)) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
+  }
   const data = {
     title: payload.title ?? undefined,
     subtitle: payload.subtitle ?? undefined,

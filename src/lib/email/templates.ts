@@ -573,6 +573,24 @@ export function templateHolidayEventReminder(params: {
   return { subject: `Lembrete: ${params.eventName} é hoje`, html: wrapHtml(body) };
 }
 
+export function templateBirthdayCongratulations(params: {
+  name: string;
+}): { subject: string; html: string } {
+  const firstName = params.name.trim().split(/\s+/)[0] || params.name;
+  const dashboardUrl = getAppUrl("/dashboard");
+  const body = `
+<h2>Feliz aniversário!</h2>
+<p>Olá, <strong>${escapeHtml(firstName)}</strong>.</p>
+<p>A equipe do ${escapeHtml(COMPANY_NAME)} deseja a você um dia muito especial e um ano cheio de conquistas.</p>
+<p>Parabéns! Que esta data seja repleta de alegria, saúde e realizações.</p>
+<p><a href="${escapeHtml(dashboardUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Acessar a plataforma</a></p>
+`;
+  return {
+    subject: `Feliz aniversário, ${firstName}! — ${COMPANY_NAME}`,
+    html: wrapHtml(body),
+  };
+}
+
 export { TERMS_VERSION };
 
 function escapeHtml(s: string): string {

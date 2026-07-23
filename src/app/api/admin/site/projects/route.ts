@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteProjectSchema, reorderSchema } from "@/lib/validators/site";
 
 function slug(s: string) {
@@ -33,9 +33,8 @@ export async function POST(request: Request) {
     order: parsed.data.order ?? (max._max.order ?? -1) + 1,
     isActive: parsed.data.isActive ?? true,
   };
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_project", "create", null, payload);
-    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." }, { status: 201 });
+  if (await enqueueIfAdmin(user, "site_project", "create", null, payload)) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
   }
   const item = await prisma.siteProject.create({ data: payload });
   return jsonOk({ item }, { status: 201 });
@@ -46,9 +45,15 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = reorderSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_project_reorder", "update", null, { ids: parsed.data.ids });
-    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." });
+  const current = await prisma.siteProject.findMany({
+    orderBy: [{ order: "asc" }],
+    select: { id: true },
+  });
+  const previous = { ids: current.map((p) => p.id) };
+  if (
+    await enqueueIfAdmin(user, "site_project_reorder", "update", null, { ids: parsed.data.ids }, previous)
+  ) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.$transaction(
     parsed.data.ids.map((id, i) => prisma.siteProject.update({ where: { id }, data: { order: i } }))

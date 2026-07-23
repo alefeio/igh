@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteEspacoMakerPageSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -26,11 +26,18 @@ export async function PATCH(request: Request) {
     content: parsed.data.content ?? null,
     mediaUrls,
   };
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_espaco_maker_page", "update", null, payload);
-    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." });
-  }
   const existing = await prisma.siteEspacoMakerPage.findFirst({ orderBy: { updatedAt: "desc" } });
+  const previous = existing
+    ? {
+        title: existing.title,
+        subtitle: existing.subtitle,
+        content: existing.content,
+        mediaUrls: existing.mediaUrls,
+      }
+    : null;
+  if (await enqueueIfAdmin(user, "site_espaco_maker_page", "update", null, payload, previous)) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
+  }
   const data = {
     title: payload.title ?? undefined,
     subtitle: payload.subtitle ?? undefined,

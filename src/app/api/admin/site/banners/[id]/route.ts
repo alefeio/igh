@@ -2,7 +2,7 @@ import type { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteBannerSchema } from "@/lib/validators/site";
 
 type RouteCtx = { params: Promise<{ id: string }> };
@@ -36,6 +36,26 @@ function mergeBannerPayload(
   };
 }
 
+function bannerPrevious(existing: {
+  title: string | null;
+  subtitle: string | null;
+  ctaLabel: string | null;
+  ctaHref: string | null;
+  imageUrl: string | null;
+  order: number;
+  isActive: boolean;
+}) {
+  return {
+    title: existing.title,
+    subtitle: existing.subtitle,
+    ctaLabel: existing.ctaLabel,
+    ctaHref: existing.ctaHref,
+    imageUrl: existing.imageUrl,
+    order: existing.order,
+    isActive: existing.isActive,
+  };
+}
+
 export async function PATCH(request: Request, ctx: RouteCtx) {
   const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
@@ -50,11 +70,10 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
   }
   const payload = mergeBannerPayload(parsed.data, existing);
 
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_banner", "update", id, payload);
+  if (await enqueueIfAdmin(user, "site_banner", "update", id, payload, bannerPrevious(existing))) {
     return jsonOk({
       pending: true,
-      message: "Alteração enviada para aprovação do Master.",
+      message: PENDING_SITE_CHANGE_MESSAGE,
       item: existing,
     });
   }
@@ -75,11 +94,14 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
 }
 
 export async function DELETE(_request: Request, ctx: RouteCtx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const existing = await prisma.siteBanner.findUnique({ where: { id } });
   if (!existing) {
     return jsonErr("NOT_FOUND", "Banner não encontrado.", 404);
+  }
+  if (await enqueueIfAdmin(user, "site_banner", "delete", id, {}, bannerPrevious(existing))) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteBanner.delete({ where: { id } });
   return jsonOk({ deleted: true });

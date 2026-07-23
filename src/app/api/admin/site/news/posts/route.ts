@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteNewsPostSchema } from "@/lib/validators/site";
 
 export async function GET(request: Request) {
@@ -16,24 +17,31 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = siteNewsPostSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);
   const slugVal = parsed.data.slug || parsed.data.title.toLowerCase().replace(/\s+/g, "-");
   if (await prisma.siteNewsPost.findUnique({ where: { slug: slugVal } }))
     return jsonErr("DUPLICATE_SLUG", "Slug em uso.", 409);
+  const payload = {
+    title: parsed.data.title,
+    slug: slugVal,
+    excerpt: parsed.data.excerpt ?? null,
+    content: parsed.data.content ?? null,
+    coverImageUrl: parsed.data.coverImageUrl || null,
+    imageUrls: parsed.data.imageUrls ?? [],
+    categoryId: parsed.data.categoryId ?? null,
+    publishedAt: parsed.data.publishedAt ?? null,
+    isPublished: parsed.data.isPublished ?? false,
+  };
+  if (await enqueueIfAdmin(user, "site_news_post", "create", null, payload)) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
+  }
   const item = await prisma.siteNewsPost.create({
     data: {
-      title: parsed.data.title,
-      slug: slugVal,
-      excerpt: parsed.data.excerpt ?? null,
-      content: parsed.data.content ?? null,
-      coverImageUrl: parsed.data.coverImageUrl || null,
-      imageUrls: parsed.data.imageUrls ?? [],
-      categoryId: parsed.data.categoryId ?? null,
-      publishedAt: parsed.data.publishedAt ? new Date(parsed.data.publishedAt) : null,
-      isPublished: parsed.data.isPublished ?? false,
+      ...payload,
+      publishedAt: payload.publishedAt ? new Date(payload.publishedAt) : null,
     },
     include: { category: true },
   });

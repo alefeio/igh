@@ -23,34 +23,154 @@ export type PendingChangeEntityType =
   | "site_formacoes_page"
   | "site_inscreva_page"
   | "site_contato_page"
-  | "site_espaco_maker_page";
+  | "site_espaco_maker_page"
+  | "site_unit";
+
+export type PendingChangeAction = "create" | "update" | "delete";
+
+export const PENDING_SITE_CHANGE_MESSAGE =
+  "Alteração enviada para aprovação do Master.";
+
+/** Remove metadados internos do payload antes de aplicar ou exibir. */
+export function stripPendingMeta(payload: Record<string, unknown>): Record<string, unknown> {
+  const { _previous, ...rest } = payload;
+  void _previous;
+  return rest;
+}
+
+export function serializeForPending(value: unknown): unknown {
+  if (value == null) return value;
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(serializeForPending);
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = serializeForPending(v);
+    }
+    return out;
+  }
+  return value;
+}
 
 export async function createPendingSiteChange(
   requestedByUserId: string,
   entityType: PendingChangeEntityType,
-  action: "create" | "update",
+  action: PendingChangeAction,
   entityId: string | null,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  previous?: Record<string, unknown> | null
 ) {
+  const body: Record<string, unknown> = {
+    ...stripPendingMeta(payload),
+  };
+  if (previous && Object.keys(previous).length > 0) {
+    body._previous = serializeForPending(previous);
+  }
   return prisma.pendingSiteChange.create({
     data: {
       requestedByUserId,
       entityType,
       action,
       entityId,
-      payload: payload as object,
+      payload: body as object,
       status: "pending",
     },
   });
 }
 
+/**
+ * Se o usuário for ADMIN, enfileira a alteração e retorna true.
+ * Caso contrário (MASTER/COORDINATOR), retorna false para o caller aplicar direto.
+ */
+export async function enqueueIfAdmin(
+  user: { id: string; role: string },
+  entityType: PendingChangeEntityType,
+  action: PendingChangeAction,
+  entityId: string | null,
+  payload: Record<string, unknown>,
+  previous?: Record<string, unknown> | null
+): Promise<boolean> {
+  if (user.role !== "ADMIN") return false;
+  await createPendingSiteChange(user.id, entityType, action, entityId, payload, previous);
+  return true;
+}
+
+export type PendingFieldChange = {
+  field: string;
+  before: unknown;
+  after: unknown;
+};
+
+function stableStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value ?? null);
+  } catch {
+    return String(value);
+  }
+}
+
+export function computePendingChanges(
+  action: string,
+  proposed: Record<string, unknown>,
+  previous: Record<string, unknown> | null
+): PendingFieldChange[] {
+  if (action === "create") {
+    return Object.entries(proposed)
+      .filter(([, v]) => v !== undefined)
+      .map(([field, after]) => ({ field, before: null, after }));
+  }
+  if (action === "delete") {
+    const src = previous ?? proposed;
+    return Object.entries(src)
+      .filter(([, v]) => v !== undefined)
+      .map(([field, before]) => ({ field, before, after: null }));
+  }
+  const keys = new Set([
+    ...Object.keys(previous ?? {}),
+    ...Object.keys(proposed),
+  ]);
+  const changes: PendingFieldChange[] = [];
+  for (const field of keys) {
+    const before = previous ? previous[field] : undefined;
+    const after = proposed[field];
+    if (after === undefined && before === undefined) continue;
+    if (stableStringify(before) === stableStringify(after)) continue;
+    changes.push({
+      field,
+      before: before === undefined ? null : before,
+      after: after === undefined ? null : after,
+    });
+  }
+  return changes;
+}
+
 export async function listPendingSiteChanges() {
-  return prisma.pendingSiteChange.findMany({
+  const rows = await prisma.pendingSiteChange.findMany({
     where: { status: "pending" },
     orderBy: { createdAt: "asc" },
     include: {
       requestedBy: { select: { id: true, name: true, email: true } },
     },
+  });
+
+  return rows.map((row) => {
+    const raw = (row.payload || {}) as Record<string, unknown>;
+    const previous =
+      raw._previous && typeof raw._previous === "object" && !Array.isArray(raw._previous)
+        ? (raw._previous as Record<string, unknown>)
+        : null;
+    const proposed = stripPendingMeta(raw);
+    return {
+      id: row.id,
+      entityType: row.entityType,
+      action: row.action,
+      entityId: row.entityId,
+      payload: proposed,
+      previous,
+      changes: computePendingChanges(row.action, proposed, previous),
+      createdAt: row.createdAt,
+      requestedBy: row.requestedBy,
+    };
   });
 }
 
@@ -92,7 +212,7 @@ async function applyPendingChange(pending: {
   entityId: string | null;
   payload: unknown;
 }) {
-  const payload = (pending.payload || {}) as Record<string, unknown>;
+  const payload = stripPendingMeta((pending.payload || {}) as Record<string, unknown>);
   const { entityType, action, entityId } = pending;
 
   switch (entityType) {
@@ -233,6 +353,8 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive !== false,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.siteBanner.delete({ where: { id: entityId } });
       } else if (entityId) {
         await prisma.siteBanner.update({
           where: { id: entityId },
@@ -260,6 +382,8 @@ async function applyPendingChange(pending: {
             isVisible: payload.isVisible !== false,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.siteMenuItem.delete({ where: { id: entityId } });
       } else if (entityId) {
         await prisma.siteMenuItem.update({
           where: { id: entityId },
@@ -289,6 +413,8 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive !== false,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.siteProject.delete({ where: { id: entityId } });
       } else if (entityId) {
         const slugVal = (payload.slug as string) || (payload.title as string)?.toLowerCase?.()?.replace?.(/\s+/g, "-");
         await prisma.siteProject.update({
@@ -318,6 +444,13 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive !== false,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.siteTestimonial.delete({ where: { id: entityId } });
+      } else if (Array.isArray(payload.ids)) {
+        const ids = payload.ids as string[];
+        await prisma.$transaction(
+          ids.map((id, i) => prisma.siteTestimonial.update({ where: { id }, data: { order: i } }))
+        );
       } else if (entityId) {
         await prisma.siteTestimonial.update({
           where: { id: entityId },
@@ -343,6 +476,13 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive !== false,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.sitePartner.delete({ where: { id: entityId } });
+      } else if (Array.isArray(payload.ids)) {
+        const ids = payload.ids as string[];
+        await prisma.$transaction(
+          ids.map((id, i) => prisma.sitePartner.update({ where: { id }, data: { order: i } }))
+        );
       } else if (entityId) {
         await prisma.sitePartner.update({
           where: { id: entityId },
@@ -366,6 +506,13 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive !== false,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.siteNewsCategory.delete({ where: { id: entityId } });
+      } else if (Array.isArray(payload.ids)) {
+        const ids = payload.ids as string[];
+        await prisma.$transaction(
+          ids.map((id, i) => prisma.siteNewsCategory.update({ where: { id }, data: { order: i } }))
+        );
       } else if (entityId) {
         await prisma.siteNewsCategory.update({
           where: { id: entityId },
@@ -393,6 +540,8 @@ async function applyPendingChange(pending: {
             isPublished: !!payload.isPublished,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.siteNewsPost.delete({ where: { id: entityId } });
       } else if (entityId) {
         await prisma.siteNewsPost.update({
           where: { id: entityId },
@@ -420,6 +569,13 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive !== false,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.siteFaqItem.delete({ where: { id: entityId } });
+      } else if (Array.isArray(payload.ids)) {
+        const ids = payload.ids as string[];
+        await prisma.$transaction(
+          ids.map((id, i) => prisma.siteFaqItem.update({ where: { id }, data: { order: i } }))
+        );
       } else if (entityId) {
         await prisma.siteFaqItem.update({
           where: { id: entityId },
@@ -442,6 +598,13 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive !== false,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.siteTransparencyCategory.delete({ where: { id: entityId } });
+      } else if (Array.isArray(payload.ids)) {
+        const ids = payload.ids as string[];
+        await prisma.$transaction(
+          ids.map((id, i) => prisma.siteTransparencyCategory.update({ where: { id }, data: { order: i } }))
+        );
       } else if (entityId) {
         await prisma.siteTransparencyCategory.update({
           where: { id: entityId },
@@ -466,6 +629,8 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive !== false,
           },
         });
+      } else if (action === "delete" && entityId) {
+        await prisma.siteTransparencyDocument.delete({ where: { id: entityId } });
       } else if (entityId) {
         await prisma.siteTransparencyDocument.update({
           where: { id: entityId },
@@ -482,7 +647,7 @@ async function applyPendingChange(pending: {
       return;
     case "site_formation":
       if (action === "create") {
-        await prisma.siteFormation.create({
+        const created = await prisma.siteFormation.create({
           data: {
             title: payload.title as string,
             slug: payload.slug as string,
@@ -495,6 +660,24 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive !== false,
           },
         });
+        const courseIds = Array.isArray(payload.courseIds) ? (payload.courseIds as string[]) : [];
+        if (courseIds.length > 0) {
+          await prisma.siteFormationCourse.createMany({
+            data: courseIds.map((courseId, i) => ({
+              formationId: created.id,
+              courseId,
+              order: i,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      } else if (action === "delete" && entityId) {
+        await prisma.siteFormation.delete({ where: { id: entityId } });
+      } else if (Array.isArray(payload.ids)) {
+        const ids = payload.ids as string[];
+        await prisma.$transaction(
+          ids.map((id, i) => prisma.siteFormation.update({ where: { id }, data: { order: i } }))
+        );
       } else if (entityId) {
         await prisma.siteFormation.update({
           where: { id: entityId },
@@ -510,6 +693,19 @@ async function applyPendingChange(pending: {
             isActive: payload.isActive ?? undefined,
           } as never,
         });
+        if (Array.isArray(payload.courseIds)) {
+          const courseIds = payload.courseIds as string[];
+          await prisma.siteFormationCourse.deleteMany({ where: { formationId: entityId } });
+          if (courseIds.length > 0) {
+            await prisma.siteFormationCourse.createMany({
+              data: courseIds.map((courseId, i) => ({
+                formationId: entityId,
+                courseId,
+                order: i,
+              })),
+            });
+          }
+        }
       }
       return;
     case "site_formation_courses":
@@ -544,6 +740,41 @@ async function applyPendingChange(pending: {
         );
       }
       return;
+    case "site_unit": {
+      const { courseIds: unitCourseIds, ...unitFields } = payload;
+      if (action === "create") {
+        const created = await prisma.siteUnit.create({ data: unitFields as never });
+        if (Array.isArray(unitCourseIds) && unitCourseIds.length > 0) {
+          await prisma.siteUnitCourse.createMany({
+            data: (unitCourseIds as string[]).map((courseId, index) => ({
+              unitId: created.id,
+              courseId,
+              order: index,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      } else if (action === "delete" && entityId) {
+        await prisma.siteUnit.delete({ where: { id: entityId } });
+      } else if (entityId) {
+        await prisma.siteUnit.update({ where: { id: entityId }, data: unitFields as never });
+        if (Array.isArray(unitCourseIds)) {
+          const courseIds = unitCourseIds as string[];
+          await prisma.siteUnitCourse.deleteMany({ where: { unitId: entityId } });
+          if (courseIds.length > 0) {
+            await prisma.siteUnitCourse.createMany({
+              data: courseIds.map((courseId, index) => ({
+                unitId: entityId,
+                courseId,
+                order: index,
+              })),
+              skipDuplicates: true,
+            });
+          }
+        }
+      }
+      return;
+    }
     default:
       throw new Error(`Unknown entityType: ${entityType}`);
   }

@@ -2,7 +2,7 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteSettingsSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -31,14 +31,22 @@ export async function PATCH(request: Request) {
     for (const [k, v] of Object.entries(data)) {
       clean[k] = v === "" || v === undefined ? null : v;
     }
-    if (user.role === "ADMIN") {
-      await createPendingSiteChange(user.id, "site_settings", "update", null, clean);
+    const existing = await prisma.siteSettings.findFirst();
+    const previous = existing
+      ? Object.fromEntries(
+          Object.keys(clean).map((k) => {
+            const val = (existing as unknown as Record<string, unknown>)[k];
+            return [k, val === undefined ? null : val];
+          })
+        )
+      : null;
+    if (await enqueueIfAdmin(user, "site_settings", "update", null, clean, previous)) {
       return jsonOk({
         pending: true,
-        message: "Alteração enviada para aprovação do Master.",
+        message: PENDING_SITE_CHANGE_MESSAGE,
       });
     }
-    let settings = await prisma.siteSettings.findFirst();
+    let settings = existing;
     if (!settings) {
       settings = await prisma.siteSettings.create({ data: clean as never });
     } else {

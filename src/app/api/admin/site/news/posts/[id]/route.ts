@@ -1,9 +1,34 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteNewsPostSchema } from "@/lib/validators/site";
 
 type RouteCtx = { params: Promise<{ id: string }> };
+
+function newsPostPrevious(existing: {
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string | null;
+  coverImageUrl: string | null;
+  imageUrls: string[];
+  categoryId: string | null;
+  publishedAt: Date | null;
+  isPublished: boolean;
+}) {
+  return {
+    title: existing.title,
+    slug: existing.slug,
+    excerpt: existing.excerpt,
+    content: existing.content,
+    coverImageUrl: existing.coverImageUrl,
+    imageUrls: existing.imageUrls,
+    categoryId: existing.categoryId,
+    publishedAt: existing.publishedAt ? existing.publishedAt.toISOString() : null,
+    isPublished: existing.isPublished,
+  };
+}
 
 export async function GET(_request: Request, ctx: RouteCtx) {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
@@ -19,7 +44,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
 }
 
 export async function PATCH(request: Request, ctx: RouteCtx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = siteNewsPostSchema.safeParse(body);
@@ -43,18 +68,27 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
     }
   }
 
+  const payload = {
+    title: parsed.data.title,
+    slug: slugVal,
+    excerpt: parsed.data.excerpt ?? null,
+    content: parsed.data.content ?? null,
+    coverImageUrl: parsed.data.coverImageUrl || null,
+    imageUrls: parsed.data.imageUrls ?? [],
+    categoryId: parsed.data.categoryId ?? null,
+    publishedAt: parsed.data.publishedAt ?? null,
+    isPublished: parsed.data.isPublished ?? false,
+  };
+
+  if (await enqueueIfAdmin(user, "site_news_post", "update", id, payload, newsPostPrevious(existing))) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
+  }
+
   const item = await prisma.siteNewsPost.update({
     where: { id },
     data: {
-      title: parsed.data.title,
-      slug: slugVal,
-      excerpt: parsed.data.excerpt ?? null,
-      content: parsed.data.content ?? null,
-      coverImageUrl: parsed.data.coverImageUrl || null,
-      imageUrls: parsed.data.imageUrls ?? [],
-      categoryId: parsed.data.categoryId ?? null,
-      publishedAt: parsed.data.publishedAt ? new Date(parsed.data.publishedAt) : null,
-      isPublished: parsed.data.isPublished ?? false,
+      ...payload,
+      publishedAt: payload.publishedAt ? new Date(payload.publishedAt) : null,
     },
     include: { category: true },
   });
@@ -62,11 +96,14 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
 }
 
 export async function DELETE(_request: Request, ctx: RouteCtx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const existing = await prisma.siteNewsPost.findUnique({ where: { id } });
   if (!existing) {
     return jsonErr("NOT_FOUND", "Post não encontrado.", 404);
+  }
+  if (await enqueueIfAdmin(user, "site_news_post", "delete", id, {}, newsPostPrevious(existing))) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteNewsPost.delete({ where: { id } });
   return jsonOk({ deleted: true });

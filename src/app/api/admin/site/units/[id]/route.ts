@@ -1,7 +1,50 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteUnitSchema } from "@/lib/validators/site";
+
+function unitPrevious(existing: {
+  slug: string;
+  city: string;
+  state: string;
+  addressLine: string | null;
+  locationName: string | null;
+  whatsapp: string | null;
+  heroBadge: string | null;
+  heroTitle: string | null;
+  heroText: string | null;
+  heroImageUrl: string | null;
+  benefitsBadge: string | null;
+  benefitsTitle: string | null;
+  benefitsText: string | null;
+  benefitsBullets: string[];
+  benefitsImageUrl: string | null;
+  galleryImages: string[];
+  isActive: boolean;
+  courses?: { courseId: string }[];
+}) {
+  return {
+    slug: existing.slug,
+    city: existing.city,
+    state: existing.state,
+    addressLine: existing.addressLine,
+    locationName: existing.locationName,
+    whatsapp: existing.whatsapp,
+    heroBadge: existing.heroBadge,
+    heroTitle: existing.heroTitle,
+    heroText: existing.heroText,
+    heroImageUrl: existing.heroImageUrl,
+    benefitsBadge: existing.benefitsBadge,
+    benefitsTitle: existing.benefitsTitle,
+    benefitsText: existing.benefitsText,
+    benefitsBullets: existing.benefitsBullets,
+    benefitsImageUrl: existing.benefitsImageUrl,
+    galleryImages: existing.galleryImages,
+    isActive: existing.isActive,
+    courseIds: existing.courses?.map((c) => c.courseId) ?? [],
+  };
+}
 
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
@@ -15,14 +58,17 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
 
   const body = await request.json().catch(() => null);
   const parsed = siteUnitSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
 
-  const existing = await prisma.siteUnit.findUnique({ where: { id }, select: { id: true, slug: true } });
+  const existing = await prisma.siteUnit.findUnique({
+    where: { id },
+    include: { courses: { orderBy: [{ order: "asc" }] } },
+  });
   if (!existing) return jsonErr("NOT_FOUND", "Unidade não encontrada.", 404);
 
   if (parsed.data.slug !== existing.slug) {
@@ -30,30 +76,34 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (dup) return jsonErr("DUPLICATE_SLUG", "Já existe uma unidade com este slug.", 409);
   }
 
-  const updated = await prisma.siteUnit.update({
-    where: { id },
-    data: {
-      slug: parsed.data.slug,
-      city: parsed.data.city,
-      state: parsed.data.state.toUpperCase().slice(0, 2),
-      addressLine: parsed.data.addressLine?.trim() ? parsed.data.addressLine.trim() : null,
-      locationName: parsed.data.locationName?.trim() ? parsed.data.locationName.trim() : null,
-      whatsapp: parsed.data.whatsapp?.trim() ? parsed.data.whatsapp.trim() : null,
-      heroBadge: parsed.data.heroBadge?.trim() ? parsed.data.heroBadge.trim() : null,
-      heroTitle: parsed.data.heroTitle?.trim() ? parsed.data.heroTitle.trim() : null,
-      heroText: parsed.data.heroText?.trim() ? parsed.data.heroText.trim() : null,
-      heroImageUrl: parsed.data.heroImageUrl?.trim() ? parsed.data.heroImageUrl.trim() : null,
-      benefitsBadge: parsed.data.benefitsBadge?.trim() ? parsed.data.benefitsBadge.trim() : null,
-      benefitsTitle: parsed.data.benefitsTitle?.trim() ? parsed.data.benefitsTitle.trim() : null,
-      benefitsText: parsed.data.benefitsText?.trim() ? parsed.data.benefitsText.trim() : null,
-      benefitsBullets: parsed.data.benefitsBullets ?? [],
-      benefitsImageUrl: parsed.data.benefitsImageUrl?.trim() ? parsed.data.benefitsImageUrl.trim() : null,
-      galleryImages: parsed.data.galleryImages ?? [],
-      isActive: parsed.data.isActive ?? true,
-    },
-  });
+  const payload = {
+    slug: parsed.data.slug,
+    city: parsed.data.city,
+    state: parsed.data.state.toUpperCase().slice(0, 2),
+    addressLine: parsed.data.addressLine?.trim() ? parsed.data.addressLine.trim() : null,
+    locationName: parsed.data.locationName?.trim() ? parsed.data.locationName.trim() : null,
+    whatsapp: parsed.data.whatsapp?.trim() ? parsed.data.whatsapp.trim() : null,
+    heroBadge: parsed.data.heroBadge?.trim() ? parsed.data.heroBadge.trim() : null,
+    heroTitle: parsed.data.heroTitle?.trim() ? parsed.data.heroTitle.trim() : null,
+    heroText: parsed.data.heroText?.trim() ? parsed.data.heroText.trim() : null,
+    heroImageUrl: parsed.data.heroImageUrl?.trim() ? parsed.data.heroImageUrl.trim() : null,
+    benefitsBadge: parsed.data.benefitsBadge?.trim() ? parsed.data.benefitsBadge.trim() : null,
+    benefitsTitle: parsed.data.benefitsTitle?.trim() ? parsed.data.benefitsTitle.trim() : null,
+    benefitsText: parsed.data.benefitsText?.trim() ? parsed.data.benefitsText.trim() : null,
+    benefitsBullets: parsed.data.benefitsBullets ?? [],
+    benefitsImageUrl: parsed.data.benefitsImageUrl?.trim() ? parsed.data.benefitsImageUrl.trim() : null,
+    galleryImages: parsed.data.galleryImages ?? [],
+    isActive: parsed.data.isActive ?? true,
+    courseIds: parsed.data.courseIds ?? [],
+  };
 
-  const courseIds = parsed.data.courseIds ?? [];
+  if (await enqueueIfAdmin(user, "site_unit", "update", id, payload, unitPrevious(existing))) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
+  }
+
+  const { courseIds, ...unitData } = payload;
+  const updated = await prisma.siteUnit.update({ where: { id }, data: unitData });
+
   await prisma.$transaction([
     prisma.siteUnitCourse.deleteMany({ where: { unitId: id } }),
     ...(courseIds.length
@@ -74,10 +124,16 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> }) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
-  const existing = await prisma.siteUnit.findUnique({ where: { id }, select: { id: true } });
+  const existing = await prisma.siteUnit.findUnique({
+    where: { id },
+    include: { courses: { orderBy: [{ order: "asc" }] } },
+  });
   if (!existing) return jsonErr("NOT_FOUND", "Unidade não encontrada.", 404);
+  if (await enqueueIfAdmin(user, "site_unit", "delete", id, {}, unitPrevious(existing))) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
+  }
   await prisma.siteUnit.delete({ where: { id } });
   return jsonOk({ deleted: true });
 }

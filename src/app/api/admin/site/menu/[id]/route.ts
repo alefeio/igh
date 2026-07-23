@@ -1,10 +1,28 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteMenuItemSchema } from "@/lib/validators/site";
 
 type Context = { params: Promise<{ id: string }> };
+
+function menuPrevious(existing: {
+  label: string;
+  href: string;
+  order: number;
+  parentId: string | null;
+  isExternal: boolean;
+  isVisible: boolean;
+}) {
+  return {
+    label: existing.label,
+    href: existing.href,
+    order: existing.order,
+    parentId: existing.parentId,
+    isExternal: existing.isExternal,
+    isVisible: existing.isVisible,
+  };
+}
 
 export async function GET(_request: Request, context: Context) {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
@@ -40,11 +58,10 @@ export async function PATCH(request: Request, context: Context) {
     isVisible: parsed.data.isVisible ?? existing.isVisible,
   };
 
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_menu_item", "update", id, payload);
+  if (await enqueueIfAdmin(user, "site_menu_item", "update", id, payload, menuPrevious(existing))) {
     return jsonOk({
       pending: true,
-      message: "Alteração enviada para aprovação do Master.",
+      message: PENDING_SITE_CHANGE_MESSAGE,
       item: existing,
     });
   }
@@ -64,7 +81,7 @@ export async function PATCH(request: Request, context: Context) {
 }
 
 export async function DELETE(_request: Request, context: Context) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await context.params;
 
   const existing = await prisma.siteMenuItem.findUnique({
@@ -74,6 +91,10 @@ export async function DELETE(_request: Request, context: Context) {
   if (!existing) return jsonErr("NOT_FOUND", "Item não encontrado.", 404);
   if (existing._count.children > 0) {
     return jsonErr("CONFLICT", "Remova primeiro os subitens.", 409);
+  }
+
+  if (await enqueueIfAdmin(user, "site_menu_item", "delete", id, {}, menuPrevious(existing))) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
 
   await prisma.siteMenuItem.delete({ where: { id } });

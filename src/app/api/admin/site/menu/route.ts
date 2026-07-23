@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { createPendingSiteChange } from "@/lib/pending-site-change";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteMenuItemSchema, reorderSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -43,9 +43,8 @@ export async function POST(request: Request) {
     isExternal: isExternal ?? false,
     isVisible: isVisible ?? true,
   };
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_menu_item", "create", null, payload);
-    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." }, { status: 201 });
+  if (await enqueueIfAdmin(user, "site_menu_item", "create", null, payload)) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
   }
   const item = await prisma.siteMenuItem.create({
     data: { ...payload, parentId: payload.parentId ?? undefined },
@@ -61,9 +60,13 @@ export async function PATCH(request: Request) {
   if (!parsed.success) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
-  if (user.role === "ADMIN") {
-    await createPendingSiteChange(user.id, "site_menu", "update", null, { ids: parsed.data.ids });
-    return jsonOk({ pending: true, message: "Alteração enviada para aprovação do Master." });
+  const current = await prisma.siteMenuItem.findMany({
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  });
+  const previous = { ids: current.map((m) => m.id) };
+  if (await enqueueIfAdmin(user, "site_menu", "update", null, { ids: parsed.data.ids }, previous)) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.$transaction(
     parsed.data.ids.map((id, index) =>

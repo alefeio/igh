@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteTestimonialSchema, reorderSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -10,29 +11,39 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = siteTestimonialSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados invalidos", 400);
   const maxOrder = await prisma.siteTestimonial.aggregate({ _max: { order: true } });
-  const item = await prisma.siteTestimonial.create({
-    data: {
-      name: parsed.data.name,
-      roleOrContext: parsed.data.roleOrContext ?? null,
-      quote: parsed.data.quote,
-      photoUrl: parsed.data.photoUrl || null,
-      order: parsed.data.order ?? (maxOrder._max.order ?? -1) + 1,
-      isActive: parsed.data.isActive ?? true,
-    },
-  });
+  const payload = {
+    name: parsed.data.name,
+    roleOrContext: parsed.data.roleOrContext ?? null,
+    quote: parsed.data.quote,
+    photoUrl: parsed.data.photoUrl || null,
+    order: parsed.data.order ?? (maxOrder._max.order ?? -1) + 1,
+    isActive: parsed.data.isActive ?? true,
+  };
+  if (await enqueueIfAdmin(user, "site_testimonial", "create", null, payload)) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
+  }
+  const item = await prisma.siteTestimonial.create({ data: payload });
   return jsonOk({ item }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = reorderSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados invalidos", 400);
+  const current = await prisma.siteTestimonial.findMany({
+    orderBy: [{ order: "asc" }],
+    select: { id: true },
+  });
+  const previous = { ids: current.map((i) => i.id) };
+  if (await enqueueIfAdmin(user, "site_testimonial", "update", null, { ids: parsed.data.ids }, previous)) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
+  }
   await prisma.$transaction(
     parsed.data.ids.map((id, i) => prisma.siteTestimonial.update({ where: { id }, data: { order: i } }))
   );

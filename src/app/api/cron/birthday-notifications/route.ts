@@ -2,7 +2,8 @@ import { runBirthdayNotificationsForToday } from "@/lib/birthday-notifications";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 /**
- * Job agendado (ex.: Vercel Cron): notifica alunos no dia do aniversário (calendário Brasil).
+ * Job agendado (ex.: Vercel Cron): notificação in-app + e-mail de aniversário
+ * (calendário Brasil) para usuários com data de nascimento cadastrada.
  *
  * Proteção: `CRON_SECRET` — header `Authorization: Bearer <secret>` ou query `?secret=`.
  */

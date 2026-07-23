@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteFormationSchema } from "@/lib/validators/site";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -12,6 +13,32 @@ function slugify(s: string): string {
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+function formationPrevious(existing: {
+  title: string;
+  slug: string;
+  summary: string | null;
+  audience: string | null;
+  outcomes: string[];
+  finalProject: string | null;
+  prerequisites: string | null;
+  order: number;
+  isActive: boolean;
+  courses?: { courseId: string }[];
+}) {
+  return {
+    title: existing.title,
+    slug: existing.slug,
+    summary: existing.summary,
+    audience: existing.audience,
+    outcomes: existing.outcomes,
+    finalProject: existing.finalProject,
+    prerequisites: existing.prerequisites,
+    order: existing.order,
+    isActive: existing.isActive,
+    courseIds: existing.courses?.map((c) => c.courseId) ?? [],
+  };
 }
 
 export async function GET(_r: Request, ctx: Ctx) {
@@ -26,7 +53,7 @@ export async function GET(_r: Request, ctx: Ctx) {
 }
 
 export async function PATCH(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = siteFormationSchema.safeParse(body);
@@ -34,7 +61,10 @@ export async function PATCH(request: Request, ctx: Ctx) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const existing = await prisma.siteFormation.findUnique({ where: { id } });
+  const existing = await prisma.siteFormation.findUnique({
+    where: { id },
+    include: { courses: { orderBy: [{ order: "asc" }] } },
+  });
   if (!existing) return jsonErr("NOT_FOUND", "Formação não encontrada.", 404);
 
   const slug = parsed.data.slug || slugify(parsed.data.title);
@@ -43,22 +73,40 @@ export async function PATCH(request: Request, ctx: Ctx) {
     if (dup) return jsonErr("DUPLICATE_SLUG", "Já existe uma formação com este slug.", 409);
   }
 
+  const payload: Record<string, unknown> = {
+    title: parsed.data.title,
+    slug,
+    summary: parsed.data.summary ?? null,
+    audience: parsed.data.audience ?? null,
+    outcomes: parsed.data.outcomes ?? [],
+    finalProject: parsed.data.finalProject ?? null,
+    prerequisites: parsed.data.prerequisites ?? null,
+    order: parsed.data.order ?? existing.order,
+    isActive: parsed.data.isActive ?? existing.isActive,
+  };
+  if (parsed.data.courseIds !== undefined) {
+    payload.courseIds = parsed.data.courseIds;
+  }
+
+  if (await enqueueIfAdmin(user, "site_formation", "update", id, payload, formationPrevious(existing))) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
+  }
+
   await prisma.siteFormation.update({
     where: { id },
     data: {
-      title: parsed.data.title,
-      slug,
-      summary: parsed.data.summary ?? undefined,
-      audience: parsed.data.audience ?? undefined,
-      outcomes: parsed.data.outcomes ?? undefined,
-      finalProject: parsed.data.finalProject ?? undefined,
-      prerequisites: parsed.data.prerequisites ?? undefined,
-      order: parsed.data.order ?? undefined,
-      isActive: parsed.data.isActive ?? undefined,
+      title: payload.title as string,
+      slug: payload.slug as string,
+      summary: payload.summary as string | null,
+      audience: payload.audience as string | null,
+      outcomes: payload.outcomes as string[],
+      finalProject: payload.finalProject as string | null,
+      prerequisites: payload.prerequisites as string | null,
+      order: payload.order as number,
+      isActive: payload.isActive as boolean,
     },
   });
 
-  // Sempre sincroniza cursos quando o payload traz courseIds (incluindo lista vazia).
   if (parsed.data.courseIds !== undefined) {
     const courseIds = parsed.data.courseIds;
     await prisma.$transaction([
@@ -86,10 +134,16 @@ export async function PATCH(request: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_r: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
   const { id } = await ctx.params;
-  const existing = await prisma.siteFormation.findUnique({ where: { id } });
+  const existing = await prisma.siteFormation.findUnique({
+    where: { id },
+    include: { courses: { orderBy: [{ order: "asc" }] } },
+  });
   if (!existing) return jsonErr("NOT_FOUND", "Formação não encontrada.", 404);
+  if (await enqueueIfAdmin(user, "site_formation", "delete", id, {}, formationPrevious(existing))) {
+    return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
+  }
   await prisma.siteFormation.delete({ where: { id } });
   return jsonOk({ deleted: true });
 }
