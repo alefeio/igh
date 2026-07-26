@@ -29,7 +29,7 @@ function partnerPrevious(existing: {
 }
 
 export async function GET(_request: Request, ctx: RouteCtx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
 
   const item = await prisma.sitePartner.findUnique({ where: { id } });
@@ -38,7 +38,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
 }
 
 export async function PATCH(request: Request, ctx: RouteCtx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
 
   const existing = await prisma.sitePartner.findUnique({ where: { id } });
@@ -73,7 +73,7 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
 }
 
 export async function DELETE(_request: Request, ctx: RouteCtx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
 
   const existing = await prisma.sitePartner.findUnique({ where: { id } });

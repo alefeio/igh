@@ -32,9 +32,18 @@ export async function proxy(request: NextRequest) {
 
   const dashboardUrl = new URL("/dashboard", request.url);
 
-  // Usuários e backup: Master, Admin ou Coordenador (operações sensíveis no próprio handler)
-  if (["/users", "/backup"].some((p) => pathname.startsWith(p))) {
-    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+  /**
+   * Governança da plataforma (Administração, Site e Configurações).
+   *
+   * O coordenador fica de fora: o perfil é de coordenação pedagógica e não responde por
+   * essas áreas. O admin entra em tudo, mas o que mexe no site passa pela fila de aprovação
+   * do Master.
+   */
+  const PLATFORM_GOVERNANCE = ["MASTER", "ADMIN"];
+
+  // Usuários, backup e cadastro de horários: exclusivos do Master
+  if (["/users", "/backup", "/time-slots"].some((p) => pathname.startsWith(p))) {
+    if (role !== "MASTER") {
       return NextResponse.redirect(dashboardUrl);
     }
   }
@@ -81,9 +90,20 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Moderação da comunidade
-  if (pathname.startsWith("/admin/comunidade")) {
-    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+  // Moderação da comunidade, fóruns e avaliações de experiência
+  if (
+    pathname.startsWith("/admin/comunidade") ||
+    pathname.startsWith("/admin/forum") ||
+    pathname.startsWith("/admin/avaliacoes-experiencia")
+  ) {
+    if (!PLATFORM_GOVERNANCE.includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Gamificação e ranking: governança da plataforma e professores (que acompanham as turmas)
+  if (pathname.startsWith("/gamificacao") || pathname.startsWith("/ranking-alunos")) {
+    if (![...PLATFORM_GOVERNANCE, "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
@@ -95,10 +115,10 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // CMS Site e banners do tablet: Master, Admin ou Coordenador.
-  // Admin e Coordenador não gravam direto — as alterações entram na fila de aprovação do Master.
+  // CMS Site e banners do tablet: Master e Admin.
+  // O Admin não grava direto — as alterações entram na fila de aprovação do Master.
   if (pathname.startsWith("/admin/site") || pathname.startsWith("/admin/tablet")) {
-    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+    if (!PLATFORM_GOVERNANCE.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
@@ -114,16 +134,21 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Edição do onboarding: apenas Master e Admin
-  if (pathname.startsWith("/admin/onboarding")) {
-    if (!["MASTER", "ADMIN"].includes(role ?? "")) {
+  // Edição do onboarding, visão da plataforma, calendário institucional e acessos
+  if (
+    pathname.startsWith("/admin/onboarding") ||
+    pathname.startsWith("/admin/plataforma") ||
+    pathname.startsWith("/admin/calendario") ||
+    pathname.startsWith("/master/acessos")
+  ) {
+    if (!PLATFORM_GOVERNANCE.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Inscrições em eventos / feriados: Master, Admin ou Coordenador
+  // Inscrições em eventos / feriados
   if (pathname.startsWith("/holidays")) {
-    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+    if (!PLATFORM_GOVERNANCE.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
@@ -166,5 +191,8 @@ export const config = {
     "/ranking-alunos/:path*",
     "/onboarding/:path*",
     "/admin/onboarding/:path*",
+    "/admin/plataforma/:path*",
+    "/admin/calendario/:path*",
+    "/master/acessos/:path*",
   ],
 };

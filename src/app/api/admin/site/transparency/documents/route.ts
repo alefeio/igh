@@ -5,7 +5,7 @@ import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pendi
 import { siteTransparencyDocumentSchema } from "@/lib/validators/site";
 
 export async function GET(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   const { searchParams } = new URL(request.url);
   const categoryId = searchParams.get("categoryId") || undefined;
   const items = await prisma.siteTransparencyDocument.findMany({
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const body = await request.json().catch(() => null);
   const parsed = siteTransparencyDocumentSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Erro", 400);

@@ -4,13 +4,13 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { tabletBannerSchema, reorderSchema } from "@/lib/validators/site";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   const items = await prisma.tabletBanner.findMany({ orderBy: [{ order: "asc" }] });
   return jsonOk({ items });
 }
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   const body = await request.json().catch(() => null);
   const parsed = tabletBannerSchema.safeParse(body);
   if (!parsed.success) {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   const body = await request.json().catch(() => null);
   const parsed = reorderSchema.safeParse(body);
   if (!parsed.success) {

@@ -7,7 +7,7 @@ import { siteFormationCourseSchema, siteFormationReorderSchema } from "@/lib/val
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   const { id: formationId } = await ctx.params;
   const formation = await prisma.siteFormation.findUnique({
     where: { id: formationId },
@@ -18,7 +18,7 @@ export async function GET(_request: Request, ctx: Ctx) {
 }
 
 export async function POST(request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id: formationId } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = siteFormationCourseSchema.safeParse({ ...body, formationId });
@@ -72,7 +72,7 @@ export async function POST(request: Request, ctx: Ctx) {
 }
 
 export async function PATCH(request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id: formationId } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = siteFormationReorderSchema.safeParse({ ...body, formationId });
@@ -116,7 +116,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 }
 
 export async function DELETE(request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id: formationId } = await ctx.params;
   const url = new URL(request.url);
   const courseId = url.searchParams.get("courseId");

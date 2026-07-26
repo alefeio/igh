@@ -47,7 +47,7 @@ function unitPrevious(existing: {
 }
 
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const item = await prisma.siteUnit.findUnique({
     where: { id },
@@ -58,7 +58,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
 
   const body = await request.json().catch(() => null);
@@ -124,7 +124,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const existing = await prisma.siteUnit.findUnique({
     where: { id },

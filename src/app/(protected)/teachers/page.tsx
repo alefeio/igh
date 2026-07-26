@@ -28,6 +28,9 @@ function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): s
   return fallback;
 }
 
+/** Local de atuação, derivado das turmas que o professor leciona. */
+type TeacherUnit = { key: string; unitName: string; poloName: string | null };
+
 type Teacher = {
   id: string;
   name: string;
@@ -39,9 +42,17 @@ type Teacher = {
   isActive: boolean;
   deletedAt: string | null;
   createdAt: string;
+  units: TeacherUnit[];
 };
 
 type StatusFilter = "active" | "inactive" | "all";
+
+const ALL_UNITS = "";
+
+/** "Belém | Unidade 14 de Abril" quando o polo é conhecido; só a unidade quando não é. */
+function unitLabel(unit: TeacherUnit): string {
+  return unit.poloName ? `${unit.poloName} | ${unit.unitName}` : unit.unitName;
+}
 
 export default function TeachersPage() {
   const toast = useToast();
@@ -52,6 +63,7 @@ export default function TeachersPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
+  const [unitFilter, setUnitFilter] = useState<string>(ALL_UNITS);
 
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
@@ -65,6 +77,22 @@ export default function TeachersPage() {
   const canSubmit = useMemo(() => {
     return name.trim().length >= 2 && email.trim().length > 0;
   }, [name, email]);
+
+  /** Opções do filtro: todas as unidades presentes na lista carregada. */
+  const unitOptions = useMemo(() => {
+    const byKey = new Map<string, TeacherUnit>();
+    for (const t of items) {
+      for (const u of t.units ?? []) {
+        if (!byKey.has(u.key)) byKey.set(u.key, u);
+      }
+    }
+    return [...byKey.values()].sort((a, b) => unitLabel(a).localeCompare(unitLabel(b), "pt-BR"));
+  }, [items]);
+
+  const visibleItems = useMemo(() => {
+    if (unitFilter === ALL_UNITS) return items;
+    return items.filter((t) => (t.units ?? []).some((u) => u.key === unitFilter));
+  }, [items, unitFilter]);
 
   function resetForm() {
     setName("");
@@ -224,6 +252,21 @@ export default function TeachersPage() {
                 </button>
               ))}
             </div>
+            {unitOptions.length > 0 && (
+              <select
+                value={unitFilter}
+                onChange={(e) => setUnitFilter(e.target.value)}
+                aria-label="Filtrar por polo ou unidade"
+                className="min-h-[38px] w-full rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm text-[var(--text-primary)] shadow-sm focus:border-[var(--igh-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)]/20 sm:w-64"
+              >
+                <option value={ALL_UNITS}>Todos os polos e unidades</option>
+                {unitOptions.map((u) => (
+                  <option key={u.key} value={u.key}>
+                    {unitLabel(u)}
+                  </option>
+                ))}
+              </select>
+            )}
             {!readOnly && (
               <Button onClick={openCreate} className="w-full sm:w-auto">
                 Novo professor
@@ -235,7 +278,13 @@ export default function TeachersPage() {
 
       <SectionCard
         title="Corpo docente"
-        description={loading ? "Carregando…" : `${items.length} ${items.length === 1 ? "cadastro" : "cadastros"}.`}
+        description={
+          loading
+            ? "Carregando…"
+            : `${visibleItems.length} ${visibleItems.length === 1 ? "cadastro" : "cadastros"}${
+                unitFilter === ALL_UNITS ? "" : ` de ${items.length}`
+              }.`
+        }
         variant="elevated"
       >
         {loading ? (
@@ -249,13 +298,14 @@ export default function TeachersPage() {
             <tr>
               <Th>Foto</Th>
               <Th>Nome</Th>
+              <Th>Polo/Unidade</Th>
               <Th>Contato</Th>
               <Th>Status</Th>
               <Th />
             </tr>
           </thead>
           <tbody>
-            {items.map((t) => (
+            {visibleItems.map((t) => (
               <tr key={t.id}>
                 <Td>
                   {t.photoUrl?.trim() ? (
@@ -272,6 +322,19 @@ export default function TeachersPage() {
                   )}
                 </Td>
                 <Td>{t.name}</Td>
+                <Td>
+                  {t.units?.length ? (
+                    <div className="flex flex-col gap-0.5">
+                      {t.units.map((u) => (
+                        <span key={u.key} className="text-sm text-[var(--text-primary)]">
+                          {unitLabel(u)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-[var(--text-muted)]">Sem turma atribuída</span>
+                  )}
+                </Td>
                 <Td>
                   <div className="flex flex-col">
                     <span className="text-[var(--text-primary)]">{t.email ?? "-"}</span>
@@ -312,11 +375,16 @@ export default function TeachersPage() {
                 </Td>
               </tr>
             ))}
-            {items.length === 0 ? (
+            {visibleItems.length === 0 ? (
               <tr>
                 <Td>
-                  <span className="text-[var(--text-secondary)]">Nenhum professor cadastrado.</span>
+                  <span className="text-[var(--text-secondary)]">
+                    {items.length === 0
+                      ? "Nenhum professor cadastrado."
+                      : "Nenhum professor neste polo ou unidade."}
+                  </span>
                 </Td>
+                <Td />
                 <Td />
                 <Td />
                 <Td />

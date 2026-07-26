@@ -68,7 +68,7 @@ function mapUser(u: {
 }
 
 export async function PATCH(request: Request, ctx: Ctx) {
-  const actor = await requireStaffWrite();
+  const actor = await requireRole("MASTER");
   const { id } = await ctx.params;
 
   const body = await request.json().catch(() => null);

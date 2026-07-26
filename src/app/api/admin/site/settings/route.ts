@@ -6,7 +6,7 @@ import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pendi
 import { siteSettingsSchema } from "@/lib/validators/site";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   try {
     let settings = await prisma.siteSettings.findFirst();
     if (!settings) {
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   try {
     const body = await request.json().catch(() => null);
     const parsed = siteSettingsSchema.safeParse(body);

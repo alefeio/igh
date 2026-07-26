@@ -42,7 +42,7 @@ function formationPrevious(existing: {
 }
 
 export async function GET(_r: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const item = await prisma.siteFormation.findUnique({
     where: { id },
@@ -53,7 +53,7 @@ export async function GET(_r: Request, ctx: Ctx) {
 }
 
 export async function PATCH(request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = siteFormationSchema.safeParse(body);
@@ -134,7 +134,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_r: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const existing = await prisma.siteFormation.findUnique({
     where: { id },

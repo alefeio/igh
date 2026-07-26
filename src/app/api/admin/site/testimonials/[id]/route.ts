@@ -25,7 +25,7 @@ function testimonialPrevious(existing: {
 }
 
 export async function PATCH(request: Request, ctx: RouteCtx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = siteTestimonialSchema.safeParse(body);
@@ -68,7 +68,7 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
 }
 
 export async function DELETE(_request: Request, ctx: RouteCtx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const existing = await prisma.siteTestimonial.findUnique({ where: { id } });
   if (!existing) {

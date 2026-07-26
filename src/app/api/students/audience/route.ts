@@ -2,7 +2,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonOk } from "@/lib/http";
-// Não importamos filtros/busca aqui: perfil geral não depende de filtros da tela.
+import { resolveCycleIdsParam } from "@/lib/current-cycle";
+// Busca e paginação da tela não afetam o perfil geral; só o recorte por ciclo.
 
 function ageFromBirthDate(birthDate: Date, now = new Date()): number {
   let age = now.getFullYear() - birthDate.getFullYear();
@@ -84,8 +85,15 @@ export async function GET(request: Request) {
   const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
 
   const where: Prisma.StudentWhereInput = {};
-  // Perfil geral: não depende de filtros da tela. Considera base ativa.
   where.deletedAt = null;
+
+  // Acompanha o filtro de ciclo da tela para que os indicadores falem do mesmo recorte.
+  const cycleIds = await resolveCycleIdsParam(new URL(request.url).searchParams.get("cycles"));
+  if (cycleIds) {
+    where.enrollments = {
+      some: { status: "ACTIVE", classGroup: { cycleId: { in: cycleIds } } },
+    };
+  }
 
   let teacherStudentIds: string[] | null = null;
   if (user.role === "TEACHER") {

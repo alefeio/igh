@@ -26,7 +26,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await context.params;
 
   const existing = await prisma.siteTransparencyDocument.findUnique({ where: { id } });
@@ -98,7 +98,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await context.params;
 
   const existing = await prisma.siteTransparencyDocument.findUnique({ where: { id } });

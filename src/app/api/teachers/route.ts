@@ -5,6 +5,7 @@ import { createTeacherSchema } from "@/lib/validators/teachers";
 import { birthDateInputToDate } from "@/lib/validators/person-contact";
 import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 import { createAuditLog } from "@/lib/audit";
+import { getUnitsByTeacherId } from "@/lib/teacher-units";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateProfessorWelcome, templateAddedAsProfessor } from "@/lib/email/templates";
@@ -30,12 +31,15 @@ export async function GET(request: Request) {
     },
   });
 
+  const unitsByTeacher = await getUnitsByTeacherId(teachersRaw.map((t) => t.id));
+
   const teachers = teachersRaw.map((t) => {
     const { user, ...rest } = t;
     return {
       ...rest,
       phone: rest.phone || user?.whatsapp || null,
       birthDate: user?.birthDate ? user.birthDate.toISOString().slice(0, 10) : null,
+      units: unitsByTeacher.get(t.id) ?? [],
     };
   });
 

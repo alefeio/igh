@@ -26,7 +26,7 @@ const ROLE_LABEL_PT: Record<string, string> = {
 };
 
 export async function GET() {
-  await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+  await requireRole("MASTER");
 
   const users = await prisma.user.findMany({
     where: {

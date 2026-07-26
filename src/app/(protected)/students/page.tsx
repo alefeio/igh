@@ -63,6 +63,12 @@ const STUDY_SHIFT_LABELS: Record<string, string> = {
   FULL: "Integral",
 };
 
+type Cycle = { id: string; cycle: number; year: number };
+
+function cycleLabel(c: Cycle): string {
+  return `Ciclo ${c.cycle}/${c.year}`;
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
@@ -136,6 +142,11 @@ export default function StudentsPage() {
   const [changePasswordLoading, setChangePasswordLoading] = useState(false);
   const [q, setQ] = useState("");
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [cycles, setCycles] = useState<Cycle[]>([]);
+  const [cyclesReady, setCyclesReady] = useState(false);
+  /** Vazio + `allCycles` desligado significa "ciclo atual", resolvido pelo servidor. */
+  const [cycleIds, setCycleIds] = useState<string[]>([]);
+  const [allCycles, setAllCycles] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
@@ -225,6 +236,15 @@ export default function StudentsPage() {
     }
   }
 
+  /** Valor do parâmetro `cycles` da API: "all", "none", lista de ids ou vazio (= ciclo atual). */
+  const cyclesParam = allCycles
+    ? "all"
+    : cycleIds.length > 0
+      ? cycleIds.join(",")
+      : cycles.length > 0
+        ? "none"
+        : "";
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -233,6 +253,7 @@ export default function StudentsPage() {
       params.set("pageSize", String(pageSize));
       if (q.trim()) params.set("q", q.trim());
       if (staffFullAccess && includeDeleted) params.set("includeDeleted", "true");
+      if (cyclesParam) params.set("cycles", cyclesParam);
       const res = await fetch(`/api/students?${params.toString()}`);
       const json = (await res.json()) as ApiResponse<{
         students: Student[];
@@ -249,12 +270,14 @@ export default function StudentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [q, staffFullAccess, includeDeleted, toast, page, pageSize]);
+  }, [q, staffFullAccess, includeDeleted, toast, page, pageSize, cyclesParam]);
 
   const loadAudience = useCallback(async () => {
     setAudienceLoading(true);
     try {
-      const res = await fetch("/api/students/audience");
+      const res = await fetch(
+        `/api/students/audience${cyclesParam ? `?cycles=${encodeURIComponent(cyclesParam)}` : ""}`
+      );
       const json = (await res.json().catch(() => null)) as ApiResponse<{
         total: number;
         gender: { label: string; count: number; pct: number }[];
@@ -275,15 +298,37 @@ export default function StudentsPage() {
     } finally {
       setAudienceLoading(false);
     }
+  }, [cyclesParam]);
+
+  // Ciclos primeiro: a listagem já abre recortada pelo ciclo atual, sem carregar duas vezes.
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/cycles");
+        const json = (await res.json().catch(() => null)) as ApiResponse<{ cycles: Cycle[] }> | null;
+        if (!active) return;
+        const list = res.ok && json?.ok ? json.data.cycles : [];
+        setCycles(list);
+        if (list[0]) setCycleIds([list[0].id]);
+      } finally {
+        if (active) setCyclesReady(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
+    if (!cyclesReady) return;
     void load();
-  }, [load]);
+  }, [cyclesReady, load]);
 
   useEffect(() => {
+    if (!cyclesReady) return;
     void loadAudience();
-  }, [loadAudience]);
+  }, [cyclesReady, loadAudience]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const pageSafe = Math.min(page, totalPages);
@@ -442,7 +487,7 @@ export default function StudentsPage() {
 
       <SectionCard
         title="Busca"
-        description="Filtre a listagem por nome ou CPF."
+        description="Filtre a listagem por nome, CPF e ciclo de atendimento."
         variant="elevated"
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -469,6 +514,49 @@ export default function StudentsPage() {
             </label>
           )}
         </div>
+
+        {cycles.length > 0 && (
+          <div className="mt-4 border-t border-[var(--card-border)] pt-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Ciclo de atendimento
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+              {cycles.map((c, index) => (
+                <label
+                  key={c.id}
+                  className={`flex items-center gap-2 ${allCycles ? "cursor-default opacity-60" : "cursor-pointer"}`}
+                >
+                  <input
+                    type="checkbox"
+                    disabled={allCycles}
+                    checked={allCycles || cycleIds.includes(c.id)}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setCycleIds((prev) => (on ? [...prev, c.id] : prev.filter((id) => id !== c.id)));
+                      setPage(1);
+                    }}
+                  />
+                  {index === 0 ? `${cycleLabel(c)} (atual)` : cycleLabel(c)}
+                </label>
+              ))}
+              <label className="flex cursor-pointer items-center gap-2 font-medium">
+                <input
+                  type="checkbox"
+                  checked={allCycles}
+                  onChange={(e) => {
+                    setAllCycles(e.target.checked);
+                    setPage(1);
+                  }}
+                />
+                Todos
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-[var(--text-muted)]">
+              Mostra quem tem matrícula ativa nos ciclos marcados. Os indicadores de perfil geral
+              seguem o mesmo recorte.
+            </p>
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard
@@ -477,8 +565,8 @@ export default function StudentsPage() {
           audienceLoading
             ? "Calculando predominâncias…"
             : audience?.total
-              ? `Analisando ${audience.total} ${audience.total === 1 ? "aluno" : "alunos"} cadastrados.`
-              : "Sem alunos cadastrados para análise."
+              ? `Analisando ${audience.total} ${audience.total === 1 ? "aluno" : "alunos"} no recorte selecionado.`
+              : "Sem alunos no recorte selecionado."
         }
         variant="elevated"
       >

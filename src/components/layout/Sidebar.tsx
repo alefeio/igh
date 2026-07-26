@@ -18,7 +18,10 @@ const ALL_ROLES = ["MASTER", "ADMIN", "COORDINATOR", "POLO_COORDINATOR", "TEACHE
 /** Equipe administrativa da sede. */
 const STAFF = ["MASTER", "ADMIN", "COORDINATOR"] as const;
 const STAFF_AND_TEACHER = ["MASTER", "ADMIN", "COORDINATOR", "TEACHER"] as const;
-const MASTER_AND_COORDINATOR = ["MASTER", "COORDINATOR"] as const;
+/**
+ * Governança da plataforma: Administração, Site e Configurações.
+ * O coordenador fica fora — o perfil dele é de coordenação pedagógica.
+ */
 const MASTER_AND_ADMIN = ["MASTER", "ADMIN"] as const;
 const MASTER_ONLY = ["MASTER"] as const;
 
@@ -69,20 +72,25 @@ const ITEMS: Item[] = [
   { href: "/admin/frequencia", label: "Frequência — todas as turmas", roles: STAFF, category: "Pedagógico" },
 
   /* —— Administração (governança e controle) —— */
-  { href: "/admin/plataforma", label: "Visão da plataforma", roles: STAFF, category: "Administração" },
-  { href: "/admin/calendario", label: "Calendário institucional", roles: STAFF, category: "Administração" },
+  { href: "/admin/plataforma", label: "Visão da plataforma", roles: MASTER_AND_ADMIN, category: "Administração" },
+  { href: "/admin/calendario", label: "Calendário institucional", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/admin/onboarding", label: "Guia do sistema (edição)", roles: MASTER_AND_ADMIN, category: "Administração" },
-  { href: "/users", label: "Usuários", roles: MASTER_AND_COORDINATOR, category: "Administração" },
-  { href: "/master/acessos", label: "Acessos ao sistema", roles: STAFF, category: "Administração" },
+  { href: "/users", label: "Usuários", roles: MASTER_ONLY, category: "Administração" },
+  { href: "/master/acessos", label: "Acessos ao sistema", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/approvacoes", label: "Aprovações do site", roles: MASTER_ONLY, category: "Administração" },
-  { href: "/admin/site/formacoes", label: "Formações (catálogo)", roles: STAFF, category: "Administração" },
-  { href: "/admin/comunidade", label: "Comunidade IGH — moderação", roles: STAFF, category: "Administração" },
-  { href: "/comunidade", label: "Comunidade IGH (PII)", roles: STAFF, category: "Administração" },
-  { href: "/admin/forum", label: "Fóruns — todos os cursos", roles: STAFF, category: "Administração" },
-  { href: "/admin/avaliacoes-experiencia", label: "Avaliações de experiência", roles: STAFF, category: "Administração" },
-  { href: "/holidays", label: "Inscrições em eventos", roles: STAFF, category: "Administração" },
-  { href: "/gamificacao", label: "Gamificação", roles: STAFF, category: "Administração" },
-  { href: "/ranking-alunos", label: "Ranking dos alunos", roles: STAFF, category: "Administração" },
+  { href: "/admin/site/formacoes", label: "Formações (catálogo)", roles: MASTER_AND_ADMIN, category: "Administração" },
+  { href: "/admin/comunidade", label: "Comunidade IGH — moderação", roles: MASTER_AND_ADMIN, category: "Administração" },
+  { href: "/comunidade", label: "Comunidade IGH (PII)", roles: MASTER_AND_ADMIN, category: "Administração" },
+  { href: "/admin/forum", label: "Fóruns — todos os cursos", roles: MASTER_AND_ADMIN, category: "Administração" },
+  {
+    href: "/admin/avaliacoes-experiencia",
+    label: "Avaliações de experiência",
+    roles: MASTER_AND_ADMIN,
+    category: "Administração",
+  },
+  { href: "/holidays", label: "Inscrições em eventos", roles: MASTER_AND_ADMIN, category: "Administração" },
+  { href: "/gamificacao", label: "Gamificação", roles: MASTER_AND_ADMIN, category: "Administração" },
+  { href: "/ranking-alunos", label: "Ranking dos alunos", roles: MASTER_AND_ADMIN, category: "Administração" },
 
   /* —— Comunicação (disparos irreversíveis: exclusivo do Master) —— */
   { href: "/admin/sms", label: "Campanhas SMS", roles: MASTER_ONLY, category: "Comunicação" },
@@ -90,28 +98,28 @@ const ITEMS: Item[] = [
   { href: "/admin/campanhas", label: "Campanhas (site e alunos)", roles: MASTER_ONLY, category: "Comunicação" },
 
   /* —— Site (CMS: geral → navegação → conteúdos → institucional) —— */
-  { href: "/admin/site/configuracoes", label: "Configurações gerais", roles: STAFF, category: "Site" },
-  { href: "/admin/site/menu", label: "Menu do site", roles: STAFF, category: "Site" },
-  { href: "/admin/site/banners", label: "Banners", roles: STAFF, category: "Site" },
-  { href: "/admin/tablet/banners", label: "Banners (aluno)", roles: STAFF, category: "Site" },
-  { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", roles: STAFF, category: "Site" },
-  { href: "/admin/site/contato-pagina", label: "Página de contato", roles: STAFF, category: "Site" },
-  { href: "/admin/site/sobre", label: "Página Sobre", roles: STAFF, category: "Site" },
-  { href: "/admin/site/espaco-maker", label: "Página Espaço Maker", roles: STAFF, category: "Site" },
-  { href: "/admin/site/formacoes-pagina", label: "Página de formações", roles: STAFF, category: "Site" },
-  { href: "/admin/site/inscreva-pagina", label: "Página Inscreva-se", roles: STAFF, category: "Site" },
-  { href: "/admin/site/projetos", label: "Projetos", roles: STAFF, category: "Site" },
-  { href: "/admin/site/noticias", label: "Notícias", roles: STAFF, category: "Site" },
-  { href: "/admin/site/depoimentos", label: "Depoimentos", roles: STAFF, category: "Site" },
-  { href: "/admin/site/parceiros", label: "Parceiros", roles: STAFF, category: "Site" },
-  { href: "/admin/site/unidades", label: "Unidades", roles: STAFF, category: "Site" },
-  { href: "/admin/site/faq", label: "FAQ", roles: STAFF, category: "Site" },
-  { href: "/admin/site/legal", label: "Termos e privacidade", roles: STAFF, category: "Site" },
-  { href: "/admin/site/transparencia", label: "Transparência", roles: STAFF, category: "Site" },
+  { href: "/admin/site/configuracoes", label: "Configurações gerais", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/menu", label: "Menu do site", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/banners", label: "Banners", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/tablet/banners", label: "Banners (aluno)", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/contato-pagina", label: "Página de contato", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/sobre", label: "Página Sobre", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/espaco-maker", label: "Página Espaço Maker", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/formacoes-pagina", label: "Página de formações", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/inscreva-pagina", label: "Página Inscreva-se", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/projetos", label: "Projetos", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/noticias", label: "Notícias", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/depoimentos", label: "Depoimentos", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/parceiros", label: "Parceiros", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/unidades", label: "Unidades", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/faq", label: "FAQ", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/legal", label: "Termos e privacidade", roles: MASTER_AND_ADMIN, category: "Site" },
+  { href: "/admin/site/transparencia", label: "Transparência", roles: MASTER_AND_ADMIN, category: "Site" },
 
   /* —— Configurações (sistema / infra) —— */
-  { href: "/time-slots", label: "Horários (cadastro)", roles: MASTER_AND_COORDINATOR, category: "Configurações" },
-  { href: "/backup", label: "Backup do banco", roles: MASTER_AND_COORDINATOR, category: "Configurações" },
+  { href: "/time-slots", label: "Horários (cadastro)", roles: MASTER_ONLY, category: "Configurações" },
+  { href: "/backup", label: "Backup do banco", roles: MASTER_ONLY, category: "Configurações" },
 ];
 
 export function Sidebar({

@@ -5,7 +5,7 @@ import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pendi
 import { siteMenuItemSchema, reorderSchema } from "@/lib/validators/site";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
 
   const items = await prisma.siteMenuItem.findMany({
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
@@ -22,7 +22,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
 
   const body = await request.json().catch(() => null);
   const parsed = siteMenuItemSchema.safeParse(body);
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
 
   const body = await request.json().catch(() => null);
   const parsed = reorderSchema.safeParse(body);
