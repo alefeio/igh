@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteBannerSchema, reorderSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     order: parsed.data.order ?? (maxOrder._max.order ?? -1) + 1,
     isActive: parsed.data.isActive ?? true,
   };
-  if (await enqueueIfAdmin(user, "site_banner", "create", null, payload)) {
+  if (await enqueueIfNeedsApproval(user, "site_banner", "create", null, payload)) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
   }
   const item = await prisma.siteBanner.create({ data: payload });
@@ -46,7 +46,7 @@ export async function PATCH(request: Request) {
     select: { id: true },
   });
   const previous = { ids: current.map((b) => b.id) };
-  if (await enqueueIfAdmin(user, "site_banner", "update", null, { ids: parsed.data.ids }, previous)) {
+  if (await enqueueIfNeedsApproval(user, "site_banner", "update", null, { ids: parsed.data.ids }, previous)) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.$transaction(

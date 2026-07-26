@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 
@@ -237,14 +238,7 @@ export default function UnidadesPage() {
         toast.push("error", !json.ok ? json.error?.message : "Falha ao salvar unidade.");
         return;
       }
-      toast.push(
-        "success",
-        json.data.pending
-          ? json.data.message ?? "Alteração enviada para aprovação do Master."
-          : editing
-            ? "Unidade atualizada."
-            : "Unidade criada."
-      );
+      toast.push("success", siteMutationMessage(json.data, editing ? "Unidade atualizada." : "Unidade criada."));
       setOpen(false);
       resetForm();
       await load();
@@ -265,12 +259,7 @@ export default function UnidadesPage() {
       toast.push("error", json && "ok" in json && json.ok === false ? json.error.message : "Falha ao excluir.");
       return;
     }
-    toast.push(
-      "success",
-      json.data.pending
-        ? json.data.message ?? "Exclusão enviada para aprovação do Master."
-        : "Unidade excluída."
-    );
+    toast.push("success", siteMutationMessage(json.data, "Unidade excluída."));
     await load();
   }
 

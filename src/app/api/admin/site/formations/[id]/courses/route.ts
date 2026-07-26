@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteFormationCourseSchema, siteFormationReorderSchema } from "@/lib/validators/site";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -41,7 +41,7 @@ export async function POST(request: Request, ctx: Ctx) {
   const nextCourseIds = [...currentCourseIds, parsed.data.courseId];
 
   if (
-    await enqueueIfAdmin(
+    await enqueueIfNeedsApproval(
       user,
       "site_formation_courses",
       "update",
@@ -88,7 +88,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
   const currentCourseIds = formation.courses.map((c) => c.courseId);
 
   if (
-    await enqueueIfAdmin(
+    await enqueueIfNeedsApproval(
       user,
       "site_formation_courses",
       "update",
@@ -134,7 +134,7 @@ export async function DELETE(request: Request, ctx: Ctx) {
   const nextCourseIds = currentCourseIds.filter((cId) => cId !== courseId);
 
   if (
-    await enqueueIfAdmin(
+    await enqueueIfNeedsApproval(
       user,
       "site_formation_courses",
       "update",

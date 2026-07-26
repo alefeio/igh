@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteProjectSchema } from "@/lib/validators/site";
 
 function projectPrevious(existing: {
@@ -52,7 +52,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     order: parsed.data.order ?? undefined,
     isActive: parsed.data.isActive ?? undefined,
   };
-  if (await enqueueIfAdmin(user, "site_project", "update", id, payload, projectPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_project", "update", id, payload, projectPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   const item = await prisma.siteProject.update({ where: { id }, data: payload });
@@ -64,7 +64,7 @@ export async function DELETE(_r: Request, ctx: { params: Promise<{ id: string }>
   const { id } = await ctx.params;
   const existing = await prisma.siteProject.findUnique({ where: { id } });
   if (!existing) return jsonErr("NOT_FOUND", "Projeto nao encontrado.", 404);
-  if (await enqueueIfAdmin(user, "site_project", "delete", id, {}, projectPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_project", "delete", id, {}, projectPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteProject.delete({ where: { id } });

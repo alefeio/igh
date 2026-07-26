@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteFormationSchema, reorderSchema } from "@/lib/validators/site";
 
 function slugify(s: string): string {
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     isActive: parsed.data.isActive ?? true,
     courseIds,
   };
-  if (await enqueueIfAdmin(user, "site_formation", "create", null, payload)) {
+  if (await enqueueIfNeedsApproval(user, "site_formation", "create", null, payload)) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
   }
   const item = await prisma.siteFormation.create({
@@ -87,7 +87,7 @@ export async function PATCH(request: Request) {
     select: { id: true },
   });
   const previous = { ids: current.map((i) => i.id) };
-  if (await enqueueIfAdmin(user, "site_formation", "update", null, { ids: parsed.data.ids }, previous)) {
+  if (await enqueueIfNeedsApproval(user, "site_formation", "update", null, { ids: parsed.data.ids }, previous)) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.$transaction(

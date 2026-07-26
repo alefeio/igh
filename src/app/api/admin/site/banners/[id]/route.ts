@@ -2,7 +2,7 @@ import type { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteBannerSchema } from "@/lib/validators/site";
 
 type RouteCtx = { params: Promise<{ id: string }> };
@@ -70,7 +70,7 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
   }
   const payload = mergeBannerPayload(parsed.data, existing);
 
-  if (await enqueueIfAdmin(user, "site_banner", "update", id, payload, bannerPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_banner", "update", id, payload, bannerPrevious(existing))) {
     return jsonOk({
       pending: true,
       message: PENDING_SITE_CHANGE_MESSAGE,
@@ -100,7 +100,7 @@ export async function DELETE(_request: Request, ctx: RouteCtx) {
   if (!existing) {
     return jsonErr("NOT_FOUND", "Banner não encontrado.", 404);
   }
-  if (await enqueueIfAdmin(user, "site_banner", "delete", id, {}, bannerPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_banner", "delete", id, {}, bannerPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteBanner.delete({ where: { id } });

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteTestimonialSchema } from "@/lib/validators/site";
 
 type RouteCtx = { params: Promise<{ id: string }> };
@@ -45,7 +45,7 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
     isActive: parsed.data.isActive ?? existing.isActive,
   };
   if (
-    await enqueueIfAdmin(user, "site_testimonial", "update", id, payload, testimonialPrevious(existing))
+    await enqueueIfNeedsApproval(user, "site_testimonial", "update", id, payload, testimonialPrevious(existing))
   ) {
     return jsonOk({
       pending: true,
@@ -74,7 +74,7 @@ export async function DELETE(_request: Request, ctx: RouteCtx) {
   if (!existing) {
     return jsonErr("NOT_FOUND", "Depoimento não encontrado.", 404);
   }
-  if (await enqueueIfAdmin(user, "site_testimonial", "delete", id, {}, testimonialPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_testimonial", "delete", id, {}, testimonialPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteTestimonial.delete({ where: { id } });

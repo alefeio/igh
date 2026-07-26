@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteNewsCategorySchema } from "@/lib/validators/site";
 
 type Context = { params: Promise<{ id: string }> };
@@ -59,7 +59,7 @@ export async function PATCH(request: Request, context: Context) {
   };
 
   if (
-    await enqueueIfAdmin(user, "site_news_category", "update", id, payload, categoryPrevious(existing))
+    await enqueueIfNeedsApproval(user, "site_news_category", "update", id, payload, categoryPrevious(existing))
   ) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
@@ -90,7 +90,7 @@ export async function DELETE(_request: Request, context: Context) {
   }
 
   if (
-    await enqueueIfAdmin(user, "site_news_category", "delete", id, {}, categoryPrevious(existing))
+    await enqueueIfNeedsApproval(user, "site_news_category", "delete", id, {}, categoryPrevious(existing))
   ) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }

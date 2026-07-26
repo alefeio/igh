@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["MASTER"]);
   const items = await prisma.marketingCampaign.findMany({
     orderBy: [{ createdAt: "desc" }],
     select: {
@@ -30,7 +30,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  await requireRole(["MASTER", "ADMIN"]);
+  await requireRole(["MASTER"]);
   const body = await request.json().catch(() => null);
 
   const title = typeof body?.title === "string" ? body.title.trim() : "";

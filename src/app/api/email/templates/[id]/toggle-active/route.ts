@@ -5,7 +5,7 @@ import { toggleEmailTemplateActive } from "@/lib/email-campaigns";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(_request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["MASTER"]);
   const { id } = await ctx.params;
   const template = await toggleEmailTemplateActive(id);
   if (!template)

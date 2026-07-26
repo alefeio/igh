@@ -4,137 +4,114 @@ import { PanelLeft, PanelLeftClose } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+type PanelRole = "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+
 type Item = {
   href: string;
   label: string;
-  masterOnly?: boolean;
-  masterOrTeacher?: boolean;
-  adminOrMaster?: boolean;
-  /** Destaque: rotas que antes eram só Admin/Master (campanhas). */
-  adminMasterOnly?: boolean;
-  studentOnly?: boolean;
-  teacherOnly?: boolean;
-  /** Professor, admin, master ou coordenador — reportes à coordenação. */
-  coordinatorAccess?: boolean;
-  /** Visível também para Coordenador de Polos (ex.: Matrículas). */
-  poloCoordinatorOk?: boolean;
-  alwaysShow?: boolean;
-  /** Apenas Master ou Admin (ex.: edição do onboarding). */
-  masterOrAdminOnly?: boolean;
-  /** Apenas quando a sessão está no perfil Master (não inclui Coordenador). */
-  masterExclusive?: boolean;
-  category?: string;
+  /** Perfis que enxergam o item no menu. */
+  roles: readonly PanelRole[];
+  category: string;
 };
+
+const ALL_ROLES = ["MASTER", "ADMIN", "COORDINATOR", "POLO_COORDINATOR", "TEACHER", "STUDENT"] as const;
+/** Equipe administrativa da sede. */
+const STAFF = ["MASTER", "ADMIN", "COORDINATOR"] as const;
+const STAFF_AND_TEACHER = ["MASTER", "ADMIN", "COORDINATOR", "TEACHER"] as const;
+const MASTER_AND_COORDINATOR = ["MASTER", "COORDINATOR"] as const;
+const MASTER_AND_ADMIN = ["MASTER", "ADMIN"] as const;
+const MASTER_ONLY = ["MASTER"] as const;
 
 /**
  * Ordem do array = ordem no menu dentro de cada categoria.
- * Categorias: Início → Área do aluno/professor → Administração (cadastros e operação) → Comunicação → Site público → Configurações do sistema.
+ * Categorias: Início → Área do aluno/professor → Pedagógico (oferta e acompanhamento)
+ * → Administração (governança) → Comunicação → Site público → Configurações do sistema.
  */
 const ITEMS: Item[] = [
   /* —— Início (todos) —— */
-  { href: "/dashboard", label: "Página Inicial", alwaysShow: true, category: "Início" },
-  { href: "/onboarding", label: "Como usar o sistema", alwaysShow: true, category: "Início" },
-  {
-    href: "/coordenacao",
-    label: "Coordenação",
-    coordinatorAccess: true,
-    category: "Início",
-  },
+  { href: "/dashboard", label: "Página Inicial", roles: ALL_ROLES, category: "Início" },
+  { href: "/onboarding", label: "Como usar o sistema", roles: ALL_ROLES, category: "Início" },
+  { href: "/coordenacao", label: "Coordenação", roles: STAFF_AND_TEACHER, category: "Início" },
 
   /* —— Aluno —— */
-  { href: "/minhas-turmas", label: "Minhas turmas", studentOnly: true, category: "Aluno" },
-  { href: "/minhas-turmas/evolucao", label: "Evolução e ranking", studentOnly: true, category: "Aluno" },
-  { href: "/minhas-turmas/calendario", label: "Calendário de aulas", studentOnly: true, category: "Aluno" },
-  { href: "/comunidade", label: "Comunidade IGH (PII)", studentOnly: true, category: "Aluno" },
-  { href: "/minhas-turmas/forum", label: "Fórum dos cursos", studentOnly: true, category: "Aluno" },
+  { href: "/minhas-turmas", label: "Minhas turmas", roles: ["STUDENT"], category: "Aluno" },
+  { href: "/minhas-turmas/evolucao", label: "Evolução e ranking", roles: ["STUDENT"], category: "Aluno" },
+  { href: "/minhas-turmas/calendario", label: "Calendário de aulas", roles: ["STUDENT"], category: "Aluno" },
+  { href: "/comunidade", label: "Comunidade IGH (PII)", roles: ["STUDENT"], category: "Aluno" },
+  { href: "/minhas-turmas/forum", label: "Fórum dos cursos", roles: ["STUDENT"], category: "Aluno" },
 
   /* —— Professor —— */
-  { href: "/professor/turmas", label: "Turmas que leciono", teacherOnly: true, category: "Professor" },
-  { href: "/professor/acompanhamento", label: "Acompanhamento", teacherOnly: true, category: "Professor" },
-  { href: "/professor/calendario", label: "Calendário de aulas", teacherOnly: true, category: "Professor" },
-  { href: "/comunidade", label: "Comunidade IGH (PII)", teacherOnly: true, category: "Professor" },
-  { href: "/professor/forum", label: "Fórum dos cursos", teacherOnly: true, category: "Professor" },
-  { href: "/professor/eventos", label: "Eventos (presença)", teacherOnly: true, category: "Professor" },
-  { href: "/professor/frequencia", label: "Frequência", teacherOnly: true, category: "Professor" },
-  { href: "/gamificacao", label: "Gamificação", teacherOnly: true, category: "Professor" },
-  { href: "/ranking-alunos", label: "Ranking dos alunos", teacherOnly: true, category: "Professor" },
-  { href: "/professor/avaliacoes-experiencia", label: "Avaliações de experiência", teacherOnly: true, category: "Professor" },
+  { href: "/professor/turmas", label: "Turmas que leciono", roles: ["TEACHER"], category: "Professor" },
+  { href: "/professor/acompanhamento", label: "Acompanhamento", roles: ["TEACHER"], category: "Professor" },
+  { href: "/professor/calendario", label: "Calendário de aulas", roles: ["TEACHER"], category: "Professor" },
+  { href: "/comunidade", label: "Comunidade IGH (PII)", roles: ["TEACHER"], category: "Professor" },
+  { href: "/professor/forum", label: "Fórum dos cursos", roles: ["TEACHER"], category: "Professor" },
+  { href: "/professor/eventos", label: "Eventos (presença)", roles: ["TEACHER"], category: "Professor" },
+  { href: "/professor/frequencia", label: "Frequência", roles: ["TEACHER"], category: "Professor" },
+  { href: "/gamificacao", label: "Gamificação", roles: ["TEACHER"], category: "Professor" },
+  { href: "/ranking-alunos", label: "Ranking dos alunos", roles: ["TEACHER"], category: "Professor" },
+  { href: "/professor/avaliacoes-experiencia", label: "Avaliações de experiência", roles: ["TEACHER"], category: "Professor" },
 
-  /* —— Administração (equipa: governança → pessoas → oferta → acompanhamento) —— */
-  { href: "/admin/plataforma", label: "Visão da plataforma", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/calendario", label: "Calendário institucional", adminOrMaster: true, category: "Administração" },
+  /* —— Pedagógico (pessoas, oferta e acompanhamento das turmas) —— */
+  { href: "/teachers", label: "Professores", roles: STAFF, category: "Pedagógico" },
+  { href: "/students", label: "Alunos", roles: STAFF_AND_TEACHER, category: "Pedagógico" },
+  { href: "/courses", label: "Cursos", roles: STAFF_AND_TEACHER, category: "Pedagógico" },
+  { href: "/admin/cursos/planos-de-aula", label: "Planos de aula (PDF)", roles: STAFF, category: "Pedagógico" },
+  { href: "/class-groups", label: "Turmas", roles: STAFF, category: "Pedagógico" },
+  { href: "/admin/polos", label: "Polos", roles: STAFF, category: "Pedagógico" },
   {
-    href: "/admin/onboarding",
-    label: "Guia do sistema (edição)",
-    masterOrAdminOnly: true,
-    category: "Administração",
+    href: "/enrollments",
+    label: "Matrículas",
+    roles: ["MASTER", "ADMIN", "COORDINATOR", "POLO_COORDINATOR"],
+    category: "Pedagógico",
   },
-  { href: "/users", label: "Usuários", masterOnly: true, category: "Administração" },
-  {
-    href: "/master/acessos",
-    label: "Acessos ao sistema",
-    adminOrMaster: true,
-    category: "Administração",
-  },
-  { href: "/approvacoes", label: "Aprovações do site", masterOnly: true, category: "Administração" },
-  { href: "/teachers", label: "Professores", adminOrMaster: true, category: "Administração" },
-  { href: "/students", label: "Alunos", category: "Administração" },
-  { href: "/courses", label: "Cursos", masterOrTeacher: true, category: "Administração" },
-  { href: "/admin/cursos/planos-de-aula", label: "Planos de aula (PDF)", adminOrMaster: true, category: "Administração" },
-  { href: "/class-groups", label: "Turmas", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/polos", label: "Polos", adminOrMaster: true, category: "Administração" },
-  { href: "/enrollments", label: "Matrículas", adminOrMaster: true, poloCoordinatorOk: true, category: "Administração" },
-  { href: "/horarios", label: "Quadro de horários", adminOrMaster: true, category: "Administração" },
-  {
-    href: "/admin/site/formacoes",
-    label: "Formações (catálogo)",
-    adminOrMaster: true,
-    adminMasterOnly: true,
-    category: "Administração",
-  },
-  { href: "/admin/comunidade", label: "Comunidade IGH — moderação", adminOrMaster: true, category: "Administração" },
-  { href: "/comunidade", label: "Comunidade IGH (PII)", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/forum", label: "Fóruns — todos os cursos", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/frequencia", label: "Frequência — todas as turmas", adminOrMaster: true, category: "Administração" },
-  { href: "/admin/avaliacoes-experiencia", label: "Avaliações de experiência", adminOrMaster: true, category: "Administração" },
-  { href: "/holidays", label: "Inscrições em eventos", adminOrMaster: true, category: "Administração" },
-  { href: "/gamificacao", label: "Gamificação", adminOrMaster: true, category: "Administração" },
-  { href: "/ranking-alunos", label: "Ranking dos alunos", adminOrMaster: true, category: "Administração" },
+  { href: "/horarios", label: "Quadro de horários", roles: STAFF, category: "Pedagógico" },
+  { href: "/admin/frequencia", label: "Frequência — todas as turmas", roles: STAFF, category: "Pedagógico" },
 
-  /* —— Comunicação (campanhas) —— */
-  { href: "/admin/sms", label: "Campanhas SMS", adminOrMaster: true, adminMasterOnly: true, category: "Comunicação" },
-  {
-    href: "/admin/email",
-    label: "Campanhas de e-mail",
-    adminOrMaster: true,
-    adminMasterOnly: true,
-    category: "Comunicação",
-  },
-  { href: "/admin/campanhas", label: "Campanhas (site e alunos)", adminOrMaster: true, category: "Comunicação" },
+  /* —— Administração (governança e controle) —— */
+  { href: "/admin/plataforma", label: "Visão da plataforma", roles: STAFF, category: "Administração" },
+  { href: "/admin/calendario", label: "Calendário institucional", roles: STAFF, category: "Administração" },
+  { href: "/admin/onboarding", label: "Guia do sistema (edição)", roles: MASTER_AND_ADMIN, category: "Administração" },
+  { href: "/users", label: "Usuários", roles: MASTER_AND_COORDINATOR, category: "Administração" },
+  { href: "/master/acessos", label: "Acessos ao sistema", roles: STAFF, category: "Administração" },
+  { href: "/approvacoes", label: "Aprovações do site", roles: MASTER_ONLY, category: "Administração" },
+  { href: "/admin/site/formacoes", label: "Formações (catálogo)", roles: STAFF, category: "Administração" },
+  { href: "/admin/comunidade", label: "Comunidade IGH — moderação", roles: STAFF, category: "Administração" },
+  { href: "/comunidade", label: "Comunidade IGH (PII)", roles: STAFF, category: "Administração" },
+  { href: "/admin/forum", label: "Fóruns — todos os cursos", roles: STAFF, category: "Administração" },
+  { href: "/admin/avaliacoes-experiencia", label: "Avaliações de experiência", roles: STAFF, category: "Administração" },
+  { href: "/holidays", label: "Inscrições em eventos", roles: STAFF, category: "Administração" },
+  { href: "/gamificacao", label: "Gamificação", roles: STAFF, category: "Administração" },
+  { href: "/ranking-alunos", label: "Ranking dos alunos", roles: STAFF, category: "Administração" },
+
+  /* —— Comunicação (disparos irreversíveis: exclusivo do Master) —— */
+  { href: "/admin/sms", label: "Campanhas SMS", roles: MASTER_ONLY, category: "Comunicação" },
+  { href: "/admin/email", label: "Campanhas de e-mail", roles: MASTER_ONLY, category: "Comunicação" },
+  { href: "/admin/campanhas", label: "Campanhas (site e alunos)", roles: MASTER_ONLY, category: "Comunicação" },
 
   /* —— Site (CMS: geral → navegação → conteúdos → institucional) —— */
-  { href: "/admin/site/configuracoes", label: "Configurações gerais", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/menu", label: "Menu do site", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/banners", label: "Banners", adminOrMaster: true, category: "Site" },
-  { href: "/admin/tablet/banners", label: "Banners (aluno)", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/contato-pagina", label: "Página de contato", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/sobre", label: "Página Sobre", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/espaco-maker", label: "Página Espaço Maker", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/formacoes-pagina", label: "Página de formações", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/inscreva-pagina", label: "Página Inscreva-se", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/projetos", label: "Projetos", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/noticias", label: "Notícias", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/depoimentos", label: "Depoimentos", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/parceiros", label: "Parceiros", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/unidades", label: "Unidades", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/faq", label: "FAQ", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/legal", label: "Termos e privacidade", adminOrMaster: true, category: "Site" },
-  { href: "/admin/site/transparencia", label: "Transparência", adminOrMaster: true, category: "Site" },
+  { href: "/admin/site/configuracoes", label: "Configurações gerais", roles: STAFF, category: "Site" },
+  { href: "/admin/site/menu", label: "Menu do site", roles: STAFF, category: "Site" },
+  { href: "/admin/site/banners", label: "Banners", roles: STAFF, category: "Site" },
+  { href: "/admin/tablet/banners", label: "Banners (aluno)", roles: STAFF, category: "Site" },
+  { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", roles: STAFF, category: "Site" },
+  { href: "/admin/site/contato-pagina", label: "Página de contato", roles: STAFF, category: "Site" },
+  { href: "/admin/site/sobre", label: "Página Sobre", roles: STAFF, category: "Site" },
+  { href: "/admin/site/espaco-maker", label: "Página Espaço Maker", roles: STAFF, category: "Site" },
+  { href: "/admin/site/formacoes-pagina", label: "Página de formações", roles: STAFF, category: "Site" },
+  { href: "/admin/site/inscreva-pagina", label: "Página Inscreva-se", roles: STAFF, category: "Site" },
+  { href: "/admin/site/projetos", label: "Projetos", roles: STAFF, category: "Site" },
+  { href: "/admin/site/noticias", label: "Notícias", roles: STAFF, category: "Site" },
+  { href: "/admin/site/depoimentos", label: "Depoimentos", roles: STAFF, category: "Site" },
+  { href: "/admin/site/parceiros", label: "Parceiros", roles: STAFF, category: "Site" },
+  { href: "/admin/site/unidades", label: "Unidades", roles: STAFF, category: "Site" },
+  { href: "/admin/site/faq", label: "FAQ", roles: STAFF, category: "Site" },
+  { href: "/admin/site/legal", label: "Termos e privacidade", roles: STAFF, category: "Site" },
+  { href: "/admin/site/transparencia", label: "Transparência", roles: STAFF, category: "Site" },
 
   /* —— Configurações (sistema / infra) —— */
-  { href: "/time-slots", label: "Horários (cadastro)", masterOnly: true, category: "Configurações" },
-  { href: "/backup", label: "Backup do banco", masterOnly: true, category: "Configurações" },
+  { href: "/time-slots", label: "Horários (cadastro)", roles: MASTER_AND_COORDINATOR, category: "Configurações" },
+  { href: "/backup", label: "Backup do banco", roles: MASTER_AND_COORDINATOR, category: "Configurações" },
 ];
 
 export function Sidebar({
@@ -174,39 +151,10 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
 
-  const filteredItems = ITEMS.filter((i) => {
-    if (user.role === "POLO_COORDINATOR") {
-      return Boolean(i.alwaysShow || i.poloCoordinatorOk);
-    }
-    if (i.alwaysShow) return true;
-    if (i.masterExclusive) return user.role === "MASTER";
-    if (i.masterOrAdminOnly) return user.role === "MASTER" || user.role === "ADMIN";
-    if (i.coordinatorAccess) {
-      return (
-        user.role === "TEACHER" ||
-        user.role === "ADMIN" ||
-        user.role === "MASTER" ||
-        user.role === "COORDINATOR"
-      );
-    }
-    if (i.studentOnly) return user.role === "STUDENT";
-    if (i.teacherOnly) return user.role === "TEACHER";
-    if (i.masterOnly) return user.role === "MASTER" || user.role === "COORDINATOR";
-    if (i.masterOrTeacher)
-      return (
-        user.role === "MASTER" ||
-        user.role === "TEACHER" ||
-        user.role === "ADMIN" ||
-        user.role === "COORDINATOR"
-      );
-    if (i.adminOrMaster) {
-      return user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR";
-    }
-    return user.role !== "STUDENT";
-  });
+  const filteredItems = ITEMS.filter((i) => i.roles.includes(user.role));
 
   const byCategory = filteredItems.reduce<Record<string, Item[]>>((acc, item) => {
-    const cat = item.category ?? "Menu";
+    const cat = item.category;
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(item);
     return acc;
@@ -215,11 +163,11 @@ export function Sidebar({
     "Início",
     "Aluno",
     "Professor",
+    "Pedagógico",
     "Administração",
     "Comunicação",
     "Site",
     "Configurações",
-    "Menu",
   ];
 
   const tourIdForHref = (href: string) =>

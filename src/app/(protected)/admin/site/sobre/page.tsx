@@ -6,6 +6,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
 type AboutItem = {
@@ -70,9 +71,10 @@ export default function SobrePage() {
         }),
       });
       const text = await res.text();
-      let json: ApiResponse<{ item: AboutItem }>;
+      type SaveData = { item?: AboutItem; pending?: boolean; message?: string };
+      let json: ApiResponse<SaveData>;
       try {
-        json = (text ? JSON.parse(text) : { ok: false, error: { code: "UNKNOWN", message: "Resposta vazia do servidor." } }) as ApiResponse<{ item: AboutItem }>;
+        json = (text ? JSON.parse(text) : { ok: false, error: { code: "UNKNOWN", message: "Resposta vazia do servidor." } }) as ApiResponse<SaveData>;
       } catch {
         json = { ok: false, error: { code: "INVALID_JSON", message: "Resposta inválida do servidor." } } as ApiErr;
       }
@@ -80,7 +82,7 @@ export default function SobrePage() {
         toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
         return;
       }
-      toast.push("success", "Página Sobre atualizada.");
+      toast.push("success", siteMutationMessage(json.data, "Página Sobre atualizada."));
     } finally {
       setSaving(false);
     }

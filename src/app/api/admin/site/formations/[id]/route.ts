@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteFormationSchema } from "@/lib/validators/site";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -88,7 +88,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     payload.courseIds = parsed.data.courseIds;
   }
 
-  if (await enqueueIfAdmin(user, "site_formation", "update", id, payload, formationPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_formation", "update", id, payload, formationPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
 
@@ -141,7 +141,7 @@ export async function DELETE(_r: Request, ctx: Ctx) {
     include: { courses: { orderBy: [{ order: "asc" }] } },
   });
   if (!existing) return jsonErr("NOT_FOUND", "Formação não encontrada.", 404);
-  if (await enqueueIfAdmin(user, "site_formation", "delete", id, {}, formationPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_formation", "delete", id, {}, formationPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteFormation.delete({ where: { id } });

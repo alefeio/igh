@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteUnitSchema } from "@/lib/validators/site";
 
 function unitPrevious(existing: {
@@ -97,7 +97,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     courseIds: parsed.data.courseIds ?? [],
   };
 
-  if (await enqueueIfAdmin(user, "site_unit", "update", id, payload, unitPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_unit", "update", id, payload, unitPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
 
@@ -131,7 +131,7 @@ export async function DELETE(_: Request, ctx: { params: Promise<{ id: string }> 
     include: { courses: { orderBy: [{ order: "asc" }] } },
   });
   if (!existing) return jsonErr("NOT_FOUND", "Unidade não encontrada.", 404);
-  if (await enqueueIfAdmin(user, "site_unit", "delete", id, {}, unitPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_unit", "delete", id, {}, unitPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteUnit.delete({ where: { id } });

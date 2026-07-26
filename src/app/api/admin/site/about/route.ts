@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteAboutPageSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -32,7 +32,7 @@ export async function PATCH(request: Request) {
         imageUrl: existing.imageUrl,
       }
     : null;
-  if (await enqueueIfAdmin(user, "site_about", "update", null, payload, previous)) {
+  if (await enqueueIfNeedsApproval(user, "site_about", "update", null, payload, previous)) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   const data = {

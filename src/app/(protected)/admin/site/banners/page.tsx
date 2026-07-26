@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Banner = {
@@ -96,19 +97,12 @@ export default function BannersPage() {
         isActive,
       }),
     });
-    const json = (await res.json()) as ApiResponse<
-      { item: Banner; pending?: boolean; message?: string } | { item: Banner }
-    >;
+    const json = (await res.json()) as ApiResponse<{ item?: Banner; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
       return;
     }
-    const d = json.data as { item: Banner; pending?: boolean; message?: string };
-    if (d.pending) {
-      toast.push("success", d.message ?? "Alteração enviada para aprovação do Master.");
-    } else {
-      toast.push("success", editing ? "Banner atualizado." : "Banner criado.");
-    }
+    toast.push("success", siteMutationMessage(json.data, editing ? "Banner atualizado." : "Banner criado."));
     setOpen(false);
     resetForm();
     void load();
@@ -117,12 +111,12 @@ export default function BannersPage() {
   async function remove(b: Banner) {
     if (!confirm("Excluir este banner?")) return;
     const res = await fetch(`/api/admin/site/banners/${b.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Banner excluído.");
+    toast.push("success", siteMutationMessage(json.data, "Banner excluído."));
     void load();
   }
 
@@ -133,13 +127,13 @@ export default function BannersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = (await res.json()) as ApiResponse<{ items: Banner[] }>;
+      const json = (await res.json()) as ApiResponse<{ items?: Banner[]; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error?.message ?? "Falha ao reordenar." : "Falha ao reordenar.");
         return;
       }
-      toast.push("success", "Ordem atualizada.");
-      setItems(json.data.items);
+      toast.push("success", siteMutationMessage(json.data, "Ordem atualizada."));
+      if (json.data.items) setItems(json.data.items);
     },
     [toast]
   );
@@ -194,19 +188,26 @@ export default function BannersPage() {
         <form className="flex flex-col gap-3" onSubmit={save}>
           <div>
             <label className="text-sm font-medium">Título</label>
-            <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Inscrições abertas para o novo ciclo" />
           </div>
           <div>
             <label className="text-sm font-medium">Subtítulo</label>
-            <Input className="mt-1" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+            <Input
+              className="mt-1"
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              placeholder="Período de inscrição, início das aulas e cursos em destaque"
+            />
           </div>
           <div>
             <label className="text-sm font-medium">Texto do botão (CTA)</label>
-            <Input className="mt-1" value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} />
+            <Input className="mt-1" value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} placeholder="Inscreva-se" />
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Se ficar vazio, o botão aparece como “Inscreva-se”.</p>
           </div>
           <div>
             <label className="text-sm font-medium">Link do botão</label>
-            <Input className="mt-1" value={ctaHref} onChange={(e) => setCtaHref(e.target.value)} />
+            <Input className="mt-1" value={ctaHref} onChange={(e) => setCtaHref(e.target.value)} placeholder="/inscreva" />
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Se ficar vazio, o botão leva para a página de inscrições.</p>
           </div>
           <div>
             <label className="text-sm font-medium">URL da imagem</label>

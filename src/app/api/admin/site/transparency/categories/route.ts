@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonOk, jsonErr } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteTransparencyCategorySchema, reorderSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     order: parsed.data.order ?? (max._max.order ?? -1) + 1,
     isActive: parsed.data.isActive ?? true,
   };
-  if (await enqueueIfAdmin(user, "site_transparency_category", "create", null, payload)) {
+  if (await enqueueIfNeedsApproval(user, "site_transparency_category", "create", null, payload)) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
   }
   const item = await prisma.siteTransparencyCategory.create({ data: payload });
@@ -43,7 +43,7 @@ export async function PATCH(request: Request) {
   });
   const previous = { ids: current.map((i) => i.id) };
   if (
-    await enqueueIfAdmin(
+    await enqueueIfNeedsApproval(
       user,
       "site_transparency_category",
       "update",

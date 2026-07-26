@@ -8,8 +8,7 @@ import { MarketingCampaignManagePanel } from "../MarketingCampaignManagePanel";
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function AdminCampanhaDetalhePage(props: PageProps) {
-  const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
-  const canManage = user.role === "MASTER" || user.role === "ADMIN";
+  await requireRole(["MASTER"]);
   const { id } = await props.params;
 
   const campaign = await prisma.marketingCampaign.findUnique({
@@ -78,7 +77,7 @@ export default async function AdminCampanhaDetalhePage(props: PageProps) {
       />
 
       <div className="mb-6">
-        <MarketingCampaignManagePanel campaign={manageData} canManage={canManage} />
+        <MarketingCampaignManagePanel campaign={manageData} canManage />
       </div>
 
       <SectionCard title="Avaliações" description={`Slug: ${campaign.slug} · ${responses.length} respostas`} variant="elevated">

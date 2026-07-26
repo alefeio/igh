@@ -23,7 +23,7 @@ function InscrevaFormFallback() {
 export default async function InscrevaPage() {
   const inscrevaPage = await getInscrevaPageForSite();
   const headerTitle = inscrevaPage?.title?.trim() || "Inscreva-se";
-  const headerSubtitle = inscrevaPage?.subtitle?.trim() || "Faça sua pré-matrícula em uma das turmas disponíveis. Você pode fazer login se já tiver cadastro ou cadastrar-se com seus dados.";
+  const headerSubtitle = inscrevaPage?.subtitle?.trim() || "Escolha uma turma e faça sua pré-matrícula.";
   const headerImageUrl = inscrevaPage?.headerImageUrl?.trim() || null;
 
   return (
@@ -32,9 +32,10 @@ export default async function InscrevaPage() {
         title={headerTitle}
         subtitle={headerSubtitle}
         backgroundImageUrl={headerImageUrl}
+        compact
       />
       <Section background="muted" className="min-h-[50vh]">
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-5xl">
           <Suspense fallback={<InscrevaFormFallback />}>
             <InscrevaForm />
           </Suspense>

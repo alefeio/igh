@@ -7,6 +7,7 @@ export function PageHeader({
   backgroundImageUrl,
   children,
   below,
+  compact = false,
 }: {
   title: string;
   subtitle?: string;
@@ -15,16 +16,27 @@ export function PageHeader({
   children?: ReactNode;
   /** Conteúdo em largura total, colado abaixo do título (fora do Container). */
   below?: ReactNode;
+  /** Cabeçalho reduzido, para páginas em que o conteúdo precisa aparecer logo no topo. */
+  compact?: boolean;
 }) {
   const hasBg = !!backgroundImageUrl?.trim();
   const hasBelow = below != null;
+  const verticalPadding = hasBelow
+    ? compact
+      ? "pb-0 pt-6 sm:pt-8"
+      : "pb-0 pt-12 sm:pt-16"
+    : compact
+      ? "py-6 sm:py-8"
+      : "py-12 sm:py-16";
   return (
     <header
       className={`relative border-b border-[var(--igh-border)] text-center ${
         hasBg
-          ? "flex min-h-[280px] flex-col justify-center sm:min-h-[380px]"
+          ? `flex flex-col justify-center ${
+              compact ? "min-h-[140px] sm:min-h-[170px]" : "min-h-[280px] sm:min-h-[380px]"
+            }`
           : "bg-[var(--igh-surface)]"
-      } ${hasBelow ? "pb-0 pt-12 sm:pt-16" : "py-12 sm:py-16"}`}
+      } ${verticalPadding}`}
     >
       {hasBg && (
         <>
@@ -40,7 +52,9 @@ export function PageHeader({
       )}
       <Container className={`relative z-10 ${hasBelow ? "!pb-8 sm:!pb-10" : ""}`}>
         <h1
-          className={`text-3xl font-bold tracking-tight sm:text-4xl ${
+          className={`font-bold tracking-tight ${
+            compact ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"
+          } ${
             hasBg ? "text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" : "text-[var(--igh-secondary)]"
           }`}
         >
@@ -48,7 +62,7 @@ export function PageHeader({
         </h1>
         {subtitle && (
           <p
-            className={`mx-auto mt-3 max-w-2xl text-lg ${
+            className={`mx-auto max-w-2xl ${compact ? "mt-2 text-sm sm:text-base" : "mt-3 text-lg"} ${
               hasBg ? "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" : "text-[var(--igh-muted)]"
             }`}
           >

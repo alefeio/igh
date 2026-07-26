@@ -5,6 +5,7 @@ import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 import QRCode from "qrcode";
@@ -331,7 +332,7 @@ export default function ConfiguracoesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, addresses }),
       });
-      const json = await parseJson<ApiResponse<{ settings: Settings }>>(res);
+      const json = await parseJson<ApiResponse<{ settings?: Settings; pending?: boolean; message?: string }>>(res);
       if (!json) {
         toast.push("error", res.ok ? "Resposta inválida do servidor." : "Falha ao salvar. Verifique se está logado.");
         return;
@@ -340,8 +341,9 @@ export default function ConfiguracoesPage() {
         toast.push("error", !json.ok ? (json as { error?: { message?: string } }).error?.message ?? "Falha ao salvar." : "Falha ao salvar.");
         return;
       }
-      toast.push("success", "Configurações salvas.");
-      const next = json.data.settings as Settings;
+      toast.push("success", siteMutationMessage(json.data, "Configurações salvas."));
+      const next = json.data.settings;
+      if (!next) return;
       setSettings(next);
       const raw = next?.addresses;
       setAddresses(

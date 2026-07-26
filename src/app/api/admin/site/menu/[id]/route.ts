@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteMenuItemSchema } from "@/lib/validators/site";
 
 type Context = { params: Promise<{ id: string }> };
@@ -58,7 +58,7 @@ export async function PATCH(request: Request, context: Context) {
     isVisible: parsed.data.isVisible ?? existing.isVisible,
   };
 
-  if (await enqueueIfAdmin(user, "site_menu_item", "update", id, payload, menuPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_menu_item", "update", id, payload, menuPrevious(existing))) {
     return jsonOk({
       pending: true,
       message: PENDING_SITE_CHANGE_MESSAGE,
@@ -93,7 +93,7 @@ export async function DELETE(_request: Request, context: Context) {
     return jsonErr("CONFLICT", "Remova primeiro os subitens.", 409);
   }
 
-  if (await enqueueIfAdmin(user, "site_menu_item", "delete", id, {}, menuPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_menu_item", "delete", id, {}, menuPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
 

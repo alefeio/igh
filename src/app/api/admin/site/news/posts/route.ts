@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteNewsPostSchema } from "@/lib/validators/site";
 
 export async function GET(request: Request) {
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     publishedAt: parsed.data.publishedAt ?? null,
     isPublished: parsed.data.isPublished ?? false,
   };
-  if (await enqueueIfAdmin(user, "site_news_post", "create", null, payload)) {
+  if (await enqueueIfNeedsApproval(user, "site_news_post", "create", null, payload)) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
   }
   const item = await prisma.siteNewsPost.create({

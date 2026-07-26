@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { reorderSchema, siteUnitSchema } from "@/lib/validators/site";
 
 export async function GET() {
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     courseIds: parsed.data.courseIds ?? [],
   };
 
-  if (await enqueueIfAdmin(user, "site_unit", "create", null, payload)) {
+  if (await enqueueIfNeedsApproval(user, "site_unit", "create", null, payload)) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
   }
 

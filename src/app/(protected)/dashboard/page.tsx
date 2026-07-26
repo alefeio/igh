@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { StudentEnrollmentSuspensionBanner } from "@/components/student/StudentEnrollmentSuspensionBanner";
+import { StudentEnrollmentCtaBanner } from "@/components/student/StudentEnrollmentCtaBanner";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import {
   DashboardHero,
@@ -223,6 +224,8 @@ function DashboardAdmin({
 }) {
   const { stats, roleLabel } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Admin";
+  /** Disparos de campanha são irreversíveis: só o Master acessa. */
+  const canUseCampaigns = data.role === "MASTER";
 
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
@@ -332,9 +335,8 @@ function DashboardAdmin({
                 icon: School,
                 accent: "from-rose-500 to-red-600",
               },
-              ...(readOnly
-                ? []
-                : [
+              ...(canUseCampaigns
+                ? [
                     {
                       href: "/admin/email",
                       label: "E-mail em massa",
@@ -342,7 +344,8 @@ function DashboardAdmin({
                       icon: Mail,
                       accent: "from-indigo-500 to-violet-700",
                     },
-                  ]),
+                  ]
+                : []),
               {
                 href: "/admin/forum",
                 label: "Fóruns (todos os cursos)",
@@ -741,8 +744,12 @@ function DashboardStudent({
     lastViewedLesson,
     welcomeBanners,
     upcomingHolidayEventRegistrations,
+    openPublicClassGroupsCount,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
+  // Sem matrícula, o painel vira uma chamada de inscrição: jornada, progresso e atalhos de turma
+  // só fazem sentido depois que o aluno está em alguma turma.
+  const hasEnrollment = enrollments.length > 0;
   const recommendedEnrollment = recommendedEnrollmentId
     ? enrollments.find((e) => e.id === recommendedEnrollmentId)
     : null;
@@ -786,8 +793,7 @@ function DashboardStudent({
       })
   );
 
-  const continueBlock =
-    enrollments.length > 0 && continueLink && continueLabel ? (
+  const continueBlock = !hasEnrollment ? null : continueLink && continueLabel ? (
       <section aria-labelledby="continuar-heading">
         <h2 id="continuar-heading" className="sr-only">
           Continuar de onde parou
@@ -814,15 +820,7 @@ function DashboardStudent({
       </section>
     ) : (
       <div className="rounded-2xl border border-dashed border-[var(--igh-border)] bg-[var(--igh-surface)]/50 p-4 text-sm text-[var(--text-muted)] sm:p-5">
-        {enrollments.length === 0 ? (
-          <>
-            Matricule-se em um curso para ver o atalho <strong className="text-[var(--text-primary)]">Continuar de onde parou</strong> aqui.
-          </>
-        ) : (
-          <>
-            Abra uma aula em <strong className="text-[var(--text-primary)]">Minhas turmas</strong> para ver o atalho aqui.
-          </>
-        )}
+        Abra uma aula em <strong className="text-[var(--text-primary)]">Minhas turmas</strong> para ver o atalho aqui.
       </div>
     );
 
@@ -833,6 +831,75 @@ function DashboardStudent({
       (b.imageUrl && b.imageUrl.trim()) ||
       (b.linkHref && b.linkHref.trim()),
   );
+
+  const courseQuickActions = [
+    {
+      href: "/minhas-turmas",
+      label: "Minhas turmas",
+      description: "Cursos, aulas e progresso",
+      icon: BookOpen,
+      accent: "from-[var(--igh-primary)] to-violet-600",
+      dataTour: "dashboard-acesso-minhas-turmas",
+    },
+    {
+      href: "/minhas-turmas/evolucao",
+      label: "Evolução e ranking",
+      description: "Pontos, conquistas, ranking e fórum",
+      icon: Trophy,
+      accent: "from-amber-500 to-rose-600",
+    },
+    {
+      href: "/minhas-turmas/calendario",
+      label: "Calendário de aulas",
+      description: "Sessões, feriados e eventos",
+      icon: CalendarDays,
+      accent: "from-violet-500 to-fuchsia-600",
+    },
+  ];
+  const forumQuickActions = [
+    {
+      href: "/minhas-turmas/forum",
+      label: "Fórum dos cursos",
+      description: "Discussões por aula com toda a turma do curso",
+      icon: MessageCircle,
+      accent: "from-sky-500 to-indigo-600",
+    },
+    {
+      href: "/minhas-turmas/favoritos",
+      label: "Favoritos",
+      description: "Aulas salvas para revisar",
+      icon: Star,
+      accent: "from-amber-500 to-orange-600",
+      dataTour: "dashboard-acesso-favoritos",
+    },
+  ];
+  const enrollQuickAction = {
+    href: "/inscreva",
+    label: "Inscreva-se",
+    description: "Cursos e turmas com vagas abertas",
+    icon: GraduationCap,
+    accent: "from-[var(--igh-primary)] to-violet-600",
+  };
+  const quickActionItems = [
+    ...(hasEnrollment ? [] : openPublicClassGroupsCount > 0 ? [enrollQuickAction] : []),
+    ...(hasEnrollment ? courseQuickActions : []),
+    {
+      href: "/comunidade",
+      label: "Comunidade IGH (PII)",
+      description: "Ideias de projeto, equipes e debate entre todos os cursos",
+      icon: Sparkles,
+      accent: "from-[var(--igh-primary)] to-cyan-600",
+    },
+    ...(hasEnrollment ? forumQuickActions : []),
+    {
+      href: "/meus-dados",
+      label: "Meus dados",
+      description: "Cadastro e documentos",
+      icon: UserCircle,
+      accent: "from-emerald-500 to-teal-600",
+      dataTour: "dashboard-acesso-meus-dados",
+    },
+  ];
 
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
@@ -848,13 +915,17 @@ function DashboardStudent({
         description={hasWelcomeBanner ? undefined : STUDENT_DASHBOARD_DEFAULT_WELCOME_TEXT}
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-            <StudentMarketingCampaignModal autoPromptOnce={enrollments.length > 0} className="w-full sm:w-auto" />
-            <StudentPlatformExperienceModal autoPromptOnce={enrollments.length > 0} className="w-full sm:w-auto" />
+            <StudentMarketingCampaignModal autoPromptOnce={hasEnrollment} className="w-full sm:w-auto" />
+            <StudentPlatformExperienceModal autoPromptOnce={hasEnrollment} className="w-full sm:w-auto" />
           </div>
         }
       />
 
-      <div className="min-w-0">{continueBlock}</div>
+      {hasEnrollment ? null : (
+        <StudentEnrollmentCtaBanner openClassGroupsCount={openPublicClassGroupsCount} />
+      )}
+
+      {continueBlock ? <div className="min-w-0">{continueBlock}</div> : null}
 
       {upcomingHolidayEventRegistrations.length > 0 ? (
         <SectionCard
@@ -898,7 +969,7 @@ function DashboardStudent({
         </div>
       )}
 
-      {enrollments.length > 0 && (
+      {hasEnrollment && (
         <SectionCard
           title="Seu progresso"
           description="Visão geral do percurso. O detalhe por curso (aulas, exercícios, frequência, fórum) está em Minhas turmas; evolução e ranking em outra página."
@@ -1028,7 +1099,7 @@ function DashboardStudent({
             </div>
           </section>
         </>
-      ) : (
+      ) : !hasEnrollment ? null : (
         <section
           className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[var(--igh-primary)]/25 bg-gradient-to-b from-[var(--igh-surface)]/80 to-[var(--card-bg)] px-6 py-16 text-center shadow-inner"
           aria-label="Nenhum curso"
@@ -1056,62 +1127,7 @@ function DashboardStudent({
           Acesso rápido
         </h2>
         <p className="mb-4 text-sm text-[var(--text-muted)]">O que você usa com mais frequência, a um toque.</p>
-        <QuickActionGrid
-          items={[
-            {
-              href: "/minhas-turmas",
-              label: "Minhas turmas",
-              description: "Cursos, aulas e progresso",
-              icon: BookOpen,
-              accent: "from-[var(--igh-primary)] to-violet-600",
-              dataTour: "dashboard-acesso-minhas-turmas",
-            },
-            {
-              href: "/minhas-turmas/evolucao",
-              label: "Evolução e ranking",
-              description: "Pontos, conquistas, ranking e fórum",
-              icon: Trophy,
-              accent: "from-amber-500 to-rose-600",
-            },
-            {
-              href: "/minhas-turmas/calendario",
-              label: "Calendário de aulas",
-              description: "Sessões, feriados e eventos",
-              icon: CalendarDays,
-              accent: "from-violet-500 to-fuchsia-600",
-            },
-            {
-              href: "/comunidade",
-              label: "Comunidade IGH (PII)",
-              description: "Ideias de projeto, equipes e debate entre todos os cursos",
-              icon: Sparkles,
-              accent: "from-[var(--igh-primary)] to-cyan-600",
-            },
-            {
-              href: "/minhas-turmas/forum",
-              label: "Fórum dos cursos",
-              description: "Discussões por aula com toda a turma do curso",
-              icon: MessageCircle,
-              accent: "from-sky-500 to-indigo-600",
-            },
-            {
-              href: "/minhas-turmas/favoritos",
-              label: "Favoritos",
-              description: "Aulas salvas para revisar",
-              icon: Star,
-              accent: "from-amber-500 to-orange-600",
-              dataTour: "dashboard-acesso-favoritos",
-            },
-            {
-              href: "/meus-dados",
-              label: "Meus dados",
-              description: "Cadastro e documentos",
-              icon: UserCircle,
-              accent: "from-emerald-500 to-teal-600",
-              dataTour: "dashboard-acesso-meus-dados",
-            },
-          ]}
-        />
+        <QuickActionGrid items={quickActionItems} />
       </section>
     </div>
   );

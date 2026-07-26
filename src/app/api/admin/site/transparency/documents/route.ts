@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteTransparencyDocumentSchema } from "@/lib/validators/site";
 
 export async function GET(request: Request) {
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     fileUrl: parsed.data.fileUrl || null,
     isActive: parsed.data.isActive ?? true,
   };
-  if (await enqueueIfAdmin(user, "site_transparency_document", "create", null, payload)) {
+  if (await enqueueIfNeedsApproval(user, "site_transparency_document", "create", null, payload)) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE }, { status: 201 });
   }
   const item = await prisma.siteTransparencyDocument.create({

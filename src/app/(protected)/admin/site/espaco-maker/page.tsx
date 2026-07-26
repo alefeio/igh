@@ -7,6 +7,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 import { ESPACO_MAKER_PAGE_DEFAULT } from "@/content/espaco-maker";
 import { isVideoUrl } from "@/lib/media-url";
@@ -83,12 +84,7 @@ export default function AdminEspacoMakerPage() {
         toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
         return;
       }
-      toast.push(
-        "success",
-        json.data.pending
-          ? json.data.message ?? "Alteração enviada para aprovação do Master."
-          : "Página Espaço Maker atualizada."
-      );
+      toast.push("success", siteMutationMessage(json.data, "Página Espaço Maker atualizada."));
       if (json.data.item) {
         setMediaUrls(json.data.item.mediaUrls ?? []);
       }

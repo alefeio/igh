@@ -5,6 +5,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
 type InscrevaPageItem = {
@@ -63,12 +64,12 @@ export default function InscrevaPaginaPage() {
           headerImageUrl: headerImageUrl.trim() || null,
         }),
       });
-      const json = (await res.json()) as ApiResponse<{ item: InscrevaPageItem }>;
+      const json = (await res.json()) as ApiResponse<{ item?: InscrevaPageItem; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
         return;
       }
-      toast.push("success", "Conteúdo da página Inscreva-se atualizado.");
+      toast.push("success", siteMutationMessage(json.data, "Conteúdo da página Inscreva-se atualizado."));
     } finally {
       setSaving(false);
     }

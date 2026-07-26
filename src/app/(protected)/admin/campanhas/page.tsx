@@ -17,7 +17,7 @@ type CampaignRow = {
 };
 
 export default async function AdminCampanhasPage() {
-  await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+  await requireRole(["MASTER"]);
 
   const itemsRaw = (await prisma.marketingCampaign.findMany({
     orderBy: [{ createdAt: "desc" }],

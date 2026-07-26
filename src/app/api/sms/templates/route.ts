@@ -4,7 +4,7 @@ import { listSmsTemplates, createSmsTemplate } from "@/lib/sms";
 import { createSmsTemplateSchema } from "@/lib/validators/sms";
 
 export async function GET(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["MASTER"]);
   const { searchParams } = new URL(request.url);
   const activeOnly = searchParams.get("activeOnly") === "true";
   const items = await listSmsTemplates(activeOnly);
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["MASTER"]);
   const body = await request.json().catch(() => null);
   const parsed = createSmsTemplateSchema.safeParse(body);
   if (!parsed.success) {

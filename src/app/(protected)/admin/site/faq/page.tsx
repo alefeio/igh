@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 
 type FaqItem = {
@@ -80,12 +81,12 @@ export default function FaqPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question: question.trim(), answer: answer.trim(), isActive }),
     });
-    const json = (await res.json()) as ApiResponse<{ item: FaqItem }>;
+    const json = (await res.json()) as ApiResponse<{ item?: FaqItem; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
       return;
     }
-    toast.push("success", editing ? "Item atualizado." : "Item criado.");
+    toast.push("success", siteMutationMessage(json.data, editing ? "Item atualizado." : "Item criado."));
     setOpen(false);
     resetForm();
     await load();
@@ -94,12 +95,12 @@ export default function FaqPage() {
   async function remove(item: FaqItem) {
     if (!confirm("Excluir este item?")) return;
     const res = await fetch(`/api/admin/site/faq/${item.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Item excluído.");
+    toast.push("success", siteMutationMessage(json.data, "Item excluído."));
     await load();
   }
 
@@ -110,13 +111,13 @@ export default function FaqPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = (await res.json()) as ApiResponse<{ items: FaqItem[] }>;
+      const json = (await res.json()) as ApiResponse<{ items?: FaqItem[]; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error?.message ?? "Falha ao reordenar." : "Falha ao reordenar.");
         return;
       }
-      toast.push("success", "Ordem atualizada.");
-      setItems(json.data.items);
+      toast.push("success", siteMutationMessage(json.data, "Ordem atualizada."));
+      if (json.data.items) setItems(json.data.items);
     },
     [toast]
   );

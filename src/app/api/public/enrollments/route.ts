@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { weeklyScheduleOverlaps } from "@/lib/class-group-overlap";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createPreEnrollmentSchema } from "@/lib/validators/public-enrollment";
 import { verifyStudentToken } from "@/lib/student-token";
@@ -134,6 +135,45 @@ export async function POST(request: Request) {
     return jsonErr(
       "LIMIT_EXCEEDED",
       "Você já está inscrito em 2 cursos com turmas em andamento no mesmo período. Aguarde o encerramento de alguma turma ou entre em contato com a secretaria.",
+      400,
+    );
+  }
+
+  // Conflito de horário: o aluno não pode ficar em duas turmas que caem no mesmo dia e hora
+  // enquanto os períodos das duas se cruzam no calendário.
+  const scheduleEnrollments = await prisma.enrollment.findMany({
+    where: {
+      studentId,
+      status: "ACTIVE",
+      classGroup: { status: { in: ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] } },
+    },
+    select: {
+      classGroup: {
+        select: {
+          daysOfWeek: true,
+          startTime: true,
+          endTime: true,
+          startDate: true,
+          endDate: true,
+          course: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  for (const e of scheduleEnrollments) {
+    const other = e.classGroup;
+    const otherStartStr = toDateOnlyString(other.startDate);
+    const otherEndStr = toDateOnlyString(other.endDate ?? other.startDate);
+    const otherStart = otherStartStr ? dateOnlyToUtcDate(otherStartStr) : null;
+    const otherEnd = otherEndStr ? dateOnlyToUtcDate(otherEndStr) : null;
+    const periodsOverlap =
+      !otherStart || !otherEnd ? true : rangesOverlap(otherStart, otherEnd, candStart, candEnd);
+    if (!periodsOverlap) continue;
+    if (!weeklyScheduleOverlaps(classGroup, other)) continue;
+    return jsonErr(
+      "VALIDATION_ERROR",
+      `Esta turma tem horário em conflito com a turma de ${other.course.name} em que você já está inscrito.`,
       400,
     );
   }

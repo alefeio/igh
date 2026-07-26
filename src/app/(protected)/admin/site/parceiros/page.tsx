@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Partner = {
@@ -90,12 +91,12 @@ export default function ParceirosPage() {
         isActive,
       }),
     });
-    const json = (await res.json()) as ApiResponse<{ item: Partner }>;
+    const json = (await res.json()) as ApiResponse<{ item?: Partner; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
       return;
     }
-    toast.push("success", editing ? "Parceiro atualizado." : "Parceiro criado.");
+    toast.push("success", siteMutationMessage(json.data, editing ? "Parceiro atualizado." : "Parceiro criado."));
     setOpen(false);
     resetForm();
     void load();
@@ -104,12 +105,12 @@ export default function ParceirosPage() {
   async function remove(p: Partner) {
     if (!confirm(`Excluir o parceiro "${p.name}"?`)) return;
     const res = await fetch(`/api/admin/site/partners/${p.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Parceiro excluído.");
+    toast.push("success", siteMutationMessage(json.data, "Parceiro excluído."));
     void load();
   }
 
@@ -120,13 +121,13 @@ export default function ParceirosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = (await res.json()) as ApiResponse<{ items: Partner[] }>;
+      const json = (await res.json()) as ApiResponse<{ items?: Partner[]; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao reordenar.");
         return;
       }
-      toast.push("success", "Ordem atualizada.");
-      setItems(json.data.items);
+      toast.push("success", siteMutationMessage(json.data, "Ordem atualizada."));
+      if (json.data.items) setItems(json.data.items);
     },
     [toast]
   );

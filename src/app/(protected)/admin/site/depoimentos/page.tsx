@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Testimonial = {
@@ -124,7 +125,7 @@ export default function DepoimentosPage() {
       }),
     });
     const json = (await res.json()) as ApiResponse<{
-      item: Testimonial;
+      item?: Testimonial;
       pending?: boolean;
       message?: string;
     }>;
@@ -132,10 +133,7 @@ export default function DepoimentosPage() {
       toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
       return;
     }
-    const successMsg =
-      json.data.message ??
-      (editing ? "Depoimento atualizado." : "Depoimento criado.");
-    toast.push("success", successMsg);
+    toast.push("success", siteMutationMessage(json.data, editing ? "Depoimento atualizado." : "Depoimento criado."));
     setOpen(false);
     resetForm();
     void load();
@@ -145,12 +143,12 @@ export default function DepoimentosPage() {
   async function remove(t: Testimonial) {
     if (!confirm(`Excluir o depoimento de "${t.name}"?`)) return;
     const res = await fetch(`/api/admin/site/testimonials/${t.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Depoimento excluído.");
+    toast.push("success", siteMutationMessage(json.data, "Depoimento excluído."));
     void load();
   }
 
@@ -161,13 +159,13 @@ export default function DepoimentosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = (await res.json()) as ApiResponse<{ items: Testimonial[] }>;
+      const json = (await res.json()) as ApiResponse<{ items?: Testimonial[]; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", (!json.ok && "error" in json ? json.error.message : null) ?? "Falha ao reordenar.");
         return;
       }
-      toast.push("success", "Ordem atualizada.");
-      setItems(json.data.items);
+      toast.push("success", siteMutationMessage(json.data, "Ordem atualizada."));
+      if (json.data.items) setItems(json.data.items);
     },
     [toast]
   );

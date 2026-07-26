@@ -21,6 +21,7 @@ import {
   type DashboardForumLessonActivity,
 } from "@/lib/dashboard-forum-activity";
 import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
+import { countOpenPublicClassGroups } from "@/lib/public-enrollment-availability";
 import type { StudentRankEntry } from "@/lib/student-gamification-ranking";
 import type {
   DashboardHolidayCalendarItem,
@@ -279,6 +280,8 @@ export type DashboardDataStudent = {
     eventEndTime: string | null;
     responsibleTeacherName: string | null;
   }[];
+  /** Turmas com vaga em /inscreva agora; usado para chamar o aluno sem matrícula para o novo ciclo. */
+  openPublicClassGroupsCount: number;
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -531,6 +534,10 @@ export async function loadStudentDashboardMetrics(
       responsibleTeacherName: r.holiday.responsibleTeacher?.name ?? null,
     }));
 
+  // Só o aluno sem matrícula vê a chamada de inscrição, então nem consultamos as vagas nos outros casos.
+  const openPublicClassGroupsCount =
+    enrollments.length === 0 ? await countOpenPublicClassGroups() : 0;
+
   return {
     role: "STUDENT",
     roleLabel,
@@ -552,6 +559,7 @@ export async function loadStudentDashboardMetrics(
     totalForumReplies: forumRepliesCount,
     welcomeBanners,
     upcomingHolidayEventRegistrations,
+    openPublicClassGroupsCount,
   };
 }
 
@@ -787,6 +795,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         totalForumReplies: 0,
         welcomeBanners,
         upcomingHolidayEventRegistrations: [],
+        openPublicClassGroupsCount: await countOpenPublicClassGroups(),
       };
     }
     return loadStudentDashboardMetrics(student.id, user.id, roleLabel);

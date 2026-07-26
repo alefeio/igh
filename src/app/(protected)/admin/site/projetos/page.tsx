@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Project = {
@@ -125,12 +126,12 @@ export default function ProjetosPage() {
           isActive,
         }),
       });
-      const json = (await res.json()) as ApiResponse<{ item: Project }>;
+      const json = (await res.json()) as ApiResponse<{ item?: Project; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao salvar.");
         return;
       }
-      toast.push("success", editing ? "Projeto atualizado." : "Projeto criado.");
+      toast.push("success", siteMutationMessage(json.data, editing ? "Projeto atualizado." : "Projeto criado."));
       setOpen(false);
       resetForm();
       void load();
@@ -142,12 +143,12 @@ export default function ProjetosPage() {
   async function remove(p: Project) {
     if (!confirm(`Excluir o projeto "${p.title}"?`)) return;
     const res = await fetch(`/api/admin/site/projects/${p.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Projeto excluído.");
+    toast.push("success", siteMutationMessage(json.data, "Projeto excluído."));
     void load();
   }
 
@@ -158,13 +159,13 @@ export default function ProjetosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = (await res.json()) as ApiResponse<{ items: Project[] }>;
+      const json = (await res.json()) as ApiResponse<{ items?: Project[]; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao reordenar.");
         return;
       }
-      toast.push("success", "Ordem atualizada.");
-      setItems(json.data.items);
+      toast.push("success", siteMutationMessage(json.data, "Ordem atualizada."));
+      if (json.data.items) setItems(json.data.items);
     },
     [toast]
   );

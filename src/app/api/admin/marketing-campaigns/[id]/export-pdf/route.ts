@@ -76,7 +76,7 @@ function drawLabelValue(
 }
 
 export async function GET(_request: Request, ctx: RouteCtx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["MASTER"]);
   const { id } = await ctx.params;
 
   const campaign = await prisma.marketingCampaign.findUnique({

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Formation = {
@@ -156,12 +157,12 @@ export default function FormacoesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = (await res.json()) as ApiResponse<{ item: Formation }>;
+      const json = (await res.json()) as ApiResponse<{ item?: Formation; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error?.message ?? "Falha ao salvar." : "Falha ao salvar.");
         return;
       }
-      toast.push("success", editing ? "Formação atualizada." : "Formação criada.");
+      toast.push("success", siteMutationMessage(json.data, editing ? "Formação atualizada." : "Formação criada."));
       setOpen(false);
       resetForm();
       await load();
@@ -173,12 +174,12 @@ export default function FormacoesPage() {
   async function remove(item: Formation) {
     if (!confirm(`Excluir a formação "${item.title}"? Os vínculos com cursos serão removidos.`)) return;
     const res = await fetch(`/api/admin/site/formations/${item.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error?.message ?? "Falha ao excluir." : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Formação excluída.");
+    toast.push("success", siteMutationMessage(json.data, "Formação excluída."));
     await load();
   }
 
@@ -189,13 +190,13 @@ export default function FormacoesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = (await res.json()) as ApiResponse<{ items: Formation[] }>;
+      const json = (await res.json()) as ApiResponse<{ items?: Formation[]; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error?.message ?? "Falha ao reordenar." : "Falha ao reordenar.");
         return;
       }
-      toast.push("success", "Ordem atualizada.");
-      setItems(json.data.items);
+      toast.push("success", siteMutationMessage(json.data, "Ordem atualizada."));
+      if (json.data.items) setItems(json.data.items);
     },
     [toast]
   );

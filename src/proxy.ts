@@ -32,9 +32,16 @@ export async function proxy(request: NextRequest) {
 
   const dashboardUrl = new URL("/dashboard", request.url);
 
-  // Usuários, aprovações e backup: Master, Admin ou Coordenador (operações sensíveis no próprio handler)
-  if (["/users", "/approvacoes", "/backup"].some((p) => pathname.startsWith(p))) {
+  // Usuários e backup: Master, Admin ou Coordenador (operações sensíveis no próprio handler)
+  if (["/users", "/backup"].some((p) => pathname.startsWith(p))) {
     if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Fila de aprovação do site: só o Master aprova/rejeita (as APIs também exigem MASTER)
+  if (pathname.startsWith("/approvacoes")) {
+    if (role !== "MASTER") {
       return NextResponse.redirect(dashboardUrl);
     }
   }
@@ -88,14 +95,21 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // CMS Site, campanhas e tablet: Master, Admin ou Coordenador
+  // CMS Site e banners do tablet: Master, Admin ou Coordenador.
+  // Admin e Coordenador não gravam direto — as alterações entram na fila de aprovação do Master.
+  if (pathname.startsWith("/admin/site") || pathname.startsWith("/admin/tablet")) {
+    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  // Comunicação: disparo de SMS, e-mail e campanhas é irreversível — exclusivo do Master
   if (
-    pathname.startsWith("/admin/site") ||
     pathname.startsWith("/admin/sms") ||
     pathname.startsWith("/admin/email") ||
-    pathname.startsWith("/admin/tablet")
+    pathname.startsWith("/admin/campanhas")
   ) {
-    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+    if (role !== "MASTER") {
       return NextResponse.redirect(dashboardUrl);
     }
   }

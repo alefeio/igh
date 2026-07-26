@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 
 type MenuItem = { id: string; label: string; href: string; order: number; parentId: string | null; isExternal: boolean; isVisible: boolean };
@@ -92,10 +93,10 @@ export default function MenuPage() {
   async function remove(m: MenuItem) {
     if (!confirm("Excluir este item?")) return;
     const res = await fetch(`/api/admin/site/menu/${m.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
     else {
-      toast.push("success", "Item excluído.");
+      toast.push("success", siteMutationMessage(json.data, "Item excluído."));
       load();
     }
   }
@@ -107,13 +108,13 @@ export default function MenuPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = (await res.json()) as ApiResponse<{ items: MenuItem[] }>;
+      const json = (await res.json()) as ApiResponse<{ items?: MenuItem[]; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error?.message ?? "Falha ao reordenar." : "Falha ao reordenar.");
         return;
       }
-      toast.push("success", "Ordem atualizada.");
-      setItems(json.data.items);
+      toast.push("success", siteMutationMessage(json.data, "Ordem atualizada."));
+      if (json.data.items) setItems(json.data.items);
     },
     [toast]
   );

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteNewsPostSchema } from "@/lib/validators/site";
 
 type RouteCtx = { params: Promise<{ id: string }> };
@@ -80,7 +80,7 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
     isPublished: parsed.data.isPublished ?? false,
   };
 
-  if (await enqueueIfAdmin(user, "site_news_post", "update", id, payload, newsPostPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_news_post", "update", id, payload, newsPostPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
 
@@ -102,7 +102,7 @@ export async function DELETE(_request: Request, ctx: RouteCtx) {
   if (!existing) {
     return jsonErr("NOT_FOUND", "Post não encontrado.", 404);
   }
-  if (await enqueueIfAdmin(user, "site_news_post", "delete", id, {}, newsPostPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_news_post", "delete", id, {}, newsPostPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteNewsPost.delete({ where: { id } });

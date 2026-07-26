@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteTransparencyCategorySchema } from "@/lib/validators/site";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -44,7 +44,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     isActive: parsed.data.isActive ?? existing.isActive,
   };
   if (
-    await enqueueIfAdmin(
+    await enqueueIfNeedsApproval(
       user,
       "site_transparency_category",
       "update",
@@ -73,7 +73,7 @@ export async function DELETE(_r: Request, ctx: Ctx) {
   const existing = await prisma.siteTransparencyCategory.findUnique({ where: { id } });
   if (!existing) return jsonErr("NOT_FOUND", "Categoria nao encontrada.", 404);
   if (
-    await enqueueIfAdmin(
+    await enqueueIfNeedsApproval(
       user,
       "site_transparency_category",
       "delete",

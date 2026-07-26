@@ -148,10 +148,7 @@ export default async function HomePage({ searchParams }: Props) {
               </form>
               <div className="mt-5 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
                 <Button as="link" href="/inscreva" variant="primary" size="lg">
-                  Quero me inscrever
-                </Button>
-                <Button as="link" href="/formacoes" variant="outline" size="lg">
-                  Ver catálogo
+                  Inscreva-se
                 </Button>
               </div>
             </div>

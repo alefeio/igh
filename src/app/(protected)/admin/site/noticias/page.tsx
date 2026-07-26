@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
 type Category = {
@@ -166,12 +167,12 @@ export default function NoticiasPage() {
         isActive: catActive,
       }),
     });
-    const json = (await res.json()) as ApiResponse<{ item: Category }>;
+    const json = (await res.json()) as ApiResponse<{ item?: Category; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
       return;
     }
-    toast.push("success", catEditing ? "Categoria atualizada." : "Categoria criada.");
+    toast.push("success", siteMutationMessage(json.data, catEditing ? "Categoria atualizada." : "Categoria criada."));
     setCatOpen(false);
     resetCatForm();
     void load();
@@ -180,12 +181,12 @@ export default function NoticiasPage() {
   async function removeCategory(c: Category) {
     if (!confirm(`Excluir a categoria "${c.name}"?`)) return;
     const res = await fetch(`/api/admin/site/news/categories/${c.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Categoria excluída.");
+    toast.push("success", siteMutationMessage(json.data, "Categoria excluída."));
     void load();
   }
 
@@ -196,13 +197,13 @@ export default function NoticiasPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = (await res.json()) as ApiResponse<{ items: Category[] }>;
+      const json = (await res.json()) as ApiResponse<{ items?: Category[]; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao reordenar.");
         return;
       }
-      toast.push("success", "Ordem atualizada.");
-      setCategories(json.data.items);
+      toast.push("success", siteMutationMessage(json.data, "Ordem atualizada."));
+      if (json.data.items) setCategories(json.data.items);
     },
     [toast]
   );
@@ -258,12 +259,12 @@ export default function NoticiasPage() {
         isPublished: postIsPublished,
       }),
     });
-    const json = (await res.json()) as ApiResponse<{ item: Post }>;
+    const json = (await res.json()) as ApiResponse<{ item?: Post; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
       return;
     }
-    toast.push("success", postEditing ? "Post atualizado." : "Post criado.");
+    toast.push("success", siteMutationMessage(json.data, postEditing ? "Post atualizado." : "Post criado."));
     setPostOpen(false);
     resetPostForm();
     void load();
@@ -272,12 +273,12 @@ export default function NoticiasPage() {
   async function removePost(p: Post) {
     if (!confirm(`Excluir o post "${p.title}"?`)) return;
     const res = await fetch(`/api/admin/site/news/posts/${p.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Post excluído.");
+    toast.push("success", siteMutationMessage(json.data, "Post excluído."));
     void load();
   }
 

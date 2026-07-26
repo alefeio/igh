@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
 type Category = {
@@ -161,12 +162,12 @@ export default function TransparenciaPage() {
           isActive: catActive,
         }),
       });
-      const json = (await res.json()) as ApiResponse<{ item: Category }>;
+      const json = (await res.json()) as ApiResponse<{ item?: Category; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
         return;
       }
-      toast.push("success", catEditing ? "Categoria atualizada." : "Categoria criada.");
+      toast.push("success", siteMutationMessage(json.data, catEditing ? "Categoria atualizada." : "Categoria criada."));
       setCatOpen(false);
       resetCatForm();
       void load();
@@ -178,12 +179,12 @@ export default function TransparenciaPage() {
   async function removeCategory(c: Category) {
     if (!confirm(`Excluir a categoria "${c.name}"? Documentos vinculados ficarão sem categoria.`)) return;
     const res = await fetch(`/api/admin/site/transparency/categories/${c.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Categoria excluída.");
+    toast.push("success", siteMutationMessage(json.data, "Categoria excluída."));
     void load();
   }
 
@@ -194,13 +195,13 @@ export default function TransparenciaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      const json = (await res.json()) as ApiResponse<{ items: Category[] }>;
+      const json = (await res.json()) as ApiResponse<{ items?: Category[]; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao reordenar.");
         return;
       }
-      toast.push("success", "Ordem atualizada.");
-      setCategories(json.data.items);
+      toast.push("success", siteMutationMessage(json.data, "Ordem atualizada."));
+      if (json.data.items) setCategories(json.data.items);
     },
     [toast]
   );
@@ -251,12 +252,12 @@ export default function TransparenciaPage() {
           isActive: docActive,
         }),
       });
-      const json = (await res.json()) as ApiResponse<{ item: Document }>;
+      const json = (await res.json()) as ApiResponse<{ item?: Document; pending?: boolean; message?: string }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao salvar.");
         return;
       }
-      toast.push("success", docEditing ? "Documento atualizado." : "Documento criado.");
+      toast.push("success", siteMutationMessage(json.data, docEditing ? "Documento atualizado." : "Documento criado."));
       setDocOpen(false);
       resetDocForm();
       void load();
@@ -268,12 +269,12 @@ export default function TransparenciaPage() {
   async function removeDocument(d: Document) {
     if (!confirm(`Excluir o documento "${d.title}"?`)) return;
     const res = await fetch(`/api/admin/site/transparency/documents/${d.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; pending?: boolean; message?: string }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? (json as ApiErr).error.message : "Falha ao excluir.");
       return;
     }
-    toast.push("success", "Documento excluído.");
+    toast.push("success", siteMutationMessage(json.data, "Documento excluído."));
     void load();
   }
 

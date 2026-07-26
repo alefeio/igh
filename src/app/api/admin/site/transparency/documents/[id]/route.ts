@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteTransparencyDocumentUpdateSchema } from "@/lib/validators/site";
 
 function documentPrevious(existing: {
@@ -57,7 +57,7 @@ export async function PATCH(
   }
 
   if (
-    await enqueueIfAdmin(
+    await enqueueIfNeedsApproval(
       user,
       "site_transparency_document",
       "update",
@@ -105,7 +105,7 @@ export async function DELETE(
   if (!existing) return jsonErr("NOT_FOUND", "Documento não encontrado.", 404);
 
   if (
-    await enqueueIfAdmin(
+    await enqueueIfNeedsApproval(
       user,
       "site_transparency_document",
       "delete",

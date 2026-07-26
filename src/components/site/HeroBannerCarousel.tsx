@@ -16,6 +16,10 @@ export type HeroBannerItem = {
 
 const ROTATION_INTERVAL_MS = 6000;
 
+/** Usados quando o Master não preencheu o botão do banner no CMS. */
+const DEFAULT_CTA_LABEL = "Inscreva-se";
+const DEFAULT_CTA_HREF = "/inscreva";
+
 type HeroBannerCarouselProps = {
   banners: HeroBannerItem[];
   className?: string;
@@ -56,7 +60,10 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
       onMouseLeave={() => setPaused(false)}
     >
       {/* Slides (stacked, fade via opacity) */}
-      {banners.map((banner, i) => (
+      {banners.map((banner, i) => {
+        const ctaLabel = banner.ctaLabel?.trim() || DEFAULT_CTA_LABEL;
+        const ctaHref = banner.ctaHref?.trim() || DEFAULT_CTA_HREF;
+        return (
         <div
           key={banner.id}
           className="absolute inset-0 z-0 transition-opacity duration-[400ms] ease-out"
@@ -100,33 +107,11 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
                   {banner.subtitle}
                 </p>
               )}
-              {banner.ctaLabel && banner.ctaHref ? (
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                  {banner.ctaHref.includes("/inscreva") ? (
-                    <Button as="link" href={banner.ctaHref} variant="primary" size="lg">
-                      {banner.ctaLabel}
-                    </Button>
-                  ) : (
-                    <>
-                      <Button as="link" href="/inscreva" variant="primary" size="lg">
-                        Começar agora
-                      </Button>
-                      <Button as="link" href={banner.ctaHref} variant="secondary" size="lg">
-                        {banner.ctaLabel}
-                      </Button>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                  <Button as="link" href="/inscreva" variant="primary" size="lg">
-                    Começar agora
-                  </Button>
-                  <Button as="link" href="/formacoes" variant="secondary" size="lg">
-                    Ver formações
-                  </Button>
-                </div>
-              )}
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <Button as="link" href={ctaHref} variant="primary" size="lg">
+                  {ctaLabel}
+                </Button>
+              </div>
               <form
                 action="/formacoes"
                 method="get"
@@ -157,7 +142,8 @@ export function HeroBannerCarousel({ banners, className = "" }: HeroBannerCarous
             </div>
           </Container>
         </div>
-      ))}
+        );
+      })}
 
       {/* Indicadores (dots) */}
       {n > 1 && (

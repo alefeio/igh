@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { enqueueIfAdmin, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
+import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pending-site-change";
 import { siteFaqItemSchema } from "@/lib/validators/site";
 
 type RouteCtx = { params: Promise<{ id: string }> };
@@ -45,7 +45,7 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
     order: parsed.data.order ?? existing.order,
     isActive: parsed.data.isActive ?? existing.isActive,
   };
-  if (await enqueueIfAdmin(user, "site_faq_item", "update", id, payload, faqPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_faq_item", "update", id, payload, faqPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   const item = await prisma.siteFaqItem.update({ where: { id }, data: payload });
@@ -58,7 +58,7 @@ export async function DELETE(_request: Request, ctx: RouteCtx) {
   const existing = await prisma.siteFaqItem.findUnique({ where: { id } });
   if (!existing) return jsonErr("NOT_FOUND", "Item FAQ não encontrado.", 404);
 
-  if (await enqueueIfAdmin(user, "site_faq_item", "delete", id, {}, faqPrevious(existing))) {
+  if (await enqueueIfNeedsApproval(user, "site_faq_item", "delete", id, {}, faqPrevious(existing))) {
     return jsonOk({ pending: true, message: PENDING_SITE_CHANGE_MESSAGE });
   }
   await prisma.siteFaqItem.delete({ where: { id } });
