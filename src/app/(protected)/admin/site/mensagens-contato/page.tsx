@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PDFDocument, StandardFonts, type PDFFont } from "pdf-lib";
 import * as XLSX from "xlsx";
 
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -18,6 +19,8 @@ type ContactMessage = {
   readAt: string | null;
   repliedAt: string | null;
 };
+
+type ExportKind = "xlsx" | "pdf";
 
 function formatPhone(digits: string): string {
   const d = digits.replace(/\D/g, "");
@@ -37,12 +40,50 @@ function whatsAppLink(phone: string): string {
   return `https://wa.me/${withCountry}`;
 }
 
+/** Helvetica no pdf-lib usa WinAnsi e quebra com emojis/símbolos. */
+function toWinAnsiSafe(input: unknown): string {
+  const s = (input ?? "").toString();
+  if (!s) return "";
+  return s
+    .replace(/[\u{10000}-\u{10FFFF}]/gu, "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[—–]/g, "-")
+    .replace(/[•∙]/g, "-")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, "");
+}
+
+function wrapLines(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
+  const paragraphs = toWinAnsiSafe(text).split(/\r?\n/);
+  const lines: string[] = [];
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push("");
+      continue;
+    }
+    let current = "";
+    for (const word of words) {
+      const next = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(next, fontSize) <= maxWidth) {
+        current = next;
+      } else {
+        if (current) lines.push(current);
+        current = word;
+      }
+    }
+    if (current) lines.push(current);
+  }
+  return lines.length > 0 ? lines : [""];
+}
+
 export default function MensagensContatoPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ContactMessage[]>([]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<ExportKind | null>(null);
 
   async function load() {
     setLoading(true);
@@ -88,9 +129,9 @@ export default function MensagensContatoPage() {
     }
   }
 
-  function exportReport() {
+  function exportExcel() {
     if (exporting || items.length === 0) return;
-    setExporting(true);
+    setExporting("xlsx");
     try {
       const rows = items.map((m) => ({
         Data: formatDateTime(m.createdAt),
@@ -118,11 +159,96 @@ export default function MensagensContatoPage() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Mensagens de contato");
       XLSX.writeFile(wb, `mensagens_contato_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      toast.push("success", "Relatório exportado.");
+      toast.push("success", "Relatório Excel exportado.");
     } catch {
-      toast.push("error", "Falha ao exportar o relatório.");
+      toast.push("error", "Falha ao exportar o Excel.");
     } finally {
-      setExporting(false);
+      setExporting(null);
+    }
+  }
+
+  async function exportPdf() {
+    if (exporting || items.length === 0) return;
+    setExporting("pdf");
+    try {
+      const pdfDoc = await PDFDocument.create();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const pageSize = { width: 595.28, height: 841.89 }; // A4
+      const margin = 40;
+      const maxWidth = pageSize.width - margin * 2;
+      const fontSize = 10;
+      const titleSize = 16;
+      const lineHeight = 13;
+
+      let page = pdfDoc.addPage([pageSize.width, pageSize.height]);
+      let y = pageSize.height - margin;
+
+      const ensureSpace = (needed: number) => {
+        if (y - needed < margin) {
+          page = pdfDoc.addPage([pageSize.width, pageSize.height]);
+          y = pageSize.height - margin;
+        }
+      };
+
+      const drawText = (text: string, size: number, bold = false) => {
+        const usedFont = bold ? fontBold : font;
+        for (const line of wrapLines(text, usedFont, size, maxWidth)) {
+          ensureSpace(lineHeight + 2);
+          page.drawText(line, { x: margin, y, size, font: usedFont });
+          y -= lineHeight;
+        }
+      };
+
+      drawText("Relatório de mensagens de contato", titleSize, true);
+      y -= 4;
+      drawText(`Gerado em ${new Date().toLocaleString("pt-BR")} — ${items.length} mensagem(ns)`, 9);
+      y -= 8;
+      page.drawLine({
+        start: { x: margin, y },
+        end: { x: pageSize.width - margin, y },
+        thickness: 1,
+      });
+      y -= 16;
+
+      for (let i = 0; i < items.length; i++) {
+        const m = items[i]!;
+        ensureSpace(lineHeight * 8);
+        drawText(`${i + 1}. ${m.name}`, 11, true);
+        drawText(`Data: ${formatDateTime(m.createdAt)}`, fontSize);
+        drawText(`E-mail: ${m.email}`, fontSize);
+        drawText(`Telefone: ${formatPhone(m.phone)}`, fontSize);
+        drawText(
+          `Status: ${m.readAt ? "Lida" : "Não lida"} | ${m.repliedAt ? "Respondida" : "Não respondida"}`,
+          fontSize
+        );
+        drawText("Mensagem:", fontSize, true);
+        drawText(m.message || "—", fontSize);
+        y -= 8;
+        if (i < items.length - 1) {
+          ensureSpace(10);
+          page.drawLine({
+            start: { x: margin, y },
+            end: { x: pageSize.width - margin, y },
+            thickness: 0.5,
+          });
+          y -= 14;
+        }
+      }
+
+      const bytes = await pdfDoc.save();
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mensagens_contato_${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.push("success", "Relatório PDF exportado.");
+    } catch {
+      toast.push("error", "Falha ao exportar o PDF.");
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -135,15 +261,26 @@ export default function MensagensContatoPage() {
             Mensagens enviadas pelo formulário da página /contato. Ao abrir esta página, as mensagens são marcadas como lidas.
           </div>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={exportReport}
-          disabled={loading || exporting || items.length === 0}
-          className="w-full shrink-0 sm:w-auto"
-        >
-          {exporting ? "Exportando…" : "Exportar relatório"}
-        </Button>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={exportExcel}
+            disabled={loading || exporting !== null || items.length === 0}
+            className="w-full shrink-0 sm:w-auto"
+          >
+            {exporting === "xlsx" ? "Exportando…" : "Exportar Excel"}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void exportPdf()}
+            disabled={loading || exporting !== null || items.length === 0}
+            className="w-full shrink-0 sm:w-auto"
+          >
+            {exporting === "pdf" ? "Exportando…" : "Exportar PDF"}
+          </Button>
+        </div>
       </div>
 
       {loading ? (
