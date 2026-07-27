@@ -1,41 +1,26 @@
-import "server-only";
-
-import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 
 /**
- * Ciclo atual: o mais recente cadastrado (maior ano e, dentro dele, maior número).
+ * Resolve o parâmetro `cycles` das listagens de alunos.
  *
- * Não usamos `isVisibleForEnrollments` porque essa flag marca o ciclo aberto para
- * inscrições, que pode ser o próximo — e não o que está em andamento.
- */
-export async function getCurrentCycleId(): Promise<string | null> {
-  const current = await prisma.cycle.findFirst({
-    orderBy: [{ year: "desc" }, { cycle: "desc" }],
-    select: { id: true },
-  });
-  return current?.id ?? null;
-}
-
-/**
- * Resolve o parâmetro `cycles` das listagens.
- *
- * - ausente: ciclo atual (padrão das telas)
- * - `all`: sem recorte por ciclo
+ * - ausente ou `all`: sem recorte por ciclo — é o padrão, para que qualquer tela que
+ *   consuma a listagem continue enxergando toda a base
  * - `none`: nenhum ciclo marcado na tela
  * - lista de ids separados por vírgula: exatamente esses ciclos
  *
+ * Quem quiser abrir no ciclo atual manda os ids explicitamente; a tela de Alunos faz isso.
  * Retorna `null` quando não há recorte a aplicar e uma lista vazia quando nada deve casar.
  */
-export async function resolveCycleIdsParam(raw: string | null): Promise<string[] | null> {
+export function resolveCycleIdsParam(raw: string | null | undefined): string[] | null {
   const value = raw?.trim() ?? "";
-  if (value === "all") return null;
+  if (value === "" || value === "all") return null;
   if (value === "none") return [];
 
-  if (value.length > 0) {
-    const ids = value.split(",").map((s) => s.trim()).filter(Boolean);
-    return ids.length > 0 ? ids : [];
-  }
+  const ids = value.split(",").map((s) => s.trim()).filter(Boolean);
+  return ids.length > 0 ? ids : [];
+}
 
-  const currentId = await getCurrentCycleId();
-  return currentId ? [currentId] : null;
+/** Recorte por matrícula ativa nos ciclos escolhidos, para compor o `where` de aluno. */
+export function activeEnrollmentInCycles(cycleIds: string[]): Prisma.StudentWhereInput {
+  return { enrollments: { some: { status: "ACTIVE", classGroup: { cycleId: { in: cycleIds } } } } };
 }

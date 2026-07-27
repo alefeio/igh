@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonOk } from "@/lib/http";
-import { resolveCycleIdsParam } from "@/lib/current-cycle";
+import { activeEnrollmentInCycles, resolveCycleIdsParam } from "@/lib/current-cycle";
 // Busca e paginação da tela não afetam o perfil geral; só o recorte por ciclo.
 
 function ageFromBirthDate(birthDate: Date, now = new Date()): number {
@@ -88,11 +88,9 @@ export async function GET(request: Request) {
   where.deletedAt = null;
 
   // Acompanha o filtro de ciclo da tela para que os indicadores falem do mesmo recorte.
-  const cycleIds = await resolveCycleIdsParam(new URL(request.url).searchParams.get("cycles"));
+  const cycleIds = resolveCycleIdsParam(new URL(request.url).searchParams.get("cycles"));
   if (cycleIds) {
-    where.enrollments = {
-      some: { status: "ACTIVE", classGroup: { cycleId: { in: cycleIds } } },
-    };
+    Object.assign(where, activeEnrollmentInCycles(cycleIds));
   }
 
   let teacherStudentIds: string[] | null = null;

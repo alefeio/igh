@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr } from "@/lib/http";
+import { activeEnrollmentInCycles, resolveCycleIdsParam } from "@/lib/current-cycle";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import * as XLSX from "xlsx";
 
@@ -130,6 +131,7 @@ export async function POST(request: Request) {
   const includeDeletedRaw = body?.includeDeleted === true;
   const includeDeleted =
     includeDeletedRaw && (user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR");
+  const cycles = typeof body?.cycles === "string" ? body.cycles : null;
 
   const fields = fieldsRaw
     .map((f) => (typeof f === "string" ? f : ""))
@@ -141,6 +143,12 @@ export async function POST(request: Request) {
 
   const where: Prisma.StudentWhereInput = {};
   if (!includeDeleted) where.deletedAt = null;
+
+  // A planilha segue o mesmo recorte de ciclo que está na tela.
+  const cycleIds = resolveCycleIdsParam(cycles);
+  if (cycleIds) {
+    Object.assign(where, activeEnrollmentInCycles(cycleIds));
+  }
 
   let teacherStudentIds: string[] | null = null;
   if (user.role === "TEACHER") {

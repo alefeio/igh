@@ -14,6 +14,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 import { formatDateOnly } from "@/lib/format";
+import { pickCurrentCycle } from "@/lib/cycles";
 import { AlertCircle } from "lucide-react";
 
 function formatCpf(v: string): string {
@@ -67,6 +68,14 @@ type Cycle = { id: string; cycle: number; year: number };
 
 function cycleLabel(c: Cycle): string {
   return `Ciclo ${c.cycle}/${c.year}`;
+}
+
+/**
+ * Ordena da mais recente para a mais antiga, para o ciclo atual abrir no topo da lista
+ * de checkboxes.
+ */
+function sortCyclesDesc(cycles: Cycle[]): Cycle[] {
+  return [...cycles].sort((a, b) => (b.year - a.year) || (b.cycle - a.cycle));
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -144,7 +153,7 @@ export default function StudentsPage() {
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [cyclesReady, setCyclesReady] = useState(false);
-  /** Vazio + `allCycles` desligado significa "ciclo atual", resolvido pelo servidor. */
+  const [currentCycleId, setCurrentCycleId] = useState<string | null>(null);
   const [cycleIds, setCycleIds] = useState<string[]>([]);
   const [allCycles, setAllCycles] = useState(false);
   const [page, setPage] = useState(1);
@@ -206,6 +215,7 @@ export default function StudentsPage() {
           fields,
           q: q.trim(),
           includeDeleted: staffFullAccess && includeDeleted,
+          cycles: cyclesParam,
         }),
       });
       if (!res.ok) {
@@ -308,9 +318,11 @@ export default function StudentsPage() {
         const res = await fetch("/api/cycles");
         const json = (await res.json().catch(() => null)) as ApiResponse<{ cycles: Cycle[] }> | null;
         if (!active) return;
-        const list = res.ok && json?.ok ? json.data.cycles : [];
+        const list = sortCyclesDesc(res.ok && json?.ok ? json.data.cycles : []);
         setCycles(list);
-        if (list[0]) setCycleIds([list[0].id]);
+        const current = pickCurrentCycle(list);
+        setCurrentCycleId(current?.id ?? null);
+        if (current) setCycleIds([current.id]);
       } finally {
         if (active) setCyclesReady(true);
       }
@@ -521,7 +533,7 @@ export default function StudentsPage() {
               Ciclo de atendimento
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-              {cycles.map((c, index) => (
+              {cycles.map((c) => (
                 <label
                   key={c.id}
                   className={`flex items-center gap-2 ${allCycles ? "cursor-default opacity-60" : "cursor-pointer"}`}
@@ -536,7 +548,7 @@ export default function StudentsPage() {
                       setPage(1);
                     }}
                   />
-                  {index === 0 ? `${cycleLabel(c)} (atual)` : cycleLabel(c)}
+                  {c.id === currentCycleId ? `${cycleLabel(c)} (atual)` : cycleLabel(c)}
                 </label>
               ))}
               <label className="flex cursor-pointer items-center gap-2 font-medium">

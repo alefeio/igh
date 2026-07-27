@@ -9,7 +9,7 @@ import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
 import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
-import { resolveCycleIdsParam } from "@/lib/current-cycle";
+import { activeEnrollmentInCycles, resolveCycleIdsParam } from "@/lib/current-cycle";
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
@@ -96,12 +96,9 @@ export async function GET(request: Request) {
     where.id = { in: teacherStudentIds };
   }
 
-  // Por padrão a tela mostra só quem tem matrícula ativa no ciclo atual.
-  const cycleIds = await resolveCycleIdsParam(searchParams.get("cycles"));
+  const cycleIds = resolveCycleIdsParam(searchParams.get("cycles"));
   if (cycleIds) {
-    where.enrollments = {
-      some: { status: "ACTIVE", classGroup: { cycleId: { in: cycleIds } } },
-    };
+    Object.assign(where, activeEnrollmentInCycles(cycleIds));
   }
 
   const [students, total] = await prisma.$transaction([

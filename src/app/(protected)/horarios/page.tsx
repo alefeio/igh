@@ -15,6 +15,7 @@ import {
   type ClassGroupUnit,
 } from "@/lib/class-group-unit";
 import { compareBySchedule, DAY_ORDER } from "@/lib/teacher-schedule-grid";
+import { pickCurrentCycle } from "@/lib/cycles";
 
 type Course = { id: string; name: string };
 type Teacher = { id: string; name: string };
@@ -122,6 +123,7 @@ export default function QuadroHorariosPage() {
   const [loading, setLoading] = useState(true);
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
+  const [currentCycleId, setCurrentCycleId] = useState<string | null>(null);
   const [includeEncerradas, setIncludeEncerradas] = useState(false);
 
   const [cycleFilter, setCycleFilter] = useState<string>(ALL);
@@ -144,10 +146,13 @@ export default function QuadroHorariosPage() {
       setClassGroups(groupsJson.data.classGroups ?? []);
 
       const cyclesJson = (await cyclesRes.json().catch(() => null)) as ApiResponse<{ cycles: Cycle[] }> | null;
-      const cyclesList = cyclesRes.ok && cyclesJson?.ok ? cyclesJson.data.cycles : [];
+      const cyclesList = [...(cyclesRes.ok && cyclesJson?.ok ? cyclesJson.data.cycles : [])].sort(
+        (a, b) => b.year - a.year || b.cycle - a.cycle
+      );
       setCycles(cyclesList);
-      // O ciclo atual é o mais recente; a API já devolve em ordem decrescente.
-      if (cyclesList[0]) setCycleFilter((prev) => (prev === ALL ? cyclesList[0]!.id : prev));
+      const current = pickCurrentCycle(cyclesList);
+      setCurrentCycleId(current?.id ?? null);
+      if (current) setCycleFilter((prev) => (prev === ALL ? current.id : prev));
     } finally {
       setLoading(false);
     }
@@ -343,9 +348,9 @@ export default function QuadroHorariosPage() {
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Ciclo</span>
             <select value={cycleFilter} onChange={(e) => setCycleFilter(e.target.value)} className={filterSelectClass}>
               <option value={ALL}>Todos os ciclos</option>
-              {cycles.map((c, index) => (
+              {cycles.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {index === 0 ? `${cycleLabel(c)} (atual)` : cycleLabel(c)}
+                  {c.id === currentCycleId ? `${cycleLabel(c)} (atual)` : cycleLabel(c)}
                 </option>
               ))}
             </select>
