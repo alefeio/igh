@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
+
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Table, Td, Th } from "@/components/ui/Table";
@@ -24,6 +26,11 @@ function formatPhone(digits: string): string {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("pt-BR");
+}
+
 function whatsAppLink(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   const withCountry = digits.length >= 10 && !digits.startsWith("55") ? `55${digits}` : digits;
@@ -35,6 +42,7 @@ export default function MensagensContatoPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ContactMessage[]>([]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -80,13 +88,62 @@ export default function MensagensContatoPage() {
     }
   }
 
+  function exportReport() {
+    if (exporting || items.length === 0) return;
+    setExporting(true);
+    try {
+      const rows = items.map((m) => ({
+        Data: formatDateTime(m.createdAt),
+        Nome: m.name,
+        "E-mail": m.email,
+        Telefone: formatPhone(m.phone),
+        Mensagem: m.message,
+        Lida: m.readAt ? "Sim" : "Não",
+        "Lida em": formatDateTime(m.readAt),
+        Respondida: m.repliedAt ? "Sim" : "Não",
+        "Respondida em": formatDateTime(m.repliedAt),
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [
+        { wch: 20 },
+        { wch: 28 },
+        { wch: 32 },
+        { wch: 16 },
+        { wch: 60 },
+        { wch: 8 },
+        { wch: 20 },
+        { wch: 12 },
+        { wch: 20 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Mensagens de contato");
+      XLSX.writeFile(wb, `mensagens_contato_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.push("success", "Relatório exportado.");
+    } catch {
+      toast.push("error", "Falha ao exportar o relatório.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <div className="text-lg font-semibold text-[var(--text-primary)]">Mensagens de contato</div>
-        <div className="text-sm text-[var(--text-muted)]">
-          Mensagens enviadas pelo formulário da página /contato. Ao abrir esta página, as mensagens são marcadas como lidas.
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="text-lg font-semibold text-[var(--text-primary)]">Mensagens de contato</div>
+          <div className="text-sm text-[var(--text-muted)]">
+            Mensagens enviadas pelo formulário da página /contato. Ao abrir esta página, as mensagens são marcadas como lidas.
+          </div>
         </div>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={exportReport}
+          disabled={loading || exporting || items.length === 0}
+          className="w-full shrink-0 sm:w-auto"
+        >
+          {exporting ? "Exportando…" : "Exportar relatório"}
+        </Button>
       </div>
 
       {loading ? (
