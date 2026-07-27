@@ -3,6 +3,34 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+/**
+ * Resolve a URL para o CLI (migrate / db).
+ * Não lançar erro aqui: `prisma generate` (postinstall na Vercel) carrega este
+ * arquivo e não precisa de banco. Comandos que exigem conexão falham depois,
+ * com mensagem do próprio Prisma, se a URL continuar ausente.
+ */
+function resolveCliDatabaseUrl(): string | undefined {
+  let u =
+    process.env["APP_DIRECT_URL"] ??
+    process.env["DIRECT_URL"] ??
+    process.env["POSTGRES_URL"] ??
+    process.env["DATABASE_URL"] ??
+    process.env["PRISMA_DATABASE_URL"] ??
+    process.env["APP_DATABASE_URL"];
+
+  if (!u || typeof u !== "string" || !u.startsWith("postgres")) {
+    return undefined;
+  }
+
+  // Para migrations, evitar pooled (remove caso tenha vindo de POSTGRES_URL/DATABASE_URL).
+  if (u.includes("pooled=true")) {
+    u = u.replace(/([?&])pooled=true(&?)/, (_m, sep, tail) => (sep === "?" && tail ? "?" : sep) + (tail ? "" : ""));
+    u = u.replace(/[?&]$/, "");
+    u = u.replace(/\?&/, "?");
+  }
+  return u;
+}
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -10,27 +38,8 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    // Migrate/CLI deve preferir uma conexão direta (DIRECT_URL), enquanto o app em runtime
-    // costuma usar pooled (DATABASE_URL / POSTGRES_URL com pooled=true).
-    url: (() => {
-      let u =
-        process.env["APP_DIRECT_URL"] ??
-        process.env["DIRECT_URL"] ??
-        process.env["POSTGRES_URL"] ??
-        process.env["DATABASE_URL"] ??
-        process.env["PRISMA_DATABASE_URL"];
-      if (!u || typeof u !== "string" || !u.startsWith("postgres")) {
-        throw new Error(
-          "URL do banco não configurada. Defina APP_DIRECT_URL (recomendado p/ Vercel+migrations) ou DIRECT_URL/POSTGRES_URL/DATABASE_URL (ex.: postgresql://usuario:senha@localhost:5432/nome_do_banco)"
-        );
-      }
-      // Para migrations, evitar pooled (remove caso tenha vindo de POSTGRES_URL/DATABASE_URL).
-      if (u.includes("pooled=true")) {
-        u = u.replace(/([?&])pooled=true(&?)/, (_m, sep, tail) => (sep === "?" && tail ? "?" : sep) + (tail ? "" : ""));
-        u = u.replace(/[?&]$/, "");
-        u = u.replace(/\?&/, "?");
-      }
-      return u;
-    })(),
+    // Migrate/CLI deve preferir uma conexão direta (APP_DIRECT_URL), enquanto o app
+    // em runtime costuma usar pooled (APP_DATABASE_URL com pooled=true).
+    url: resolveCliDatabaseUrl(),
   },
 });
