@@ -1,17 +1,8 @@
 import { spawn } from "node:child_process";
 import { requireRole } from "@/lib/auth";
+import { getDatabaseConnectionString } from "@/lib/database-url";
 import { generateBackupSql } from "@/lib/backup-prisma";
 import { jsonErr } from "@/lib/http";
-
-/** Retorna a URL de conexão do banco (para pg_dump/psql). Preferir POSTGRES_URL para evitar URL com pool. */
-function getConnectionString(): string {
-  const u =
-    process.env.POSTGRES_URL ??
-    process.env.PRISMA_DATABASE_URL ??
-    process.env.DATABASE_URL;
-  if (!u) throw new Error("URL de banco não configurada.");
-  return u;
-}
 
 /**
  * Backup completo do banco (apenas MASTER).
@@ -24,7 +15,7 @@ export async function GET() {
     return jsonErr("FORBIDDEN", "Apenas perfis autorizados podem fazer backup.", 403);
   }
 
-  const connectionString = getConnectionString();
+  const connectionString = getDatabaseConnectionString();
   const filename = `backup-${new Date().toISOString().slice(0, 19).replace(/[:-]/g, "")}.sql`;
 
   return new Promise<Response>((resolve) => {

@@ -1,16 +1,7 @@
 import { spawn } from "node:child_process";
 import { requireRole } from "@/lib/auth";
+import { getDatabaseConnectionString } from "@/lib/database-url";
 import { jsonErr, jsonOk } from "@/lib/http";
-
-/** Retorna a URL de conexão do banco (para psql). */
-function getConnectionString(): string {
-  const u =
-    process.env.POSTGRES_URL ??
-    process.env.PRISMA_DATABASE_URL ??
-    process.env.DATABASE_URL;
-  if (!u) throw new Error("URL de banco não configurada.");
-  return u;
-}
 
 /**
  * Restaura o banco a partir de um arquivo de backup (apenas MASTER).
@@ -36,7 +27,7 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", "Requisição inválida. Use multipart/form-data com o campo 'file'.", 400);
   }
 
-  const connectionString = getConnectionString();
+  const connectionString = getDatabaseConnectionString();
   const sqlBuffer = Buffer.from(await file.arrayBuffer());
   const sqlText = sqlBuffer.toString("utf8");
 

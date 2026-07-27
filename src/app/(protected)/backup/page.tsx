@@ -86,11 +86,13 @@ export default function BackupPage() {
       <div className="grid gap-6 sm:grid-cols-2">
         <SectionCard
           title="Fazer backup"
-          description="Schema e dados em um único arquivo .sql."
+          description="Dump completo do schema public: todas as tabelas e registros."
           variant="elevated"
         >
           <p className="text-xs text-[var(--text-muted)]">
-            Requer <strong>pg_dump</strong> instalado no servidor (ex.: ferramentas do PostgreSQL).
+            Tenta <strong>pg_dump</strong> quando disponível no servidor. Se não estiver instalado (comum em
+            Windows ou em deploy serverless), o sistema gera o mesmo arquivo automaticamente via Prisma,
+            incluindo todas as tabelas do banco.
           </p>
           <div className="mt-4">
             <Button
@@ -128,8 +130,7 @@ export default function BackupPage() {
             </>
           ) : (
             <p className="text-sm text-[var(--text-secondary)]">
-              Apenas o usuário <strong>Master</strong> pode enviar um arquivo e restaurar o banco. O download de backup
-              permanece disponível conforme sua permissão.
+              Apenas o usuário <strong>Master</strong> pode restaurar o banco a partir de um arquivo .sql.
             </p>
           )}
         </SectionCard>

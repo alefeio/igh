@@ -4,9 +4,23 @@ import { prisma } from "@/lib/prisma";
 function sqlLiteral(val: unknown): string {
   if (val === null || val === undefined) return "NULL";
   if (typeof val === "boolean") return val ? "true" : "false";
+  if (typeof val === "bigint") return String(val);
   if (typeof val === "number" && !Number.isNaN(val)) return String(val);
   if (val instanceof Date) return `'${val.toISOString().replace(/'/g, "''")}'`;
   if (Buffer.isBuffer(val)) return `'\\x${val.toString("hex")}'`;
+  if (Array.isArray(val)) {
+    if (val.length === 0) return "'{}'";
+    const items = val.map((item) => {
+      if (item === null || item === undefined) return "NULL";
+      const s = String(item).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      return `"${s}"`;
+    });
+    return `'{${items.join(",")}}'`;
+  }
+  if (typeof val === "object") {
+    const json = JSON.stringify(val).replace(/\\/g, "\\\\").replace(/'/g, "''");
+    return `'${json}'::jsonb`;
+  }
   const s = String(val);
   return `'${s.replace(/'/g, "''").replace(/\\/g, "\\\\")}'`;
 }
