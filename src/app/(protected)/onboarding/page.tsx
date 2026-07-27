@@ -21,6 +21,7 @@ const ROLE_LABEL: Record<string, string> = {
   MASTER: "Master",
   ADMIN: "Administrador",
   COORDINATOR: "Coordenador",
+  POLO_COORDINATOR: "Coordenador de Polos",
   TEACHER: "Professor",
   STUDENT: "Aluno",
 };

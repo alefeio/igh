@@ -18,10 +18,16 @@ type ClassGroupPickerProps = {
   emptyMessage: string;
 };
 
-type UnitGroup = {
+type UnitFilterOption = {
   key: string;
   unitName: string;
   poloName: string | null;
+};
+
+type CourseGroup = {
+  courseId: string;
+  courseName: string;
+  courseDescription: string | null;
   items: ClassGroupOption[];
 };
 
@@ -34,23 +40,54 @@ function normalize(value: string): string {
     .trim();
 }
 
-function groupByUnit(classGroups: ClassGroupOption[]): UnitGroup[] {
-  const groups = new Map<string, UnitGroup>();
+function unitOptionsFrom(classGroups: ClassGroupOption[]): UnitFilterOption[] {
+  const groups = new Map<string, UnitFilterOption>();
   for (const cg of classGroups) {
     const key = classGroupUnitGroupKey(cg.unit ?? null, cg.location);
-    const existing = groups.get(key);
-    if (existing) {
-      existing.items.push(cg);
-      continue;
-    }
+    if (groups.has(key)) continue;
     groups.set(key, {
       key,
       unitName: classGroupUnitLabel(cg.unit ?? null, cg.location),
       poloName: classGroupPoloLabel(cg.unit ?? null),
-      items: [cg],
     });
   }
   return [...groups.values()].sort((a, b) => a.unitName.localeCompare(b.unitName, "pt-BR"));
+}
+
+function groupByCourse(classGroups: ClassGroupOption[]): CourseGroup[] {
+  const groups = new Map<string, CourseGroup>();
+  for (const cg of classGroups) {
+    const existing = groups.get(cg.courseId);
+    if (existing) {
+      existing.items.push(cg);
+      continue;
+    }
+    groups.set(cg.courseId, {
+      courseId: cg.courseId,
+      courseName: cg.courseName,
+      courseDescription: cg.courseDescription?.trim() || null,
+      items: [cg],
+    });
+  }
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      items: [...group.items].sort((a, b) => {
+        const byUnit = classGroupUnitLabel(a.unit ?? null, a.location).localeCompare(
+          classGroupUnitLabel(b.unit ?? null, b.location),
+          "pt-BR"
+        );
+        if (byUnit !== 0) return byUnit;
+        return a.startTime.localeCompare(b.startTime);
+      }),
+    }))
+    .sort((a, b) => a.courseName.localeCompare(b.courseName, "pt-BR"));
+}
+
+function unitLabelFor(cg: ClassGroupOption): string {
+  const unitName = classGroupUnitLabel(cg.unit ?? null, cg.location);
+  const polo = classGroupPoloLabel(cg.unit ?? null);
+  return polo ? `${polo} · ${unitName}` : unitName;
 }
 
 export function ClassGroupPicker({
@@ -63,26 +100,25 @@ export function ClassGroupPicker({
   const [query, setQuery] = useState("");
   const [unitKey, setUnitKey] = useState("");
 
-  const allGroups = useMemo(() => groupByUnit(classGroups), [classGroups]);
+  const allUnits = useMemo(() => unitOptionsFrom(classGroups), [classGroups]);
 
-  const visibleGroups = useMemo(() => {
+  const visibleCourses = useMemo(() => {
     const q = normalize(query);
-    return allGroups
-      .filter((group) => !unitKey || group.key === unitKey)
-      .map((group) => ({
-        ...group,
-        items: q
-          ? group.items.filter(
-              (cg) =>
-                normalize(cg.courseName).includes(q) ||
-                normalize(cg.courseDescription ?? "").includes(q)
-            )
-          : group.items,
-      }))
-      .filter((group) => group.items.length > 0);
-  }, [allGroups, query, unitKey]);
+    const filtered = classGroups.filter((cg) => {
+      if (unitKey && classGroupUnitGroupKey(cg.unit ?? null, cg.location) !== unitKey) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        normalize(cg.courseName).includes(q) ||
+        normalize(cg.courseDescription ?? "").includes(q) ||
+        normalize(unitLabelFor(cg)).includes(q)
+      );
+    });
+    return groupByCourse(filtered);
+  }, [classGroups, query, unitKey]);
 
-  const visibleCount = visibleGroups.reduce((total, group) => total + group.items.length, 0);
+  const visibleCount = visibleCourses.reduce((total, group) => total + group.items.length, 0);
 
   if (classGroups.length === 0) {
     return (
@@ -97,18 +133,18 @@ export function ClassGroupPicker({
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="flex-1">
           <label htmlFor="inscreva-busca" className="sr-only">
-            Buscar curso
+            Buscar curso ou unidade
           </label>
           <input
             id="inscreva-busca"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar curso…"
+            placeholder="Buscar curso ou unidade…"
             className="min-h-[44px] w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)]/20"
           />
         </div>
-        {allGroups.length > 1 ? (
+        {allUnits.length > 1 ? (
           <div className="sm:w-64">
             <label htmlFor="inscreva-unidade" className="sr-only">
               Filtrar por polo ou unidade
@@ -120,9 +156,9 @@ export function ClassGroupPicker({
               className="min-h-[44px] w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 text-sm text-[var(--text-primary)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)]/20"
             >
               <option value="">Todas as unidades</option>
-              {allGroups.map((group) => (
-                <option key={group.key} value={group.key}>
-                  {group.unitName}
+              {allUnits.map((unit) => (
+                <option key={unit.key} value={unit.key}>
+                  {unit.unitName}
                 </option>
               ))}
             </select>
@@ -137,81 +173,87 @@ export function ClassGroupPicker({
           </p>
         </div>
       ) : (
-        visibleGroups.map((group) => (
-          <section key={group.key} aria-labelledby={`unidade-${group.key}`}>
-            <div className="mb-3 flex flex-wrap items-baseline gap-2 border-b border-[var(--card-border)] pb-2">
-              <h3
-                id={`unidade-${group.key}`}
-                className="text-base font-bold text-[var(--text-primary)]"
-              >
-                {group.unitName}
-              </h3>
-              {group.poloName ? (
-                <span className="text-xs text-[var(--text-muted)]">{group.poloName}</span>
-              ) : null}
-              <span className="ml-auto text-xs text-[var(--text-muted)]">
-                {group.items.length === 1 ? "1 turma" : `${group.items.length} turmas`}
-              </span>
-            </div>
-            <div
-              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-              role="listbox"
-              aria-label={`Turmas em ${group.unitName}`}
-              aria-multiselectable="true"
+        <div className="space-y-4">
+          {visibleCourses.map((course) => (
+            <section
+              key={course.courseId}
+              aria-labelledby={`curso-${course.courseId}`}
+              className="overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]"
             >
-              {group.items.map((cg) => {
-                const selected = selectedIds.includes(cg.id);
-                const disabled = isDisabled(cg);
-                const vagas = seatsLabel(cg);
-                return (
-                  <button
-                    key={cg.id}
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    disabled={disabled}
-                    onClick={() => onToggle(cg)}
-                    className={`flex h-full cursor-pointer flex-col rounded-xl border-2 p-4 text-left transition-all focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                      selected
-                        ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10"
-                        : disabled
-                          ? "border-[var(--card-border)] bg-[var(--card-bg)]"
-                          : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/50 hover:bg-[var(--igh-primary)]/5"
-                    }`}
+              <div className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]/60 px-4 py-3 sm:px-5">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <h3
+                    id={`curso-${course.courseId}`}
+                    className="text-base font-bold text-[var(--text-primary)]"
                   >
-                    <span className="font-semibold text-[var(--text-primary)]">{cg.courseName}</span>
-                    {cg.courseDescription?.trim() ? (
-                      <span className="mt-1 line-clamp-2 text-xs text-[var(--text-secondary)]">
-                        {cg.courseDescription.trim()}
-                      </span>
-                    ) : null}
-                    <span className="mt-3 flex flex-col gap-1 text-xs text-[var(--text-muted)]">
-                      <span>{formatDaysShortPtBr(cg.daysOfWeek)}</span>
-                      <span>
-                        {cg.startTime}–{cg.endTime}
-                      </span>
-                      <span>Início {formatDateOnlyBR(cg.startDate)}</span>
-                    </span>
-                    <span className="mt-4 flex flex-wrap items-center gap-2 pt-1">
-                      {vagas ? (
-                        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:bg-sky-900/40 dark:text-sky-100">
-                          {vagas}
+                    {course.courseName}
+                  </h3>
+                  <span className="ml-auto text-xs text-[var(--text-muted)]">
+                    {course.items.length === 1
+                      ? "1 turma disponível"
+                      : `${course.items.length} turmas disponíveis`}
+                  </span>
+                </div>
+                {course.courseDescription ? (
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">{course.courseDescription}</p>
+                ) : null}
+              </div>
+
+              <div
+                className="divide-y divide-[var(--card-border)]"
+                role="listbox"
+                aria-label={`Turmas de ${course.courseName}`}
+                aria-multiselectable="true"
+              >
+                {course.items.map((cg) => {
+                  const selected = selectedIds.includes(cg.id);
+                  const disabled = isDisabled(cg);
+                  const vagas = seatsLabel(cg);
+                  return (
+                    <button
+                      key={cg.id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      disabled={disabled}
+                      onClick={() => onToggle(cg)}
+                      className={`flex w-full cursor-pointer flex-col gap-2 px-4 py-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--igh-primary)] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-row sm:items-center sm:gap-4 sm:px-5 ${
+                        selected
+                          ? "bg-[var(--igh-primary)]/10"
+                          : disabled
+                            ? "bg-[var(--card-bg)]"
+                            : "bg-[var(--card-bg)] hover:bg-[var(--igh-primary)]/5"
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-[var(--text-primary)]">
+                          {formatDaysShortPtBr(cg.daysOfWeek)} · {cg.startTime}–{cg.endTime}
                         </span>
-                      ) : null}
-                      <span
-                        className={`ml-auto text-xs font-semibold ${
-                          selected ? "text-[var(--igh-primary)]" : "text-[var(--text-secondary)]"
-                        }`}
-                      >
-                        {selected ? "Selecionada ✓" : disabled ? "Indisponível" : "Selecionar"}
+                        <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">
+                          {unitLabelFor(cg)} · Início {formatDateOnlyBR(cg.startDate)}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ))
+                      <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                        {vagas ? (
+                          <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:bg-sky-900/40 dark:text-sky-100">
+                            {vagas}
+                          </span>
+                        ) : null}
+                        <span
+                          className={`text-xs font-semibold ${
+                            selected ? "text-[var(--igh-primary)]" : "text-[var(--text-secondary)]"
+                          }`}
+                        >
+                          {selected ? "Selecionada ✓" : disabled ? "Indisponível" : "Selecionar"}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );

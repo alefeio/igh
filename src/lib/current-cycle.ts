@@ -1,4 +1,17 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
+
+/**
+ * Ciclo atual resolvido no banco: o mais recente cadastrado (maior ano e, dentro dele,
+ * maior número). Mesma regra de `pickCurrentCycle`, usada pelas telas.
+ */
+export async function getCurrentCycleId(): Promise<string | null> {
+  const current = await prisma.cycle.findFirst({
+    orderBy: [{ year: "desc" }, { cycle: "desc" }],
+    select: { id: true },
+  });
+  return current?.id ?? null;
+}
 
 /**
  * Resolve o parâmetro `cycles` das listagens de alunos.

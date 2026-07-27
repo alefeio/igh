@@ -28,7 +28,7 @@ function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): s
   return fallback;
 }
 
-/** Local de atuação, derivado das turmas que o professor leciona. */
+/** Local de atuação atual, derivado das turmas em curso no ciclo atual. */
 type TeacherUnit = { key: string; unitName: string; poloName: string | null };
 
 type Teacher = {
@@ -259,7 +259,7 @@ export default function TeachersPage() {
                 aria-label="Filtrar por polo ou unidade"
                 className="min-h-[38px] w-full rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-3 text-sm text-[var(--text-primary)] shadow-sm focus:border-[var(--igh-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)]/20 sm:w-64"
               >
-                <option value={ALL_UNITS}>Todos os polos e unidades</option>
+                <option value={ALL_UNITS}>Todos os polos e unidades (ciclo atual)</option>
                 {unitOptions.map((u) => (
                   <option key={u.key} value={u.key}>
                     {unitLabel(u)}
@@ -332,7 +332,7 @@ export default function TeachersPage() {
                       ))}
                     </div>
                   ) : (
-                    <span className="text-xs text-[var(--text-muted)]">Sem turma atribuída</span>
+                    <span className="text-xs text-[var(--text-muted)]">Sem turma no ciclo atual</span>
                   )}
                 </Td>
                 <Td>

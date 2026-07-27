@@ -6,6 +6,7 @@ import {
   classGroupUnitGroupKey,
   classGroupUnitLabel,
 } from "@/lib/class-group-unit";
+import { getCurrentCycleId } from "@/lib/current-cycle";
 
 /** Local de atuação exibido na listagem de professores. */
 export type TeacherUnit = {
@@ -15,15 +16,18 @@ export type TeacherUnit = {
   poloName: string | null;
 };
 
-/** Turmas canceladas não indicam atuação. */
-const IGNORED_STATUSES = ["CANCELADA"] as const;
+/** Turmas encerradas ou canceladas não indicam atuação em andamento. */
+const IGNORED_STATUSES = ["ENCERRADA", "CANCELADA"] as const;
 
 /**
- * Onde cada professor atua, derivado das turmas que leciona.
+ * Onde cada professor atua hoje, derivado das turmas que leciona.
  *
  * O cadastro do professor não guarda polo nem unidade: essa informação vive na turma
  * (`PoloLocation` ou, nas turmas antigas, o texto livre `location`). Considera tanto o
  * professor titular quanto os adicionais, já que ambos atuam no local.
+ *
+ * O recorte é o ciclo atual e as turmas ainda em curso — a listagem mostra onde o professor
+ * está, não o histórico de onde já passou.
  */
 export async function getUnitsByTeacherId(
   teacherIds: string[]
@@ -31,9 +35,12 @@ export async function getUnitsByTeacherId(
   const result = new Map<string, TeacherUnit[]>();
   if (teacherIds.length === 0) return result;
 
+  const currentCycleId = await getCurrentCycleId();
+
   const classGroups = await prisma.classGroup.findMany({
     where: {
       status: { notIn: [...IGNORED_STATUSES] },
+      ...(currentCycleId ? { cycleId: currentCycleId } : {}),
       OR: [
         { teacherId: { in: teacherIds } },
         { classGroupTeachers: { some: { teacherId: { in: teacherIds } } } },
