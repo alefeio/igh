@@ -29,7 +29,7 @@ export function getEnrollmentCertificateFolder(enrollmentId: string): string {
 }
 
 /** Prefixos para documentação/organização no projeto (não enviados ao POST /v1/upload). */
-const SITE_UPLOAD_PREFIX = "igh/site";
+const SITE_UPLOAD_PREFIX = process.env.APIMG_SITE_UPLOAD_FOLDER?.trim() || "igh/site";
 
 export function getSiteUploadFolder(
   kind:

@@ -1,5 +1,4 @@
 import {
-  Container,
   Section,
   Button,
   Card,
@@ -18,8 +17,6 @@ import {
   MothersDayMessagesHomeSection,
   CommunityCtaHomeSection,
 } from "@/components/site";
-import { statsImpact } from "@/content";
-import { enrollmentFaqItems } from "@/content";
 import {
   getFormationsForFilter,
   getCoursesForSite,
@@ -33,15 +30,14 @@ import {
   getPublicMotherCampaignMessages,
 } from "@/lib/site-data";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { BRAND } from "@/lib/brand";
 
 export const metadata = {
-  title: "Instituto Gustavo Hessel | Formação profissional em tecnologia",
-  description:
-    "Formação profissional gratuita em programação, dados, UX/UI e mais. Inscreva-se e comece sua trilha no IGH.",
+  title: BRAND.seoTitle,
+  description: BRAND.seoDescription,
   openGraph: {
-    title: "Instituto Gustavo Hessel | Formação profissional em tecnologia",
-    description:
-      "Formação profissional gratuita em programação, dados, UX/UI e mais. Inscreva-se e comece sua trilha no IGH.",
+    title: BRAND.seoTitle,
+    description: BRAND.seoDescription,
   },
 };
 
@@ -96,11 +92,7 @@ export default async function HomePage({ searchParams }: Props) {
   });
 
   const courses = coursesFull;
-  const enrollmentFaq = enrollmentFaqItems;
-  const faqItems = [
-    ...enrollmentFaq,
-    ...faqItemsFromDb.map((i) => ({ pergunta: i.question, resposta: i.answer })),
-  ];
+  const faqItems = faqItemsFromDb.map((i) => ({ pergunta: i.question, resposta: i.answer }));
   const depoimentos = testimonialsFromDb.map((t) => ({
     nome: t.name,
     role: t.roleOrContext ?? "",
@@ -110,54 +102,10 @@ export default async function HomePage({ searchParams }: Props) {
 
   return (
     <>
-      {banners.length > 0 ? (
-        <HeroBannerCarousel banners={banners} />
-      ) : (
-        <section className="flex min-h-[70vh] flex-col justify-center bg-[var(--igh-surface)] py-16 sm:min-h-[80vh] sm:py-24">
-          <Container>
-            <div className="mx-auto max-w-3xl text-center">
-              <h1 className="text-3xl font-bold tracking-tight text-[var(--igh-secondary)] sm:text-4xl lg:text-5xl">
-                Formação profissional em tecnologia, no seu ritmo
-              </h1>
-              <p className="mt-4 text-lg text-[var(--igh-muted)]">
-                Cursos e trilhas gratuitas para começar ou avançar na carreira — com aulas, exercícios e certificado.
-                Pré-requisito: Informática Básica.
-              </p>
-              <form
-                action="/formacoes"
-                method="get"
-                role="search"
-                className="mx-auto mt-8 max-w-xl"
-                aria-label="Buscar no catálogo"
-              >
-                <label htmlFor="home-hero-busca" className="sr-only">
-                  Buscar curso, tema ou formação
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    id="home-hero-busca"
-                    name="q"
-                    type="search"
-                    placeholder="Buscar curso, tema ou formação…"
-                    className="min-h-[48px] flex-1 rounded-xl border border-[var(--igh-border)] bg-[var(--card-bg)] px-4 text-sm text-[var(--igh-secondary)] placeholder:text-[var(--igh-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--igh-primary)]/30"
-                  />
-                  <Button type="submit" variant="secondary" size="lg" className="shrink-0">
-                    Buscar
-                  </Button>
-                </div>
-              </form>
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-                <Button as="link" href="/inscreva" variant="primary" size="lg">
-                  Inscreva-se
-                </Button>
-              </div>
-            </div>
-          </Container>
-        </section>
-      )}
+      {banners.length > 0 ? <HeroBannerCarousel banners={banners} /> : null}
 
       <HomeAudiencePathsStrip />
-      <HomePublicRatingStrip block={platformExperienceBlock} stats={statsImpact} />
+      <HomePublicRatingStrip block={platformExperienceBlock} stats={[]} />
       <HomeObjectiveTrails basePath="/" />
 
       <div id="catalogo" className="scroll-mt-24">
@@ -184,7 +132,7 @@ export default async function HomePage({ searchParams }: Props) {
       <HomeHowItWorksSection />
 
       <Section
-        title="Espaço Maker IGH"
+        title={`Espaço Maker ${BRAND.shortName}`}
         subtitle="Tecnologia, criatividade e inclusão por meio do aprender fazendo."
         background="muted"
       >
@@ -211,7 +159,7 @@ export default async function HomePage({ searchParams }: Props) {
 
       <CTASection
         title="Pronto para começar sua formação?"
-        subtitle="Inscreva-se em uma turma e acompanhe suas aulas na plataforma do IGH."
+        subtitle={`Inscreva-se em uma turma e acompanhe suas aulas na plataforma do ${BRAND.shortName}.`}
         primaryCTA={{ label: "Quero me inscrever", href: "/inscreva" }}
         secondaryCTAs={[{ label: "Ver todas as formações", href: "/formacoes" }]}
       />
@@ -234,7 +182,7 @@ export default async function HomePage({ searchParams }: Props) {
       />
 
       {faqItems.length > 0 && (
-        <FAQ items={faqItems} title="Dúvidas sobre matrícula e o IGH" />
+        <FAQ items={faqItems} title={`Dúvidas sobre matrícula e o ${BRAND.shortName}`} />
       )}
 
       {/* Secundário: comunidade, ranking compacto, avaliações, projetos, notícias */}
@@ -282,7 +230,7 @@ export default async function HomePage({ searchParams }: Props) {
       </Section>
 
       {recentPosts.length > 0 && (
-        <Section title="Notícias" subtitle="Novidades do IGH.">
+        <Section title="Notícias" subtitle={`Novidades do ${BRAND.shortName}.`}>
           <div className="grid gap-6 sm:grid-cols-2">
             {recentPosts.map((post) => (
               <BlogCard key={post.slug} post={post} />

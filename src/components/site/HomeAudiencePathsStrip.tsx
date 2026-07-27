@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { Container } from "./Container";
 
 /**
@@ -29,7 +30,7 @@ export function HomeAudiencePathsStrip() {
             href="/login"
             className="touch-manipulation rounded-lg border border-[var(--igh-border)] bg-[var(--card-bg)] px-4 py-3 text-center text-sm font-medium text-[var(--igh-muted)] transition hover:border-[var(--igh-primary)]/40 hover:text-[var(--igh-secondary)] sm:min-w-[180px] sm:py-3.5"
           >
-            Já estudo no IGH
+            Já estudo no {BRAND.shortName}
             <span className="mt-0.5 block text-xs font-normal">Entrar na área do aluno</span>
           </a>
         </nav>

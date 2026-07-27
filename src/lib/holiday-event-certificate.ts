@@ -5,6 +5,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { getApimagesConfig } from "@/lib/apimages";
 import { apimagesUploadHeaders, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import { BRAND } from "@/lib/brand";
 import { getSiteSettings } from "@/lib/site-data";
 
 const PAGE_WIDTH = 595;
@@ -144,7 +145,7 @@ export async function generateHolidayEventCertificatePdfBytes(params: {
   });
 
   const participant = (params.participantName || "").trim() || "Participante";
-  const eventName = (params.eventName || "").trim() || "Evento IGH";
+  const eventName = (params.eventName || "").trim() || `Evento ${BRAND.shortName}`;
   const dateLabel = formatOccurrenceDatePtBr(params.occurrenceDate);
   const timeLabel =
     params.eventStartTime && params.eventEndTime

@@ -2,6 +2,7 @@
 
 import { Heart } from "lucide-react";
 
+import { BRAND } from "@/lib/brand";
 import type { MotherCampaignMessagePublic } from "@/lib/site-data";
 import { scheduleOpenMothersCampaignModalAfterAuth } from "@/lib/mothers-day-open-prompt";
 import { useEffect, useMemo, useState } from "react";
@@ -165,7 +166,7 @@ export function MothersDayMessagesHomeSection({
   return (
     <Section
       title="Homenagens para as mães"
-      subtitle="Campanha especial do Dia das Mães — quem estuda no IGH pode enviar uma homenagem pela área do aluno."
+      subtitle={`Campanha especial do Dia das Mães — quem estuda no ${BRAND.shortName} pode enviar uma homenagem pela área do aluno.`}
       background="muted"
       headerClassName="text-center"
     >

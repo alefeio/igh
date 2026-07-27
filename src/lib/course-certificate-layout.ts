@@ -4,15 +4,15 @@
  * Página landscape: 859.92 × 613.2 pt. Origem pdf-lib: canto inferior esquerdo.
  *
  * Coordenadas derivadas do PPTX preenchido (CERTIFICADO INFORMÁTICA BÁSICA.pptx).
+ *
+ * A cidade de emissão NÃO fica hardcoded aqui: vem do local do polo da turma,
+ * das Configurações do site ou (último recurso) das env CERTIFICATE_CITY*.
  */
 
 export const COURSE_CERTIFICATE_PAGE = {
   width: 859.92,
   height: 613.2,
 } as const;
-
-export const COURSE_CERTIFICATE_CITY_FRONT = "Belém/PA";
-export const COURSE_CERTIFICATE_CITY_BACK = "Belém";
 
 /** Carga horária mínima exibida no certificado (cursos com menos horas usam este valor). */
 export const COURSE_CERTIFICATE_MIN_WORKLOAD_HOURS = 40;

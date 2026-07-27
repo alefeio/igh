@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { IghCommunityPostStatus, IghCommunityTopicKind } from "@/generated/prisma/client";
+import { BRAND } from "@/lib/brand";
 import type { CommunityAuthorRole, CommunityReplyView, CommunityTopicView, CommunityViewerCapabilities } from "@/lib/igh-community-types";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
@@ -22,7 +23,7 @@ export const IGH_COMMUNITY_STATUS_LABELS: Record<IghCommunityPostStatus, string>
 const AUTHOR_ROLE_LABELS: Record<CommunityAuthorRole, string> = {
   STUDENT: "Aluno",
   TEACHER: "Professor",
-  STAFF: "Equipe IGH",
+  STAFF: BRAND.staffLabel,
 };
 
 export function normalizeCommunityTagName(raw: string): string {

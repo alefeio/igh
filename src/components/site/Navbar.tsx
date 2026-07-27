@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { BRAND } from "@/lib/brand";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
 
 const NINA_IMAGE = "/images/nina.png";
@@ -88,7 +89,7 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
                 />
               </span>
             ) : (
-              <span className="text-xl font-bold text-[var(--igh-primary)]">IGH</span>
+              <span className="text-xl font-bold text-[var(--igh-primary)]">{BRAND.shortName}</span>
             )}
           </Link>
           <div

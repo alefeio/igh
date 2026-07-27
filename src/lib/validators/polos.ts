@@ -4,6 +4,8 @@ const locationInputSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, "Nome do local é obrigatório").max(120),
   address: z.string().max(300).optional().nullable().or(z.literal("")),
+  city: z.string().max(120).optional().nullable().or(z.literal("")),
+  state: z.string().max(2).optional().nullable().or(z.literal("")),
   isActive: z.boolean().optional(),
 });
 

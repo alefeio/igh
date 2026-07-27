@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, RefreshCw } from "lucide-react";
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
+import { BRAND } from "@/lib/brand";
 
 type OccurrenceRow = {
   holidayId: string;
@@ -187,7 +188,7 @@ export function TeacherHolidayEventAttendanceClient() {
                       >
                         <td className="py-3 pr-3 align-top text-[var(--text-primary)]">{o.occurrenceDate}</td>
                         <td className="py-3 pr-3 align-top">
-                          <div className="font-medium text-[var(--text-primary)]">{o.holiday.name ?? "Evento IGH"}</div>
+                          <div className="font-medium text-[var(--text-primary)]">{o.holiday.name ?? `Evento ${BRAND.shortName}`}</div>
                           <div className="text-xs text-[var(--text-muted)]">
                             {o.holiday.subtitle ? `${o.holiday.subtitle} · ` : ""}
                             {formatHm(o.holiday.eventStartTime)}–{formatHm(o.holiday.eventEndTime)}
@@ -207,7 +208,7 @@ export function TeacherHolidayEventAttendanceClient() {
           title="Inscritos"
           description={
             selectedOccurrence
-              ? `${formatDateLong(selectedOccurrence.occurrenceDate)} — ${selectedOccurrence.holiday.name ?? "Evento IGH"}`
+              ? `${formatDateLong(selectedOccurrence.occurrenceDate)} — ${selectedOccurrence.holiday.name ?? `Evento ${BRAND.shortName}`}`
               : "Selecione uma ocorrência para ver os inscritos."
           }
         >

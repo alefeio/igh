@@ -7,6 +7,7 @@ import {
 } from "@/lib/course-completion-certificate";
 import type { CertificateZipPages } from "@/lib/course-certificate-pdf-naming";
 import { studentCertificatePdfFileName } from "@/lib/course-certificate-pdf-naming";
+import { resolveCertificateIssuePlace } from "@/lib/certificate-issue-place";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { prisma } from "@/lib/prisma";
 
@@ -46,6 +47,7 @@ async function loadEnrollmentCertificateContext(enrollmentId: string) {
     updatedAt: enrollment.updatedAt,
     classGroupEndDate: enrollment.classGroup.endDate,
   });
+  const issuePlace = await resolveCertificateIssuePlace(enrollmentId);
 
   const input = {
     studentName,
@@ -55,6 +57,8 @@ async function loadEnrollmentCertificateContext(enrollmentId: string) {
     teacherName: enrollment.classGroup.teacher.name,
     teacherSignatureUrl: enrollment.classGroup.teacher.signatureUrl,
     issuedAt,
+    issueCity: issuePlace.city,
+    issueCityState: issuePlace.cityState,
   };
 
   return { enrollment, studentName, input };

@@ -9,6 +9,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
+import { BRAND } from "@/lib/brand";
 import type {
   CommunityTopicView,
   CommunityViewer,
@@ -122,7 +123,7 @@ export function IghCommunityHub({ sessionUser = null }: { sessionUser?: Communit
         <div className="flex gap-2 rounded-lg border border-[var(--igh-border)] bg-white p-3 text-sm">
           <MessageSquare className="h-5 w-5 shrink-0 text-[var(--igh-primary)]" aria-hidden />
           <span>
-            <strong className="text-[var(--igh-secondary)]">Debate</strong> — troque experiências com toda a comunidade IGH.
+            <strong className="text-[var(--igh-secondary)]">Debate</strong> — troque experiências com toda a comunidade {BRAND.shortName}.
           </span>
         </div>
       </div>

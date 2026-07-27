@@ -1,9 +1,10 @@
 import "server-only";
 
+import { BRAND } from "../brand";
 import { getAppUrl } from "./index";
 
 const TERMS_VERSION = "v1-2026-02";
-const COMPANY_NAME = "Instituto Gustavo Hessel";
+const COMPANY_NAME = BRAND.legalName;
 
 function getLogoUrl(): string {
   return getAppUrl("/images/logo.png");
@@ -253,7 +254,7 @@ export function templateStudentRegistered(params: {
 <p>Somente após o envio desses dados e anexos sua matrícula poderá ser confirmada pela equipe. Troque a senha no primeiro acesso e guarde esta mensagem em local seguro.</p>
 <p>Quando sua pré-matrícula for confirmada, você receberá outro e-mail com os dados do curso.</p>
 `;
-  return { subject: "Cadastro realizado - Instituto Gustavo Hessel", html: wrapHtml(body) };
+  return { subject: `Cadastro realizado - ${COMPANY_NAME}`, html: wrapHtml(body) };
 }
 
 /** E-mail quando um usuário existente (ex.: admin ou professor) recebe o perfil de aluno. Não inclui senha; usa o login atual. */
@@ -372,7 +373,7 @@ export function templatePasswordReset(params: { name: string; resetUrl: string }
 </td></tr></table>
 <p>Se você não solicitou essa alteração, ignore este e-mail. O link expira em 24 horas.</p>
 `;
-  return { subject: "Redefinição de senha - Instituto Gustavo Hessel", html: wrapHtml(body) };
+  return { subject: `Redefinição de senha - ${COMPANY_NAME}`, html: wrapHtml(body) };
 }
 
 /** E-mail de confirmação de abertura de chamado de suporte. */
@@ -515,7 +516,7 @@ export function templateEnrollmentSuspendedAttendance(params: {
   <a href="${escapeHtml(loginUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; margin-right: 8px;">Acessar o portal</a>
   <a href="${escapeHtml(supportUrl)}" style="display: inline-block; background: #f3f4f6; color: #1f2937 !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Falar com o suporte</a>
 </td></tr></table>
-<p style="font-size: 13px; color: #6b7280; margin-top: 20px;">Se você acredita que houve um engano no registro de frequência, entre em contato com a secretaria ou com a coordenação do IGH.</p>
+<p style="font-size: 13px; color: #6b7280; margin-top: 20px;">Se você acredita que houve um engano no registro de frequência, entre em contato com a secretaria ou com a coordenação do ${escapeHtml(BRAND.shortName)}.</p>
 `;
   return {
     subject: "Matrícula suspensa — acesso às aulas bloqueado",
@@ -546,7 +547,7 @@ export function templateHolidayEventConfirmation(params: {
 </ul>
 ${extra}
 <p>No dia do evento você receberá um lembrete por e-mail pela manhã.</p>
-<p><a href="${escapeHtml(calendarUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Ver calendário IGH</a></p>
+<p><a href="${escapeHtml(calendarUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Ver calendário ${escapeHtml(BRAND.shortName)}</a></p>
 `;
   return { subject: `Inscrição confirmada — ${params.eventName}`, html: wrapHtml(body) };
 }

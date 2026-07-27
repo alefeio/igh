@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
-import { ESPACO_MAKER_PAGE_DEFAULT } from "@/content/espaco-maker";
+import { BRAND } from "@/lib/brand";
 import { isVideoUrl } from "@/lib/media-url";
 
 type EspacoMakerItem = {
@@ -24,9 +24,9 @@ export default function AdminEspacoMakerPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [title, setTitle] = useState(ESPACO_MAKER_PAGE_DEFAULT.title);
-  const [subtitle, setSubtitle] = useState(ESPACO_MAKER_PAGE_DEFAULT.subtitle);
-  const [content, setContent] = useState(ESPACO_MAKER_PAGE_DEFAULT.content);
+  const [title, setTitle] = useState("");
+  const [subtitle, setSubtitle] = useState("");
+  const [content, setContent] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
 
   async function load() {
@@ -118,7 +118,7 @@ export default function AdminEspacoMakerPage() {
             className="mt-1"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ex: Espaço Maker IGH"
+            placeholder={`Ex: Espaço Maker ${BRAND.shortName}`}
           />
         </div>
         <div>

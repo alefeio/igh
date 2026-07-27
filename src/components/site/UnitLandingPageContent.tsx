@@ -1,4 +1,5 @@
 import styles from "@/app/(institutional)/codo/codo.module.css";
+import { BRAND } from "@/lib/brand";
 import type { SiteUnitPublic } from "@/lib/site-data";
 import { UnitSideHeader } from "@/components/site/UnitSideHeader";
 
@@ -13,7 +14,7 @@ type UnitCourseCard = {
 };
 
 export function UnitLandingPageContent({ unit }: Props) {
-  const brandLabel = `IGH — ${unit.city}`.toUpperCase();
+  const brandLabel = `${BRAND.shortName} — ${unit.city}`.toUpperCase();
   const cityState = `${unit.city}, ${unit.state}`;
   const cityStateShort = `${unit.city}/${unit.state}`;
   const whatsappHref = `https://wa.me/${unit.whatsapp ?? "5599991032924"}`;
@@ -53,7 +54,7 @@ export function UnitLandingPageContent({ unit }: Props) {
                   unit.heroText
                 ) : (
                   <>
-                    Esta é a unidade do Instituto Gustavo Hessel em <strong>{cityState}</strong>. Aqui você encontra
+                    Esta é a unidade do {BRAND.legalName} em <strong>{cityState}</strong>. Aqui você encontra
                     formação gratuita para desenvolver novas habilidades, conquistar oportunidades e se preparar para o
                     mercado.
                   </>
@@ -145,7 +146,7 @@ export function UnitLandingPageContent({ unit }: Props) {
               <p>
                 {unit.benefitsText?.trim()
                   ? unit.benefitsText
-                  : "Aprender tecnologia pode abrir portas para estudo, trabalho, renda e crescimento pessoal. O objetivo do IGH é aproximar as pessoas do conhecimento de forma acessível, prática e acolhedora."}
+                  : `Aprender tecnologia pode abrir portas para estudo, trabalho, renda e crescimento pessoal. O objetivo do ${BRAND.shortName} é aproximar as pessoas do conhecimento de forma acessível, prática e acolhedora.`}
               </p>
 
               <ul className="lista-beneficios">
@@ -211,7 +212,7 @@ export function UnitLandingPageContent({ unit }: Props) {
             <div className="contato-texto">
               <span className="etiqueta">Contato</span>
 
-              <h2>Fale com o Instituto Gustavo Hessel em {cityStateShort}</h2>
+              <h2>Fale com o {BRAND.legalName} em {cityStateShort}</h2>
 
               <p>Entre em contato para saber mais sobre turmas, horários, inscrições e locais de aula.</p>
             </div>
@@ -250,7 +251,7 @@ export function UnitLandingPageContent({ unit }: Props) {
       <footer className="rodape">
         <div className="container rodape-conteudo">
           <p>
-            Instituto Gustavo Hessel — {cityStateShort} © {new Date().getFullYear()}
+            {BRAND.legalName} — {cityStateShort} © {new Date().getFullYear()}
           </p>
           <p>Tecnologia que aproxima. Educação que transforma.</p>
         </div>

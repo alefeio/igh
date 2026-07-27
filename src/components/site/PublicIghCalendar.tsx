@@ -8,6 +8,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site/Button";
 import { GuestHolidayEventRegisterForm } from "@/components/site/GuestHolidayEventRegisterForm";
 import type { ApiResponse } from "@/lib/api-types";
+import { BRAND } from "@/lib/brand";
 import type { PublicCalendarItem } from "@/lib/public-calendar-shared";
 import {
   buildPublicCalendarPath,
@@ -436,8 +437,8 @@ export function PublicIghCalendar({
       if (navigator.share) {
         try {
           await navigator.share({
-            title: "Calendário IGH",
-            text: "Confira o calendário de eventos do Instituto Gustavo Hessel.",
+            title: `Calendário ${BRAND.shortName}`,
+            text: `Confira o calendário de eventos do ${BRAND.legalName}.`,
             url,
           });
           return;

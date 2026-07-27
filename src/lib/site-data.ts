@@ -547,12 +547,10 @@ export type HowFormationWorksItem = {
   descricao: string;
 };
 
-const COMO_FUNCIONA_FALLBACK: HowFormationWorksItem[] = [
-  { titulo: "Núcleo Comum", descricao: "Conteúdo base em tecnologia e competências transversais para todas as trilhas." },
-  { titulo: "Trilha Técnica", descricao: "Módulos específicos da área escolhida, com foco em prática e ferramentas atuais." },
-  { titulo: "Projeto Integrador", descricao: "Projeto real desenvolvido ao longo da formação, que compõe seu portfólio." },
-  { titulo: "Carreira e Demo Day", descricao: "Preparação para o mercado, networking e apresentação dos projetos." },
-];
+/** Sem conteúdo no CMS: a seção some. Não há texto padrão embutido. */
+export function getComoFuncionaFormacao(): HowFormationWorksItem[] {
+  return [];
+}
 
 export async function getFormationsWithCourses(): Promise<FormationWithCourses[]> {
   try {
@@ -610,10 +608,6 @@ export async function getFormationsForHome(limit = 4): Promise<FormationWithCour
   } catch {
     return [];
   }
-}
-
-export function getComoFuncionaFormacao(): HowFormationWorksItem[] {
-  return COMO_FUNCIONA_FALLBACK;
 }
 
 // --- Formações como filtro (lista para botões) ---

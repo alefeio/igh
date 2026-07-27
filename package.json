@@ -15,6 +15,7 @@
     "postinstall": "prisma generate",
     "seed": "prisma db seed",
     "seed:onboarding": "tsx prisma/seed-onboarding-all.ts",
+    "seed:about": "tsx prisma/seed-about.ts",
     "seed:legal": "tsx prisma/seed-legal.ts"
   },
   "prisma": {

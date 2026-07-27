@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { ApimagesImageUpload } from "@/components/admin/ApimagesImageUpload";
 import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
+import { BRAND } from "@/lib/brand";
 
 type AboutItem = {
   id: string;
@@ -37,9 +38,9 @@ export default function SobrePage() {
       }
       const item = json.data.item;
       if (item) {
-        setTitle(item.title ?? "");
-        setSubtitle(item.subtitle ?? "");
-        setContent(item.content ?? "");
+        setTitle(item.title?.trim() || "");
+        setSubtitle(item.subtitle?.trim() || "");
+        setContent(item.content?.trim() || "");
         setImageUrl(item.imageUrl ?? "");
       } else {
         setTitle("");
@@ -101,12 +102,14 @@ export default function SobrePage() {
     <div className="flex flex-col gap-4">
       <div>
         <div className="text-lg font-semibold">Sobre</div>
-        <div className="text-sm text-[var(--text-secondary)]">Conteúdo exibido na página /sobre do site.</div>
+        <div className="text-sm text-[var(--text-secondary)]">
+          Conteúdo exibido na página /sobre do site. Inclua links para formações, inscrições, comunidade, projetos e transparência.
+        </div>
       </div>
       <form className="flex flex-col gap-4" onSubmit={save}>
         <div>
           <label className="text-sm font-medium">Título</label>
-          <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Sobre o IGH" />
+          <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={`Ex: Sobre o ${BRAND.shortName}`} />
         </div>
         <div>
           <label className="text-sm font-medium">Subtítulo</label>

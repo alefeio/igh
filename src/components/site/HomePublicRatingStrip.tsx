@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import type { PlatformExperiencePublicBlock } from "@/lib/site-data";
 import { Container } from "./Container";
 
@@ -33,7 +34,7 @@ export function HomePublicRatingStrip({
       <Container>
         {showRating && (
           <p className="text-center text-sm text-[var(--text-primary)] sm:text-base">
-            <span className="font-semibold text-[var(--igh-secondary)]">Alunos confiam no IGH:</span>{" "}
+            <span className="font-semibold text-[var(--igh-secondary)]">Alunos confiam no {BRAND.shortName}:</span>{" "}
             {overall != null && (
               <>
                 média{" "}

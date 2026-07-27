@@ -2,6 +2,7 @@ import "server-only";
 
 import ExcelJS from "exceljs";
 
+import { BRAND } from "@/lib/brand";
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { prisma } from "@/lib/prisma";
@@ -426,7 +427,7 @@ export async function buildCycleClassGroupsReportXlsx(params: {
   courseRows: CycleCourseReportRow[];
 }): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Cadastro Cursos IGH";
+  wb.creator = `Cadastro Cursos ${BRAND.shortName}`;
   wb.created = new Date();
   const title = `Relatório do ciclo ${params.cycle.cycle}/${params.cycle.year}`;
   const generatedAt = new Date().toLocaleString("pt-BR", { timeZone: "America/Belem" });

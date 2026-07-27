@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site/Button";
 import type { ApiResponse } from "@/lib/api-types";
+import { BRAND } from "@/lib/brand";
 import type {
   CommunityReplyView,
   CommunityTopicView,
@@ -179,7 +180,7 @@ export function IghCommunityTopicDetail({
       {sessionUser && canReply && showReplyForm && (
         <div className="rounded-xl border border-[var(--igh-border)] bg-white p-4">
           <h3 className="text-sm font-semibold text-[var(--igh-secondary)]">
-            {canReplyAsStaff ? "Sua resposta como equipe IGH" : "Sua resposta"}
+            {canReplyAsStaff ? `Sua resposta como equipe ${BRAND.shortName}` : "Sua resposta"}
           </h3>
           <textarea
             className="mt-2 min-h-[100px] w-full rounded-md border border-[var(--igh-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"

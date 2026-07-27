@@ -1,4 +1,3 @@
-import { enrollmentFaqItems } from "@/content";
 import {
   FAQ,
   PageHeader,
@@ -9,15 +8,17 @@ import {
   HomeObjectiveTrails,
   HomeHowItWorksSection,
 } from "@/components/site";
+import { pageTitle } from "@/lib/brand";
 import {
   getFormationsForFilter,
   getCoursesForSite,
   getComoFuncionaFormacao,
   getFormacoesPageForSite,
+  getFaqItems,
 } from "@/lib/site-data";
 
 export const metadata = {
-  title: "Formações | IGH",
+  title: pageTitle("Formações"),
   description:
     "Catálogo de formações profissionais em tecnologia. Busque por tema, objetivo ou trilha. Pré-requisito: Informática Básica.",
 };
@@ -29,26 +30,28 @@ type Props = {
 export default async function FormacoesPage({ searchParams }: Props) {
   const { formacao: formacaoSlug, q: searchQuery, objetivo } = await searchParams;
 
-  const [formations, courses, comoFunciona, formacoesPage] = await Promise.all([
+  const [formations, courses, comoFunciona, formacoesPage, faqFromDb] = await Promise.all([
     getFormationsForFilter(),
     getCoursesForSite(),
     Promise.resolve(getComoFuncionaFormacao()),
     getFormacoesPageForSite(),
+    getFaqItems(),
   ]);
 
-  const headerTitle = formacoesPage?.title?.trim() || "Formações e Cursos";
-  const headerSubtitle =
-    formacoesPage?.subtitle?.trim() ||
-    "Catálogo amplo de formação profissional. Pré-requisito: Informática Básica.";
+  const headerTitle = formacoesPage?.title?.trim() || "";
+  const headerSubtitle = formacoesPage?.subtitle?.trim() || "";
   const headerImageUrl = formacoesPage?.headerImageUrl?.trim() || null;
+  const faqItems = faqFromDb.map((i) => ({ pergunta: i.question, resposta: i.answer }));
 
   return (
     <>
-      <PageHeader
-        title={headerTitle}
-        subtitle={headerSubtitle}
-        backgroundImageUrl={headerImageUrl}
-      />
+      {(headerTitle || headerSubtitle || headerImageUrl) && (
+        <PageHeader
+          title={headerTitle}
+          subtitle={headerSubtitle || undefined}
+          backgroundImageUrl={headerImageUrl}
+        />
+      )}
 
       <HomeObjectiveTrails basePath="/formacoes" />
 
@@ -64,23 +67,25 @@ export default async function FormacoesPage({ searchParams }: Props) {
 
       <HomeHowItWorksSection />
 
-      <FAQ items={enrollmentFaqItems} title="Dúvidas sobre a matrícula" />
+      {faqItems.length > 0 && <FAQ items={faqItems} title="Dúvidas sobre a matrícula" />}
 
-      <Section title="Estrutura da formação" background="muted">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {comoFunciona.map((etapa, i) => (
-            <Card key={i} as="article">
-              <h4 className="font-semibold text-[var(--igh-secondary)]">{etapa.titulo}</h4>
-              <p className="mt-2 text-sm text-[var(--igh-muted)]">{etapa.descricao}</p>
-            </Card>
-          ))}
-        </div>
-        <div className="mt-8 flex justify-center">
-          <Button as="link" href="/inscreva" variant="primary" size="lg">
-            Quero me inscrever
-          </Button>
-        </div>
-      </Section>
+      {comoFunciona.length > 0 && (
+        <Section title="Estrutura da formação" background="muted">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {comoFunciona.map((etapa, i) => (
+              <Card key={i} as="article">
+                <h4 className="font-semibold text-[var(--igh-secondary)]">{etapa.titulo}</h4>
+                <p className="mt-2 text-sm text-[var(--igh-muted)]">{etapa.descricao}</p>
+              </Card>
+            ))}
+          </div>
+          <div className="mt-8 flex justify-center">
+            <Button as="link" href="/inscreva" variant="primary" size="lg">
+              Quero me inscrever
+            </Button>
+          </div>
+        </Section>
+      )}
     </>
   );
 }

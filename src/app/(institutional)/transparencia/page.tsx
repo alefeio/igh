@@ -1,10 +1,11 @@
 import { PageHeader, Section, Card } from "@/components/site";
+import { BRAND, pageTitle } from "@/lib/brand";
 import { hostedRawUrlForDownload } from "@/lib/hosted-file-url";
 import { getTransparencyForSite } from "@/lib/site-data";
 
 export const metadata = {
-  title: "Transparência | IGH",
-  description: "Editais, convênios e relatórios do IGH.",
+  title: pageTitle("Transparência"),
+  description: `Editais, convênios e relatórios do ${BRAND.shortName}.`,
 };
 
 function formatDate(d: Date | null): string {

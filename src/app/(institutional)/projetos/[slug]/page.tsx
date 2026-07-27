@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { PageHeader, Section, Button } from "@/components/site";
+import { pageTitle, pageTitleLegal } from "@/lib/brand";
 import { getProjectBySlug, getProjectsForSite } from "@/lib/site-data";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -12,11 +13,11 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const p = await getProjectBySlug(slug);
-  if (!p) return { title: "Projeto | IGH" };
+  if (!p) return { title: pageTitle("Projeto") };
   return {
-    title: `${p.title} | Instituto Gustavo Hessel`,
+    title: pageTitleLegal(p.title),
     description: p.summary ?? undefined,
-    openGraph: { title: `${p.title} | IGH`, description: p.summary ?? undefined },
+    openGraph: { title: pageTitle(p.title), description: p.summary ?? undefined },
   };
 }
 

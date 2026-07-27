@@ -9,27 +9,25 @@ import { PDFDocument, rgb } from "pdf-lib";
 
 import {
   BACK_LAYOUT,
-  COURSE_CERTIFICATE_CITY_BACK,
-  COURSE_CERTIFICATE_CITY_FRONT,
   COURSE_CERTIFICATE_MIN_WORKLOAD_HOURS,
   FRONT_LAYOUT,
 } from "@/lib/course-certificate-layout";
 import type { CertificateZipPages } from "@/lib/course-certificate-pdf-naming";
 import { studentCertificatePdfFileName } from "@/lib/course-certificate-pdf-naming";
+import { formatCertificatePlaceDate } from "@/lib/certificate-issue-place";
 import { uploadCertificatePdfToApimages } from "@/lib/holiday-event-certificate";
 
-const FRONT_TEMPLATE_PATH = path.join(
+/**
+ * Diretório da arte dos certificados. É configurável porque a arte é específica
+ * de cada instituição, e os dois deploys compartilham o mesmo repositório: cada
+ * um aponta para a sua pasta em `assets/`.
+ */
+const CERTIFICATE_TEMPLATE_DIR = path.join(
   process.cwd(),
-  "assets",
-  "certificates",
-  "course-completion-front.pdf",
+  process.env.CERTIFICATE_TEMPLATE_DIR?.trim() || path.join("assets", "certificates"),
 );
-const BACK_TEMPLATE_PATH = path.join(
-  process.cwd(),
-  "assets",
-  "certificates",
-  "course-completion-back.pdf",
-);
+const FRONT_TEMPLATE_PATH = path.join(CERTIFICATE_TEMPLATE_DIR, "course-completion-front.pdf");
+const BACK_TEMPLATE_PATH = path.join(CERTIFICATE_TEMPLATE_DIR, "course-completion-back.pdf");
 const FONT_REGULAR_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Regular.ttf");
 const FONT_BOLD_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Bold.ttf");
 
@@ -166,7 +164,7 @@ function drawFrontPage(
   const courseNameUpper = (input.courseName || "").trim().toUpperCase() || "CURSO";
   const hours = String(resolveCertificateWorkloadHours(input.workloadHours));
   const dateLabel = formatCertificateDatePtBr(input.issuedAt);
-  const frontDate = `${COURSE_CERTIFICATE_CITY_FRONT}, ${dateLabel}`;
+  const frontDate = formatCertificatePlaceDate(input.issueCityState ?? "", dateLabel);
 
   drawSingleLineFitted(front, studentName, {
     ...FRONT_LAYOUT.studentName,
@@ -195,7 +193,7 @@ async function drawBackPage(
   const courseNameDisplay = (input.courseName || "").trim() || "Curso";
   const hours = String(resolveCertificateWorkloadHours(input.workloadHours));
   const dateLabel = formatCertificateDatePtBr(input.issuedAt);
-  const backDate = `${COURSE_CERTIFICATE_CITY_BACK}, ${dateLabel}`;
+  const backDate = formatCertificatePlaceDate(input.issueCity ?? "", dateLabel);
   const teacherName = (input.teacherName || "").trim() || "Professor";
 
   drawSingleLineFitted(back, `Curso de ${courseNameDisplay}`, {
@@ -264,6 +262,10 @@ export type CourseCompletionCertificateInput = {
   teacherName: string;
   teacherSignatureUrl: string | null;
   issuedAt: Date;
+  /** Cidade no verso (ex.: "Brasília"). */
+  issueCity?: string | null;
+  /** Local na frente (ex.: "Brasília/DF"). */
+  issueCityState?: string | null;
 };
 
 export type GenerateCertificateOptions = {

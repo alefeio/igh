@@ -41,6 +41,10 @@ type Settings = {
   seoDescriptionDefault: string | null;
   /** Base para links em e-mails (campanhas): {link}, {link_area_aluno} */
   publicAppUrl: string | null;
+  /** Cidade padrão do certificado quando o local da turma não define uma. */
+  certificateCity: string | null;
+  /** UF padrão do certificado (ex.: DF). */
+  certificateCityState: string | null;
 };
 
 const empty = (s: string | null | undefined) => s ?? "";
@@ -200,6 +204,8 @@ export default function ConfiguracoesPage() {
         seoTitleDefault: empty(s.seoTitleDefault),
         seoDescriptionDefault: empty(s.seoDescriptionDefault),
         publicAppUrl: empty((s as Settings).publicAppUrl),
+        certificateCity: empty((s as Settings).certificateCity),
+        certificateCityState: empty((s as Settings).certificateCityState),
       });
       setAddresses(addrs.map((a: AddressEntry) => ({ ...a })));
     } finally {
@@ -459,6 +465,42 @@ export default function ConfiguracoesPage() {
                   value={form.secondaryColor ?? ""}
                   onChange={(e) => setForm((f) => ({ ...f, secondaryColor: e.target.value }))}
                   placeholder="#1a365d"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">Certificados</div>
+          <div className="card-body flex flex-col gap-3">
+            <p className="text-sm text-[var(--text-muted)]">
+              Cidade impressa no certificado quando o local do polo da turma não define uma. Em{" "}
+              <strong>Polos</strong>, cada local pode ter a própria cidade.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-[1fr_6rem]">
+              <div>
+                <label className="text-sm font-medium">Cidade padrão</label>
+                <Input
+                  className="mt-1"
+                  value={form.certificateCity ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, certificateCity: e.target.value }))}
+                  placeholder="Ex: Brasília"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">UF</label>
+                <Input
+                  className="mt-1"
+                  value={form.certificateCityState ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      certificateCityState: e.target.value.toUpperCase().slice(0, 2),
+                    }))
+                  }
+                  placeholder="DF"
+                  maxLength={2}
                 />
               </div>
             </div>

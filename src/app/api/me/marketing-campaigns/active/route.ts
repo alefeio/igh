@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import { BRAND } from "@/lib/brand";
 import { jsonOk } from "@/lib/http";
 import { isMarketingCampaignActiveInWindow } from "@/lib/marketing-campaign-active";
 
@@ -24,8 +25,7 @@ export async function GET() {
   if (!active) return jsonOk({ campaign: null });
 
   // Conteúdo específico (Dia das Mães): garante copy correta mesmo se o DB ainda tiver texto antigo.
-  const mothersCopy =
-    "Conte-nos um pouco sobre a sua mãe e como ela contribuiu para que você pudesse estar aqui hoje, buscando uma qualificação profissional no IGH.";
+  const mothersCopy = `Conte-nos um pouco sobre a sua mãe e como ela contribuiu para que você pudesse estar aqui hoje, buscando uma qualificação profissional no ${BRAND.shortName}.`;
   const description =
     active.slug === "dia-das-maes-2026" ? mothersCopy : (active.description ?? null);
 

@@ -1,5 +1,6 @@
 import { ComunidadeTopicPublicPage } from "@/components/community/ComunidadePublicPage";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { BRAND } from "@/lib/brand";
 
 type Props = {
   params: Promise<{ topicId: string }>;
@@ -8,8 +9,8 @@ type Props = {
 export async function generateMetadata({ params }: Props) {
   const { topicId } = await params;
   return {
-    title: "Discussão na Comunidade IGH",
-    description: `Tópico da Comunidade IGH (PII) · ${topicId}`,
+    title: `Discussão na ${BRAND.communityName}`,
+    description: `Tópico da ${BRAND.communityName} (PII) · ${topicId}`,
   };
 }
 

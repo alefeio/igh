@@ -1,11 +1,14 @@
 import { PageHeader, NoticiasList } from "@/components/site";
 import type { PostForCard } from "@/components/site/NoticiasList";
+import { BRAND, pageTitle, pageTitleLegal } from "@/lib/brand";
 import { getNewsCategoriesForSite, getNewsPostsForSite } from "@/lib/site-data";
 
+const newsSubtitle = `Acompanhe as novidades do ${BRAND.shortName}.`;
+
 export const metadata = {
-  title: "Notícias | Instituto Gustavo Hessel",
-  description: "Acompanhe as novidades do IGH.",
-  openGraph: { title: "Notícias | IGH", description: "Acompanhe as novidades do IGH." },
+  title: pageTitleLegal("Notícias"),
+  description: newsSubtitle,
+  openGraph: { title: pageTitle("Notícias"), description: newsSubtitle },
 };
 
 function toPostForCard(p: {
@@ -40,7 +43,7 @@ export default async function NoticiasPage() {
 
   return (
     <>
-      <PageHeader title="Notícias" subtitle="Acompanhe as novidades do IGH." />
+      <PageHeader title="Notícias" subtitle={newsSubtitle} />
       <NoticiasList posts={postsForCard} categories={categories} />
     </>
   );

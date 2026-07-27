@@ -4,6 +4,7 @@ import { Award, ChevronRight, Flame, PlayCircle, Star, Trophy } from "lucide-rea
 import { DashboardForumActivityRail } from "@/components/dashboard/DashboardForumActivityRail";
 import { DashboardStudentRanking } from "@/components/dashboard/DashboardStudentRanking";
 import { SectionCard } from "@/components/dashboard/DashboardUI";
+import { BRAND } from "@/lib/brand";
 import type { DashboardForumLessonActivity } from "@/lib/dashboard-forum-activity";
 import type { DashboardDataStudent } from "@/lib/dashboard-data";
 import {
@@ -66,7 +67,7 @@ export function StudentEvolucaoPanels({
         <div className="flex min-h-0 flex-col">
           <SectionCard
             title="Sua evolução"
-            description="Pontos, nível e conquistas — acompanhe sua jornada no IGH."
+            description={`Pontos, nível e conquistas — acompanhe sua jornada no ${BRAND.shortName}.`}
             id="gamificacao-heading"
             dataTour="dashboard-sua-evolucao"
             variant="elevated"

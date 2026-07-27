@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BRAND } from "@/lib/brand";
 import { Section } from "./Section";
 import { Card } from "./Card";
 
@@ -71,13 +72,13 @@ const items: { title: string; body: string; icon: ReactNode }[] = [
 ];
 
 /**
- * Secção institucional: como é estudar no IGH na prática (experiência digital).
+ * Secção institucional: como é estudar na instituição na prática (experiência digital).
  */
 export function HomeStudentJourneySection() {
   return (
     <Section
       id="experiencia-plataforma"
-      title="Como você estuda no IGH"
+      title={`Como você estuda no ${BRAND.shortName}`}
       subtitle="Formação presencial e híbrida com apoio digital: aulas, fórum, ranking, avisos e calendário num só ambiente."
       background="muted"
     >

@@ -508,6 +508,10 @@ model PoloLocation {
   poloId      String
   name        String
   address     String?
+  /// * Cidade de emissão do certificado para turmas deste local (ex.: "Belém", "Brasília").
+  city        String?
+  /// * UF da cidade de emissão (ex.: "PA", "DF").
+  state       String?
   isActive    Boolean      @default(true)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -1122,6 +1126,10 @@ model SiteSettings {
   addresses             Json?
   /// * Base URL do site (https://...) para placeholders {link}, {link_area_aluno} em e-mails quando APP_URL não está no .env
   publicAppUrl          String?
+  /// * Cidade padrão impressa no certificado quando o local da turma não define uma (ex.: "Brasília").
+  certificateCity       String?
+  /// * UF padrão do certificado (ex.: "DF"). Combinada com certificateCity na frente ("Brasília/DF").
+  certificateCityState  String?
 }
 
 /// * QR Codes gerados em Configurações do site (título, link alvo, imagem central opcional, PNG final no CDN).

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { BRAND } from "@/lib/brand";
 import { prisma } from "@/lib/prisma";
 import { expandHolidayDateStringsInRange } from "@/lib/schedule";
 import { isTimedHolidayEvent } from "@/lib/public-calendar-shared";
@@ -19,7 +20,7 @@ function brazilTodayYmd(): string {
 }
 
 function formatEventLabel(name: string | null, start: string | null, end: string | null): string {
-  const label = name?.trim() || "Evento IGH";
+  const label = name?.trim() || `Evento ${BRAND.shortName}`;
   if (start && end) return `${label} (${start.slice(0, 5)} – ${end.slice(0, 5)})`;
   return label;
 }

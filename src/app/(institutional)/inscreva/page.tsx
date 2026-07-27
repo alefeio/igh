@@ -1,12 +1,12 @@
 import { Suspense } from "react";
 import { FAQ, PageHeader, Section } from "@/components/site";
-import { enrollmentFaqItems } from "@/content";
-import { getInscrevaPageForSite } from "@/lib/site-data";
+import { BRAND } from "@/lib/brand";
+import { getFaqItems, getInscrevaPageForSite } from "@/lib/site-data";
 import { InscrevaForm } from "./InscrevaForm";
 
 export const metadata = {
   title: "Inscreva-se",
-  description: "Faça sua pré-matrícula nas formações do IGH. Escolha a turma e inscreva-se.",
+  description: `Faça sua pré-matrícula nas formações do ${BRAND.shortName}. Escolha a turma e inscreva-se.`,
 };
 
 function InscrevaFormFallback() {
@@ -21,19 +21,22 @@ function InscrevaFormFallback() {
 }
 
 export default async function InscrevaPage() {
-  const inscrevaPage = await getInscrevaPageForSite();
-  const headerTitle = inscrevaPage?.title?.trim() || "Inscreva-se";
-  const headerSubtitle = inscrevaPage?.subtitle?.trim() || "Escolha uma turma e faça sua pré-matrícula.";
+  const [inscrevaPage, faqFromDb] = await Promise.all([getInscrevaPageForSite(), getFaqItems()]);
+  const headerTitle = inscrevaPage?.title?.trim() || "";
+  const headerSubtitle = inscrevaPage?.subtitle?.trim() || "";
   const headerImageUrl = inscrevaPage?.headerImageUrl?.trim() || null;
+  const faqItems = faqFromDb.map((i) => ({ pergunta: i.question, resposta: i.answer }));
 
   return (
     <>
-      <PageHeader
-        title={headerTitle}
-        subtitle={headerSubtitle}
-        backgroundImageUrl={headerImageUrl}
-        compact
-      />
+      {(headerTitle || headerSubtitle || headerImageUrl) && (
+        <PageHeader
+          title={headerTitle}
+          subtitle={headerSubtitle || undefined}
+          backgroundImageUrl={headerImageUrl}
+          compact
+        />
+      )}
       <Section background="muted" className="min-h-[50vh]">
         <div className="mx-auto max-w-5xl">
           <Suspense fallback={<InscrevaFormFallback />}>
@@ -41,7 +44,7 @@ export default async function InscrevaPage() {
           </Suspense>
         </div>
       </Section>
-      <FAQ items={enrollmentFaqItems} title="Dúvidas sobre a matrícula" />
+      {faqItems.length > 0 && <FAQ items={faqItems} title="Dúvidas sobre a matrícula" />}
     </>
   );
 }

@@ -4,6 +4,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { FaCommentDots, FaTimes } from "react-icons/fa";
 
+import { BRAND } from "@/lib/brand";
+
 const ANA_AVATAR = "/images/Ana-Atendente-Virtual.png";
 const TYPING_DELAY_MS = 1200;
 
@@ -34,8 +36,7 @@ function buildWhatsAppHref(contactWhatsapp: string | null | undefined): string |
   return `https://wa.me/${withCountry}`;
 }
 
-const WELCOME_MESSAGE =
-  "Olá! Sou a Nina, atendente virtual do IGH. O que você precisa? Escolha uma opção abaixo.";
+const WELCOME_MESSAGE = `Olá! Sou a Nina, atendente virtual do ${BRAND.shortName}. O que você precisa? Escolha uma opção abaixo.`;
 
 /** Âncora para abrir o chat via link (ex.: banner). Use o link /#nina ou qualquer página + #nina */
 export const CHAT_OPEN_HASH = "nina";

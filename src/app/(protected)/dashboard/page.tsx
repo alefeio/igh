@@ -37,6 +37,7 @@ import { StudentPlatformExperienceModal } from "@/components/student/StudentPlat
 import { StudentMarketingCampaignModal } from "@/components/student/StudentMarketingCampaignModal";
 import { TabletBannerViewer } from "@/components/tablet/TabletBannerViewer";
 import { requireSessionUser } from "@/lib/auth";
+import { BRAND } from "@/lib/brand";
 import {
   getDashboardData,
   type DashboardData,
@@ -885,7 +886,7 @@ function DashboardStudent({
     ...(hasEnrollment ? courseQuickActions : []),
     {
       href: "/comunidade",
-      label: "Comunidade IGH (PII)",
+      label: `${BRAND.communityName} (PII)`,
       description: "Ideias de projeto, equipes e debate entre todos os cursos",
       icon: Sparkles,
       accent: "from-[var(--igh-primary)] to-cyan-600",
@@ -939,7 +940,7 @@ function DashboardStudent({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-[var(--text-primary)]">
-                      {r.holidayName ?? "Evento IGH"}
+                      {r.holidayName ?? `Evento ${BRAND.shortName}`}
                     </p>
                     <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                       {formatDateOnly(r.occurrenceDate)}

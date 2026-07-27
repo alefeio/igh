@@ -1,5 +1,6 @@
 import { CookieConsentBanner, Navbar, Footer, FloatingChatWidget } from "@/components/site";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { BRAND } from "@/lib/brand";
 import { getMenuItems, getSiteSettings } from "@/lib/site-data";
 
 function absoluteUrl(pathOrUrl: string, baseUrl: string): string {
@@ -9,19 +10,24 @@ function absoluteUrl(pathOrUrl: string, baseUrl: string): string {
   return `${base}${path}`;
 }
 
+function resolveBaseUrl(): string {
+  const app = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (app) return app.replace(/\/$/, "");
+  const vercel = process.env.VERCEL_URL?.trim();
+  if (vercel) return `https://${vercel.replace(/^https?:\/\//, "")}`;
+  return "";
+}
+
 export async function generateMetadata() {
   const settings = await getSiteSettings();
-  const siteName = settings?.siteName ?? "IGH";
-  const defaultTitle = "Instituto Gustavo Hessel | Formação em tecnologia e inclusão digital";
-  const defaultDescription =
-    "Formações gratuitas em programação, dados, UX/UI e mais, com apoio digital para acompanhar aulas, turma e progresso. Inclusão digital e recondicionamento de computadores.";
-  const title = settings?.seoTitleDefault ?? defaultTitle;
-  const description = settings?.seoDescriptionDefault ?? defaultDescription;
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
+  const siteName = settings?.siteName ?? BRAND.shortName;
+  const title = settings?.seoTitleDefault ?? BRAND.seoTitle;
+  const description = settings?.seoDescriptionDefault ?? BRAND.seoDescription;
+  const baseUrl = resolveBaseUrl();
 
   const openGraph: { title: string; description: string; images?: { url: string; width?: number; height?: number; alt?: string }[] } = {
-    title: settings?.seoTitleDefault ?? "Instituto Gustavo Hessel",
-    description: settings?.seoDescriptionDefault ?? defaultDescription,
+    title: settings?.seoTitleDefault ?? BRAND.legalName,
+    description,
   };
   const logoUrl = settings?.logoUrl?.trim();
   if (logoUrl) {

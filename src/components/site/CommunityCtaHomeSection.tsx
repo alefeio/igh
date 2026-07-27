@@ -1,5 +1,6 @@
 import { MessageCircle, Sparkles, Users } from "lucide-react";
 
+import { BRAND } from "@/lib/brand";
 import { Container } from "./Container";
 import { Button } from "./Button";
 
@@ -30,14 +31,14 @@ export function CommunityCtaHomeSection({
           <div>
             <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/90">
               <Sparkles className="h-3.5 w-3.5" aria-hidden />
-              Comunidade IGH · PII
+              {BRAND.communityName} · PII
             </p>
             <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
               Conecte-se, compartilhe ideias e inove com alunos de todos os cursos
             </h2>
             <p className="mt-4 text-lg text-white/90">
-              A Comunidade IGH é o espaço do Projeto de Integração e Inovação: publique ideias, encontre parceiros para
-              equipes multidisciplinares e participe de debates — mesmo antes de entrar em uma turma.
+              A {BRAND.communityName} é o espaço do Projeto de Integração e Inovação: publique ideias, encontre parceiros
+              para equipes multidisciplinares e participe de debates — mesmo antes de entrar em uma turma.
             </p>
             <ul className="mt-6 space-y-2 text-sm text-white/85">
               <li className="flex items-start gap-2">
@@ -50,7 +51,7 @@ export function CommunityCtaHomeSection({
               </li>
               <li className="flex items-start gap-2">
                 <Sparkles className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                Professores e equipe IGH participam das conversas
+                Professores e equipe {BRAND.shortName} participam das conversas
               </li>
             </ul>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -62,7 +63,7 @@ export function CommunityCtaHomeSection({
                   size="lg"
                   className="!bg-white !text-[var(--igh-secondary-solid)] hover:!bg-white/90"
                 >
-                  Acessar Comunidade IGH
+                  Acessar {BRAND.communityName}
                 </Button>
               ) : (
                 <>
@@ -91,7 +92,7 @@ export function CommunityCtaHomeSection({
                     size="lg"
                     className="border-white text-white hover:bg-white/10"
                   >
-                    Conhecer a Comunidade IGH
+                    Conhecer a {BRAND.communityName}
                   </Button>
                 </>
               )}
@@ -116,13 +117,13 @@ export function CommunityCtaHomeSection({
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
                     2
                   </span>
-                  <span>Entre na Comunidade IGH e explore as discussões em andamento.</span>
+                  <span>Entre na {BRAND.communityName} e explore as discussões em andamento.</span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
                     3
                   </span>
-                  <span>Publique sua ideia, marque tags e converse com a rede IGH.</span>
+                  <span>Publique sua ideia, marque tags e converse com a rede {BRAND.shortName}.</span>
                 </li>
               </ol>
             ) : (
@@ -143,7 +144,7 @@ export function CommunityCtaHomeSection({
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold">
                     3
                   </span>
-                  <span>Publique sua ideia, marque tags e converse com a rede IGH.</span>
+                  <span>Publique sua ideia, marque tags e converse com a rede {BRAND.shortName}.</span>
                 </li>
               </ol>
             )}

@@ -4,6 +4,8 @@ import { PanelLeft, PanelLeftClose } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { BRAND } from "@/lib/brand";
+
 type PanelRole = "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
 
 type Item = {
@@ -40,14 +42,14 @@ const ITEMS: Item[] = [
   { href: "/minhas-turmas", label: "Minhas turmas", roles: ["STUDENT"], category: "Aluno" },
   { href: "/minhas-turmas/evolucao", label: "Evolução e ranking", roles: ["STUDENT"], category: "Aluno" },
   { href: "/minhas-turmas/calendario", label: "Calendário de aulas", roles: ["STUDENT"], category: "Aluno" },
-  { href: "/comunidade", label: "Comunidade IGH (PII)", roles: ["STUDENT"], category: "Aluno" },
+  { href: "/comunidade", label: `${BRAND.communityName} (PII)`, roles: ["STUDENT"], category: "Aluno" },
   { href: "/minhas-turmas/forum", label: "Fórum dos cursos", roles: ["STUDENT"], category: "Aluno" },
 
   /* —— Professor —— */
   { href: "/professor/turmas", label: "Turmas que leciono", roles: ["TEACHER"], category: "Professor" },
   { href: "/professor/acompanhamento", label: "Acompanhamento", roles: ["TEACHER"], category: "Professor" },
   { href: "/professor/calendario", label: "Calendário de aulas", roles: ["TEACHER"], category: "Professor" },
-  { href: "/comunidade", label: "Comunidade IGH (PII)", roles: ["TEACHER"], category: "Professor" },
+  { href: "/comunidade", label: `${BRAND.communityName} (PII)`, roles: ["TEACHER"], category: "Professor" },
   { href: "/professor/forum", label: "Fórum dos cursos", roles: ["TEACHER"], category: "Professor" },
   { href: "/professor/eventos", label: "Eventos (presença)", roles: ["TEACHER"], category: "Professor" },
   { href: "/professor/frequencia", label: "Frequência", roles: ["TEACHER"], category: "Professor" },
@@ -79,8 +81,8 @@ const ITEMS: Item[] = [
   { href: "/master/acessos", label: "Acessos ao sistema", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/approvacoes", label: "Aprovações do site", roles: MASTER_ONLY, category: "Administração" },
   { href: "/admin/site/formacoes", label: "Formações (catálogo)", roles: MASTER_AND_ADMIN, category: "Administração" },
-  { href: "/admin/comunidade", label: "Comunidade IGH — moderação", roles: MASTER_AND_ADMIN, category: "Administração" },
-  { href: "/comunidade", label: "Comunidade IGH (PII)", roles: MASTER_AND_ADMIN, category: "Administração" },
+  { href: "/admin/comunidade", label: `${BRAND.communityName} — moderação`, roles: MASTER_AND_ADMIN, category: "Administração" },
+  { href: "/comunidade", label: `${BRAND.communityName} (PII)`, roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/admin/forum", label: "Fóruns — todos os cursos", roles: MASTER_AND_ADMIN, category: "Administração" },
   {
     href: "/admin/avaliacoes-experiencia",

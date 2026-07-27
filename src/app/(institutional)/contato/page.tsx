@@ -22,8 +22,8 @@ function formatAddress(a: { line: string; city: string; state: string; zip: stri
 export default async function ContatoPage() {
   const [settings, contatoPage] = await Promise.all([getSiteSettings(), getContatoPageForSite()]);
   const addresses = normalizeAddresses(settings?.addresses);
-  const headerTitle = contatoPage?.title?.trim() || "Contato";
-  const headerSubtitle = contatoPage?.subtitle?.trim() || "Envie sua mensagem ou inscreva-se nas formações.";
+  const headerTitle = contatoPage?.title?.trim() || "";
+  const headerSubtitle = contatoPage?.subtitle?.trim() || "";
   const headerImageUrl = contatoPage?.headerImageUrl?.trim() || null;
   const firstAddressLine = addresses.length > 0 ? formatAddress(addresses[0]) : null;
 
@@ -46,7 +46,7 @@ export default async function ContatoPage() {
     <>
       <PageHeader
         title={headerTitle}
-        subtitle={headerSubtitle}
+        subtitle={headerSubtitle || undefined}
         backgroundImageUrl={headerImageUrl}
       />
       <Section id="inscreva">

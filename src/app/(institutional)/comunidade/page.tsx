@@ -1,10 +1,10 @@
 import { ComunidadePublicPage } from "@/components/community/ComunidadePublicPage";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { BRAND } from "@/lib/brand";
 
 export const metadata = {
-  title: "Comunidade IGH",
-  description:
-    "Comunidade aberta do Projeto de Integração e Inovação (PII): ideias, equipes e debates entre cursos do Instituto Gustavo Hessel.",
+  title: BRAND.communityName,
+  description: `Comunidade aberta do Projeto de Integração e Inovação (PII): ideias, equipes e debates entre cursos do ${BRAND.legalName}.`,
 };
 
 export default async function ComunidadePage() {

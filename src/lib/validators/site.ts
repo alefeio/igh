@@ -67,6 +67,8 @@ export const siteSettingsSchema = z.object({
   seoTitleDefault: z.string().optional(),
   seoDescriptionDefault: z.string().optional(),
   publicAppUrl: z.union([z.literal(""), z.string().url("URL inválida (use https://...)")]).optional(),
+  certificateCity: z.string().max(120).optional(),
+  certificateCityState: z.string().max(2).optional(),
 });
 
 // SiteMenuItem

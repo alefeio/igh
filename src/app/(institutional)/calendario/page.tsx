@@ -5,13 +5,15 @@ import { PublicCalendarHighlightBanner } from "@/components/site/PublicCalendarH
 import { PublicIghCalendar } from "@/components/site/PublicIghCalendar";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { getTurnstileSiteKey } from "@/lib/bot-protection";
+import { BRAND } from "@/lib/brand";
 import { getActiveHolidayCalendarBanner } from "@/lib/holiday-calendar-banner";
 import { parsePublicCalendarSearchParams } from "@/lib/public-calendar-shared";
 
+const calendarTitle = `Calendário ${BRAND.shortName}`;
+
 export const metadata = {
-  title: "Calendário IGH",
-  description:
-    "Feriados, eventos e inscrições do Instituto Geração Humana. Veja o calendário institucional e participe dos eventos abertos.",
+  title: calendarTitle,
+  description: `Feriados, eventos e inscrições do ${BRAND.legalName}. Veja o calendário institucional e participe dos eventos abertos.`,
 };
 
 export const dynamic = "force-dynamic";
@@ -32,7 +34,7 @@ export default async function CalendarioPublicoPage({ searchParams }: Props) {
   return (
     <>
       <PageHeader
-        title="Calendário IGH"
+        title={calendarTitle}
         subtitle="Feriados, eventos institucionais e inscrições abertas. Clique em um dia para ver os detalhes."
       />
       <section className="pb-16 pt-4">

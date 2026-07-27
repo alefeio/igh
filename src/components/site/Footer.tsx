@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FaInstagram, FaFacebookF, FaYoutube, FaLinkedin, FaWhatsapp } from "react-icons/fa";
 import { Container } from "./Container";
+import { BRAND } from "@/lib/brand";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
 
 const FALLBACK_LINKS = [
@@ -47,7 +48,7 @@ function formatAddress(a: AddressEntry): string {
 export function Footer({ menuItems, settings }: FooterProps) {
   const showHierarchy = menuItems && menuItems.length > 0 && hasSubItems(menuItems);
 
-  const siteName = settings?.siteName ?? "Instituto Gustavo Hessel";
+  const siteName = settings?.siteName ?? BRAND.legalName;
   const addresses = normalizeAddresses(settings?.addresses);
   const addressLines = addresses.map(formatAddress).filter(Boolean);
 

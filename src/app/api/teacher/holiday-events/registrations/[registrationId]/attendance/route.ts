@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
+import { BRAND } from "@/lib/brand";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { generateHolidayEventCertificatePdfBytes, uploadCertificatePdfToApimages } from "@/lib/holiday-event-certificate";
 import { z } from "zod";
@@ -73,7 +74,7 @@ export async function POST(
     try {
       const pdfBytes = await generateHolidayEventCertificatePdfBytes({
         participantName: (reg.user?.name ?? reg.guestName ?? "Participante").trim(),
-        eventName: reg.holiday.name?.trim() || "Evento IGH",
+        eventName: reg.holiday.name?.trim() || `Evento ${BRAND.shortName}`,
         occurrenceDate: reg.occurrenceDate,
         eventStartTime: reg.holiday.eventStartTime,
         eventEndTime: reg.holiday.eventEndTime,

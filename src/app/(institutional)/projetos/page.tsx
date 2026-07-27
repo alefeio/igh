@@ -1,10 +1,11 @@
 import { PageHeader, Section, Card, Button } from "@/components/site";
+import { BRAND, pageTitle, pageTitleLegal } from "@/lib/brand";
 import { getProjectsForSite } from "@/lib/site-data";
 
 export const metadata = {
-  title: "Projetos | Instituto Gustavo Hessel",
-  description: "Conheça os projetos do IGH: CRC, Computadores para Inclusão, Doações e Entregas.",
-  openGraph: { title: "Projetos | IGH", description: "CRC, Computadores para Inclusão, Doações e Entregas." },
+  title: pageTitleLegal("Projetos"),
+  description: `Conheça os projetos do ${BRAND.shortName}: CRC, Computadores para Inclusão, Doações e Entregas.`,
+  openGraph: { title: pageTitle("Projetos"), description: "CRC, Computadores para Inclusão, Doações e Entregas." },
 };
 
 export default async function ProjetosPage() {

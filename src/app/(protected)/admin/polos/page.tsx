@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import { BRAND } from "@/lib/brand";
 
 type CoordUser = { id: string; name: string; email: string };
 
@@ -18,6 +19,8 @@ type PoloLocationRow = {
   id?: string;
   name: string;
   address: string;
+  city: string;
+  state: string;
   isActive: boolean;
   classGroupsCount?: number;
 };
@@ -32,6 +35,8 @@ type Polo = {
     id: string;
     name: string;
     address: string | null;
+    city: string | null;
+    state: string | null;
     isActive: boolean;
     classGroupsCount: number;
   }>;
@@ -52,7 +57,7 @@ export default function AdminPolosPage() {
   const [coordinatorUserId, setCoordinatorUserId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [locations, setLocations] = useState<PoloLocationRow[]>([
-    { name: "", address: "", isActive: true },
+    { name: "", address: "", city: "", state: "", isActive: true },
   ]);
 
   const load = useCallback(async () => {
@@ -86,7 +91,7 @@ export default function AdminPolosPage() {
     setName("");
     setCoordinatorUserId(coordinators[0]?.id ?? "");
     setIsActive(true);
-    setLocations([{ name: "", address: "", isActive: true }]);
+    setLocations([{ name: "", address: "", city: "", state: "", isActive: true }]);
     setOpen(true);
   }
 
@@ -101,10 +106,12 @@ export default function AdminPolosPage() {
             id: l.id,
             name: l.name,
             address: l.address ?? "",
+            city: l.city ?? "",
+            state: l.state ?? "",
             isActive: l.isActive,
             classGroupsCount: l.classGroupsCount,
           }))
-        : [{ name: "", address: "", isActive: true }],
+        : [{ name: "", address: "", city: "", state: "", isActive: true }],
     );
     setOpen(true);
   }
@@ -123,6 +130,8 @@ export default function AdminPolosPage() {
         ...(l.id ? { id: l.id } : {}),
         name: l.name.trim(),
         address: l.address.trim() || null,
+        city: l.city.trim() || null,
+        state: l.state.trim() || null,
         isActive: l.isActive,
       }))
       .filter((l) => l.name.length > 0);
@@ -171,7 +180,7 @@ export default function AdminPolosPage() {
     <div className="flex flex-col gap-6">
       <DashboardHero
         title="Polos"
-        description="Cadastre os polos do IGH, o coordenador responsável e os locais de cada polo. As turmas podem ser vinculadas a um local."
+        description={`Cadastre os polos do ${BRAND.shortName}, o coordenador responsável e os locais de cada polo. As turmas podem ser vinculadas a um local.`}
       />
 
       <SectionCard
@@ -301,17 +310,23 @@ export default function AdminPolosPage() {
                 variant="secondary"
                 size="sm"
                 onClick={() =>
-                  setLocations((prev) => [...prev, { name: "", address: "", isActive: true }])
+                  setLocations((prev) => [
+                    ...prev,
+                    { name: "", address: "", city: "", state: "", isActive: true },
+                  ])
                 }
               >
                 <Plus className="mr-1 h-3.5 w-3.5" aria-hidden />
                 Local
               </Button>
             </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              Cidade e UF do local são usadas no certificado das turmas vinculadas a ele.
+            </p>
             {locations.map((loc, idx) => (
               <div
                 key={loc.id ?? `new-${idx}`}
-                className="grid gap-2 rounded-lg border border-[var(--card-border)] p-3 sm:grid-cols-[1fr_1fr_auto_auto]"
+                className="grid gap-2 rounded-lg border border-[var(--card-border)] p-3 sm:grid-cols-[1.2fr_1.4fr_1fr_0.5fr_auto_auto]"
               >
                 <Input
                   value={loc.name}
@@ -330,6 +345,27 @@ export default function AdminPolosPage() {
                     )
                   }
                   placeholder="Endereço (opcional)"
+                />
+                <Input
+                  value={loc.city}
+                  onChange={(e) =>
+                    setLocations((prev) =>
+                      prev.map((row, i) => (i === idx ? { ...row, city: e.target.value } : row)),
+                    )
+                  }
+                  placeholder="Cidade (certificado)"
+                />
+                <Input
+                  value={loc.state}
+                  onChange={(e) =>
+                    setLocations((prev) =>
+                      prev.map((row, i) =>
+                        i === idx ? { ...row, state: e.target.value.toUpperCase().slice(0, 2) } : row,
+                      ),
+                    )
+                  }
+                  placeholder="UF"
+                  maxLength={2}
                 />
                 <label className="flex items-center gap-1.5 text-xs">
                   <input

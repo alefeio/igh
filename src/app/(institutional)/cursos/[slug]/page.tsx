@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, Container, Section, Button } from "@/components/site";
+import { pageTitle, pageTitleLegal } from "@/lib/brand";
 import { getCourseBySlug } from "@/lib/site-data";
 import { CourseCtaFloating } from "./CourseCtaFloating";
 
@@ -9,12 +10,12 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const course = await getCourseBySlug(slug);
-  if (!course) return { title: "Curso | IGH" };
+  if (!course) return { title: pageTitle("Curso") };
   return {
-    title: `${course.name} | Instituto Gustavo Hessel`,
+    title: pageTitleLegal(course.name),
     description: course.description ?? undefined,
     openGraph: {
-      title: `${course.name} | IGH`,
+      title: pageTitle(course.name),
       description: course.description ?? undefined,
     },
   };

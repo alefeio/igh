@@ -72,7 +72,7 @@ export function RichTextEditor({
       StarterKit,
       Link.configure({
         openOnClick: false,
-        HTMLAttributes: { target: "_blank", rel: "noopener noreferrer" },
+        HTMLAttributes: { class: "text-[var(--igh-primary)] underline" },
       }),
       ImageWithResize,
       TableKit,
@@ -133,7 +133,10 @@ export function RichTextEditor({
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
       return;
     }
-    const withProtocol = /^[a-zA-Z]+:/.test(href) ? href : `https://${href}`;
+    const withProtocol =
+      /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href) || href.startsWith("/") || href.startsWith("#")
+        ? href
+        : `https://${href}`;
     editor.chain().focus().extendMarkRange("link").setLink({ href: withProtocol }).run();
   }, [editor]);
 

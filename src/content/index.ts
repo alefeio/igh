@@ -10,3 +10,4 @@ export type { PostCategory } from "./posts";
 export { documentos, categoriasTransparencia } from "./transparencia";
 export type { CategoriaDocumento } from "./transparencia";
 export { ESPACO_MAKER_PAGE_DEFAULT } from "./espaco-maker";
+export { ABOUT_PAGE_DEFAULT } from "./about";

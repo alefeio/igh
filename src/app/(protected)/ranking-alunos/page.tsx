@@ -5,12 +5,13 @@ import { ChevronLeft } from "lucide-react";
 import { CycleFilterSelect } from "@/components/dashboard/CycleFilterSelect";
 import { RankingAlunosFullTable, type RankingPlacementInfo } from "@/components/dashboard/RankingAlunosFullTable";
 import { requireSessionUser } from "@/lib/auth";
+import { pageTitle } from "@/lib/brand";
 import { getCachedStudentGamificationRankingFull } from "@/lib/cached-dashboard-queries";
 import { getGamificationCycleContext } from "@/lib/gamification-cycle";
 import { prisma } from "@/lib/prisma";
 
 export const metadata = {
-  title: "Ranking de alunos | IGH",
+  title: pageTitle("Ranking de alunos"),
   description: "Ranking completo de gamificação por ciclo — aulas, exercícios, presença e fórum.",
 };
 

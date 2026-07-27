@@ -14,6 +14,8 @@ const poloInclude = {
       id: true,
       name: true,
       address: true,
+      city: true,
+      state: true,
       isActive: true,
       _count: { select: { classGroups: true } },
     },
@@ -33,6 +35,8 @@ function mapPolo(p: {
     id: string;
     name: string;
     address: string | null;
+    city: string | null;
+    state: string | null;
     isActive: boolean;
     _count: { classGroups: number };
   }>;
@@ -48,6 +52,8 @@ function mapPolo(p: {
       id: l.id,
       name: l.name,
       address: l.address,
+      city: l.city,
+      state: l.state,
       isActive: l.isActive,
       classGroupsCount: l._count.classGroups,
     })),
@@ -146,6 +152,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
             data: {
               name: loc.name.trim(),
               address: loc.address?.trim() ? loc.address.trim() : null,
+              city: loc.city?.trim() ? loc.city.trim() : null,
+              state: loc.state?.trim() ? loc.state.trim().toUpperCase() : null,
               isActive: loc.isActive ?? true,
             },
           });
@@ -155,6 +163,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
               poloId: id,
               name: loc.name.trim(),
               address: loc.address?.trim() ? loc.address.trim() : null,
+              city: loc.city?.trim() ? loc.city.trim() : null,
+              state: loc.state?.trim() ? loc.state.trim().toUpperCase() : null,
               isActive: loc.isActive ?? true,
             },
           });

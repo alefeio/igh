@@ -1,37 +1,36 @@
 import { PageHeader, Section } from "@/components/site";
+import { BRAND } from "@/lib/brand";
 import { getAboutForSite } from "@/lib/site-data";
 
 export const metadata = {
-  title: "Sobre o IGH | Instituto Gustavo Hessel",
-  description: "Conheça o Instituto Gustavo Hessel: missão e inclusão digital.",
+  title: `Sobre o ${BRAND.shortName} | ${BRAND.legalName}`,
+  description: `Conheça o ${BRAND.legalName}: formação profissional gratuita em tecnologia, inclusão digital, projetos, comunidade e transparência.`,
 };
 
 export default async function SobrePage() {
   const about = await getAboutForSite();
-  const title = about?.title ?? "Sobre o IGH";
-  const subtitle = about?.subtitle ?? "Conheça nossa missão e nosso compromisso com a inclusão digital.";
-  const content = about?.content;
+  const title = about?.title?.trim() || "";
+  const subtitle = about?.subtitle?.trim() || "";
+  const content = about?.content?.trim() || "";
+  const imageUrl = about?.imageUrl?.trim() || null;
+
+  if (!title && !subtitle && !content && !imageUrl) {
+    return null;
+  }
 
   return (
     <>
-      <PageHeader
-        title={title}
-        subtitle={subtitle}
-        backgroundImageUrl={about?.imageUrl?.trim() || null}
-      />
-      <Section>
-        {content ? (
+      {(title || subtitle || imageUrl) && (
+        <PageHeader title={title} subtitle={subtitle || undefined} backgroundImageUrl={imageUrl} />
+      )}
+      {content ? (
+        <Section>
           <div
-            className="prose prose-lg max-w-none text-[var(--igh-muted)] [&_p]:mb-4"
+            className="prose prose-lg max-w-none text-[var(--igh-muted)] [&_a]:font-medium [&_a]:text-[var(--igh-primary)] [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:opacity-90 [&_h2]:mt-8 [&_h2]:text-[var(--igh-secondary)] [&_li]:mb-2 [&_p]:mb-4 [&_ul]:my-4"
             dangerouslySetInnerHTML={{ __html: content }}
           />
-        ) : (
-          <div className="max-w-none text-[var(--igh-muted)] space-y-4">
-            <p>O Instituto Gustavo Hessel (IGH) é uma organização dedicada à formação em tecnologia e à inclusão digital. Nossa missão é oferecer oportunidades de qualificação profissional em áreas como programação, dados, UX/UI e marketing digital.</p>
-            <p>Além das formações, atuamos em projetos de recondicionamento de computadores, doação de equipamentos e montagem de laboratórios em parceria com instituições em todo o país.</p>
-          </div>
-        )}
-      </Section>
+        </Section>
+      ) : null}
     </>
   );
 }
