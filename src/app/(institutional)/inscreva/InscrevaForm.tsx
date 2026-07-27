@@ -10,8 +10,33 @@ import { ClassGroupPicker } from "./ClassGroupPicker";
 import { doOverlap, formatDateOnlyBR, type ClassGroupOption } from "./class-group-options";
 import type { StudentData } from "./types";
 import { cardClass, hintClass } from "./ui";
+import { formatDaysShortPtBr } from "@/lib/turma-display";
+import {
+  classGroupPoloLabel,
+  classGroupUnitLabel,
+} from "@/lib/class-group-unit";
 
 const EMPTY_TURMAS_INSCREVA_MSG = "No momento não há turmas abertas para inscrição.";
+
+type EnrollmentSuccess = {
+  studentName: string;
+  withoutEmail: boolean;
+  turmas: {
+    id: string;
+    courseName: string;
+    daysOfWeek: string[];
+    startTime: string;
+    endTime: string;
+    startDate: string;
+    unitLabel: string;
+  }[];
+};
+
+function turmaUnitLabel(cg: ClassGroupOption): string {
+  const unitName = classGroupUnitLabel(cg.unit ?? null, cg.location);
+  const polo = classGroupPoloLabel(cg.unit ?? null);
+  return polo ? `${polo} · ${unitName}` : unitName;
+}
 
 function toDateOnlyString(value: string | Date | null | undefined): string | null {
   if (value == null) return null;
@@ -98,7 +123,6 @@ export function InscrevaForm() {
   const [showIdentification, setShowIdentification] = useState(false);
   const identificationSectionRef = useRef<HTMLDivElement>(null);
   const [registeredWithoutEmail, setRegisteredWithoutEmail] = useState(false);
-  const [showSecretariatMessage, setShowSecretariatMessage] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
   const [enrolledClassGroupIds, setEnrolledClassGroupIds] = useState<string[]>([]);
   /** Cursos em que o aluno tem turma com status EM_ANDAMENTO (limite de 2 para novas inscrições). */
@@ -106,7 +130,8 @@ export function InscrevaForm() {
   const [classGroupsEmAndamento, setClassGroupsEmAndamento] = useState<
     { courseId: string; startDate: string; endDate?: string | null }[]
   >([]);
-  const [enrollmentSuccessName, setEnrollmentSuccessName] = useState<string | null>(null);
+  const [enrollmentSuccess, setEnrollmentSuccess] = useState<EnrollmentSuccess | null>(null);
+  const successRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (options?: { ignoreCourseId?: boolean }) => {
     setLoading(true);
@@ -183,6 +208,15 @@ export function InscrevaForm() {
     });
     return () => window.cancelAnimationFrame(t);
   }, [showIdentification, showCadastro]);
+
+  useEffect(() => {
+    if (!enrollmentSuccess || !successRef.current) return;
+    const el = successRef.current;
+    const t = window.requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(t);
+  }, [enrollmentSuccess]);
 
   const selectedClassGroups = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
   const showLimitBanner =
@@ -281,7 +315,7 @@ export function InscrevaForm() {
     }
     setSubmitting(true);
     try {
-      let successCount = 0;
+      const succeeded: ClassGroupOption[] = [];
       for (const classGroupId of selectedClassGroupIds) {
         const body: { classGroupId: string; studentToken?: string } = { classGroupId };
         if (studentToken) body.studentToken = studentToken;
@@ -292,23 +326,39 @@ export function InscrevaForm() {
         });
         const json = (await res.json()) as ApiResponse<{ enrollment: { courseName: string } }>;
         if (res.ok && json?.ok) {
-          successCount++;
+          const cg = classGroups.find((c) => c.id === classGroupId);
+          if (cg) succeeded.push(cg);
         } else {
           toast.push("error", json && "error" in json ? json.error.message : "Erro ao enviar pré-matrícula.");
         }
       }
-      if (successCount > 0) {
-        if (registeredWithoutEmail) {
-          setShowSecretariatMessage(true);
-        } else {
-          setEnrollmentSuccessName(student.name);
-          const newCourseIds = selectedClassGroups.map((c) => c.courseId);
-          setEnrolledCourseIds((prev) => [...new Set([...prev, ...newCourseIds])]);
-          setEnrolledClassGroupIds((prev) => [...new Set([...prev, ...selectedClassGroupIds])]);
-        }
+      if (succeeded.length > 0) {
+        const newCourseIds = succeeded.map((c) => c.courseId);
+        const newClassGroupIds = succeeded.map((c) => c.id);
+        setEnrolledCourseIds((prev) => [...new Set([...prev, ...newCourseIds])]);
+        setEnrolledClassGroupIds((prev) => [...new Set([...prev, ...newClassGroupIds])]);
+        setEnrollmentSuccess({
+          studentName: student.name,
+          withoutEmail: registeredWithoutEmail,
+          turmas: succeeded.map((cg) => ({
+            id: cg.id,
+            courseName: cg.courseName,
+            daysOfWeek: cg.daysOfWeek,
+            startTime: cg.startTime,
+            endTime: cg.endTime,
+            startDate: cg.startDate,
+            unitLabel: turmaUnitLabel(cg),
+          })),
+        });
+        toast.push(
+          "success",
+          succeeded.length === 1
+            ? "Pré-matrícula efetuada com sucesso."
+            : `${succeeded.length} pré-matrículas efetuadas com sucesso.`
+        );
       }
       setSelectedClassGroupIds([]);
-      if (successCount === 0) {
+      if (succeeded.length === 0) {
         setStudentToken(null);
         setRegisteredWithoutEmail(false);
         void load({ ignoreCourseId: true });
@@ -316,6 +366,13 @@ export function InscrevaForm() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function continueAfterSuccess() {
+    setEnrollmentSuccess(null);
+    setRegisteredWithoutEmail(false);
+    setShowIdentification(false);
+    void load({ ignoreCourseId: true });
   }
 
   if (loading) {
@@ -332,11 +389,13 @@ export function InscrevaForm() {
     );
   }
 
-  if (showSecretariatMessage) {
+  if (enrollmentSuccess) {
+    const { studentName, withoutEmail, turmas } = enrollmentSuccess;
     return (
       <div className="space-y-6">
         <div
-          className={`${cardClass} border-emerald-200 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/40`}
+          ref={successRef}
+          className={`${cardClass} scroll-mt-24 border-emerald-200 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/40`}
           role="status"
           aria-live="polite"
         >
@@ -350,21 +409,72 @@ export function InscrevaForm() {
               </svg>
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-xl font-bold text-[var(--text-primary)]">Pré-matrícula enviada</h2>
+              <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                Concluído
+              </p>
+              <h2 className="mt-1 text-2xl font-bold text-[var(--text-primary)]">
+                Pré-matrícula efetuada!
+              </h2>
               <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
-                Como você não informou e-mail, será necessário comparecer à secretaria para completar seu cadastro e entregar os documentos (documento de identidade e comprovante de residência), para que sua matrícula seja confirmada.
+                {turmas.length === 1 ? (
+                  <>
+                    Pronto, <strong>{studentName}</strong>. Sua pré-matrícula foi registrada com sucesso.
+                  </>
+                ) : (
+                  <>
+                    Pronto, <strong>{studentName}</strong>. Suas {turmas.length} pré-matrículas foram
+                    registradas com sucesso.
+                  </>
+                )}
               </p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">
-                Anote o CPF utilizado na inscrição para facilitar o atendimento.
-              </p>
-              <div className="mt-6">
+
+              <ul className="mt-5 space-y-3">
+                {turmas.map((turma) => (
+                  <li
+                    key={turma.id}
+                    className="rounded-xl border border-emerald-200/80 bg-white/70 px-4 py-3 dark:border-emerald-800/60 dark:bg-emerald-950/30"
+                  >
+                    <p className="font-semibold text-[var(--text-primary)]">{turma.courseName}</p>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      {formatDaysShortPtBr(turma.daysOfWeek)} · {turma.startTime}–{turma.endTime}
+                    </p>
+                    <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                      {turma.unitLabel} · Início {formatDateOnlyBR(turma.startDate)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+
+              {withoutEmail ? (
+                <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-[var(--text-secondary)] dark:border-amber-800 dark:bg-amber-950/40">
+                  <p className="font-semibold text-[var(--text-primary)]">Próximo passo na secretaria</p>
+                  <p className="mt-1 leading-relaxed">
+                    Como você não informou e-mail, compareça à secretaria para completar o cadastro e
+                    entregar os documentos (documento de identidade e comprovante de residência). Anote
+                    o CPF usado na inscrição para facilitar o atendimento.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-5 text-sm leading-relaxed text-[var(--text-muted)]">
+                  Guarde este comprovante. Se tiver conta no portal, você já pode acompanhar suas
+                  turmas na área do aluno. A confirmação final da matrícula é feita pela equipe do
+                  instituto.
+                </p>
+              )}
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                {!withoutEmail ? (
+                  <Button as="link" href="/dashboard" variant="primary" size="lg">
+                    Acessar área do aluno
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
-                  variant="primary"
+                  variant={withoutEmail ? "primary" : "secondary"}
                   size="lg"
-                  onClick={() => setShowSecretariatMessage(false)}
+                  onClick={continueAfterSuccess}
                 >
-                  Fazer nova inscrição em outra turma
+                  Inscrever em outra turma
                 </Button>
               </div>
             </div>
@@ -376,29 +486,6 @@ export function InscrevaForm() {
 
   return (
     <div className="space-y-6">
-      {enrollmentSuccessName && (
-        <div
-          className={`${cardClass} flex gap-4 border-emerald-200 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/40`}
-          role="status"
-          aria-live="polite"
-        >
-          <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"
-            aria-hidden
-          >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </span>
-          <div>
-            <h2 className="text-xl font-bold text-[var(--text-primary)]">Inscrição confirmada</h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Sua pré-matrícula foi registrada. Aguarde a confirmação pela equipe quando for o caso.
-            </p>
-          </div>
-        </div>
-      )}
-
       {showLimitBanner ? (
         <div className={`${cardClass} border-amber-200 bg-amber-50/80 dark:border-amber-800 dark:bg-amber-950/40`}>
           <p className="font-semibold text-[var(--text-primary)]">Limite de cursos atingido</p>
@@ -544,7 +631,7 @@ export function InscrevaForm() {
                 type="button"
                 onClick={async () => {
                   await fetch("/api/auth/logout", { method: "POST" });
-                  setEnrollmentSuccessName(null);
+                  setEnrollmentSuccess(null);
                   setStudent(null);
                   setStudentToken(null);
                   setSelectedClassGroupIds([]);
