@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
-import { DEFAULT_CYCLE_ID } from "@/lib/cycles";
+import { DEFAULT_CYCLE_ID, pickCurrentCycle } from "@/lib/cycles";
 
 function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): string {
   if (json && !json.ok) return json.error.message;
@@ -270,8 +270,12 @@ export default function ClassGroupsPage() {
     );
   }
 
+  function defaultCycleIdForForm() {
+    return pickCurrentCycle(cycles)?.id ?? DEFAULT_CYCLE_ID;
+  }
+
   function resetForm() {
-    setCycleId(DEFAULT_CYCLE_ID);
+    setCycleId(defaultCycleIdForForm());
     setCourseId("");
     setTeacherIds([]);
     setDaysOfWeek(["TER", "QUI"]);
@@ -393,7 +397,12 @@ export default function ClassGroupsPage() {
         throw new Error(tJson && "error" in tJson ? tJson.error.message : "Falha ao carregar professores.");
 
       setItems(cgJson!.data.classGroups);
-      setCycles(cyclesJson?.ok ? cyclesJson.data.cycles : []);
+      const loadedCycles = cyclesJson?.ok ? cyclesJson.data.cycles : [];
+      setCycles(loadedCycles);
+      setCycleId((prev) => {
+        if (loadedCycles.some((c) => c.id === prev)) return prev;
+        return pickCurrentCycle(loadedCycles)?.id ?? DEFAULT_CYCLE_ID;
+      });
       setCourses(cJson!.data.courses);
       setTeachers(tJson!.data.teachers);
       setTimeSlots(tsJson?.ok ? tsJson.data.timeSlots : []);

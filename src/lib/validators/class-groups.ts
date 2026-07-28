@@ -1,18 +1,20 @@
 import { z } from "zod";
 
+import { appUuid, optionalAppUuid, nullableAppUuid } from "@/lib/validators/ids";
+
 const daysSchema = z
   .array(z.string().min(2))
   .min(1, "Selecione ao menos um dia")
   .max(7, "Dias inválidos");
 
 const teacherIdsSchema = z
-  .array(z.string().uuid())
+  .array(appUuid)
   .min(1, "Selecione ao menos um professor")
   .max(20, "Máximo de 20 professores por turma");
 
 const baseClassGroupFields = {
-  cycleId: z.string().uuid().optional(),
-  courseId: z.string().uuid(),
+  cycleId: optionalAppUuid,
+  courseId: appUuid,
   teacherIds: teacherIdsSchema,
   daysOfWeek: daysSchema,
   startDate: z
@@ -34,7 +36,7 @@ const baseClassGroupFields = {
     .optional(),
   location: z.string().optional().or(z.literal("")),
   /** Local do polo (FK). Quando informado, a turma passa a pertencer ao polo daquele local. */
-  poloLocationId: z.string().uuid().optional().nullable().or(z.literal("")),
+  poloLocationId: nullableAppUuid,
 };
 
 export const createClassGroupSchema = z.object(baseClassGroupFields);
@@ -42,7 +44,7 @@ export const createClassGroupSchema = z.object(baseClassGroupFields);
 export const updateClassGroupSchema = z
   .object({
     ...baseClassGroupFields,
-    courseId: z.string().uuid().optional(),
+    courseId: appUuid.optional(),
     teacherIds: teacherIdsSchema.optional(),
     daysOfWeek: daysSchema.optional(),
     startDate: z

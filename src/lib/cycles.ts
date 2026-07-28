@@ -1,3 +1,5 @@
+import type { PrismaClient } from "@/generated/prisma/client";
+
 export const DEFAULT_CYCLE_ID = "00000000-0000-0000-0000-000000000001";
 
 export type CycleLike = { id: string; cycle: number; year: number };
@@ -16,4 +18,21 @@ export function pickCurrentCycle<T extends CycleLike>(cycles: readonly T[]): T |
     }
   }
   return current;
+}
+
+/** Garante o ciclo seed (1/2026) — necessário em DBs novos sem seed. */
+export async function ensureDefaultCycle(
+  prisma: Pick<PrismaClient, "cycle">,
+): Promise<{ id: string }> {
+  return prisma.cycle.upsert({
+    where: { id: DEFAULT_CYCLE_ID },
+    create: {
+      id: DEFAULT_CYCLE_ID,
+      cycle: 1,
+      year: 2026,
+      isVisibleForEnrollments: true,
+    },
+    update: {},
+    select: { id: true },
+  });
 }
