@@ -7,6 +7,7 @@ import { signStudentToken } from "@/lib/student-token";
 import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered } from "@/lib/email/templates";
+import { attributeStudentReferral, attachReferrerToUser, resolveReferrerUserId } from "@/lib/student-referrals";
 
 function parseDateOnly(value: string): Date {
   const d = new Date(value);
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { name, cpf, birthDate, phone, email, guardianCpf } = parsed.data;
+  const { name, cpf, birthDate, phone, email, guardianCpf, referralCode } = parsed.data;
   const emailNormalized = email && email.trim() ? email.trim().toLowerCase() : null;
   const cpfDigits = cpf ? onlyDigits(cpf, 11) : "";
   const cpfNormalized =
@@ -66,6 +67,8 @@ export async function POST(request: Request) {
       birthDateToStudentPasswordParts(birthDateValue);
     const passwordHash = await hashPassword(birthDateAsPassword);
 
+    const referrerUserId = await resolveReferrerUserId({ referralCodeFromBody: referralCode });
+
     const user = await prisma.user.create({
       data: {
         name: name.trim(),
@@ -74,9 +77,14 @@ export async function POST(request: Request) {
         role: "STUDENT",
         isActive: true,
         mustChangePassword: true,
+        ...(referrerUserId ? { referredByUserId: referrerUserId } : {}),
       },
       select: { id: true },
     });
+
+    if (referrerUserId) {
+      await attachReferrerToUser(user.id, referrerUserId);
+    }
 
     const student = await prisma.student.create({
       data: {
@@ -99,6 +107,12 @@ export async function POST(request: Request) {
         phone: true,
         email: true,
       },
+    });
+
+    await attributeStudentReferral({
+      studentId: student.id,
+      studentUserId: user.id,
+      referralCodeFromBody: referralCode,
     });
 
     const token = await signStudentToken(student.id);
@@ -156,6 +170,12 @@ export async function POST(request: Request) {
       phone: true,
       email: true,
     },
+  });
+
+  await attributeStudentReferral({
+    studentId: student.id,
+    studentUserId: null,
+    referralCodeFromBody: referralCode,
   });
 
   const token = await signStudentToken(student.id);

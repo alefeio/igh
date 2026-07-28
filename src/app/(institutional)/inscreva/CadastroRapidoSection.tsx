@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site";
 import type { ApiResponse } from "@/lib/api-types";
+import { readStoredReferralCode } from "@/lib/referral-client";
 import type { StudentData } from "./types";
 import { cardClass, hintClass, inputClass, labelClass } from "./ui";
 
@@ -109,6 +110,7 @@ export function CadastroRapidoSection({ onRegistered, onCancel }: CadastroRapido
           phone: digitsPhone,
           ...(normalizedEmail ? { email: normalizedEmail } : {}),
           ...(isMinor && digitsGuardianCpf ? { guardianCpf } : {}),
+          referralCode: readStoredReferralCode(),
         }),
       });
       const json = (await res.json()) as ApiResponse<{ student: StudentData; studentToken: string }>;

@@ -13,6 +13,7 @@ import {
   type StudentRankEntry,
 } from "@/lib/student-ranking-shared";
 import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
+import { getReferralPointsByReferrerStudentIds } from "@/lib/student-referrals";
 
 export {
   STUDENT_POINTS_PER_LESSON,
@@ -220,6 +221,8 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
   }
 
   const rows: Omit<StudentRankEntry, "rank">[] = [];
+  const referralPointsByStudent = await getReferralPointsByReferrerStudentIds([...byStudent.keys()]);
+
   for (const [studentId, a] of byStudent) {
     const hasPlatformExperienceFeedback =
       a.userId != null ? hasPlatformExperienceByUserId.has(a.userId) : false;
@@ -235,8 +238,15 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
       ? STUDENT_RANKING_BONUS_POINTS.platformExperienceFeedback
       : 0;
     const pointsMothersDay = hasMothersDayTribute ? STUDENT_RANKING_BONUS_POINTS.mothersDayTribute : 0;
+    const pointsReferrals = referralPointsByStudent.get(studentId) ?? 0;
     const points =
-      pointsContent + pointsExercises + pointsFrequency + pointsForum + pointsPlatformExperience + pointsMothersDay;
+      pointsContent +
+      pointsExercises +
+      pointsFrequency +
+      pointsForum +
+      pointsPlatformExperience +
+      pointsMothersDay +
+      pointsReferrals;
     const breakdown: StudentRankPointsBreakdown = {
       pointsContent,
       pointsExercises,
@@ -244,6 +254,7 @@ export async function computeStudentGamificationRanking(opts?: ComputeOpts): Pro
       pointsForum,
       pointsPlatformExperience,
       pointsMothersDay,
+      pointsReferrals,
       lessonsCompleted: a.lessonsCompleted,
       exerciseAttempts: a.exerciseAttempts,
       exerciseCorrect: a.exerciseCorrect,
@@ -301,10 +312,12 @@ export async function getGamificationSnapshotForStudent(
     select: { id: true },
   });
   if (enrollments.length === 0) {
+    const referralPointsMap = await getReferralPointsByReferrerStudentIds([studentId]);
+    const points = referralPointsMap.get(studentId) ?? 0;
     return {
       userId: student.userId,
-      points: 0,
-      levelName: studentLevelNameFromPoints(0),
+      points,
+      levelName: studentLevelNameFromPoints(points),
     };
   }
 
@@ -392,7 +405,16 @@ export async function getGamificationSnapshotForStudent(
     ? STUDENT_RANKING_BONUS_POINTS.platformExperienceFeedback
     : 0;
   const pointsMothersDay = hasMothersDayTribute ? STUDENT_RANKING_BONUS_POINTS.mothersDayTribute : 0;
-  const points = pointsContent + pointsExercises + pointsFrequency + pointsForum + pointsPlatformExperience + pointsMothersDay;
+  const referralPointsMap = await getReferralPointsByReferrerStudentIds([studentId]);
+  const pointsReferrals = referralPointsMap.get(studentId) ?? 0;
+  const points =
+    pointsContent +
+    pointsExercises +
+    pointsFrequency +
+    pointsForum +
+    pointsPlatformExperience +
+    pointsMothersDay +
+    pointsReferrals;
 
   return {
     userId,

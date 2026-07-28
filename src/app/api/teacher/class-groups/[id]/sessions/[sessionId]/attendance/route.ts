@@ -5,6 +5,7 @@ import { processEmailOutboxBatch } from "@/lib/email/outbox";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { markReferralFirstAttendanceForPresentEnrollments } from "@/lib/student-referrals";
 
 async function getTeacherAndSession(
   userId: string,
@@ -189,6 +190,10 @@ export async function PATCH(
   });
 
   await syncCertificateEligibleFromAttendance(savedRows.map((r) => r.enrollmentId));
+
+  await markReferralFirstAttendanceForPresentEnrollments(
+    savedRows.filter((r) => r.present).map((r) => r.enrollmentId),
+  );
 
   if (suspendedIds.length > 0) {
     await processEmailOutboxBatch(Math.min(25, suspendedIds.length));

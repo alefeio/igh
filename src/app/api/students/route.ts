@@ -10,6 +10,7 @@ import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/t
 import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 import { activeEnrollmentInCycles, resolveCycleIdsParam } from "@/lib/current-cycle";
+import { attributeStudentReferral } from "@/lib/student-referrals";
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
@@ -292,6 +293,12 @@ export async function POST(request: Request) {
   if (student.userId) {
     await maybeSendBirthdayGreetingForUser(student.userId);
   }
+
+  await attributeStudentReferral({
+    studentId: student.id,
+    studentUserId: student.userId,
+    allowCookie: false,
+  });
 
   return jsonOk({ student, linkedToExistingUser: !!existingUser }, { status: 201 });
 }

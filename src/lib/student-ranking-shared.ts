@@ -24,6 +24,8 @@ export type StudentRankPointsBreakdown = {
   pointsForum: number;
   pointsPlatformExperience: number;
   pointsMothersDay: number;
+  /** Pontos ganhos por indicar alunos (cadastro, presença, certificado). */
+  pointsReferrals: number;
   lessonsCompleted: number;
   /** Primeiras respostas a exercícios (refações não contam). */
   exerciseAttempts: number;

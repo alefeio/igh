@@ -2,6 +2,7 @@ import "server-only";
 
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { prisma } from "@/lib/prisma";
+import { markReferralCertifiedForStudentIds } from "@/lib/student-referrals";
 
 /** Limiar de presença (%) para liberar automaticamente a emissão de certificado. */
 export const CERTIFICATE_ATTENDANCE_THRESHOLD_PERCENT = 70;
@@ -39,6 +40,12 @@ export async function syncCertificateEligibleFromAttendance(enrollmentIds: strin
     where: { id: { in: enabledIds } },
     data: { certificateEligible: true },
   });
+
+  const students = await prisma.enrollment.findMany({
+    where: { id: { in: enabledIds } },
+    select: { studentId: true },
+  });
+  await markReferralCertifiedForStudentIds(students.map((s) => s.studentId));
 
   return { enabledIds };
 }

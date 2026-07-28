@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { ensureClassSessionsLiberatedForStudent } from "@/lib/student-lesson-liberation";
+import { markReferralFirstAttendanceForPresentEnrollments } from "@/lib/student-referrals";
 
 async function getTeacherClassGroup(userId: string, classGroupId: string) {
   const teacher = await prisma.teacher.findFirst({
@@ -207,6 +208,10 @@ export async function PATCH(
   });
 
   await syncCertificateEligibleFromAttendance([...uniqueByEnrollment.keys()]);
+
+  await markReferralFirstAttendanceForPresentEnrollments(
+    [...uniqueByEnrollment.values()].filter((r) => r.present).map((r) => r.enrollmentId),
+  );
 
   if (suspendedIds.length > 0) {
     await processEmailOutboxBatch(Math.min(25, suspendedIds.length));

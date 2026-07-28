@@ -7,6 +7,7 @@ import {
   STUDENT_RANKING_GAMIFICATION_POINTS,
   type StudentRankEntry,
 } from "@/lib/student-ranking-shared";
+import { STUDENT_REFERRAL_POINTS } from "@/lib/referral-client";
 
 export function StudentRankingPointsBreakdownModal({
   entry,
@@ -109,6 +110,15 @@ export function StudentRankingPointsBreakdownModal({
               {b.pointsMothersDay || 0}
             </td>
           </tr>
+          <tr className="border-b border-[var(--card-border)]/70">
+            <td className="py-2.5 pr-2 align-top font-medium">Indicações</td>
+            <td className="py-2.5 pr-2 align-top text-[var(--text-secondary)]">
+              Pontos por alunos indicados (cadastro, presenças e certificação)
+            </td>
+            <td className="py-2.5 text-right tabular-nums font-semibold text-[var(--igh-primary)]">
+              {b.pointsReferrals || 0}
+            </td>
+          </tr>
         </tbody>
       </table>
       <p className="mt-4 border-t border-[var(--card-border)] pt-3 text-right text-base font-bold tabular-nums text-[var(--igh-primary)]">
@@ -153,6 +163,13 @@ export function StudentRankingPointsHelpModal({
           <strong className="text-[var(--text-primary)]">Bônus (ações importantes):</strong> enviar a avaliação da
           experiência soma <strong>{bonus.platformExperienceFeedback} pontos</strong> (conta 1 vez), e enviar a homenagem
           do Dia das Mães soma <strong>{bonus.mothersDayTribute} pontos</strong> (conta 1 vez).
+        </li>
+        <li>
+          <strong className="text-[var(--text-primary)]">Indicações:</strong> cada aluno indicado soma{" "}
+          <strong>{STUDENT_REFERRAL_POINTS.registration}</strong> no cadastro,{" "}
+          <strong>{STUDENT_REFERRAL_POINTS.firstAttendance}</strong> na 1ª presença,{" "}
+          <strong>{STUDENT_REFERRAL_POINTS.subsequentAttendance}</strong> em cada presença seguinte e{" "}
+          <strong>{STUDENT_REFERRAL_POINTS.certification}</strong> na certificação.
         </li>
       </ul>
       <p className="mt-4 text-xs text-[var(--text-muted)]">

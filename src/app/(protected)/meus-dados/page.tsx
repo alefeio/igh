@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
+import { ReferralShareCard } from "@/components/referral/ReferralShareCard";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { MeusDadosContaForm } from "./MeusDadosContaForm";
 import { MeusDadosForm } from "./MeusDadosForm";
@@ -40,6 +41,13 @@ export default async function MeusDadosPage() {
           <MeusDadosForm />
         </SectionCard>
         <SectionCard
+          title="Indicar amigos"
+          description="Gere e compartilhe seu link único de indicação."
+          variant="elevated"
+        >
+          <ReferralShareCard />
+        </SectionCard>
+        <SectionCard
           title="Senha de acesso"
           description="Altere a senha usada para entrar com e-mail ou CPF."
           variant="elevated"
@@ -71,6 +79,13 @@ export default async function MeusDadosPage() {
           variant="elevated"
         >
           <MeusDadosContaForm roleLabel={roleLabel} />
+        </SectionCard>
+        <SectionCard
+          title="Indicar amigos"
+          description="Gere e compartilhe seu link único de indicação (qualquer perfil pode indicar)."
+          variant="elevated"
+        >
+          <ReferralShareCard />
         </SectionCard>
         <SectionCard
           title="Senha de acesso"

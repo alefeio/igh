@@ -45,6 +45,7 @@ export const createPublicStudentSchema = z
       .string()
       .optional()
       .transform((s) => (typeof s === "string" && s.trim() ? s.trim() : null)),
+    referralCode: z.string().optional().nullable(),
   })
   .refine(
     (data) => {

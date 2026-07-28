@@ -21,6 +21,7 @@ export const registerSchema = z.object({
     .max(72, "A senha deve ter no máximo 72 caracteres."),
   captchaToken: z.string().optional().nullable(),
   website: z.string().optional().nullable(),
+  referralCode: z.string().optional().nullable(),
 });
 
 /** Aceita `login` ou (legado) `email` no corpo da requisição. */

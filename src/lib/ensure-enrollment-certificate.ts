@@ -10,6 +10,7 @@ import { studentCertificatePdfFileName } from "@/lib/course-certificate-pdf-nami
 import { resolveCertificateIssuePlace } from "@/lib/certificate-issue-place";
 import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { prisma } from "@/lib/prisma";
+import { markReferralCertified } from "@/lib/student-referrals";
 
 function safePdfFileName(studentName: string): string {
   const used = new Set<string>();
@@ -115,6 +116,8 @@ export async function ensureEnrollmentCertificate(
       certificateIssuedAt: enrollment.certificateIssuedAt ?? input.issuedAt,
     },
   });
+
+  await markReferralCertified(enrollment.studentId);
 
   return {
     pdfBytes: uploaded.pdfBytes,

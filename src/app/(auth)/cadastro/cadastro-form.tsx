@@ -9,6 +9,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { readStoredReferralCode } from "@/lib/referral-client";
 import type { ApiResponse } from "@/lib/api-types";
 
 type CadastroFormProps = {
@@ -54,6 +55,7 @@ export function CadastroForm({ redirectTo, turnstileSiteKey = null }: CadastroFo
           password,
           captchaToken,
           website,
+          referralCode: readStoredReferralCode(),
         }),
       });
       const raw = await res.text();

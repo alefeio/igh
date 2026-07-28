@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/feedback/ToastProvider";
+import { ReferralCapture } from "@/components/referral/ReferralCapture";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ThemeScript } from "@/components/theme/ThemeScript";
 import { getSiteSettings } from "@/lib/site-data";
@@ -92,7 +94,12 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
         <ThemeScript />
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ToastProvider>
+            <Suspense fallback={null}>
+              <ReferralCapture />
+            </Suspense>
+            {children}
+          </ToastProvider>
         </ThemeProvider>
         <Analytics />
       </body>

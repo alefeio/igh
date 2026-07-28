@@ -36,6 +36,7 @@ const ITEMS: Item[] = [
   /* —— Início (todos) —— */
   { href: "/dashboard", label: "Página Inicial", roles: ALL_ROLES, category: "Início" },
   { href: "/onboarding", label: "Como usar o sistema", roles: ALL_ROLES, category: "Início" },
+  { href: "/minhas-indicacoes", label: "Minhas indicações", roles: ALL_ROLES, category: "Início" },
   { href: "/coordenacao", label: "Coordenação", roles: STAFF_AND_TEACHER, category: "Início" },
 
   /* —— Aluno —— */

@@ -84,6 +84,16 @@ model User {
   ighCommunityRepliesAuthored      IghCommunityReply[]          @relation("IghCommunityReplyAuthor")
   holidayEventRegistrations          HolidayEventRegistration[]
   coordinatedPolos                   Polo[]
+  /// * Código único de indicação deste usuário (link /cadastro?ref=...).
+  referralCode                       UserReferralCode?
+  /// * Indicações feitas por este usuário.
+  referralsMade                      StudentReferral[]          @relation("ReferralReferrer")
+  /// * Quem indicou este usuário no cadastro (antes ou junto da criação do Student).
+  referredByUserId                   String?
+  referredByUser                     User?                      @relation("UserReferredBy", fields: [referredByUserId], references: [id], onDelete: SetNull)
+  usersReferred                      User[]                     @relation("UserReferredBy")
+
+  @@index([referredByUserId])
 }
 
 /// * Navegação na área logada — rota (pathname) por utilizador, para o Master acompanhar páginas vistas.
@@ -841,6 +851,35 @@ model Student {
   verificationTokens    VerificationToken[]
   ighCommunityTopics    IghCommunityTopic[]
   ighCommunityReplies   IghCommunityReply[]
+  /// * Indicação recebida (no máximo uma).
+  referralReceived      StudentReferral?
+}
+
+/// * Código estável de indicação por usuário (qualquer perfil).
+model UserReferralCode {
+  userId    String   @id
+  /// * Código curto usado em ?ref= (ex.: a7k2m9xq).
+  code      String   @unique
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+}
+
+/// * Vínculo indicador → aluno indicado, com marcos de gamificação.
+model StudentReferral {
+  id                String    @id @default(uuid())
+  referrerUserId    String
+  referredStudentId String    @unique
+  registeredAt      DateTime  @default(now())
+  /// * Momento da 1ª presença (SessionAttendance.present = true).
+  firstAttendanceAt DateTime?
+  /// * Momento da 1ª certificação apta/emitida em alguma matrícula.
+  certifiedAt       DateTime?
+  referrer          User      @relation("ReferralReferrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referredStudent   Student   @relation(fields: [referredStudentId], references: [id], onDelete: Cascade)
+
+  @@index([referrerUserId, registeredAt(sort: Desc)])
 }
 
 model Enrollment {

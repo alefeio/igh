@@ -10,6 +10,7 @@ import {
 import { jsonErr } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit-memory";
+import { attachReferrerToUser, resolveReferrerUserId } from "@/lib/student-referrals";
 import { registerSchema } from "@/lib/validators/auth";
 
 const WINDOW_MS = 60 * 60 * 1000;
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const { name, email, password, whatsapp } = parsed.data;
+    const { name, email, password, whatsapp, referralCode } = parsed.data;
     const emailLimit = checkRateLimit(`auth:register:email:${email}`, 5, WINDOW_MS);
     if (!emailLimit.ok) {
       return jsonErr(
@@ -65,6 +66,10 @@ export async function POST(request: Request) {
       return jsonErr("EMAIL_IN_USE", "Este e-mail já está cadastrado. Faça login para continuar.", 409);
     }
 
+    const referrerUserId = await resolveReferrerUserId({
+      referralCodeFromBody: referralCode,
+    });
+
     const passwordHash = await hashPassword(password);
     const created = await prisma.user.create({
       data: {
@@ -75,6 +80,7 @@ export async function POST(request: Request) {
         role: "STUDENT",
         isActive: true,
         mustChangePassword: false,
+        ...(referrerUserId ? { referredByUserId: referrerUserId } : {}),
       },
       select: {
         id: true,
@@ -86,6 +92,10 @@ export async function POST(request: Request) {
         isAdmin: true,
       },
     });
+
+    if (referrerUserId) {
+      await attachReferrerToUser(created.id, referrerUserId);
+    }
 
     const token = await buildAuthSessionToken({
       id: created.id,

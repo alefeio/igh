@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAuditLog } from "@/lib/audit";
+import { markReferralCertified } from "@/lib/student-referrals";
 
 type Ctx = { params: Promise<{ id: string; enrollmentId: string }> };
 
@@ -32,7 +33,12 @@ export async function PATCH(request: Request, context: Ctx) {
       classGroupId,
       status: { in: ["ACTIVE", "SUSPENDED", "COMPLETED"] },
     },
-    select: { id: true, certificateEligible: true, student: { select: { name: true } } },
+    select: {
+      id: true,
+      certificateEligible: true,
+      studentId: true,
+      student: { select: { name: true } },
+    },
   });
   if (!enrollment) return jsonErr("NOT_FOUND", "Matrícula não encontrada nesta turma.", 404);
 
@@ -53,6 +59,10 @@ export async function PATCH(request: Request, context: Ctx) {
       certificateEligibleManual: true,
     },
   });
+
+  if (updated.certificateEligible) {
+    await markReferralCertified(enrollment.studentId);
+  }
 
   await createAuditLog({
     entityType: "Enrollment",

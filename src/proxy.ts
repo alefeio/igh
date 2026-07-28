@@ -171,6 +171,7 @@ export const config = {
     "/approvacoes/:path*",
     "/backup/:path*",
     "/meus-dados/:path*",
+    "/minhas-indicacoes/:path*",
     "/trocar-senha/:path*",
     "/escolher-perfil/:path*",
     "/admin/polos/:path*",
