@@ -27,7 +27,21 @@ export function LoginForm({ redirectTo, turnstileSiteKey = null }: LoginFormProp
   const [setupHint, setSetupHint] = useState(false);
 
   useEffect(() => {
-    setSetupHint(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/setup", { cache: "no-store" });
+        const json = (await res.json()) as ApiResponse<{ needsSetup?: boolean }>;
+        if (!cancelled && res.ok && json.ok && json.data?.needsSetup) {
+          setSetupHint(true);
+        }
+      } catch {
+        /* setup indisponível — não exibe o atalho */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function submit(e: React.FormEvent) {

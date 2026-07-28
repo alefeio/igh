@@ -69,6 +69,9 @@ export const siteSettingsSchema = z.object({
   publicAppUrl: z.union([z.literal(""), z.string().url("URL inválida (use https://...)")]).optional(),
   certificateCity: z.string().max(120).optional(),
   certificateCityState: z.string().max(2).optional(),
+  navbarMascotEnabled: z.boolean().optional(),
+  navbarMascotUrl: z.string().url().optional().or(z.literal("")),
+  navbarMascotScrolledUrl: z.string().url().optional().or(z.literal("")),
 });
 
 // SiteMenuItem

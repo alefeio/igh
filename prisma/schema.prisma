@@ -1169,6 +1169,12 @@ model SiteSettings {
   certificateCity       String?
   /// * UF padrão do certificado (ex.: "DF"). Combinada com certificateCity na frente ("Brasília/DF").
   certificateCityState  String?
+  /// * Exibe a mascote ao lado da logo no menu institucional (só se houver URL).
+  navbarMascotEnabled   Boolean  @default(true)
+  /// * Imagem da mascote com o menu no topo (sem scroll). Sem URL = não exibe.
+  navbarMascotUrl           String?
+  /// * Imagem da mascote com o menu em scroll. Sem URL = usa a do topo, se houver.
+  navbarMascotScrolledUrl   String?
 }
 
 /// * QR Codes gerados em Configurações do site (título, link alvo, imagem central opcional, PNG final no CDN).

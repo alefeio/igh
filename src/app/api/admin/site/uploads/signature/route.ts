@@ -9,6 +9,8 @@ const bodySchema = z
     kind: z.enum([
       "logo",
       "favicon",
+      "navbar-mascot",
+      "navbar-mascot-scrolled",
       "qrcode",
       "banners",
       "partners",

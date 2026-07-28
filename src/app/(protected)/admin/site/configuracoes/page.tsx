@@ -45,6 +45,9 @@ type Settings = {
   certificateCity: string | null;
   /** UF padrão do certificado (ex.: DF). */
   certificateCityState: string | null;
+  navbarMascotEnabled?: boolean | null;
+  navbarMascotUrl?: string | null;
+  navbarMascotScrolledUrl?: string | null;
 };
 
 const empty = (s: string | null | undefined) => s ?? "";
@@ -125,6 +128,7 @@ export default function ConfiguracoesPage() {
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [navbarMascotEnabled, setNavbarMascotEnabled] = useState(true);
   const [addresses, setAddresses] = useState<AddressEntry[]>([emptyAddress()]);
 
   const [qrTitle, setQrTitle] = useState("");
@@ -206,7 +210,10 @@ export default function ConfiguracoesPage() {
         publicAppUrl: empty((s as Settings).publicAppUrl),
         certificateCity: empty((s as Settings).certificateCity),
         certificateCityState: empty((s as Settings).certificateCityState),
+        navbarMascotUrl: empty((s as Settings).navbarMascotUrl),
+        navbarMascotScrolledUrl: empty((s as Settings).navbarMascotScrolledUrl),
       });
+      setNavbarMascotEnabled((s as Settings).navbarMascotEnabled !== false);
       setAddresses(addrs.map((a: AddressEntry) => ({ ...a })));
     } finally {
       setLoading(false);
@@ -336,7 +343,7 @@ export default function ConfiguracoesPage() {
       const res = await fetch("/api/admin/site/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, addresses }),
+        body: JSON.stringify({ ...form, addresses, navbarMascotEnabled }),
       });
       const json = await parseJson<ApiResponse<{ settings?: Settings; pending?: boolean; message?: string }>>(res);
       if (!json) {
@@ -351,6 +358,12 @@ export default function ConfiguracoesPage() {
       const next = json.data.settings;
       if (!next) return;
       setSettings(next);
+      setNavbarMascotEnabled(next.navbarMascotEnabled !== false);
+      setForm((f) => ({
+        ...f,
+        navbarMascotUrl: empty(next.navbarMascotUrl),
+        navbarMascotScrolledUrl: empty(next.navbarMascotScrolledUrl),
+      }));
       const raw = next?.addresses;
       setAddresses(
         Array.isArray(raw) && raw.length > 0
@@ -447,6 +460,58 @@ export default function ConfiguracoesPage() {
                 onUploaded={(url) => setForm((f) => ({ ...f, faviconUrl: url }))}
                 label="Ou envie uma imagem"
               />
+            </div>
+            <div className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/60 p-3">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-[var(--input-border)]"
+                  checked={navbarMascotEnabled}
+                  onChange={(e) => setNavbarMascotEnabled(e.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm font-medium">Exibir mascote no menu</span>
+                  <span className="mt-0.5 block text-xs text-[var(--text-muted)]">
+                    Imagem decorativa ao lado da logo. Sem upload, nada é exibido no menu.
+                  </span>
+                </span>
+              </label>
+              {navbarMascotEnabled ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium">Mascote — menu no topo</label>
+                    <Input
+                      className="mt-1"
+                      value={form.navbarMascotUrl ?? ""}
+                      onChange={(e) => setForm((f) => ({ ...f, navbarMascotUrl: e.target.value }))}
+                      placeholder="https://..."
+                    />
+                    <ApimagesImageUpload
+                      kind="navbar-mascot"
+                      currentUrl={form.navbarMascotUrl || undefined}
+                      onUploaded={(url) => setForm((f) => ({ ...f, navbarMascotUrl: url }))}
+                      label="Ou envie uma imagem"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Mascote — menu em scroll</label>
+                    <Input
+                      className="mt-1"
+                      value={form.navbarMascotScrolledUrl ?? ""}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, navbarMascotScrolledUrl: e.target.value }))
+                      }
+                      placeholder="https://..."
+                    />
+                    <ApimagesImageUpload
+                      kind="navbar-mascot-scrolled"
+                      currentUrl={form.navbarMascotScrolledUrl || undefined}
+                      onUploaded={(url) => setForm((f) => ({ ...f, navbarMascotScrolledUrl: url }))}
+                      label="Ou envie uma imagem"
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>

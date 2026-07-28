@@ -26,4 +26,10 @@ export type SiteSettingsPublic = {
   socialLinkedin: string | null;
   seoTitleDefault: string | null;
   seoDescriptionDefault: string | null;
+  /** Exibe a mascote no menu quando houver URL configurada (default true). */
+  navbarMascotEnabled: boolean;
+  /** Mascote com menu no topo; null = não exibe (salvo se houver só a de scroll). */
+  navbarMascotUrl: string | null;
+  /** Mascote com menu em scroll; null = usa a do topo se existir, senão não exibe. */
+  navbarMascotScrolledUrl: string | null;
 };

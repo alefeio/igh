@@ -19,6 +19,8 @@ async function readResponseJson(res: Response): Promise<unknown> {
 export type SiteUploadKind =
   | "logo"
   | "favicon"
+  | "navbar-mascot"
+  | "navbar-mascot-scrolled"
   | "qrcode"
   | "banners"
   | "partners"

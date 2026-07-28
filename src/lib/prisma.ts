@@ -118,9 +118,24 @@ const g = globalThis as typeof globalThis & {
   prismaPgAdapter?: PrismaPg;
 };
 
-export const prisma =
-  g.prisma ??
-  (g.prisma = new PrismaClient({
-    adapter: (g.prismaPgAdapter ??= createAdapter()),
-    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  }));
+function getPrismaClient(): PrismaClient {
+  if (!g.prisma) {
+    g.prisma = new PrismaClient({
+      adapter: (g.prismaPgAdapter ??= createAdapter()),
+      log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+    });
+  }
+  return g.prisma;
+}
+
+/**
+ * Client lazy: falha de URL/conexão só ocorre na 1ª query (e pode ser capturada),
+ * em vez de derrubar o módulo no import (ex.: página /setup).
+ */
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client as object, prop, receiver);
+    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(client) : value;
+  },
+});

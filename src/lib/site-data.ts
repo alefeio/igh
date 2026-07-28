@@ -91,6 +91,9 @@ export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
       socialLinkedin: s.socialLinkedin,
       seoTitleDefault: s.seoTitleDefault,
       seoDescriptionDefault: s.seoDescriptionDefault,
+      navbarMascotEnabled: s.navbarMascotEnabled !== false,
+      navbarMascotUrl: s.navbarMascotUrl,
+      navbarMascotScrolledUrl: s.navbarMascotScrolledUrl,
     };
   } catch {
     return null;

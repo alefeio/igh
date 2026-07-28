@@ -8,9 +8,6 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { BRAND } from "@/lib/brand";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
 
-const NINA_IMAGE = "/images/nina.png";
-const NINA_IMAGE_SCROLLED = "/images/nina2.png";
-
 const FALLBACK_LINKS: MenuItemPublic[] = [
   { id: "1", label: "Início", href: "/", order: 0, isExternal: false, children: [] },
   { id: "2", label: "Sobre", href: "/sobre", order: 1, isExternal: false, children: [] },
@@ -45,6 +42,11 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
   const headerRef = useRef<HTMLElement>(null);
   const links = (propItems && propItems.length > 0) ? propItems : FALLBACK_LINKS;
   const logoUrl = settings?.logoUrl;
+  const mascotTop = settings?.navbarMascotUrl?.trim() || null;
+  const mascotScrolled = settings?.navbarMascotScrolledUrl?.trim() || null;
+  const mascotSrc = scrolled ? mascotScrolled || mascotTop : mascotTop || mascotScrolled;
+  const showMascot = settings?.navbarMascotEnabled !== false && Boolean(mascotSrc);
+  const mascotIsRemote = Boolean(mascotSrc && /^https?:\/\//i.test(mascotSrc));
 
   useEffect(() => {
     function onScroll() {
@@ -92,21 +94,24 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
               <span className="text-xl font-bold text-[var(--igh-primary)]">{BRAND.shortName}</span>
             )}
           </Link>
-          <div
-            className="pointer-events-none relative z-40 w-fit max-w-[calc(100vw-6.5rem)] shrink-0 -translate-x-4 -mb-[3.75rem] sm:-translate-x-5 sm:max-w-[calc(100vw-7rem)] sm:-mb-[3.125rem] md:z-50 md:translate-x-0 md:w-auto md:max-w-none md:-mb-21 lg:-mb-22"
-            aria-hidden
-          >
-            <Image
-              key={scrolled ? "nina-scrolled" : "nina-top"}
-              src={scrolled ? NINA_IMAGE_SCROLLED : NINA_IMAGE}
-              alt=""
-              width={280}
-              height={280}
-              sizes="(max-width: 767px) min(87vw, calc(100vw - 6.5rem)), 240px"
-              className="h-auto max-h-[7.125rem] w-[min(87vw,calc(100vw-6.5rem))] max-w-[21rem] object-contain object-bottom sm:max-h-[7.875rem] sm:max-w-[22.5rem] md:h-auto md:w-auto md:max-h-[8.5rem] md:max-w-[11.5rem] lg:max-h-[10rem] lg:max-w-[14rem] xl:max-h-[11rem] xl:max-w-[15.5rem]"
-              priority={false}
-            />
-          </div>
+          {showMascot && mascotSrc ? (
+            <div
+              className="pointer-events-none relative z-40 w-fit max-w-[calc(100vw-6.5rem)] shrink-0 -translate-x-4 -mb-[3.75rem] sm:-translate-x-5 sm:max-w-[calc(100vw-7rem)] sm:-mb-[3.125rem] md:z-50 md:translate-x-0 md:w-auto md:max-w-none md:-mb-21 lg:-mb-22"
+              aria-hidden
+            >
+              <Image
+                key={scrolled ? "mascot-scrolled" : "mascot-top"}
+                src={mascotSrc}
+                alt=""
+                width={280}
+                height={280}
+                sizes="(max-width: 767px) min(87vw, calc(100vw - 6.5rem)), 240px"
+                className="h-auto max-h-[7.125rem] w-[min(87vw,calc(100vw-6.5rem))] max-w-[21rem] object-contain object-bottom sm:max-h-[7.875rem] sm:max-w-[22.5rem] md:h-auto md:w-auto md:max-h-[8.5rem] md:max-w-[11.5rem] lg:max-h-[10rem] lg:max-w-[14rem] xl:max-h-[11rem] xl:max-w-[15.5rem]"
+                priority={false}
+                unoptimized={mascotIsRemote}
+              />
+            </div>
+          ) : null}
         </div>
         <div className="hidden shrink-0 md:flex md:items-center md:gap-1">
           {links.map((l) => (
