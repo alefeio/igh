@@ -716,18 +716,6 @@ export default function ClassGroupsPage() {
             ? "Por padrão, só as turmas do ciclo atual (visível para matrículas). Pesquise e filtre por status."
             : "Por padrão, só as turmas do ciclo atual (consulta). Pesquise e filtre por status."
         }
-        rightSlot={
-          canMutate ? (
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-              <Button variant="secondary" onClick={() => setOpenCycle(true)} className="w-full sm:w-auto">
-                Novo ciclo
-              </Button>
-              <Button onClick={openCreate} className="w-full sm:w-auto">
-                Nova turma
-              </Button>
-            </div>
-          ) : undefined
-        }
       />
 
       <SectionCard title="Filtros" description="Refine a listagem antes de editar ou criar sessões." variant="elevated">
@@ -783,6 +771,13 @@ export default function ClassGroupsPage() {
       <SectionCard
         title="Ciclos"
         description="Gerencie os ciclos (número, ano e visibilidade para matrículas no painel e no site)."
+        action={
+          canMutate ? (
+            <Button variant="secondary" onClick={() => setOpenCycle(true)} className="w-full sm:w-auto">
+              Novo ciclo
+            </Button>
+          ) : undefined
+        }
       >
         <div className="mb-3 flex flex-wrap items-end gap-3">
           <CertificatePagesSelect
@@ -931,6 +926,13 @@ export default function ClassGroupsPage() {
           loading
             ? "Carregando…"
             : `${visibleItems.length} ${visibleItems.length === 1 ? "turma" : "turmas"} com os filtros atuais.`
+        }
+        action={
+          canMutate ? (
+            <Button onClick={openCreate} className="w-full sm:w-auto">
+              Nova turma
+            </Button>
+          ) : undefined
         }
       >
         {loading ? (
