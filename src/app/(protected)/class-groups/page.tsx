@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
-import { DEFAULT_CYCLE_ID, pickCurrentCycle } from "@/lib/cycles";
 
 function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): string {
   if (json && !json.ok) return json.error.message;
@@ -188,7 +187,7 @@ export default function ClassGroupsPage() {
   const [includeOtherCycles, setIncludeOtherCycles] = useState(false);
   const [editing, setEditing] = useState<ClassGroup | null>(null);
 
-  const [cycleId, setCycleId] = useState(DEFAULT_CYCLE_ID);
+  const [cycleId, setCycleId] = useState("");
   const [courseId, setCourseId] = useState("");
   const [teacherIds, setTeacherIds] = useState<string[]>([]);
   const [daysOfWeek, setDaysOfWeek] = useState<string[]>(["TER", "QUI"]);
@@ -254,6 +253,7 @@ export default function ClassGroupsPage() {
 
   const canSubmit = useMemo(() => {
     const base =
+      cycleId.length > 0 &&
       courseId.length > 0 &&
       teacherIds.length > 0 &&
       daysOfWeek.length > 0 &&
@@ -262,7 +262,7 @@ export default function ClassGroupsPage() {
       endTime.trim().length > 0 &&
       Number(capacity) > 0;
     return base && (editing != null || courseHasWorkload);
-  }, [courseId, teacherIds, daysOfWeek, startDate, startTime, endTime, capacity, courseHasWorkload, editing]);
+  }, [cycleId, courseId, teacherIds, daysOfWeek, startDate, startTime, endTime, capacity, courseHasWorkload, editing]);
 
   function toggleTeacher(id: string) {
     setTeacherIds((prev) =>
@@ -270,12 +270,8 @@ export default function ClassGroupsPage() {
     );
   }
 
-  function defaultCycleIdForForm() {
-    return pickCurrentCycle(cycles)?.id ?? DEFAULT_CYCLE_ID;
-  }
-
   function resetForm() {
-    setCycleId(defaultCycleIdForForm());
+    setCycleId("");
     setCourseId("");
     setTeacherIds([]);
     setDaysOfWeek(["TER", "QUI"]);
@@ -397,12 +393,7 @@ export default function ClassGroupsPage() {
         throw new Error(tJson && "error" in tJson ? tJson.error.message : "Falha ao carregar professores.");
 
       setItems(cgJson!.data.classGroups);
-      const loadedCycles = cyclesJson?.ok ? cyclesJson.data.cycles : [];
-      setCycles(loadedCycles);
-      setCycleId((prev) => {
-        if (loadedCycles.some((c) => c.id === prev)) return prev;
-        return pickCurrentCycle(loadedCycles)?.id ?? DEFAULT_CYCLE_ID;
-      });
+      setCycles(cyclesJson?.ok ? cyclesJson.data.cycles : []);
       setCourses(cJson!.data.courses);
       setTeachers(tJson!.data.teachers);
       setTimeSlots(tsJson?.ok ? tsJson.data.timeSlots : []);
@@ -1373,13 +1364,14 @@ export default function ClassGroupsPage() {
                 className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
                 value={cycleId}
                 onChange={(e) => setCycleId(e.target.value)}
+                required
               >
+                <option value="">Selecione...</option>
                 {cycles.map((c) => (
                   <option key={c.id} value={c.id}>
                     {`Ciclo ${c.cycle} / ${c.year}`}{c.isVisibleForEnrollments ? "" : " (oculto)"}
                   </option>
                 ))}
-                {cycles.length === 0 ? <option value={DEFAULT_CYCLE_ID}>Ciclo 1 / 2026</option> : null}
               </select>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
                 Só ciclos marcados como visíveis aparecem para matrículas no painel e no site.

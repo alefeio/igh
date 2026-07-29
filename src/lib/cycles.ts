@@ -20,19 +20,44 @@ export function pickCurrentCycle<T extends CycleLike>(cycles: readonly T[]): T |
   return current;
 }
 
-/** Garante o ciclo seed (1/2026) — necessário em DBs novos sem seed. */
+/**
+ * Garante um ciclo utilizável em bases novas.
+ * Não sobrescreve nem conflita com um ciclo 1/2026 já criado com outro id
+ * (@@unique([cycle, year])).
+ */
 export async function ensureDefaultCycle(
   prisma: Pick<PrismaClient, "cycle">,
 ): Promise<{ id: string }> {
-  return prisma.cycle.upsert({
+  const byId = await prisma.cycle.findUnique({
     where: { id: DEFAULT_CYCLE_ID },
-    create: {
-      id: DEFAULT_CYCLE_ID,
-      cycle: 1,
-      year: 2026,
-      isVisibleForEnrollments: true,
-    },
-    update: {},
     select: { id: true },
   });
+  if (byId) return byId;
+
+  const byKey = await prisma.cycle.findUnique({
+    where: { cycle_year: { cycle: 1, year: 2026 } },
+    select: { id: true },
+  });
+  if (byKey) return byKey;
+
+  try {
+    return await prisma.cycle.create({
+      data: {
+        id: DEFAULT_CYCLE_ID,
+        cycle: 1,
+        year: 2026,
+        isVisibleForEnrollments: true,
+      },
+      select: { id: true },
+    });
+  } catch {
+    const fallback = await prisma.cycle.findFirst({
+      where: {
+        OR: [{ id: DEFAULT_CYCLE_ID }, { cycle: 1, year: 2026 }],
+      },
+      select: { id: true },
+    });
+    if (fallback) return fallback;
+    throw new Error("Não foi possível garantir o ciclo padrão.");
+  }
 }

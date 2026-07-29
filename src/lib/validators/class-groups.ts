@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { appUuid, optionalAppUuid, nullableAppUuid } from "@/lib/validators/ids";
+import { appUuid, nullableAppUuid } from "@/lib/validators/ids";
 
 const daysSchema = z
   .array(z.string().min(2))
@@ -13,7 +13,8 @@ const teacherIdsSchema = z
   .max(20, "Máximo de 20 professores por turma");
 
 const baseClassGroupFields = {
-  cycleId: optionalAppUuid,
+  /** Obrigatório na criação; no update continua opcional via `.partial()`. */
+  cycleId: appUuid,
   courseId: appUuid,
   teacherIds: teacherIdsSchema,
   daysOfWeek: daysSchema,

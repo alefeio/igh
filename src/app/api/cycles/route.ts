@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole, requireStaffWrite } from "@/lib/auth";
-import { ensureDefaultCycle } from "@/lib/cycles";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { z } from "zod";
 
@@ -13,7 +12,6 @@ const createCycleSchema = z.object({
 export async function GET() {
   // Leitura de ciclos é necessária em matrículas e listagens (inclui TEACHER e coordenador de polo).
   await requireRole(["ADMIN", "MASTER", "COORDINATOR", "TEACHER", "POLO_COORDINATOR"]);
-  await ensureDefaultCycle(prisma);
   const cycles = await prisma.cycle.findMany({
     orderBy: [{ year: "desc" }, { cycle: "desc" }],
   });

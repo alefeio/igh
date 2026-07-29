@@ -11,7 +11,6 @@ import {
   splitHolidaysForSchedule,
 } from "@/lib/schedule";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
-import { DEFAULT_CYCLE_ID, ensureDefaultCycle } from "@/lib/cycles";
 import { classGroupTeacherAccessWhere, syncClassGroupTeachers, validateTeacherIds } from "@/lib/class-group-teachers";
 import { buildClassGroupWhereForPoloCoordinator } from "@/lib/polo-coordinator-scope";
 
@@ -120,14 +119,9 @@ export async function POST(request: Request) {
     resolvedLocation = poloLoc.name;
   }
 
-  const resolvedCycleId = cycleId ?? DEFAULT_CYCLE_ID;
-  if (resolvedCycleId === DEFAULT_CYCLE_ID) {
-    await ensureDefaultCycle(prisma);
-  }
-
   const [cycle, course] = await Promise.all([
     prisma.cycle.findUnique({
-      where: { id: resolvedCycleId },
+      where: { id: cycleId },
       select: { id: true },
     }),
     prisma.course.findUnique({ where: { id: courseId }, select: { id: true, workloadHours: true } }),
