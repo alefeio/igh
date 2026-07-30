@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "SiteSettings" ADD COLUMN IF NOT EXISTS "logoHeightPx" INTEGER NOT NULL DEFAULT 48;

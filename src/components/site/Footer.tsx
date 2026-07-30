@@ -3,6 +3,7 @@ import { FaInstagram, FaFacebookF, FaYoutube, FaLinkedin, FaWhatsapp } from "rea
 import { Container } from "./Container";
 import { BRAND } from "@/lib/brand";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
+import { resolveLogoHeightPx } from "@/lib/site-types";
 
 const FALLBACK_LINKS = [
   { label: "Início", href: "/" },
@@ -49,6 +50,7 @@ export function Footer({ menuItems, settings }: FooterProps) {
   const showHierarchy = menuItems && menuItems.length > 0 && hasSubItems(menuItems);
 
   const siteName = settings?.siteName ?? BRAND.legalName;
+  const logoHeightPx = resolveLogoHeightPx(settings?.logoHeightPx);
   const addresses = normalizeAddresses(settings?.addresses);
   const addressLines = addresses.map(formatAddress).filter(Boolean);
 
@@ -95,7 +97,12 @@ export function Footer({ menuItems, settings }: FooterProps) {
           <div>
             {settings?.logoUrl ? (
               <div className="inline-block rounded-lg bg-white p-2">
-                <img src={settings.logoUrl} alt={siteName} className="h-12 w-auto object-contain" />
+                <img
+                  src={settings.logoUrl}
+                  alt={siteName}
+                  style={{ height: logoHeightPx }}
+                  className="w-auto object-contain"
+                />
               </div>
             ) : null}
             <p className={`text-xl font-bold text-white ${settings?.logoUrl ? "mt-2" : ""}`}>{siteName}</p>

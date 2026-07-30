@@ -43,6 +43,8 @@ export const siteEspacoMakerPageSchema = z.object({
 export const siteSettingsSchema = z.object({
   siteName: z.string().optional(),
   logoUrl: z.string().url().optional().or(z.literal("")),
+  /** Altura da logo no site (px). */
+  logoHeightPx: z.number().int().min(24, "Mínimo 24px").max(120, "Máximo 120px").optional(),
   faviconUrl: z.string().url().optional().or(z.literal("")),
   primaryColor: z.string().optional(),
   secondaryColor: z.string().optional(),

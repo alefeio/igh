@@ -1,5 +1,14 @@
 /** Tipos públicos do site (usados no layout e em componentes client). */
 
+export const DEFAULT_LOGO_HEIGHT_PX = 48;
+export const LOGO_HEIGHT_PX_MIN = 24;
+export const LOGO_HEIGHT_PX_MAX = 120;
+
+export function resolveLogoHeightPx(value: number | null | undefined): number {
+  if (value == null || !Number.isFinite(value)) return DEFAULT_LOGO_HEIGHT_PX;
+  return Math.min(LOGO_HEIGHT_PX_MAX, Math.max(LOGO_HEIGHT_PX_MIN, Math.round(value)));
+}
+
 export type MenuItemPublic = {
   id: string;
   label: string;
@@ -12,6 +21,8 @@ export type MenuItemPublic = {
 export type SiteSettingsPublic = {
   siteName: string | null;
   logoUrl: string | null;
+  /** Altura da logo no menu/rodapé (px). */
+  logoHeightPx: number;
   faviconUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;

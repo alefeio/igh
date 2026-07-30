@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/Input";
 import { siteMutationMessage } from "@/lib/admin-site-pending";
 import type { ApiResponse } from "@/lib/api-types";
 import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
+import {
+  DEFAULT_LOGO_HEIGHT_PX,
+  LOGO_HEIGHT_PX_MAX,
+  LOGO_HEIGHT_PX_MIN,
+  resolveLogoHeightPx,
+} from "@/lib/site-types";
 import QRCode from "qrcode";
 
 type AddressEntry = { line: string; city: string; state: string; zip: string };
@@ -25,6 +31,7 @@ type Settings = {
   id: string;
   siteName: string | null;
   logoUrl: string | null;
+  logoHeightPx?: number | null;
   faviconUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
@@ -129,6 +136,7 @@ export default function ConfiguracoesPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [navbarMascotEnabled, setNavbarMascotEnabled] = useState(true);
+  const [logoHeightPx, setLogoHeightPx] = useState(DEFAULT_LOGO_HEIGHT_PX);
   const [addresses, setAddresses] = useState<AddressEntry[]>([emptyAddress()]);
 
   const [qrTitle, setQrTitle] = useState("");
@@ -214,6 +222,7 @@ export default function ConfiguracoesPage() {
         navbarMascotScrolledUrl: empty((s as Settings).navbarMascotScrolledUrl),
       });
       setNavbarMascotEnabled((s as Settings).navbarMascotEnabled !== false);
+      setLogoHeightPx(resolveLogoHeightPx((s as Settings).logoHeightPx));
       setAddresses(addrs.map((a: AddressEntry) => ({ ...a })));
     } finally {
       setLoading(false);
@@ -343,7 +352,7 @@ export default function ConfiguracoesPage() {
       const res = await fetch("/api/admin/site/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, addresses, navbarMascotEnabled }),
+        body: JSON.stringify({ ...form, addresses, navbarMascotEnabled, logoHeightPx }),
       });
       const json = await parseJson<ApiResponse<{ settings?: Settings; pending?: boolean; message?: string }>>(res);
       if (!json) {
@@ -359,6 +368,7 @@ export default function ConfiguracoesPage() {
       if (!next) return;
       setSettings(next);
       setNavbarMascotEnabled(next.navbarMascotEnabled !== false);
+      setLogoHeightPx(resolveLogoHeightPx(next.logoHeightPx));
       setForm((f) => ({
         ...f,
         navbarMascotUrl: empty(next.navbarMascotUrl),
@@ -445,6 +455,49 @@ export default function ConfiguracoesPage() {
                 onUploaded={(url) => setForm((f) => ({ ...f, logoUrl: url }))}
                 label="Ou envie uma imagem"
               />
+              <div className="mt-3 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/60 p-3">
+                <label className="text-sm font-medium" htmlFor="logo-height-px">
+                  Tamanho da logo
+                </label>
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                  Altura no menu e no rodapé do site (em pixels). Padrão {DEFAULT_LOGO_HEIGHT_PX}px.
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <input
+                    id="logo-height-px"
+                    type="range"
+                    min={LOGO_HEIGHT_PX_MIN}
+                    max={LOGO_HEIGHT_PX_MAX}
+                    step={1}
+                    value={logoHeightPx}
+                    onChange={(e) => setLogoHeightPx(Number(e.target.value))}
+                    className="h-2 min-w-[10rem] flex-1 accent-[var(--igh-primary)]"
+                  />
+                  <Input
+                    type="number"
+                    min={LOGO_HEIGHT_PX_MIN}
+                    max={LOGO_HEIGHT_PX_MAX}
+                    className="w-24"
+                    value={logoHeightPx}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (!Number.isFinite(n)) return;
+                      setLogoHeightPx(resolveLogoHeightPx(n));
+                    }}
+                  />
+                  <span className="text-sm text-[var(--text-muted)]">px</span>
+                </div>
+                {form.logoUrl ? (
+                  <div className="mt-3 inline-flex rounded-lg bg-white p-2">
+                    <img
+                      src={form.logoUrl}
+                      alt="Prévia da logo"
+                      style={{ height: logoHeightPx }}
+                      className="w-auto object-contain"
+                    />
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium">URL do favicon</label>

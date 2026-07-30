@@ -1148,6 +1148,8 @@ model SiteSettings {
   id                    String   @id @default(uuid())
   siteName              String?
   logoUrl               String?
+  /// * Altura da logo no menu/rodapé do site (px). Padrão 48.
+  logoHeightPx          Int      @default(48)
   faviconUrl            String?
   primaryColor          String?
   secondaryColor        String?

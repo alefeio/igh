@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { BRAND } from "@/lib/brand";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
+import { resolveLogoHeightPx } from "@/lib/site-types";
 
 const FALLBACK_LINKS: MenuItemPublic[] = [
   { id: "1", label: "Início", href: "/", order: 0, isExternal: false, children: [] },
@@ -42,6 +43,8 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
   const headerRef = useRef<HTMLElement>(null);
   const links = (propItems && propItems.length > 0) ? propItems : FALLBACK_LINKS;
   const logoUrl = settings?.logoUrl;
+  const logoHeightPx = resolveLogoHeightPx(settings?.logoHeightPx);
+  const logoScrolledHeightPx = Math.max(24, Math.round(logoHeightPx * 0.67));
   const mascotTop = settings?.navbarMascotUrl?.trim() || null;
   const mascotScrolled = settings?.navbarMascotScrolledUrl?.trim() || null;
   const mascotSrc = scrolled ? mascotScrolled || mascotTop : mascotTop || mascotScrolled;
@@ -87,7 +90,8 @@ export function Navbar({ menuItems: propItems, settings, sessionUser }: NavbarPr
                 <img
                   src={logoUrl}
                   alt={settings?.siteName ?? "Logo"}
-                  className={`w-auto object-contain transition-[height] ${scrolled ? "h-7 sm:h-8" : "h-10 sm:h-12"}`}
+                  style={{ height: scrolled ? logoScrolledHeightPx : logoHeightPx }}
+                  className="w-auto object-contain transition-[height]"
                 />
               </span>
             ) : (

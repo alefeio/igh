@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { BRAND } from "@/lib/brand";
+import { resolveLogoHeightPx } from "@/lib/site-types";
 
 type PanelRole = "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
 
@@ -128,6 +129,7 @@ const ITEMS: Item[] = [
 export function Sidebar({
   user,
   logoUrl = null,
+  logoHeightPx,
   drawerOpen = false,
   onDrawerClose,
   sidebarExpanded = true,
@@ -152,6 +154,7 @@ export function Sidebar({
     };
   };
   logoUrl?: string | null;
+  logoHeightPx?: number | null;
   drawerOpen?: boolean;
   onDrawerClose?: () => void;
   /** md+: barra lateral fixa visível (persistida no shell). */
@@ -161,6 +164,7 @@ export function Sidebar({
   onSidebarExpand?: () => void;
 }) {
   const pathname = usePathname();
+  const resolvedLogoHeight = resolveLogoHeightPx(logoHeightPx);
 
   const filteredItems = ITEMS.filter((i) => i.roles.includes(user.role));
 
@@ -226,9 +230,19 @@ export function Sidebar({
   const logoBlock = (
     <div className="flex min-w-0 flex-1 items-center justify-center">
       {logoUrl ? (
-        <img src={logoUrl} alt="Logo" className="h-12 w-auto max-w-full object-contain" />
+        <img
+          src={logoUrl}
+          alt="Logo"
+          style={{ height: resolvedLogoHeight }}
+          className="w-auto max-w-full object-contain"
+        />
       ) : (
-        <img src="/images/logo.png" alt="Logo" className="h-12 w-auto max-w-full object-contain" />
+        <img
+          src="/images/logo.png"
+          alt="Logo"
+          style={{ height: resolvedLogoHeight }}
+          className="w-auto max-w-full object-contain"
+        />
       )}
     </div>
   );

@@ -81,6 +81,7 @@ const FIELD_LABELS: Record<string, string> = {
   quote: "Depoimento",
   photoUrl: "Foto",
   logoUrl: "Logo",
+  logoHeightPx: "Tamanho da logo",
   websiteUrl: "Site",
   excerpt: "Resumo",
   imageUrls: "Imagens",

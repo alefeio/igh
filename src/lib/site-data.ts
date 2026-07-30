@@ -8,9 +8,11 @@ import {
   type StudentRankEntry,
 } from "@/lib/student-gamification-ranking";
 import type { MenuItemPublic, SiteSettingsPublic } from "@/lib/site-types";
+import { resolveLogoHeightPx } from "@/lib/site-types";
 import { isMarketingCampaignActiveInWindow } from "@/lib/marketing-campaign-active";
 
 export type { MenuItemPublic, SiteSettingsPublic };
+export { resolveLogoHeightPx, DEFAULT_LOGO_HEIGHT_PX } from "@/lib/site-types";
 
 export async function getMenuItems(): Promise<MenuItemPublic[]> {
   try {
@@ -77,6 +79,7 @@ export async function getSiteSettings(): Promise<SiteSettingsPublic | null> {
     return {
       siteName: s.siteName,
       logoUrl: s.logoUrl,
+      logoHeightPx: resolveLogoHeightPx(s.logoHeightPx),
       faviconUrl: s.faviconUrl,
       primaryColor: s.primaryColor,
       secondaryColor: s.secondaryColor,

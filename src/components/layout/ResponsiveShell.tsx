@@ -13,6 +13,7 @@ const SIDEBAR_EXPANDED_KEY = "igh-panel-sidebar-expanded";
 export function ResponsiveShell({
   user,
   logoUrl = null,
+  logoHeightPx,
   children,
 }: {
   user: {
@@ -35,6 +36,7 @@ export function ResponsiveShell({
     };
   };
   logoUrl?: string | null;
+  logoHeightPx?: number | null;
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -89,6 +91,7 @@ export function ResponsiveShell({
       <Sidebar
         user={user}
         logoUrl={logoUrl}
+        logoHeightPx={logoHeightPx}
         drawerOpen={drawerOpen}
         onDrawerClose={closeDrawer}
         sidebarExpanded={sidebarExpanded}

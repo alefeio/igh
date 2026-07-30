@@ -43,7 +43,11 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       <UserProvider user={sessionUser}>
         <PageVisitTracker />
         <RequireChangePassword>
-          <ResponsiveShell user={shellUser} logoUrl={settings?.logoUrl ?? null}>
+          <ResponsiveShell
+            user={shellUser}
+            logoUrl={settings?.logoUrl ?? null}
+            logoHeightPx={settings?.logoHeightPx}
+          >
             {children}
           </ResponsiveShell>
           <LegalConsentBanner />
