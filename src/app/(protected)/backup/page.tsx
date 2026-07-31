@@ -6,6 +6,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
+import { isMasterOrGeneralAdmin } from "@/lib/rbac";
 
 /** Abaixo do limite ~4.5 MB da Vercel; lotes menores evitam timeout da function. */
 const MAX_CHUNK_CHARS = 800_000;
@@ -104,7 +105,7 @@ async function readResponseJson<T>(res: Response): Promise<T | null> {
 
 export default function BackupPage() {
   const user = useUser();
-  const isMaster = user.role === "MASTER";
+  const isMaster = isMasterOrGeneralAdmin(user);
   const toast = useToast();
   const [backupLoading, setBackupLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);

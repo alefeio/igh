@@ -130,7 +130,11 @@ export async function POST(request: Request) {
   const q = typeof body?.q === "string" ? body.q.trim() : "";
   const includeDeletedRaw = body?.includeDeleted === true;
   const includeDeleted =
-    includeDeletedRaw && (user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR");
+    includeDeletedRaw &&
+    (user.role === "MASTER" ||
+      user.role === "GENERAL_ADMIN" ||
+      user.role === "ADMIN" ||
+      user.role === "COORDINATOR");
   const cycles = typeof body?.cycles === "string" ? body.cycles : null;
 
   const fields = fieldsRaw

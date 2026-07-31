@@ -13,6 +13,7 @@ export async function POST() {
     user.role === "TEACHER" ||
     user.role === "ADMIN" ||
     user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN" ||
     user.role === "COORDINATOR";
   if (!allowed) {
     return jsonErr("FORBIDDEN", "Sem permissão para anexar arquivos.", 403);

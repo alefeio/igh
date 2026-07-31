@@ -11,8 +11,12 @@ export const metadata = {
   description: "Atualize seu cadastro e seus dados de acesso.",
 };
 
-const STAFF_ROLE_LABEL: Record<"MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER", string> = {
+const STAFF_ROLE_LABEL: Record<
+  "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER",
+  string
+> = {
   MASTER: "Master",
+  GENERAL_ADMIN: "Administrador Geral",
   ADMIN: "Administrador",
   COORDINATOR: "Coordenador",
   POLO_COORDINATOR: "Coordenador de Polos",
@@ -60,6 +64,7 @@ export default async function MeusDadosPage() {
 
   if (
     user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN" ||
     user.role === "ADMIN" ||
     user.role === "COORDINATOR" ||
     user.role === "POLO_COORDINATOR" ||

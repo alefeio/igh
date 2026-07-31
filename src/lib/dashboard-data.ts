@@ -77,6 +77,7 @@ function buildTeacherDashboardStudentRankingTop(
 
 const ROLE_LABELS: Record<string, string> = {
   MASTER: "Administrador Master",
+  GENERAL_ADMIN: "Administrador Geral",
   ADMIN: "Administrador",
   COORDINATOR: "Coordenador",
   POLO_COORDINATOR: "Coordenador de Polos",
@@ -169,7 +170,7 @@ export type DashboardAccessActivitySummary = {
 
 /** Painel inicial admin/coordenador/master: só totais (detalhes em /admin/plataforma e /admin/calendario). */
 export type DashboardDataAdmin = {
-  role: "ADMIN" | "MASTER" | "COORDINATOR";
+  role: "ADMIN" | "MASTER" | "GENERAL_ADMIN" | "COORDINATOR";
   roleLabel: string;
   stats: DashboardStats;
 };
@@ -692,7 +693,7 @@ async function loadAdminDashboardHome(
   }
 
   return {
-    role: user.role as "ADMIN" | "MASTER" | "COORDINATOR",
+    role: user.role as "ADMIN" | "MASTER" | "GENERAL_ADMIN" | "COORDINATOR",
     roleLabel,
     stats: {
       students,
@@ -805,7 +806,12 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     return loadTeacherDashboardHome(user, roleLabel);
   }
 
-  if (user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR") {
+  if (
+    user.role === "ADMIN" ||
+    user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN" ||
+    user.role === "COORDINATOR"
+  ) {
     return loadAdminDashboardHome(user, roleLabel);
   }
 
@@ -1228,7 +1234,12 @@ export async function getAdminCalendarPagePayload(): Promise<{
 export async function getAdminPlataformaPagePayload(
   user: SessionUser,
 ): Promise<AdminPlataformaPagePayload | null> {
-  if (user.role !== "ADMIN" && user.role !== "MASTER" && user.role !== "COORDINATOR") {
+  if (
+    user.role !== "ADMIN" &&
+    user.role !== "MASTER" &&
+    user.role !== "GENERAL_ADMIN" &&
+    user.role !== "COORDINATOR"
+  ) {
     return null;
   }
 

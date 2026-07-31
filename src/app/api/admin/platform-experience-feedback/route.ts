@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   );
 
   return jsonOk({
-    canDeleteEvaluations: user.role === "MASTER",
+    canDeleteEvaluations: user.role === "MASTER" || user.role === "GENERAL_ADMIN",
     filterOptions,
     summary: {
       totalCount: agg._count.id,

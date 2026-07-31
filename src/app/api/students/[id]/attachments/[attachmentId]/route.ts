@@ -16,7 +16,12 @@ async function canAccessStudent(user: SessionUser, studentId: string): Promise<b
     });
     return !!enrollment;
   }
-  return user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR";
+  return (
+    user.role === "ADMIN" ||
+    user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN" ||
+    user.role === "COORDINATOR"
+  );
 }
 
 /** Remoção lógica de anexo (Master, Admin ou Coordenador). */

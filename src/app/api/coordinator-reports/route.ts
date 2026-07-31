@@ -9,7 +9,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { getNextCoordinatorReportProtocol } from "@/lib/coordinator-report-protocol";
 
 function canCreateReport(role: string): boolean {
-  return role === "TEACHER" || role === "ADMIN" || role === "MASTER";
+  return role === "TEACHER" || role === "ADMIN" || role === "MASTER" || role === "GENERAL_ADMIN";
 }
 
 function isCoordinatorRole(role: string): boolean {

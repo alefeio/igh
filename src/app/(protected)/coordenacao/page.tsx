@@ -36,6 +36,7 @@ export default function CoordenacaoPage() {
     user.role === "TEACHER" ||
     user.role === "ADMIN" ||
     user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN" ||
     user.role === "COORDINATOR";
 
   useEffect(() => {

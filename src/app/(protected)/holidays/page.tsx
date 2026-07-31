@@ -8,6 +8,7 @@ import { HolidayCalendarBannerEditor } from "@/components/holidays/HolidayCalend
 import { HolidayEventRegistrationsPanel } from "@/components/holidays/HolidayEventRegistrationsPanel";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
+import { isMasterOrGeneralAdmin } from "@/lib/rbac";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -97,7 +98,7 @@ async function parseApiJson<T>(res: Response): Promise<ApiResponse<T> | null> {
 export default function HolidaysPage() {
   const toast = useToast();
   const user = useUser();
-  const isMaster = user.role === "MASTER";
+  const isMaster = isMasterOrGeneralAdmin(user);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Holiday[]>([]);
   const [open, setOpen] = useState(false);

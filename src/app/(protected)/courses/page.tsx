@@ -28,7 +28,12 @@ export default function CoursesPage() {
   const toast = useToast();
   const user = useUser();
   const isTeacher = user.role === "TEACHER";
-  const canBackup = !isTeacher && (user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR");
+  const canBackup =
+    !isTeacher &&
+    (user.role === "MASTER" ||
+      user.role === "GENERAL_ADMIN" ||
+      user.role === "ADMIN" ||
+      user.role === "COORDINATOR");
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Course[]>([]);
   const [showInactive, setShowInactive] = useState(false);

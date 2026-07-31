@@ -45,9 +45,11 @@ export default function SuporteChamadoPage() {
 
   const isSupport =
     user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN" ||
     user.role === "ADMIN" ||
     user.role === "COORDINATOR" ||
     user.baseRole === "MASTER" ||
+    user.baseRole === "GENERAL_ADMIN" ||
     user.baseRole === "ADMIN" ||
     user.isAdmin;
 

@@ -17,7 +17,12 @@ async function canAccessStudent(user: SessionUser, studentId: string): Promise<b
     });
     return !!enrollment;
   }
-  return user.role === "ADMIN" || user.role === "MASTER" || user.role === "COORDINATOR";
+  return (
+    user.role === "ADMIN" ||
+    user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN" ||
+    user.role === "COORDINATOR"
+  );
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {

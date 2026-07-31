@@ -17,6 +17,7 @@ import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 import { formatClassGroupTurmaLine } from "@/lib/turma-display";
+import { isMasterOrGeneralAdmin } from "@/lib/rbac";
 
 const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Ativa",
@@ -239,7 +240,7 @@ function whatsappUrl(phone: string): string {
 export default function EnrollmentsPage() {
   const user = useUser();
   const toast = useToast();
-  const isMaster = user.role === "MASTER";
+  const isMaster = isMasterOrGeneralAdmin(user);
   const isPoloCoordinator = user.role === "POLO_COORDINATOR";
   const canOverrideEnrollment = isMaster || user.role === "COORDINATOR";
   const [loading, setLoading] = useState(true);
@@ -1206,6 +1207,7 @@ export default function EnrollmentsPage() {
             </div>
             {(user.role === "ADMIN" ||
               user.role === "MASTER" ||
+              user.role === "GENERAL_ADMIN" ||
               user.role === "COORDINATOR" ||
               user.role === "POLO_COORDINATOR") && (
               <Button onClick={openCreate} className="w-full sm:w-auto">

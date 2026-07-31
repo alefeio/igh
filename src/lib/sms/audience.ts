@@ -281,7 +281,12 @@ export async function resolveSmsAudience(
       const users = await prisma.user.findMany({
         where: {
           isActive: true,
-          OR: [{ role: "ADMIN" }, { role: "MASTER" }, { isAdmin: true }],
+          OR: [
+            { role: "ADMIN" },
+            { role: "MASTER" },
+            { role: "GENERAL_ADMIN" },
+            { isAdmin: true },
+          ],
         },
         select: {
           id: true,

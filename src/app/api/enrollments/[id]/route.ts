@@ -118,7 +118,8 @@ export async function PATCH(
     if (!newClassGroup) {
       return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
     }
-    const canOverrideEnrollmentRules = user.role === "MASTER" || user.role === "COORDINATOR";
+    const canOverrideEnrollmentRules =
+      user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "COORDINATOR";
     const statusesPermitidos = canOverrideEnrollmentRules
       ? ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "INTERNO"]
       : ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"];

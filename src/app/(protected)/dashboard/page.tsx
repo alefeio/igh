@@ -225,8 +225,8 @@ function DashboardAdmin({
 }) {
   const { stats, roleLabel } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Admin";
-  /** Disparos de campanha são irreversíveis: só o Master acessa. */
-  const canUseCampaigns = data.role === "MASTER";
+  /** Disparos de campanha são irreversíveis: Master e Administrador Geral. */
+  const canUseCampaigns = data.role === "MASTER" || data.role === "GENERAL_ADMIN";
 
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
@@ -1171,7 +1171,10 @@ export default async function DashboardPage() {
 
   return (
     <>
-      {data.role === "ADMIN" || data.role === "MASTER" || data.role === "COORDINATOR" ? (
+      {data.role === "ADMIN" ||
+      data.role === "MASTER" ||
+      data.role === "GENERAL_ADMIN" ||
+      data.role === "COORDINATOR" ? (
         <DashboardAdmin
           data={data}
           userName={user.name}
@@ -1188,6 +1191,7 @@ export default async function DashboardPage() {
       <DashboardTutorial
         showForStudent={
           data.role !== "MASTER" &&
+          data.role !== "GENERAL_ADMIN" &&
           (data.role === "STUDENT" ||
             data.role === "ADMIN" ||
             data.role === "COORDINATOR" ||
@@ -1196,14 +1200,20 @@ export default async function DashboardPage() {
         steps={
           data.role === "STUDENT"
             ? STUDENT_TUTORIAL_STEPS
-            : data.role === "ADMIN" || data.role === "MASTER" || data.role === "COORDINATOR"
+            : data.role === "ADMIN" ||
+                data.role === "MASTER" ||
+                data.role === "GENERAL_ADMIN" ||
+                data.role === "COORDINATOR"
               ? ADMIN_TUTORIAL_STEPS
               : data.role === "TEACHER"
                 ? TEACHER_TUTORIAL_STEPS
                 : []
         }
         storageKey={
-          data.role === "ADMIN" || data.role === "MASTER" || data.role === "COORDINATOR"
+          data.role === "ADMIN" ||
+          data.role === "MASTER" ||
+          data.role === "GENERAL_ADMIN" ||
+          data.role === "COORDINATOR"
             ? "admin-dashboard-tutorial-done"
             : data.role === "TEACHER"
               ? "teacher-dashboard-tutorial-done"

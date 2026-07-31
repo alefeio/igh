@@ -16,7 +16,12 @@ export async function GET() {
     return jsonOk({ unreadCount });
   }
 
-  if (user.role === "TEACHER" || user.role === "ADMIN" || user.role === "MASTER") {
+  if (
+    user.role === "TEACHER" ||
+    user.role === "ADMIN" ||
+    user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN"
+  ) {
     const unreadCount = await prisma.coordinatorReport.count({
       where: {
         fromUserId: user.id,

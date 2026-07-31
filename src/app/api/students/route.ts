@@ -49,7 +49,10 @@ export async function GET(request: Request) {
   const q = searchParams.get("q")?.trim() ?? "";
   const includeDeleted =
     searchParams.get("includeDeleted") === "true" &&
-    (user.role === "MASTER" || user.role === "ADMIN" || user.role === "COORDINATOR");
+    (user.role === "MASTER" ||
+      user.role === "GENERAL_ADMIN" ||
+      user.role === "ADMIN" ||
+      user.role === "COORDINATOR");
 
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const pageSizeRaw = parseInt(searchParams.get("pageSize") ?? "20", 10) || 20;
