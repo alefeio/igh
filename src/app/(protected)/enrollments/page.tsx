@@ -289,6 +289,7 @@ export default function EnrollmentsPage() {
     frequencia: false,
   });
 
+  const [openNewStudent, setOpenNewStudent] = useState(false);
   const [waitlistReloadToken, setWaitlistReloadToken] = useState(0);
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
