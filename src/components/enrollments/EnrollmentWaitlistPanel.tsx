@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { StudentForm } from "@/components/students/StudentForm";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import type { ApiResponse } from "@/lib/api-types";
@@ -46,22 +47,31 @@ const STATUS_LABEL: Record<string, string> = {
   EXTERNO: "Externo",
 };
 
+function isClassGroupFull(cg: ClassGroupOpt): boolean {
+  const cap = cg.capacity ?? 0;
+  const count = cg.enrollmentsCount ?? 0;
+  return cap > 0 && count >= cap;
+}
+
 export function EnrollmentWaitlistPanel({
   canManage,
   classGroups,
   onNeedClassGroups,
   reloadToken = 0,
+  isMaster = false,
 }: {
   canManage: boolean;
   classGroups: ClassGroupOpt[];
   onNeedClassGroups: () => void | Promise<void>;
   /** Incrementa para forçar reload (ex.: após excluir/cancelar matrícula). */
   reloadToken?: number;
+  isMaster?: boolean;
 }) {
   const toast = useToast();
   const [items, setItems] = useState<WaitlistRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [openNewStudent, setOpenNewStudent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [students, setStudents] = useState<StudentOpt[]>([]);
   const [studentId, setStudentId] = useState("");
@@ -70,6 +80,8 @@ export function EnrollmentWaitlistPanel({
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
   const studentComboboxRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<number | null>(null);
+
+  const fullClassGroups = useMemo(() => classGroups.filter(isClassGroupFull), [classGroups]);
 
   const load = useCallback(async () => {
     if (!canManage) return;
@@ -105,6 +117,12 @@ export function EnrollmentWaitlistPanel({
     };
   }, [studentSearchQuery, open]);
 
+  useEffect(() => {
+    if (classGroupId && !fullClassGroups.some((cg) => cg.id === classGroupId)) {
+      setClassGroupId("");
+    }
+  }, [classGroupId, fullClassGroups]);
+
   function openCreate() {
     setStudentId("");
     setClassGroupId("");
@@ -113,6 +131,13 @@ export function EnrollmentWaitlistPanel({
     setOpen(true);
     void onNeedClassGroups();
     void searchStudents("");
+  }
+
+  function handleNewStudentSuccess(student: { id: string; name: string; email: string | null }) {
+    setOpenNewStudent(false);
+    setStudents((prev) => (prev.some((s) => s.id === student.id) ? prev : [...prev, student]));
+    setStudentId(student.id);
+    setStudentSearchQuery("");
   }
 
   async function submit(e: React.FormEvent) {
@@ -234,98 +259,113 @@ export function EnrollmentWaitlistPanel({
             Para turmas sem vagas. O aluno precisa estar cadastrado. Ao cancelar ou excluir uma
             matrícula, o primeiro da fila é matriculado e recebe o e-mail de acesso.
           </p>
-          <div>
+          <div className="flex items-center justify-between gap-2">
             <label className="text-sm font-medium">Aluno</label>
-            <div ref={studentComboboxRef} className="relative mt-1">
-              <input
-                type="text"
-                value={
-                  studentId
-                    ? (() => {
-                        const s = students.find((x) => x.id === studentId);
-                        return s
-                          ? `${s.name}${s.email ? ` (${s.email})` : " (sem e-mail)"}`
-                          : studentSearchQuery;
-                      })()
-                    : studentSearchQuery
-                }
-                onChange={(e) => {
-                  setStudentSearchQuery(e.target.value);
-                  setStudentId("");
-                  setStudentDropdownOpen(true);
-                }}
-                onFocus={() => setStudentDropdownOpen(true)}
-                onBlur={() => setTimeout(() => setStudentDropdownOpen(false), 150)}
-                placeholder="Digite o nome ou e-mail do aluno..."
-                className="theme-input w-full rounded border px-3 py-2 text-sm"
-                autoComplete="off"
-              />
-              {studentDropdownOpen ? (
-                <ul
-                  className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded border border-[var(--card-border)] bg-[var(--card-bg)] py-1 shadow-lg"
-                  role="listbox"
-                >
-                  {students.length === 0 ? (
-                    <li className="px-3 py-2 text-sm text-[var(--text-muted)]">
-                      Nenhum aluno encontrado. Cadastre o aluno antes da reserva.
+            <Button type="button" variant="secondary" onClick={() => setOpenNewStudent(true)}>
+              Cadastrar aluno
+            </Button>
+          </div>
+          <div ref={studentComboboxRef} className="relative">
+            <input
+              type="text"
+              value={
+                studentId
+                  ? (() => {
+                      const s = students.find((x) => x.id === studentId);
+                      return s
+                        ? `${s.name}${s.email ? ` (${s.email})` : " (sem e-mail)"}`
+                        : studentSearchQuery;
+                    })()
+                  : studentSearchQuery
+              }
+              onChange={(e) => {
+                setStudentSearchQuery(e.target.value);
+                setStudentId("");
+                setStudentDropdownOpen(true);
+              }}
+              onFocus={() => setStudentDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setStudentDropdownOpen(false), 150)}
+              placeholder="Digite o nome ou e-mail do aluno..."
+              className="theme-input w-full rounded border px-3 py-2 text-sm"
+              autoComplete="off"
+            />
+            {studentDropdownOpen ? (
+              <ul
+                className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded border border-[var(--card-border)] bg-[var(--card-bg)] py-1 shadow-lg"
+                role="listbox"
+              >
+                {students.length === 0 ? (
+                  <li className="px-3 py-2 text-sm text-[var(--text-muted)]">
+                    Nenhum aluno encontrado. Use «Cadastrar aluno» se ainda não existir.
+                  </li>
+                ) : (
+                  students.map((s) => (
+                    <li
+                      key={s.id}
+                      role="option"
+                      aria-selected={false}
+                      className="cursor-pointer px-3 py-2 text-sm hover:bg-[var(--igh-surface)]"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setStudentId(s.id);
+                        setStudentSearchQuery("");
+                        setStudentDropdownOpen(false);
+                      }}
+                    >
+                      {`${s.name}${s.email ? ` (${s.email})` : " (sem e-mail)"}`}
                     </li>
-                  ) : (
-                    students.map((s) => (
-                      <li
-                        key={s.id}
-                        role="option"
-                        aria-selected={false}
-                        className="cursor-pointer px-3 py-2 text-sm hover:bg-[var(--igh-surface)]"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setStudentId(s.id);
-                          setStudentSearchQuery("");
-                          setStudentDropdownOpen(false);
-                        }}
-                      >
-                        {`${s.name}${s.email ? ` (${s.email})` : " (sem e-mail)"}`}
-                      </li>
-                    ))
-                  )}
-                </ul>
-              ) : null}
-            </div>
+                  ))
+                )}
+              </ul>
+            ) : null}
           </div>
           <div>
-            <label className="text-sm font-medium">Turma</label>
+            <label className="text-sm font-medium">Turma (lotada)</label>
             <select
               value={classGroupId}
               onChange={(e) => setClassGroupId(e.target.value)}
               className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
               required
             >
-              <option value="">Selecione</option>
-              {classGroups.map((cg) => {
+              <option value="">
+                {fullClassGroups.length === 0 ? "Nenhuma turma lotada no momento" : "Selecione"}
+              </option>
+              {fullClassGroups.map((cg) => {
                 const cap = cg.capacity ?? 0;
                 const count = cg.enrollmentsCount ?? 0;
-                const isFull = cap > 0 && count >= cap;
                 return (
                   <option key={cg.id} value={cg.id}>
                     {cg.course.name} — {STATUS_LABEL[cg.status ?? ""] ?? cg.status ?? "—"} — Início{" "}
-                    {formatDateOnly(cg.startDate)} — ({count}/{cap || "—"} vagas)
-                    {isFull ? " — Lotada" : ""}
+                    {formatDateOnly(cg.startDate)} — ({count}/{cap} vagas) — Lotada
                   </option>
                 );
               })}
             </select>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              A reserva só é aceita se a turma estiver lotada.
+              Só aparecem turmas sem vagas disponíveis.
             </p>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={submitting || !studentId || !classGroupId}>
+            <Button
+              type="submit"
+              disabled={submitting || !studentId || !classGroupId || fullClassGroups.length === 0}
+            >
               {submitting ? "Salvando…" : "Criar reserva"}
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={openNewStudent} title="Cadastrar aluno" onClose={() => setOpenNewStudent(false)}>
+        <StudentForm
+          editing={null}
+          onSuccess={handleNewStudentSuccess}
+          onCancel={() => setOpenNewStudent(false)}
+          isMaster={isMaster}
+        />
       </Modal>
     </>
   );

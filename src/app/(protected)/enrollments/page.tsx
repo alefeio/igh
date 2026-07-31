@@ -1233,6 +1233,7 @@ export default function EnrollmentsPage() {
         classGroups={filteredClassGroupsForModal}
         onNeedClassGroups={loadFormOptions}
         reloadToken={waitlistReloadToken}
+        isMaster={isMaster}
       />
 
       {loading ? (
