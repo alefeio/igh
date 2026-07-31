@@ -39,7 +39,8 @@ export function normalizeManagedRoles(
 ): ManagedAccessRole[] {
   const unique = Array.from(new Set(roles ?? []));
   if (unique.includes("GENERAL_ADMIN")) {
-    // Administrador Geral é papel exclusivo (não combina com overlays staff nesta tela).
+    // Administrador Geral é papel exclusivo na seleção; vínculos de polo são
+    // preservados via isPoloCoordinator na API de usuários.
     return ["GENERAL_ADMIN"];
   }
   return normalizeStaffRoles(unique.filter((r): r is StaffAccessRole => r !== "GENERAL_ADMIN"));

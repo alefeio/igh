@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updatePoloSchema } from "@/lib/validators/polos";
 import { createAuditLog } from "@/lib/audit";
+import { poloCoordinatorEligibleWhere } from "@/lib/polo-coordinator-eligible";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -94,7 +95,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 
   if (parsed.data.coordinatorUserId) {
     const coordinator = await prisma.user.findFirst({
-      where: { id: parsed.data.coordinatorUserId, role: "POLO_COORDINATOR", isActive: true },
+      where: { id: parsed.data.coordinatorUserId, ...poloCoordinatorEligibleWhere },
       select: { id: true },
     });
     if (!coordinator) {

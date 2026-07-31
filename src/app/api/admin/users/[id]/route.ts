@@ -16,6 +16,7 @@ import {
   type ManagedAccessRole,
   type StaffAccessRole,
 } from "@/lib/staff-access";
+import { userKeepsPoloCoordinatorAccess } from "@/lib/polo-coordinator-eligible";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -134,15 +135,32 @@ export async function PATCH(request: Request, ctx: Ctx) {
     }
     data.isActive = parsed.data.isActive;
   }
+
+  const linkedPoloCount = await prisma.polo.count({
+    where: { coordinatorUserId: id },
+  });
+  const hasPoloLinks = linkedPoloCount > 0;
+
   if (selectedRoles !== undefined) {
     if (selectedRoles.includes("GENERAL_ADMIN")) {
       await requireExactMaster();
+      // Mantém responsabilidade de polo (FK) e o overlay para login/escolha de perfil.
+      const keepPoloAccess =
+        hasPoloLinks || userKeepsPoloCoordinatorAccess(existing);
       data.role = "GENERAL_ADMIN";
       data.isAdmin = false;
       data.isCoordinator = false;
-      data.isPoloCoordinator = false;
+      data.isPoloCoordinator = keepPoloAccess;
     } else {
       const staffSelected = selectedRoles as StaffAccessRole[];
+      const willKeepPolo = staffSelected.includes("POLO_COORDINATOR");
+      if (hasPoloLinks && !willKeepPolo) {
+        return jsonErr(
+          "INVALID_STATE",
+          "Não é possível remover o perfil Coordenador de Polos enquanto o usuário for responsável por um ou mais polos. Transfira a coordenação dos polos antes.",
+          400,
+        );
+      }
       if (existing.role === "GENERAL_ADMIN") {
         // Master rebaixando Admin Geral para staff
         await requireExactMaster();
@@ -158,6 +176,15 @@ export async function PATCH(request: Request, ctx: Ctx) {
         data.isCoordinator = access.isCoordinator;
         data.isPoloCoordinator = access.isPoloCoordinator;
       }
+    }
+  }
+
+  // Repara Admin Geral já vinculado a polo sem o overlay de Coordenador de Polos.
+  {
+    const nextRole = data.role ?? existing.role;
+    const nextIsPolo = data.isPoloCoordinator ?? existing.isPoloCoordinator;
+    if (nextRole === "GENERAL_ADMIN" && hasPoloLinks && !nextIsPolo) {
+      data.isPoloCoordinator = true;
     }
   }
   if (parsed.data.phone !== undefined) {

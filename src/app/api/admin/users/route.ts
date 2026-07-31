@@ -103,6 +103,7 @@ export async function GET() {
       birthDate: true,
       createdAt: true,
       updatedAt: true,
+      _count: { select: { coordinatedPolos: true } },
     },
   });
 
@@ -118,6 +119,7 @@ export async function GET() {
       isActive: u.isActive,
       phone: u.whatsapp,
       birthDate: u.birthDate ? u.birthDate.toISOString().slice(0, 10) : null,
+      coordinatedPoloCount: u._count.coordinatedPolos,
       createdAt: u.createdAt,
       updatedAt: u.updatedAt,
     })),

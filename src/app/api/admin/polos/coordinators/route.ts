@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonOk } from "@/lib/http";
+import { poloCoordinatorEligibleWhere } from "@/lib/polo-coordinator-eligible";
 
-/** Lista usuários elegíveis como coordenador de polo (papel POLO_COORDINATOR). */
+/** Lista usuários elegíveis como coordenador de polo (papel ou overlay). */
 export async function GET() {
   await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
 
   const users = await prisma.user.findMany({
-    where: { role: "POLO_COORDINATOR", isActive: true },
+    where: poloCoordinatorEligibleWhere,
     orderBy: { name: "asc" },
     select: { id: true, name: true, email: true },
   });

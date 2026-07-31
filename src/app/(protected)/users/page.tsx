@@ -32,6 +32,7 @@ type AdminUser = {
   isActive: boolean;
   phone?: string | null;
   birthDate?: string | null;
+  coordinatedPoloCount?: number;
   createdAt: string;
 };
 
@@ -79,19 +80,33 @@ function AccessTypeCheckboxes({
   onChange,
   idPrefix,
   allowGeneralAdmin,
+  lockPoloCoordinator = false,
+  onBlockedPoloUncheck,
 }: {
   selected: ManagedAccessRole[];
   onChange: (next: ManagedAccessRole[]) => void;
   idPrefix: string;
   allowGeneralAdmin: boolean;
+  /** Impede remover Coordenador de Polos quando há polo vinculado. */
+  lockPoloCoordinator?: boolean;
+  onBlockedPoloUncheck?: () => void;
 }) {
   function toggle(role: ManagedAccessRole) {
     if (role === "GENERAL_ADMIN") {
-      onChange(selected.includes("GENERAL_ADMIN") ? [] : ["GENERAL_ADMIN"]);
+      if (selected.includes("GENERAL_ADMIN")) {
+        // Ao sair do Admin Geral, preserva Coordenador de Polos se houver vínculo.
+        onChange(lockPoloCoordinator ? ["POLO_COORDINATOR"] : []);
+      } else {
+        onChange(["GENERAL_ADMIN"]);
+      }
       return;
     }
     const withoutGeneral = selected.filter((r) => r !== "GENERAL_ADMIN") as StaffAccessRole[];
     if (withoutGeneral.includes(role as StaffAccessRole)) {
+      if (role === "POLO_COORDINATOR" && lockPoloCoordinator) {
+        onBlockedPoloUncheck?.();
+        return;
+      }
       onChange(withoutGeneral.filter((r) => r !== role));
     } else {
       onChange([...withoutGeneral, role]);
@@ -99,30 +114,45 @@ function AccessTypeCheckboxes({
   }
 
   const options = STAFF_ACCESS_OPTIONS.filter((o) => !o.masterOnly || allowGeneralAdmin);
+  const generalSelected = selected.includes("GENERAL_ADMIN");
 
   return (
     <div className="mt-1 flex flex-col gap-2">
       {options.map((opt) => {
         const inputId = `${idPrefix}-${opt.value}`;
+        const poloLocked =
+          opt.value === "POLO_COORDINATOR" && lockPoloCoordinator && !generalSelected;
+        const checked =
+          selected.includes(opt.value) ||
+          (opt.value === "POLO_COORDINATOR" && lockPoloCoordinator && generalSelected);
         return (
           <label key={opt.value} htmlFor={inputId} className="flex cursor-pointer items-start gap-2">
             <input
               id={inputId}
               type="checkbox"
               className="mt-1 h-4 w-4 rounded border-[var(--input-border)]"
-              checked={selected.includes(opt.value)}
+              checked={checked}
+              disabled={poloLocked || (opt.value === "POLO_COORDINATOR" && generalSelected && lockPoloCoordinator)}
               onChange={() => toggle(opt.value)}
             />
             <span>
               <span className="block text-sm font-medium">{opt.label}</span>
-              <span className="block text-xs text-[var(--text-muted)]">{opt.hint}</span>
+              <span className="block text-xs text-[var(--text-muted)]">
+                {opt.value === "POLO_COORDINATOR" && lockPoloCoordinator
+                  ? "Responsável por polo(s) — mantenha o vínculo ou transfira a coordenação antes de remover"
+                  : opt.hint}
+              </span>
             </span>
           </label>
         );
       })}
       <p className="text-xs text-[var(--text-muted)]">
         É possível marcar mais de um perfil operacional. Administrador Geral é exclusivo e só o Master pode
-        atribuir.
+        atribuir
+        {lockPoloCoordinator
+          ? "; a responsabilidade pelos polos vinculados é mantida ao promover a Administrador Geral"
+          : ""}
+        .
       </p>
     </div>
   );
@@ -209,6 +239,19 @@ export default function UsersPage() {
     if (!canSubmitEdit || !editing || savingEdit) return;
     if (editing.role === "GENERAL_ADMIN" && !isMaster) {
       toast.push("error", "Somente o Master pode editar Administrador Geral.");
+      return;
+    }
+    const linkedToPolo = (editing.coordinatedPoloCount ?? 0) > 0;
+    if (
+      canManageUsers &&
+      linkedToPolo &&
+      !editRoles.includes("GENERAL_ADMIN") &&
+      !editRoles.includes("POLO_COORDINATOR")
+    ) {
+      toast.push(
+        "error",
+        "Não é possível remover Coordenador de Polos enquanto o usuário for responsável por polo(s). Transfira a coordenação antes.",
+      );
       return;
     }
     setSavingEdit(true);
@@ -505,6 +548,13 @@ export default function UsersPage() {
                 selected={editRoles}
                 onChange={setEditRoles}
                 allowGeneralAdmin={isMaster}
+                lockPoloCoordinator={(editing?.coordinatedPoloCount ?? 0) > 0}
+                onBlockedPoloUncheck={() =>
+                  toast.push(
+                    "error",
+                    "Não é possível remover Coordenador de Polos enquanto o usuário for responsável por polo(s). Transfira a coordenação antes.",
+                  )
+                }
               />
               {editRoles.length === 0 ? (
                 <p className="mt-1 text-xs text-red-600">Selecione ao menos um tipo de acesso.</p>

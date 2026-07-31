@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createPoloSchema } from "@/lib/validators/polos";
 import { createAuditLog } from "@/lib/audit";
+import { poloCoordinatorEligibleWhere } from "@/lib/polo-coordinator-eligible";
 
 const poloInclude = {
   coordinator: { select: { id: true, name: true, email: true, role: true } },
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
   const { name, coordinatorUserId, isActive = true, locations = [] } = parsed.data;
 
   const coordinator = await prisma.user.findFirst({
-    where: { id: coordinatorUserId, role: "POLO_COORDINATOR", isActive: true },
+    where: { id: coordinatorUserId, ...poloCoordinatorEligibleWhere },
     select: { id: true, name: true, email: true },
   });
   if (!coordinator) {
