@@ -26,6 +26,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   /** Perfis que o usuário pode assumir (calculado no servidor para o select do menu). */
   const availableRoles = {
     canMaster: user.baseRole === "MASTER",
+    canGeneralAdmin: user.baseRole === "GENERAL_ADMIN",
     canStudent: user.hasStudentProfile === true,
     canTeacher: user.hasTeacherProfile === true,
     canAdmin: user.isAdmin === true || user.baseRole === "ADMIN",

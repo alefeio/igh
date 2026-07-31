@@ -79,8 +79,8 @@ export async function createPendingSiteChange(
 }
 
 /**
- * Só o MASTER grava direto no conteúdo público. Para os demais perfis com acesso ao CMS
- * (ADMIN e COORDINATOR), enfileira a alteração para aprovação e retorna true.
+ * Só o MASTER e o Administrador Geral gravam direto no conteúdo público.
+ * Para os demais perfis com acesso ao CMS (ADMIN e COORDINATOR), enfileira a alteração para aprovação e retorna true.
  */
 export async function enqueueIfNeedsApproval(
   user: { id: string; role: string },
@@ -90,7 +90,7 @@ export async function enqueueIfNeedsApproval(
   payload: Record<string, unknown>,
   previous?: Record<string, unknown> | null
 ): Promise<boolean> {
-  if (user.role === "MASTER") return false;
+  if (user.role === "MASTER" || user.role === "GENERAL_ADMIN") return false;
   await createPendingSiteChange(user.id, entityType, action, entityId, payload, previous);
   return true;
 }

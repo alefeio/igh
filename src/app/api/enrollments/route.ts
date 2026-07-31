@@ -9,8 +9,8 @@ import { createVerificationToken } from "@/lib/verification-token";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { getAppUrl } from "@/lib/email";
 import { templateStudentWelcome } from "@/lib/email/templates";
-import { generateTempPassword } from "@/lib/password";
 import { hashPassword } from "@/lib/auth";
+import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 import {
   buildEnrollmentWhereForPoloCoordinator,
   poloCoordinatorOwnsClassGroup,
@@ -146,7 +146,8 @@ export async function POST(request: Request) {
     return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
   }
 
-  const canOverrideEnrollmentRules = user.role === "MASTER" || user.role === "COORDINATOR";
+  const canOverrideEnrollmentRules =
+    user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "COORDINATOR";
   if (classGroup.status === "INTERNO" && !canOverrideEnrollmentRules) {
     return jsonErr("FORBIDDEN", "Apenas Master ou Coordenador podem matricular alunos em turmas com status Interno.", 403);
   }
@@ -193,7 +194,9 @@ export async function POST(request: Request) {
     let userId = student.userId;
 
     if (!student.userId || !student.user) {
-      tempPassword = generateTempPassword();
+      // Senha inicial = data de nascimento (DDMMAAAA), igual ao cadastro de aluno.
+      const { password: birthPwd } = birthDateToStudentPasswordParts(student.birthDate);
+      tempPassword = birthPwd;
       const passwordHash = await hashPassword(tempPassword);
       const createdUser = await prisma.user.create({
         data: {
@@ -203,6 +206,7 @@ export async function POST(request: Request) {
           role: "STUDENT",
           isActive: true,
           mustChangePassword: true,
+          birthDate: student.birthDate,
         },
       });
       userId = createdUser.id;
@@ -210,14 +214,9 @@ export async function POST(request: Request) {
         where: { id: studentId },
         data: { userId: createdUser.id },
       });
-    } else if (student.user.mustChangePassword) {
-      tempPassword = generateTempPassword();
-      const passwordHash = await hashPassword(tempPassword);
-      await prisma.user.update({
-        where: { id: student.userId },
-        data: { passwordHash, mustChangePassword: true },
-      });
     }
+    // Se a conta já existe (mesmo com mustChangePassword), NÃO sobrescreve a senha —
+    // antes isso gerava senha aleatória e o aluno não conseguia entrar com a data de nascimento.
 
     const { token, expiresAt } = await createVerificationToken({
       userId: userId!,

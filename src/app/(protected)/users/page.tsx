@@ -13,12 +13,19 @@ import { Td, Th } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import type { ApiResponse } from "@/lib/api-types";
 import { formatDateTime } from "@/lib/format";
+import {
+  MANAGED_ACCESS_LABEL,
+  managedRolesFromUser,
+  type ManagedAccessRole,
+  type StaffAccessRole,
+} from "@/lib/staff-access";
+import { isExactMaster } from "@/lib/rbac";
 
 type AdminUser = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "STUDENT" | "TEACHER";
+  role: "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "STUDENT" | "TEACHER";
   isAdmin?: boolean;
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
@@ -28,19 +35,36 @@ type AdminUser = {
   createdAt: string;
 };
 
-type StaffAccessRole = "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR";
+const STAFF_ACCESS_OPTIONS: { value: ManagedAccessRole; label: string; hint: string; masterOnly?: boolean }[] = [
+  {
+    value: "GENERAL_ADMIN",
+    label: "Administrador Geral",
+    hint: "Mesmas permissões do Master, exceto gerir Master e criar/editar Admin Geral",
+    masterOnly: true,
+  },
+  {
+    value: "ADMIN",
+    label: "Administrador",
+    hint: "Pode alterar cadastros",
+  },
+  {
+    value: "COORDINATOR",
+    label: "Coordenador",
+    hint: "Somente leitura nas áreas de acompanhamento",
+  },
+  {
+    value: "POLO_COORDINATOR",
+    label: "Coordenador de Polos",
+    hint: "Matrículas dos seus polos",
+  },
+];
 
-const STAFF_ROLE_LABEL: Record<StaffAccessRole, string> = {
-  ADMIN: "Admin",
-  COORDINATOR: "Coordenador",
-  POLO_COORDINATOR: "Coordenador de Polos",
-};
-
-/** Lista todos os acessos do usuário (papel-base + sobreposições), ex.: "Aluno + Coordenador de Polos". */
+/** Lista todos os acessos do usuário (papel-base + sobreposições). */
 function roleLabel(u: AdminUser): string {
   const parts: string[] = [];
   if (u.role === "STUDENT") parts.push("Aluno");
   else if (u.role === "TEACHER") parts.push("Professor");
+  else if (u.role === "GENERAL_ADMIN") parts.push("Administrador Geral");
   else if (u.role === "ADMIN") parts.push("Admin");
   else if (u.role === "COORDINATOR") parts.push("Coordenador");
   else if (u.role === "POLO_COORDINATOR") parts.push("Coordenador de Polos");
@@ -50,10 +74,69 @@ function roleLabel(u: AdminUser): string {
   return Array.from(new Set(parts)).join(" + ") || u.role;
 }
 
+function AccessTypeCheckboxes({
+  selected,
+  onChange,
+  idPrefix,
+  allowGeneralAdmin,
+}: {
+  selected: ManagedAccessRole[];
+  onChange: (next: ManagedAccessRole[]) => void;
+  idPrefix: string;
+  allowGeneralAdmin: boolean;
+}) {
+  function toggle(role: ManagedAccessRole) {
+    if (role === "GENERAL_ADMIN") {
+      onChange(selected.includes("GENERAL_ADMIN") ? [] : ["GENERAL_ADMIN"]);
+      return;
+    }
+    const withoutGeneral = selected.filter((r) => r !== "GENERAL_ADMIN") as StaffAccessRole[];
+    if (withoutGeneral.includes(role as StaffAccessRole)) {
+      onChange(withoutGeneral.filter((r) => r !== role));
+    } else {
+      onChange([...withoutGeneral, role]);
+    }
+  }
+
+  const options = STAFF_ACCESS_OPTIONS.filter((o) => !o.masterOnly || allowGeneralAdmin);
+
+  return (
+    <div className="mt-1 flex flex-col gap-2">
+      {options.map((opt) => {
+        const inputId = `${idPrefix}-${opt.value}`;
+        return (
+          <label key={opt.value} htmlFor={inputId} className="flex cursor-pointer items-start gap-2">
+            <input
+              id={inputId}
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-[var(--input-border)]"
+              checked={selected.includes(opt.value)}
+              onChange={() => toggle(opt.value)}
+            />
+            <span>
+              <span className="block text-sm font-medium">{opt.label}</span>
+              <span className="block text-xs text-[var(--text-muted)]">{opt.hint}</span>
+            </span>
+          </label>
+        );
+      })}
+      <p className="text-xs text-[var(--text-muted)]">
+        É possível marcar mais de um perfil operacional. Administrador Geral é exclusivo e só o Master pode
+        atribuir.
+      </p>
+    </div>
+  );
+}
+
 export default function UsersPage() {
   const toast = useToast();
   const sessionUser = useUser();
-  const isMaster = sessionUser.role === "MASTER" || sessionUser.baseRole === "MASTER";
+  const isMaster = isExactMaster(sessionUser);
+  const canManageUsers =
+    sessionUser.role === "MASTER" ||
+    sessionUser.role === "GENERAL_ADMIN" ||
+    sessionUser.baseRole === "MASTER" ||
+    sessionUser.baseRole === "GENERAL_ADMIN";
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [showInactive, setShowInactive] = useState(false);
@@ -65,24 +148,28 @@ export default function UsersPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
-  const [createRole, setCreateRole] = useState<StaffAccessRole>("ADMIN");
+  const [createRoles, setCreateRoles] = useState<ManagedAccessRole[]>(["ADMIN"]);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editBirthDate, setEditBirthDate] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
-  const [editAccessRole, setEditAccessRole] = useState<StaffAccessRole>("ADMIN");
+  const [editRoles, setEditRoles] = useState<ManagedAccessRole[]>(["ADMIN"]);
   const [savingCreate, setSavingCreate] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const canSubmit = useMemo(
-    () => name.trim().length >= 2 && email.includes("@"),
-    [name, email],
+    () => name.trim().length >= 2 && email.includes("@") && createRoles.length > 0,
+    [name, email, createRoles],
   );
   const canSubmitEdit = useMemo(
-    () => editName.trim().length >= 2 && editEmail.includes("@") && (editPassword === "" || editPassword.length >= 8),
-    [editName, editEmail, editPassword],
+    () =>
+      editName.trim().length >= 2 &&
+      editEmail.includes("@") &&
+      (editPassword === "" || editPassword.length >= 8) &&
+      (!canManageUsers || editRoles.length > 0),
+    [editName, editEmail, editPassword, editRoles, canManageUsers],
   );
 
   async function load() {
@@ -113,15 +200,17 @@ export default function UsersPage() {
     setEditBirthDate(u.birthDate ?? "");
     setEditPassword("");
     setEditIsActive(u.isActive);
-    if (u.role === "ADMIN" || u.role === "COORDINATOR" || u.role === "POLO_COORDINATOR") {
-      setEditAccessRole(u.role);
-    }
+    setEditRoles(managedRolesFromUser(u));
     setEditOpen(true);
   }
 
   async function updateAdmin(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmitEdit || !editing || savingEdit) return;
+    if (editing.role === "GENERAL_ADMIN" && !isMaster) {
+      toast.push("error", "Somente o Master pode editar Administrador Geral.");
+      return;
+    }
     setSavingEdit(true);
     try {
       const payload: {
@@ -131,7 +220,7 @@ export default function UsersPage() {
         phone?: string;
         birthDate?: string;
         password?: string;
-        role?: StaffAccessRole;
+        roles?: ManagedAccessRole[];
       } = {
         name: editName,
         email: editEmail,
@@ -140,13 +229,8 @@ export default function UsersPage() {
         birthDate: editBirthDate.trim(),
       };
       if (editPassword.trim() !== "") payload.password = editPassword;
-      if (
-        isMaster &&
-        editing &&
-        (editing.role === "ADMIN" || editing.role === "COORDINATOR" || editing.role === "POLO_COORDINATOR") &&
-        editAccessRole !== editing.role
-      ) {
-        payload.role = editAccessRole;
+      if (canManageUsers) {
+        payload.roles = editRoles;
       }
 
       const res = await fetch(`/api/admin/users/${editing.id}`, {
@@ -218,7 +302,7 @@ export default function UsersPage() {
         body: JSON.stringify({
           name,
           email,
-          role: createRole,
+          roles: createRoles,
           phone: phone.replace(/\D/g, ""),
           birthDate: birthDate.trim(),
         }),
@@ -228,26 +312,36 @@ export default function UsersPage() {
         emailSent?: boolean;
         temporaryPassword?: string;
         alreadyRegisteredAs?: string;
+        grantedLabels?: string[];
       }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao criar admin.");
         return;
       }
       if (json.data.alreadyRegisteredAs) {
-        const grantedLabel = STAFF_ROLE_LABEL[createRole];
+        const grantedLabel =
+          (json.data.grantedLabels && json.data.grantedLabels.length > 0
+            ? json.data.grantedLabels.join(", ")
+            : createRoles.map((r) => MANAGED_ACCESS_LABEL[r]).join(", ")) || "acesso administrativo";
         toast.push(
           "success",
-        `Usuário já cadastrado como ${json.data.alreadyRegisteredAs}. Foi concedido acesso como ${grantedLabel}. Ao entrar no sistema, ele poderá escolher usar como ${json.data.alreadyRegisteredAs} ou ${grantedLabel}.`
-      );
-    } else if (json.data.emailSent) {
-      toast.push("success", "Admin criado. E-mail de acesso enviado para o novo usuário.");
-    } else {
-      const senha = json.data.temporaryPassword ? ` Senha temporária: ${json.data.temporaryPassword}.` : "";
-      toast.push("error", `Admin criado, mas o e-mail não foi enviado. Passe o link de login e essa senha ao novo usuário.${senha}`);
-    }
+          `Usuário já cadastrado como ${json.data.alreadyRegisteredAs}. Foi concedido acesso como ${grantedLabel}. Ao entrar no sistema, ele poderá escolher o perfil desejado.`,
+        );
+      } else if (json.data.emailSent) {
+        toast.push("success", "Usuário criado. E-mail de acesso enviado para o novo usuário.");
+      } else {
+        const senha = json.data.temporaryPassword ? ` Senha temporária: ${json.data.temporaryPassword}.` : "";
+        toast.push(
+          "error",
+          `Usuário criado, mas o e-mail não foi enviado. Passe o link de login e essa senha ao novo usuário.${senha}`,
+        );
+      }
       setOpen(false);
       setName("");
       setEmail("");
+      setPhone("");
+      setBirthDate("");
+      setCreateRoles(["ADMIN"]);
       await load();
     } finally {
       setSavingCreate(false);
@@ -294,75 +388,92 @@ export default function UsersPage() {
             <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
           </div>
         ) : (
-        <TableShell>
-          <thead>
-            <tr>
-              <Th>Nome</Th>
-              <Th>E-mail</Th>
-              <Th>Perfil</Th>
-              <Th>Status</Th>
-              <Th>Criado em</Th>
-              <Th />
-            </tr>
-          </thead>
-          <tbody>
-            {visibleUsers.map((u) => (
-              <tr key={u.id}>
-                <Td>{u.name}</Td>
-                <Td>{u.email}</Td>
-                <Td>
-                  <span className="text-sm text-[var(--text-secondary)]">{roleLabel(u)}</span>
-                </Td>
-                <Td>
-                  {u.isActive ? (
-                    <Badge tone="green">Ativo</Badge>
-                  ) : (
-                    <Badge tone="red">Inativo</Badge>
-                  )}
-                </Td>
-                <Td>{formatDateTime(u.createdAt)}</Td>
-                <Td>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="secondary" onClick={() => openEdit(u)}>
-                      Editar
-                    </Button>
+          <TableShell>
+            <thead>
+              <tr>
+                <Th>Nome</Th>
+                <Th>E-mail</Th>
+                <Th>Perfil</Th>
+                <Th>Status</Th>
+                <Th>Criado em</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {visibleUsers.map((u) => (
+                <tr key={u.id}>
+                  <Td>{u.name}</Td>
+                  <Td>{u.email}</Td>
+                  <Td>
+                    <span className="text-sm text-[var(--text-secondary)]">{roleLabel(u)}</span>
+                  </Td>
+                  <Td>
                     {u.isActive ? (
+                      <Badge tone="green">Ativo</Badge>
+                    ) : (
+                      <Badge tone="red">Inativo</Badge>
+                    )}
+                  </Td>
+                  <Td>{formatDateTime(u.createdAt)}</Td>
+                  <Td>
+                    <div className="flex justify-end gap-2">
                       <Button
                         variant="secondary"
-                        onClick={() => deactivateUser(u)}
-                        className="text-red-600 hover:text-red-700"
+                        onClick={() => openEdit(u)}
+                        disabled={u.role === "GENERAL_ADMIN" && !isMaster}
+                        title={
+                          u.role === "GENERAL_ADMIN" && !isMaster
+                            ? "Somente o Master pode editar Administrador Geral"
+                            : undefined
+                        }
                       >
-                        Inativar
+                        Editar
                       </Button>
-                    ) : (
-                      <>
-                        <Button variant="secondary" onClick={() => reactivateUser(u)}>
-                          Reativar
-                        </Button>
+                      {u.isActive ? (
                         <Button
                           variant="secondary"
-                          onClick={() => deleteUserPermanent(u)}
+                          onClick={() => deactivateUser(u)}
+                          disabled={u.role === "GENERAL_ADMIN" && !isMaster}
                           className="text-red-600 hover:text-red-700"
                         >
-                          Excluir
+                          Inativar
                         </Button>
-                      </>
-                    )}
-                  </div>
-                </Td>
-              </tr>
-            ))}
-            {visibleUsers.length === 0 ? (
-              <tr>
-                <Td colSpan={6}>
-                  <span className="text-[var(--text-secondary)]">
-                    {showInactive ? "Nenhum usuário encontrado." : "Nenhum usuário administrativo ativo cadastrado."}
-                  </span>
-                </Td>
-              </tr>
-            ) : null}
-          </tbody>
-        </TableShell>
+                      ) : (
+                        <>
+                          <Button
+                            variant="secondary"
+                            onClick={() => reactivateUser(u)}
+                            disabled={u.role === "GENERAL_ADMIN" && !isMaster}
+                          >
+                            Reativar
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => deleteUserPermanent(u)}
+                            disabled={u.role === "GENERAL_ADMIN" && !isMaster}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            Excluir
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+              {visibleUsers.length === 0 ? (
+                <tr>
+                  <Td colSpan={6}>
+                    <span className="text-[var(--text-secondary)]">
+                      {showInactive
+                        ? "Nenhum usuário encontrado."
+                        : "Nenhum usuário administrativo ativo cadastrado."}
+                    </span>
+                  </Td>
+                </tr>
+              ) : null}
+            </tbody>
+          </TableShell>
         )}
       </SectionCard>
 
@@ -376,7 +487,7 @@ export default function UsersPage() {
           setEditEmail("");
           setEditPassword("");
           setEditIsActive(true);
-          setEditAccessRole("ADMIN");
+          setEditRoles(["ADMIN"]);
         }}
       >
         <form className="flex flex-col gap-3" onSubmit={updateAdmin}>
@@ -386,25 +497,21 @@ export default function UsersPage() {
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
             </div>
           </div>
-          {isMaster &&
-          editing &&
-          (editing.role === "ADMIN" || editing.role === "COORDINATOR" || editing.role === "POLO_COORDINATOR") ? (
+          {canManageUsers ? (
             <div>
               <label className="text-sm font-medium">Tipo de acesso</label>
-              <div className="mt-1">
-                <select
-                  className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
-                  value={editAccessRole}
-                  onChange={(e) => setEditAccessRole(e.target.value as StaffAccessRole)}
-                >
-                  <option value="ADMIN">Administrador (pode alterar cadastros)</option>
-                  <option value="COORDINATOR">Coordenador (somente leitura nas áreas de acompanhamento)</option>
-                  <option value="POLO_COORDINATOR">Coordenador de Polos (matrículas dos seus polos)</option>
-                </select>
-              </div>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Coordenador de Polos gerencia apenas as matrículas das turmas dos polos sob sua responsabilidade.
-              </p>
+              <AccessTypeCheckboxes
+                idPrefix="edit-access"
+                selected={editRoles}
+                onChange={setEditRoles}
+                allowGeneralAdmin={isMaster}
+              />
+              {editRoles.length === 0 ? (
+                <p className="mt-1 text-xs text-red-600">Selecione ao menos um tipo de acesso.</p>
+              ) : null}
+              {editing?.role === "GENERAL_ADMIN" && !isMaster ? (
+                <p className="mt-1 text-xs text-red-600">Somente o Master pode alterar Administrador Geral.</p>
+              ) : null}
             </div>
           ) : null}
           <div>
@@ -427,11 +534,7 @@ export default function UsersPage() {
           <div>
             <label className="text-sm font-medium">Data de nascimento</label>
             <div className="mt-1">
-              <Input
-                type="date"
-                value={editBirthDate}
-                onChange={(e) => setEditBirthDate(e.target.value)}
-              />
+              <Input type="date" value={editBirthDate} onChange={(e) => setEditBirthDate(e.target.value)} />
             </div>
           </div>
           <div>
@@ -454,7 +557,9 @@ export default function UsersPage() {
               checked={editIsActive}
               onChange={(e) => setEditIsActive(e.target.checked)}
             />
-            <label htmlFor="editIsActive" className="text-sm">Ativo</label>
+            <label htmlFor="editIsActive" className="text-sm">
+              Ativo
+            </label>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button
@@ -463,7 +568,7 @@ export default function UsersPage() {
               onClick={() => {
                 setEditOpen(false);
                 setEditing(null);
-                setEditAccessRole("ADMIN");
+                setEditRoles(["ADMIN"]);
               }}
             >
               Cancelar
@@ -484,7 +589,7 @@ export default function UsersPage() {
           setEmail("");
           setPhone("");
           setBirthDate("");
-          setCreateRole("ADMIN");
+          setCreateRoles(["ADMIN"]);
         }}
       >
         <form className="flex flex-col gap-3" onSubmit={createAdmin}>
@@ -519,20 +624,15 @@ export default function UsersPage() {
           </div>
           <div>
             <label className="text-sm font-medium">Tipo de acesso</label>
-            <div className="mt-1">
-              <select
-                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
-                value={createRole}
-                onChange={(e) => setCreateRole(e.target.value as StaffAccessRole)}
-              >
-                <option value="ADMIN">Administrador (pode alterar cadastros)</option>
-                <option value="COORDINATOR">Coordenador (somente leitura nas áreas de acompanhamento)</option>
-                <option value="POLO_COORDINATOR">Coordenador de Polos (matrículas dos seus polos)</option>
-              </select>
-            </div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Coordenador de Polos gerencia apenas as matrículas das turmas dos polos sob sua responsabilidade.
-            </p>
+            <AccessTypeCheckboxes
+              idPrefix="create-access"
+              selected={createRoles}
+              onChange={setCreateRoles}
+              allowGeneralAdmin={isMaster}
+            />
+            {createRoles.length === 0 ? (
+              <p className="mt-1 text-xs text-red-600">Selecione ao menos um tipo de acesso.</p>
+            ) : null}
           </div>
           <p className="text-xs text-[var(--text-muted)]">
             Uma senha temporária será gerada e enviada por e-mail ao usuário. Ele deverá trocá-la no primeiro acesso.

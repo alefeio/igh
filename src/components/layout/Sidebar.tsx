@@ -7,7 +7,14 @@ import { usePathname } from "next/navigation";
 import { BRAND } from "@/lib/brand";
 import { resolveLogoHeightPx } from "@/lib/site-types";
 
-type PanelRole = "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+type PanelRole =
+  | "MASTER"
+  | "GENERAL_ADMIN"
+  | "ADMIN"
+  | "COORDINATOR"
+  | "POLO_COORDINATOR"
+  | "TEACHER"
+  | "STUDENT";
 
 type Item = {
   href: string;
@@ -17,16 +24,25 @@ type Item = {
   category: string;
 };
 
-const ALL_ROLES = ["MASTER", "ADMIN", "COORDINATOR", "POLO_COORDINATOR", "TEACHER", "STUDENT"] as const;
+const ALL_ROLES = [
+  "MASTER",
+  "GENERAL_ADMIN",
+  "ADMIN",
+  "COORDINATOR",
+  "POLO_COORDINATOR",
+  "TEACHER",
+  "STUDENT",
+] as const;
 /** Equipe administrativa da sede. */
-const STAFF = ["MASTER", "ADMIN", "COORDINATOR"] as const;
-const STAFF_AND_TEACHER = ["MASTER", "ADMIN", "COORDINATOR", "TEACHER"] as const;
+const STAFF = ["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR"] as const;
+const STAFF_AND_TEACHER = ["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "TEACHER"] as const;
 /**
  * Governança da plataforma: Administração, Site e Configurações.
  * O coordenador fica fora — o perfil dele é de coordenação pedagógica.
  */
-const MASTER_AND_ADMIN = ["MASTER", "ADMIN"] as const;
-const MASTER_ONLY = ["MASTER"] as const;
+const MASTER_AND_ADMIN = ["MASTER", "GENERAL_ADMIN", "ADMIN"] as const;
+/** Master e Administrador Geral (governança plena). */
+const MASTER_OR_GENERAL = ["MASTER", "GENERAL_ADMIN"] as const;
 
 /**
  * Ordem do array = ordem no menu dentro de cada categoria.
@@ -69,7 +85,7 @@ const ITEMS: Item[] = [
   {
     href: "/enrollments",
     label: "Matrículas",
-    roles: ["MASTER", "ADMIN", "COORDINATOR", "POLO_COORDINATOR"],
+    roles: ["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "POLO_COORDINATOR"],
     category: "Pedagógico",
   },
   { href: "/horarios", label: "Quadro de horários", roles: STAFF, category: "Pedagógico" },
@@ -79,9 +95,9 @@ const ITEMS: Item[] = [
   { href: "/admin/plataforma", label: "Visão da plataforma", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/admin/calendario", label: "Calendário institucional", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/admin/onboarding", label: "Guia do sistema (edição)", roles: MASTER_AND_ADMIN, category: "Administração" },
-  { href: "/users", label: "Usuários", roles: MASTER_ONLY, category: "Administração" },
+  { href: "/users", label: "Usuários", roles: MASTER_OR_GENERAL, category: "Administração" },
   { href: "/master/acessos", label: "Acessos ao sistema", roles: MASTER_AND_ADMIN, category: "Administração" },
-  { href: "/approvacoes", label: "Aprovações do site", roles: MASTER_ONLY, category: "Administração" },
+  { href: "/approvacoes", label: "Aprovações do site", roles: MASTER_OR_GENERAL, category: "Administração" },
   { href: "/admin/site/formacoes", label: "Formações (catálogo)", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/admin/comunidade", label: `${BRAND.communityName} — moderação`, roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/comunidade", label: `${BRAND.communityName} (PII)`, roles: MASTER_AND_ADMIN, category: "Administração" },
@@ -96,10 +112,10 @@ const ITEMS: Item[] = [
   { href: "/gamificacao", label: "Gamificação", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/ranking-alunos", label: "Ranking dos alunos", roles: MASTER_AND_ADMIN, category: "Administração" },
 
-  /* —— Comunicação (disparos irreversíveis: exclusivo do Master) —— */
-  { href: "/admin/sms", label: "Campanhas SMS", roles: MASTER_ONLY, category: "Comunicação" },
-  { href: "/admin/email", label: "Campanhas de e-mail", roles: MASTER_ONLY, category: "Comunicação" },
-  { href: "/admin/campanhas", label: "Campanhas (site e alunos)", roles: MASTER_ONLY, category: "Comunicação" },
+  /* —— Comunicação (disparos irreversíveis: Master e Admin Geral) —— */
+  { href: "/admin/sms", label: "Campanhas SMS", roles: MASTER_OR_GENERAL, category: "Comunicação" },
+  { href: "/admin/email", label: "Campanhas de e-mail", roles: MASTER_OR_GENERAL, category: "Comunicação" },
+  { href: "/admin/campanhas", label: "Campanhas (site e alunos)", roles: MASTER_OR_GENERAL, category: "Comunicação" },
 
   /* —— Site (CMS: geral → navegação → conteúdos → institucional) —— */
   { href: "/admin/site/configuracoes", label: "Configurações gerais", roles: MASTER_AND_ADMIN, category: "Site" },
@@ -122,8 +138,8 @@ const ITEMS: Item[] = [
   { href: "/admin/site/transparencia", label: "Transparência", roles: MASTER_AND_ADMIN, category: "Site" },
 
   /* —— Configurações (sistema / infra) —— */
-  { href: "/time-slots", label: "Horários (cadastro)", roles: MASTER_ONLY, category: "Configurações" },
-  { href: "/backup", label: "Backup do banco", roles: MASTER_ONLY, category: "Configurações" },
+  { href: "/time-slots", label: "Horários (cadastro)", roles: MASTER_OR_GENERAL, category: "Configurações" },
+  { href: "/backup", label: "Backup do banco", roles: MASTER_OR_GENERAL, category: "Configurações" },
 ];
 
 export function Sidebar({
@@ -139,13 +155,13 @@ export function Sidebar({
   user: {
     name: string;
     email: string;
-    role: "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     availableRoles?: {
-      canMaster: boolean;
+      canMaster: boolean; canGeneralAdmin?: boolean;
       canStudent: boolean;
       canTeacher: boolean;
       canAdmin: boolean;

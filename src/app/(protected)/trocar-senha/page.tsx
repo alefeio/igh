@@ -16,15 +16,44 @@ export default function TrocarSenhaPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [keeping, setKeeping] = useState(false);
 
   const canSubmit =
     currentPassword.length >= 1 &&
     newPassword.length >= 8 &&
     newPassword === confirmPassword;
 
+  function redirectAfterSuccess() {
+    const from = searchParams.get("from");
+    const redirectTo =
+      typeof from === "string" && from.startsWith("/") && !from.startsWith("//") ? from : "/dashboard";
+    window.location.href = redirectTo;
+  }
+
+  async function keepCurrentPassword() {
+    if (keeping || loading) return;
+    setKeeping(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keepCurrent: true }),
+      });
+      const json = (await res.json()) as ApiResponse<{ message: string }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", "error" in json ? json.error.message : "Falha ao manter a senha.");
+        return;
+      }
+      toast.push("success", "Senha atual mantida. Você já pode continuar.");
+      redirectAfterSuccess();
+    } finally {
+      setKeeping(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || loading) return;
+    if (!canSubmit || loading || keeping) return;
     setLoading(true);
     try {
       const res = await fetch("/api/auth/change-password", {
@@ -41,10 +70,7 @@ export default function TrocarSenhaPage() {
         return;
       }
       toast.push("success", "Senha alterada com sucesso.");
-      const from = searchParams.get("from");
-      const redirectTo =
-        typeof from === "string" && from.startsWith("/") && !from.startsWith("//") ? from : "/dashboard";
-      window.location.href = redirectTo;
+      redirectAfterSuccess();
       return;
     } finally {
       setLoading(false);
@@ -56,7 +82,7 @@ export default function TrocarSenhaPage() {
       <DashboardHero
         eyebrow="Conta"
         title="Trocar senha"
-        description="Por segurança, altere sua senha temporária antes de continuar."
+        description="No primeiro acesso você pode definir uma nova senha ou continuar com a senha atual (por exemplo, a data de nascimento)."
       />
       <SectionCard title="Definir nova senha" variant="elevated">
         <form onSubmit={submit} className="flex flex-col gap-4">
@@ -69,6 +95,9 @@ export default function TrocarSenhaPage() {
                 autoComplete="current-password"
               />
             </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Se a senha for a data de nascimento, use 8 dígitos (DDMMAAAA), com zeros — ex.: 01052010.
+            </p>
           </div>
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)]">Nova senha</label>
@@ -95,10 +124,26 @@ export default function TrocarSenhaPage() {
               <p className="mt-1 text-xs text-red-600">As senhas não coincidem.</p>
             )}
           </div>
-          <Button type="submit" disabled={!canSubmit || loading}>
+          <Button type="submit" disabled={!canSubmit || loading || keeping}>
             {loading ? "Alterando..." : "Alterar senha"}
           </Button>
         </form>
+      </SectionCard>
+
+      <SectionCard
+        title="Manter senha atual"
+        description="Se preferir continuar com a senha temporária (data de nascimento ou a senha recebida por e-mail), use o botão abaixo."
+        variant="elevated"
+      >
+        <Button
+          type="button"
+          variant="secondary"
+          className="w-full"
+          disabled={loading || keeping}
+          onClick={() => void keepCurrentPassword()}
+        >
+          {keeping ? "Confirmando..." : "Manter a senha atual"}
+        </Button>
       </SectionCard>
     </div>
   );

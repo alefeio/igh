@@ -6,6 +6,7 @@ import { compare, hash } from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 import type { User, UserRole } from "@/generated/prisma/client";
+import { expandMasterRoles } from "@/lib/rbac";
 
 /** Nome do cookie de sessão (usar em Route Handlers com NextResponse.cookies). */
 export const AUTH_TOKEN_COOKIE_NAME = "auth_token";
@@ -124,13 +125,16 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
     if (payload.role === "MASTER" && user.role !== "MASTER") {
       return null;
     }
+    if (payload.role === "GENERAL_ADMIN" && user.role !== "GENERAL_ADMIN") {
+      return null;
+    }
     if (payload.role === "COORDINATOR" && user.role !== "COORDINATOR" && !user.isCoordinator) {
       return null;
     }
     if (payload.role === "POLO_COORDINATOR" && user.role !== "POLO_COORDINATOR" && !user.isPoloCoordinator) {
       return null;
     }
-    if (payload.role === "ADMIN" && user.role !== "ADMIN" && user.role !== "MASTER") {
+    if (payload.role === "ADMIN" && user.role !== "ADMIN" && user.role !== "MASTER" && user.role !== "GENERAL_ADMIN") {
       if (!user.isAdmin) return null;
     }
     return {
@@ -160,26 +164,38 @@ export async function requireSessionUser(): Promise<SessionUser> {
   return user;
 }
 
-export async function requireRole(roles: UserRole | UserRole[]): Promise<SessionUser> {
+export async function requireRole(
+  roles: UserRole | UserRole[],
+  options?: { exactMaster?: boolean },
+): Promise<SessionUser> {
   const user = await requireSessionUser();
-  const allowed = Array.isArray(roles) ? roles : [roles];
+  const requested = Array.isArray(roles) ? roles : [roles];
+  const allowed = options?.exactMaster ? requested : expandMasterRoles(requested);
   if (!allowed.includes(user.role)) {
     throw new Error("FORBIDDEN");
   }
   return user;
 }
 
-/** Leitura de relatórios e listagens administrativas (Admin, Master e Coordenador). */
+/** Leitura de relatórios e listagens administrativas (Admin, Master, Admin Geral e Coordenador). */
 export async function requireStaffRead(): Promise<SessionUser> {
   return requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
 }
 
-/** Alterações operacionais no painel (Admin, Master e Coordenador). */
+/** Alterações operacionais no painel (Admin, Master, Admin Geral e Coordenador). */
 export async function requireStaffWrite(): Promise<SessionUser> {
   return requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
 }
 
-/** Operações exclusivas do Master (ex.: feriados, eventos, backup). */
+/**
+ * Operações de governança do Master (e do Administrador Geral, via expansão).
+ * Use `requireExactMaster` quando a ação for exclusiva do Master (ex.: criar Admin Geral).
+ */
 export async function requireMaster(): Promise<SessionUser> {
   return requireRole("MASTER");
+}
+
+/** Somente o perfil Master (não inclui Administrador Geral). */
+export async function requireExactMaster(): Promise<SessionUser> {
+  return requireRole("MASTER", { exactMaster: true });
 }

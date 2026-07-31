@@ -9,7 +9,15 @@ import {
 import { jsonErr } from "@/lib/http";
 import type { UserRole } from "@/generated/prisma/client";
 
-const ALLOWED_ROLES: UserRole[] = ["STUDENT", "TEACHER", "ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"];
+const ALLOWED_ROLES: UserRole[] = [
+  "STUDENT",
+  "TEACHER",
+  "ADMIN",
+  "MASTER",
+  "GENERAL_ADMIN",
+  "COORDINATOR",
+  "POLO_COORDINATOR",
+];
 
 function jsonOkWithSession<T>(data: T, user: Parameters<typeof buildAuthSessionToken>[0], effectiveRole: UserRole) {
   return (async () => {
@@ -66,6 +74,13 @@ export async function POST(request: Request) {
       return jsonErr("FORBIDDEN", "Você não tem acesso como Administrador Master.", 403);
     }
     return jsonOkWithSession({ role: "MASTER" as const }, sessionPayload, "MASTER");
+  }
+
+  if (role === "GENERAL_ADMIN") {
+    if (full.role !== "GENERAL_ADMIN") {
+      return jsonErr("FORBIDDEN", "Você não tem acesso como Administrador Geral.", 403);
+    }
+    return jsonOkWithSession({ role: "GENERAL_ADMIN" as const }, sessionPayload, "GENERAL_ADMIN");
   }
 
   if (role === "ADMIN") {

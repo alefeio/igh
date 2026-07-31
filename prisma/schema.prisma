@@ -1769,6 +1769,8 @@ enum ClassSessionStatus {
 
 enum UserRole {
   MASTER
+  /// * Administrador Geral: mesmas permissões do Master, exceto gerir Master e criar/editar outro Admin Geral.
+  GENERAL_ADMIN
   ADMIN
   TEACHER
   STUDENT

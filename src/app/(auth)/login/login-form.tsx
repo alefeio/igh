@@ -122,6 +122,9 @@ export function LoginForm({ redirectTo, turnstileSiteKey = null }: LoginFormProp
         <div className="mt-1">
           <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          Aluno com senha pela data de nascimento: use 8 dígitos (DDMMAAAA), com zeros — ex.: 01/05/2010 → 01052010.
+        </p>
       </div>
 
       {turnstileSiteKey ? (

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { hashPassword, requireRole, requireStaffWrite } from "@/lib/auth";
+import { hashPassword, requireRole, requireStaffWrite, requireExactMaster } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateAdminSchema } from "@/lib/validators/users";
 import { birthDateInputToDate } from "@/lib/validators/person-contact";
@@ -8,11 +8,20 @@ import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateAdminRoleAssigned, templateCoordinatorRoleAssigned } from "@/lib/email/templates";
 import { Prisma } from "@/generated/prisma/client";
+import { isExactMaster } from "@/lib/rbac";
+import {
+  normalizeManagedRoles,
+  resolveStaffAccessUpdate,
+  managedRolesFromUser,
+  type ManagedAccessRole,
+  type StaffAccessRole,
+} from "@/lib/staff-access";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 const adminListFilter = {
   OR: [
+    { role: "GENERAL_ADMIN" as const },
     { role: "ADMIN" as const },
     { role: "COORDINATOR" as const },
     { role: "POLO_COORDINATOR" as const },
@@ -87,29 +96,29 @@ export async function PATCH(request: Request, ctx: Ctx) {
   if (existing.role === "MASTER") {
     return jsonErr("FORBIDDEN", "Contas Master não podem ser editadas nesta tela.", 403);
   }
+  if (existing.role === "GENERAL_ADMIN" && !isExactMaster(actor)) {
+    return jsonErr("FORBIDDEN", "Somente o Master pode editar o perfil Administrador Geral.", 403);
+  }
 
-  if (parsed.data.role !== undefined) {
-    if (actor.role !== "MASTER") {
-      return jsonErr("FORBIDDEN", "Apenas o Master pode alterar o perfil (Admin/Coordenador).", 403);
-    }
-    if (
-      existing.role !== "ADMIN" &&
-      existing.role !== "COORDINATOR" &&
-      existing.role !== "POLO_COORDINATOR"
-    ) {
-      return jsonErr(
-        "FORBIDDEN",
-        "A alteração de perfil só se aplica a contas Admin, Coordenador ou Coordenador de Polos.",
-        403,
-      );
-    }
+  const selectedRoles: ManagedAccessRole[] | undefined =
+    parsed.data.roles !== undefined
+      ? normalizeManagedRoles(parsed.data.roles)
+      : parsed.data.role !== undefined
+        ? normalizeManagedRoles([parsed.data.role])
+        : undefined;
+
+  if (selectedRoles?.includes("GENERAL_ADMIN") && !isExactMaster(actor)) {
+    return jsonErr("FORBIDDEN", "Apenas o Master pode atribuir o perfil Administrador Geral.", 403);
   }
 
   const data: {
     name?: string;
     email?: string;
     isActive?: boolean;
-    role?: "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR";
+    role?: "GENERAL_ADMIN" | StaffAccessRole;
+    isAdmin?: boolean;
+    isCoordinator?: boolean;
+    isPoloCoordinator?: boolean;
     passwordHash?: string;
     mustChangePassword?: boolean;
     whatsapp?: string | null;
@@ -125,8 +134,31 @@ export async function PATCH(request: Request, ctx: Ctx) {
     }
     data.isActive = parsed.data.isActive;
   }
-  if (parsed.data.role !== undefined) {
-    data.role = parsed.data.role;
+  if (selectedRoles !== undefined) {
+    if (selectedRoles.includes("GENERAL_ADMIN")) {
+      await requireExactMaster();
+      data.role = "GENERAL_ADMIN";
+      data.isAdmin = false;
+      data.isCoordinator = false;
+      data.isPoloCoordinator = false;
+    } else {
+      const staffSelected = selectedRoles as StaffAccessRole[];
+      if (existing.role === "GENERAL_ADMIN") {
+        // Master rebaixando Admin Geral para staff
+        await requireExactMaster();
+        const access = resolveStaffAccessUpdate("ADMIN", staffSelected);
+        data.role = access.role ?? "ADMIN";
+        data.isAdmin = access.isAdmin;
+        data.isCoordinator = access.isCoordinator;
+        data.isPoloCoordinator = access.isPoloCoordinator;
+      } else {
+        const access = resolveStaffAccessUpdate(existing.role, staffSelected);
+        if (access.role !== undefined) data.role = access.role;
+        data.isAdmin = access.isAdmin;
+        data.isCoordinator = access.isCoordinator;
+        data.isPoloCoordinator = access.isPoloCoordinator;
+      }
+    }
   }
   if (parsed.data.phone !== undefined) {
     data.whatsapp = parsed.data.phone;
@@ -158,6 +190,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     return jsonErr("VALIDATION_ERROR", "Nenhum dado para atualizar.", 400);
   }
 
+  const previousRoles = managedRolesFromUser(existing);
   const updated = await prisma.user.update({
     where: { id },
     data,
@@ -168,43 +201,43 @@ export async function PATCH(request: Request, ctx: Ctx) {
     entityType: "User",
     entityId: id,
     action: "USER_UPDATED",
-    diff: { fields: Object.keys(data), performedBy: actor.id },
+    diff: {
+      fields: Object.keys(data),
+      performedBy: actor.id,
+      ...(selectedRoles ? { previousRoles, nextRoles: managedRolesFromUser(updated) } : {}),
+    },
     performedByUserId: actor.id,
   });
 
-  if (
-    parsed.data.role !== undefined &&
-    parsed.data.role !== existing.role &&
-    actor.role === "MASTER" &&
-    (parsed.data.role === "ADMIN" || parsed.data.role === "COORDINATOR") &&
-    (existing.role === "ADMIN" || existing.role === "COORDINATOR")
-  ) {
-    const welcome =
-      parsed.data.role === "COORDINATOR" && existing.role === "ADMIN"
-        ? templateCoordinatorRoleAssigned({ name: updated.name, email: updated.email })
-        : templateAdminRoleAssigned({ name: updated.name, email: updated.email });
-    const { subject, html } = welcome;
-    const emailResult = await sendEmailAndRecord({
-      to: updated.email,
-      subject,
-      html,
-      emailType:
-        parsed.data.role === "COORDINATOR" ? "coordinator_role_assigned" : "admin_role_assigned",
-      entityType: "User",
-      entityId: id,
-      performedByUserId: actor.id,
-    });
-    await createAuditLog({
-      entityType: "User",
-      entityId: id,
-      action: "EMAIL_SENT",
-      diff: {
-        type: parsed.data.role === "COORDINATOR" ? "coordinator_role_assigned" : "admin_role_assigned",
-        success: emailResult.success,
-        messageId: emailResult.messageId,
-      },
-      performedByUserId: actor.id,
-    });
+  if (selectedRoles !== undefined) {
+    const newlyGranted = selectedRoles.filter((r) => !previousRoles.includes(r) && r !== "GENERAL_ADMIN");
+    for (const role of newlyGranted) {
+      if (role !== "ADMIN" && role !== "COORDINATOR") continue;
+      const welcome =
+        role === "COORDINATOR"
+          ? templateCoordinatorRoleAssigned({ name: updated.name, email: updated.email })
+          : templateAdminRoleAssigned({ name: updated.name, email: updated.email });
+      const emailResult = await sendEmailAndRecord({
+        to: updated.email,
+        subject: welcome.subject,
+        html: welcome.html,
+        emailType: role === "COORDINATOR" ? "coordinator_role_assigned" : "admin_role_assigned",
+        entityType: "User",
+        entityId: id,
+        performedByUserId: actor.id,
+      });
+      await createAuditLog({
+        entityType: "User",
+        entityId: id,
+        action: "EMAIL_SENT",
+        diff: {
+          type: role === "COORDINATOR" ? "coordinator_role_assigned" : "admin_role_assigned",
+          success: emailResult.success,
+          messageId: emailResult.messageId,
+        },
+        performedByUserId: actor.id,
+      });
+    }
   }
 
   if (parsed.data.birthDate !== undefined) {
@@ -229,6 +262,9 @@ export async function DELETE(request: Request, ctx: Ctx) {
   }
   if (existing.role === "MASTER") {
     return jsonErr("FORBIDDEN", "Contas Master não podem ser alteradas nesta tela.", 403);
+  }
+  if (existing.role === "GENERAL_ADMIN" && !isExactMaster(actor)) {
+    return jsonErr("FORBIDDEN", "Somente o Master pode excluir ou desativar Administrador Geral.", 403);
   }
   if (actor.id === id) {
     return jsonErr("INVALID_STATE", "Você não pode desativar ou excluir sua própria conta.", 400);

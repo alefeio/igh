@@ -20,14 +20,15 @@ export function ResponsiveShell({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     /** Perfis disponíveis (calculado no servidor); quando presente, o select usa isso. */
     availableRoles?: {
       canMaster: boolean;
+      canGeneralAdmin?: boolean;
       canStudent: boolean;
       canTeacher: boolean;
       canAdmin: boolean;

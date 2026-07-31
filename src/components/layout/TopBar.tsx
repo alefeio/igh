@@ -8,7 +8,10 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 
-type RoleOption = { value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR" | "POLO_COORDINATOR"; label: string };
+type RoleOption = {
+  value: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "GENERAL_ADMIN" | "COORDINATOR" | "POLO_COORDINATOR";
+  label: string;
+};
 
 type NotificationPreviewItem = {
   id: string;
@@ -25,13 +28,14 @@ export function TopBar({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     availableRoles?: {
       canMaster: boolean;
+      canGeneralAdmin?: boolean;
       canStudent: boolean;
       canTeacher: boolean;
       canAdmin: boolean;
@@ -160,6 +164,7 @@ export function TopBar({
 
   const r = user.availableRoles;
   const canMaster = r?.canMaster ?? (user.baseRole === "MASTER");
+  const canGeneralAdmin = r?.canGeneralAdmin ?? (user.baseRole === "GENERAL_ADMIN");
   const canStudent = r?.canStudent ?? (user.hasStudentProfile === true);
   const canTeacher = r?.canTeacher ?? (user.hasTeacherProfile === true);
   const canAdmin = r?.canAdmin ?? (user.isAdmin === true || user.baseRole === "ADMIN");
@@ -168,6 +173,7 @@ export function TopBar({
 
   const roleLabels: Record<string, string> = {
     MASTER: "Administrador Master",
+    GENERAL_ADMIN: "Administrador Geral",
     ADMIN: "Admin",
     COORDINATOR: "Coordenador",
     POLO_COORDINATOR: "Coordenador de Polos",
@@ -175,20 +181,29 @@ export function TopBar({
     STUDENT: "Aluno",
   };
 
+  const hidesStaffPicker = canMaster || canGeneralAdmin;
+
   let roleOptions: RoleOption[] = [
     ...(canMaster ? [{ value: "MASTER" as const, label: roleLabels.MASTER }] : []),
+    ...(canGeneralAdmin ? [{ value: "GENERAL_ADMIN" as const, label: roleLabels.GENERAL_ADMIN }] : []),
     ...(canStudent ? [{ value: "STUDENT" as const, label: roleLabels.STUDENT }] : []),
     ...(canTeacher ? [{ value: "TEACHER" as const, label: roleLabels.TEACHER }] : []),
-    ...(canAdmin && !canMaster ? [{ value: "ADMIN" as const, label: roleLabels.ADMIN }] : []),
-    ...(canCoordinator && !canMaster ? [{ value: "COORDINATOR" as const, label: roleLabels.COORDINATOR }] : []),
-    ...(canPoloCoordinator && !canMaster ? [{ value: "POLO_COORDINATOR" as const, label: roleLabels.POLO_COORDINATOR }] : []),
+    ...(canAdmin && !hidesStaffPicker ? [{ value: "ADMIN" as const, label: roleLabels.ADMIN }] : []),
+    ...(canCoordinator && !hidesStaffPicker
+      ? [{ value: "COORDINATOR" as const, label: roleLabels.COORDINATOR }]
+      : []),
+    ...(canPoloCoordinator && !hidesStaffPicker
+      ? [{ value: "POLO_COORDINATOR" as const, label: roleLabels.POLO_COORDINATOR }]
+      : []),
   ];
   if (!roleOptions.some((o) => o.value === user.role)) {
     roleOptions = [...roleOptions, { value: user.role as RoleOption["value"], label: roleLabels[user.role] ?? user.role }];
   }
   const hasMoreThanOneProfile = roleOptions.length >= 2;
 
-  async function onRoleChange(newRole: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "COORDINATOR" | "POLO_COORDINATOR") {
+  async function onRoleChange(
+    newRole: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "GENERAL_ADMIN" | "COORDINATOR" | "POLO_COORDINATOR",
+  ) {
     if (newRole === user.role) return;
     setSwitchingRole(true);
     try {

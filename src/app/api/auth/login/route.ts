@@ -20,8 +20,8 @@ import { getRequestClientMeta } from "@/lib/request-client-meta";
 import { checkRateLimit } from "@/lib/rate-limit-memory";
 import { loginSchema } from "@/lib/validators/auth";
 import {
-  birthDateToStudentPasswordLegacyLocal,
-  birthDateToStudentPasswordParts,
+  normalizeTypedStudentPassword,
+  studentPasswordCandidates,
 } from "@/lib/student-password";
 
 const userLoginSelect = {
@@ -41,8 +41,8 @@ const WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_IP = 30;
 
 /**
- * Aceita senha no formato atual (UTC/calendário ISO) ou legado (getDate local),
- * desde que o usuário tenha digitado exatamente uma das duas variantes em texto.
+ * Aceita a senha DDMMAAAA (UTC ou legado local), com ou sem zeros à esquerda,
+ * e também com barras/espaços (ex.: 01/05/2010).
  */
 async function verifyPasswordForStudentAccount(
   password: string,
@@ -50,12 +50,24 @@ async function verifyPasswordForStudentAccount(
   birthDate: Date
 ): Promise<boolean> {
   if (await verifyPassword(password, passwordHash)) return true;
-  const { password: isoPwd } = birthDateToStudentPasswordParts(birthDate);
-  const legPwd = birthDateToStudentPasswordLegacyLocal(birthDate);
-  if (password !== isoPwd && password !== legPwd) return false;
-  return (
-    (await verifyPassword(isoPwd, passwordHash)) || (await verifyPassword(legPwd, passwordHash))
-  );
+
+  const typed = normalizeTypedStudentPassword(password);
+  const candidates = studentPasswordCandidates(birthDate);
+
+  for (const attempt of typed) {
+    if (candidates.includes(attempt) && (await verifyPassword(attempt, passwordHash))) {
+      return true;
+    }
+  }
+
+  // Hash pode ser de uma variante (ISO ou legado); se o aluno digitou outra variante válida, aceita.
+  for (const candidate of candidates) {
+    if (await verifyPassword(candidate, passwordHash)) {
+      return typed.some((t) => candidates.includes(t));
+    }
+  }
+
+  return false;
 }
 
 export async function POST(request: Request) {
@@ -161,6 +173,7 @@ export async function POST(request: Request) {
       prisma.teacher.findFirst({ where: { userId: user.id, deletedAt: null }, select: { id: true } }).then((r) => !!r),
     ]);
     const hasMaster = user.role === "MASTER";
+    const hasGeneralAdmin = user.role === "GENERAL_ADMIN";
     const hasCoordinator = user.role === "COORDINATOR" || user.isCoordinator === true;
     const hasPoloCoordinator = user.role === "POLO_COORDINATOR" || user.isPoloCoordinator === true;
     /** Acesso como Admin (JWT ADMIN) — perfil administrativo ou flag isAdmin. */
@@ -170,6 +183,7 @@ export async function POST(request: Request) {
     if (hasStudent) choiceCount++;
     if (hasTeacher) choiceCount++;
     if (hasMaster) choiceCount++;
+    else if (hasGeneralAdmin) choiceCount++;
     else {
       if (hasCoordinator) choiceCount++;
       if (hasPoloCoordinator) choiceCount++;

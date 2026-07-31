@@ -39,53 +39,55 @@ export async function proxy(request: NextRequest) {
    * essas áreas. O admin entra em tudo, mas o que mexe no site passa pela fila de aprovação
    * do Master.
    */
-  const PLATFORM_GOVERNANCE = ["MASTER", "ADMIN"];
+  const PLATFORM_GOVERNANCE = ["MASTER", "GENERAL_ADMIN", "ADMIN"];
 
-  // Usuários, backup e cadastro de horários: exclusivos do Master
+  const isMasterEquivalent = role === "MASTER" || role === "GENERAL_ADMIN";
+
+  // Usuários, backup e cadastro de horários: Master e Administrador Geral
   if (["/users", "/backup", "/time-slots"].some((p) => pathname.startsWith(p))) {
-    if (role !== "MASTER") {
+    if (!isMasterEquivalent) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Fila de aprovação do site: só o Master aprova/rejeita (as APIs também exigem MASTER)
+  // Fila de aprovação do site: Master e Administrador Geral
   if (pathname.startsWith("/approvacoes")) {
-    if (role !== "MASTER") {
+    if (!isMasterEquivalent) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Professores e turmas (cadastro): Master, Admin ou Coordenador
+  // Professores e turmas (cadastro): Master, Admin Geral, Admin ou Coordenador
   if (pathname.startsWith("/teachers") || pathname.startsWith("/class-groups")) {
-    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Cursos: Master, Admin, Coordenador ou Professor (professor vê apenas os cursos que leciona na UI/API)
+  // Cursos: Master, Admin Geral, Admin, Coordenador ou Professor
   if (pathname.startsWith("/courses")) {
-    if (!["MASTER", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
+    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Matrículas: Master, Admin, Coordenador, Coordenador de Polos ou Professor
+  // Matrículas: Master, Admin Geral, Admin, Coordenador, Coordenador de Polos ou Professor
   if (pathname.startsWith("/enrollments")) {
-    if (!["MASTER", "ADMIN", "COORDINATOR", "POLO_COORDINATOR", "TEACHER"].includes(role ?? "")) {
+    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "POLO_COORDINATOR", "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Polos: Master, Admin ou Coordenador
+  // Polos: Master, Admin Geral, Admin ou Coordenador
   if (pathname.startsWith("/admin/polos")) {
-    if (!["MASTER", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Alunos: Master, Admin, Coordenador ou Professor
+  // Alunos: Master, Admin Geral, Admin, Coordenador ou Professor
   if (pathname.startsWith("/students")) {
-    if (!["MASTER", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
+    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
@@ -123,13 +125,13 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Comunicação: disparo de SMS, e-mail e campanhas é irreversível — exclusivo do Master
+  // Comunicação: disparo de SMS, e-mail e campanhas — Master e Administrador Geral
   if (
     pathname.startsWith("/admin/sms") ||
     pathname.startsWith("/admin/email") ||
     pathname.startsWith("/admin/campanhas")
   ) {
-    if (role !== "MASTER") {
+    if (!isMasterEquivalent) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
