@@ -155,16 +155,23 @@ export async function DELETE(
 
   const enrollment = await prisma.enrollment.findFirst({
     where: { id: enrollmentId, studentId: student.id, status: { in: ["ACTIVE", "COMPLETED"] } },
-    select: { id: true },
+    select: { id: true, classGroupId: true, status: true },
   });
   if (!enrollment) {
     return jsonErr("NOT_FOUND", "Matrícula não encontrada ou já cancelada.", 404);
   }
 
+  const wasActive = enrollment.status === "ACTIVE";
+
   await prisma.enrollment.update({
     where: { id: enrollmentId },
     data: { status: "CANCELLED" },
   });
+
+  if (wasActive) {
+    const { tryPromoteWaitlistAfterSeatFreed } = await import("@/lib/enrollment-waitlist");
+    await tryPromoteWaitlistAfterSeatFreed(enrollment.classGroupId, user.id);
+  }
 
   return jsonOk({ cancelled: true });
 }

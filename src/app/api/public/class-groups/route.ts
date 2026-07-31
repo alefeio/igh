@@ -3,7 +3,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import { publicInscrevaClassGroupWhere } from "@/lib/public-enrollment-availability";
 
-/** Lista turmas para pré-matrícula (público, sem auth). Apenas PLANEJADA com vagas (matrículas ACTIVE menores que capacity). Query: courseId (uuid) para filtrar por curso. */
+/** Lista turmas para pré-matrícula e lista de espera (público). Inclui lotadas (waitlistOnly). */
 
 export async function GET(request: Request) {
   try {
@@ -35,32 +35,33 @@ export async function GET(request: Request) {
       },
     });
 
-    const withVagas = classGroups.filter((cg) => cg.enrollments.length < cg.capacity);
+    const withVagas = classGroups.map((cg) => ({
+      id: cg.id,
+      courseId: cg.course.id,
+      courseName: cg.course.name,
+      courseDescription: cg.course.description,
+      startDate: cg.startDate,
+      endDate: cg.endDate,
+      daysOfWeek: cg.daysOfWeek,
+      startTime: cg.startTime,
+      endTime: cg.endTime,
+      location: cg.location,
+      unit: cg.poloLocation
+        ? {
+            id: cg.poloLocation.id,
+            name: cg.poloLocation.name,
+            poloId: cg.poloLocation.polo.id,
+            poloName: cg.poloLocation.polo.name,
+          }
+        : null,
+      capacity: cg.capacity,
+      seatsLeft: Math.max(0, cg.capacity - cg.enrollments.length),
+      waitlistOnly: cg.enrollments.length >= cg.capacity,
+      status: cg.status,
+    }));
 
     return jsonOk({
-      classGroups: withVagas.map((cg) => ({
-        id: cg.id,
-        courseId: cg.course.id,
-        courseName: cg.course.name,
-        courseDescription: cg.course.description,
-        startDate: cg.startDate,
-        endDate: cg.endDate,
-        daysOfWeek: cg.daysOfWeek,
-        startTime: cg.startTime,
-        endTime: cg.endTime,
-        location: cg.location,
-        unit: cg.poloLocation
-          ? {
-              id: cg.poloLocation.id,
-              name: cg.poloLocation.name,
-              poloId: cg.poloLocation.polo.id,
-              poloName: cg.poloLocation.polo.name,
-            }
-          : null,
-        capacity: cg.capacity,
-        seatsLeft: cg.capacity - cg.enrollments.length,
-        status: cg.status,
-      })),
+      classGroups: withVagas,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erro ao carregar turmas.";

@@ -261,7 +261,13 @@ export function ClassGroupPicker({
                           </span>
                           <span className="flex flex-wrap items-center gap-2 sm:justify-end">
                             {vagas ? (
-                              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-900 dark:bg-sky-900/40 dark:text-sky-100">
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                  cg.waitlistOnly || (cg.seatsLeft ?? 1) <= 0
+                                    ? "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
+                                    : "bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100"
+                                }`}
+                              >
                                 {vagas}
                               </span>
                             ) : null}

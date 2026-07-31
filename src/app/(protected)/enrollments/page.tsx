@@ -5,6 +5,7 @@ import { BarChart, Bar, Cell, Legend, Pie, PieChart, ResponsiveContainer, Toolti
 import * as XLSX from "xlsx";
 
 import { StudentForm } from "@/components/students/StudentForm";
+import { EnrollmentWaitlistPanel } from "@/components/enrollments/EnrollmentWaitlistPanel";
 import { buildEnrollmentPdfBlob } from "@/lib/enrollment-pdf";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -288,7 +289,7 @@ export default function EnrollmentsPage() {
     frequencia: false,
   });
 
-  const [openNewStudent, setOpenNewStudent] = useState(false);
+  const [waitlistReloadToken, setWaitlistReloadToken] = useState(0);
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
   const studentComboboxRef = useRef<HTMLDivElement>(null);
@@ -1035,6 +1036,7 @@ export default function EnrollmentsPage() {
     }
     toast.push("success", "Matrícula excluída.");
     void load();
+    setWaitlistReloadToken((n) => n + 1);
   }
 
   async function uploadCertificateForEnrollment(
@@ -1174,6 +1176,7 @@ export default function EnrollmentsPage() {
       setEditOpen(false);
       setEditingEnrollment(null);
       await load();
+      setWaitlistReloadToken((n) => n + 1);
     } finally {
       setEditSubmitting(false);
     }
@@ -1190,7 +1193,7 @@ export default function EnrollmentsPage() {
       <DashboardHero
         eyebrow="Matrículas"
         title="Matrículas"
-        description="Análise por status, turma e data. Crie matrículas, confira vagas e exporte dados. E-mail de boas-vindas pode ser enviado ao aluno."
+        description="Análise por status, turma e data. Crie matrículas ou reservas (lista de espera) para turmas lotadas. Ao cancelar/excluir uma matrícula, a primeira reserva é promovida automaticamente com e-mail de acesso."
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
             <div className="flex flex-wrap justify-end gap-2">
@@ -1216,6 +1219,19 @@ export default function EnrollmentsPage() {
             )}
           </div>
         }
+      />
+
+      <EnrollmentWaitlistPanel
+        canManage={
+          user.role === "ADMIN" ||
+          user.role === "MASTER" ||
+          user.role === "GENERAL_ADMIN" ||
+          user.role === "COORDINATOR" ||
+          user.role === "POLO_COORDINATOR"
+        }
+        classGroups={filteredClassGroupsForModal}
+        onNeedClassGroups={loadFormOptions}
+        reloadToken={waitlistReloadToken}
       />
 
       {loading ? (

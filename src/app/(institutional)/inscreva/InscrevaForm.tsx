@@ -21,6 +21,7 @@ const EMPTY_TURMAS_INSCREVA_MSG = "No momento não há turmas abertas para inscr
 type EnrollmentSuccess = {
   studentName: string;
   withoutEmail: boolean;
+  kind: "enrollment" | "waitlist";
   turmas: {
     id: string;
     courseName: string;
@@ -29,6 +30,7 @@ type EnrollmentSuccess = {
     endTime: string;
     startDate: string;
     unitLabel: string;
+    waitlistPosition?: number;
   }[];
 };
 
@@ -162,7 +164,6 @@ export function InscrevaForm() {
         setClassGroupsEmAndamento(meJson.data.classGroupsEmAndamento ?? []);
       }
       if (cgJson?.ok && cgJson.data.classGroups) {
-        // API retorna só PLANEJADA com vagas; mantém filtro defensivo.
         setClassGroups(cgJson.data.classGroups.filter((cg) => cg.status === "PLANEJADA"));
       }
     } finally {
@@ -315,32 +316,62 @@ export function InscrevaForm() {
     }
     setSubmitting(true);
     try {
-      const succeeded: ClassGroupOption[] = [];
+      const succeeded: {
+        cg: ClassGroupOption;
+        kind: "enrollment" | "waitlist";
+        waitlistPosition?: number;
+      }[] = [];
       for (const classGroupId of selectedClassGroupIds) {
+        const cg = classGroups.find((c) => c.id === classGroupId);
+        if (!cg) continue;
         const body: { classGroupId: string; studentToken?: string } = { classGroupId };
         if (studentToken) body.studentToken = studentToken;
-        const res = await fetch("/api/public/enrollments", {
+        const isWaitlist = !!cg.waitlistOnly || (typeof cg.seatsLeft === "number" && cg.seatsLeft <= 0);
+        const res = await fetch(isWaitlist ? "/api/public/waitlist" : "/api/public/enrollments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const json = (await res.json()) as ApiResponse<{ enrollment: { courseName: string } }>;
+        const json = (await res.json()) as ApiResponse<{
+          enrollment?: { courseName: string };
+          waitlist?: { position: number; courseName: string };
+        }>;
         if (res.ok && json?.ok) {
-          const cg = classGroups.find((c) => c.id === classGroupId);
-          if (cg) succeeded.push(cg);
+          succeeded.push({
+            cg,
+            kind: isWaitlist ? "waitlist" : "enrollment",
+            waitlistPosition: json.data.waitlist?.position,
+          });
         } else {
-          toast.push("error", json && "error" in json ? json.error.message : "Erro ao enviar pré-matrícula.");
+          toast.push(
+            "error",
+            json && "error" in json
+              ? json.error.message
+              : isWaitlist
+                ? "Erro ao entrar na lista de espera."
+                : "Erro ao enviar pré-matrícula.",
+          );
         }
       }
       if (succeeded.length > 0) {
-        const newCourseIds = succeeded.map((c) => c.courseId);
-        const newClassGroupIds = succeeded.map((c) => c.id);
+        const newCourseIds = succeeded.map((s) => s.cg.courseId);
+        const newClassGroupIds = succeeded.map((s) => s.cg.id);
         setEnrolledCourseIds((prev) => [...new Set([...prev, ...newCourseIds])]);
         setEnrolledClassGroupIds((prev) => [...new Set([...prev, ...newClassGroupIds])]);
+        const kind = succeeded.every((s) => s.kind === "waitlist")
+          ? "waitlist"
+          : succeeded.every((s) => s.kind === "enrollment")
+            ? "enrollment"
+            : "enrollment";
         setEnrollmentSuccess({
           studentName: student.name,
           withoutEmail: registeredWithoutEmail,
-          turmas: succeeded.map((cg) => ({
+          kind: succeeded.some((s) => s.kind === "waitlist") && !succeeded.some((s) => s.kind === "enrollment")
+            ? "waitlist"
+            : kind === "waitlist"
+              ? "waitlist"
+              : "enrollment",
+          turmas: succeeded.map(({ cg, waitlistPosition }) => ({
             id: cg.id,
             courseName: cg.courseName,
             daysOfWeek: cg.daysOfWeek,
@@ -348,14 +379,31 @@ export function InscrevaForm() {
             endTime: cg.endTime,
             startDate: cg.startDate,
             unitLabel: turmaUnitLabel(cg),
+            waitlistPosition,
           })),
         });
-        toast.push(
-          "success",
-          succeeded.length === 1
-            ? "Pré-matrícula efetuada com sucesso."
-            : `${succeeded.length} pré-matrículas efetuadas com sucesso.`
-        );
+        const waitCount = succeeded.filter((s) => s.kind === "waitlist").length;
+        const enrollCount = succeeded.filter((s) => s.kind === "enrollment").length;
+        if (waitCount > 0 && enrollCount === 0) {
+          toast.push(
+            "success",
+            waitCount === 1
+              ? "Reserva na lista de espera registrada. Você será matriculado automaticamente quando houver vaga."
+              : `${waitCount} reservas na lista de espera registradas.`,
+          );
+        } else if (enrollCount > 0 && waitCount === 0) {
+          toast.push(
+            "success",
+            enrollCount === 1
+              ? "Pré-matrícula efetuada com sucesso."
+              : `${enrollCount} pré-matrículas efetuadas com sucesso.`,
+          );
+        } else {
+          toast.push(
+            "success",
+            `${enrollCount} pré-matrícula(s) e ${waitCount} reserva(s) registradas.`,
+          );
+        }
       }
       setSelectedClassGroupIds([]);
       if (succeeded.length === 0) {
@@ -390,7 +438,8 @@ export function InscrevaForm() {
   }
 
   if (enrollmentSuccess) {
-    const { studentName, withoutEmail, turmas } = enrollmentSuccess;
+    const { studentName, withoutEmail, turmas, kind } = enrollmentSuccess;
+    const isWaitlist = kind === "waitlist";
     return (
       <div className="space-y-6">
         <div
@@ -413,10 +462,16 @@ export function InscrevaForm() {
                 Concluído
               </p>
               <h2 className="mt-1 text-2xl font-bold text-[var(--text-primary)]">
-                Pré-matrícula efetuada!
+                {isWaitlist ? "Reserva na lista de espera!" : "Pré-matrícula efetuada!"}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
-                {turmas.length === 1 ? (
+                {isWaitlist ? (
+                  <>
+                    Pronto, <strong>{studentName}</strong>. Você entrou na lista de espera
+                    {turmas.length === 1 ? "" : ` de ${turmas.length} turmas`}. Quando houver vaga, você será
+                    matriculado automaticamente e receberá um e-mail com as informações de acesso.
+                  </>
+                ) : turmas.length === 1 ? (
                   <>
                     Pronto, <strong>{studentName}</strong>. Sua pré-matrícula foi registrada com sucesso.
                   </>
@@ -440,6 +495,9 @@ export function InscrevaForm() {
                     </p>
                     <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                       {turma.unitLabel} · Início {formatDateOnlyBR(turma.startDate)}
+                      {turma.waitlistPosition
+                        ? ` · Posição na fila: ${turma.waitlistPosition}`
+                        : ""}
                     </p>
                   </li>
                 ))}
@@ -456,9 +514,9 @@ export function InscrevaForm() {
                 </div>
               ) : (
                 <p className="mt-5 text-sm leading-relaxed text-[var(--text-muted)]">
-                  Guarde este comprovante. Se tiver conta no portal, você já pode acompanhar suas
-                  turmas na área do aluno. A confirmação final da matrícula é feita pela equipe do
-                  instituto.
+                  {isWaitlist
+                    ? "Guarde este comprovante. Assim que surgir uma vaga, enviaremos o e-mail de matrícula com os dados de acesso."
+                    : "Guarde este comprovante. Se tiver conta no portal, você já pode acompanhar suas turmas na área do aluno. A confirmação final da matrícula é feita pela equipe do instituto."}
                 </p>
               )}
 
@@ -508,7 +566,8 @@ export function InscrevaForm() {
               ) : null}
             </div>
             <p className={hintClass}>
-              Selecione até 2 turmas por envio, sem sobreposição de dia e horário. O limite de 2 cursos vale para turmas em andamento.
+              Selecione até 2 turmas por envio, sem sobreposição de dia e horário. Turmas lotadas entram na
+              lista de espera: quando surgir vaga, a matrícula é feita automaticamente com e-mail de acesso.
             </p>
             <div className="mt-5">
               <ClassGroupPicker

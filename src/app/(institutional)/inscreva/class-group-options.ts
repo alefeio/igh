@@ -16,6 +16,8 @@ export type ClassGroupOption = {
   unit?: ClassGroupUnit;
   capacity?: number;
   seatsLeft?: number;
+  /** Turma lotada: inscrição vai para lista de espera. */
+  waitlistOnly?: boolean;
   status: string;
 };
 
@@ -36,7 +38,7 @@ export function doOverlap(a: ClassGroupOption, b: ClassGroupOption): boolean {
 /** Texto da situação das vagas, quando a API informa o total restante. */
 export function seatsLabel(cg: ClassGroupOption): string | null {
   if (typeof cg.seatsLeft !== "number") return null;
-  if (cg.seatsLeft <= 0) return "Sem vagas";
+  if (cg.seatsLeft <= 0 || cg.waitlistOnly) return "Lista de espera";
   if (cg.seatsLeft === 1) return "Última vaga";
   if (cg.seatsLeft <= 3) return `Últimas ${cg.seatsLeft} vagas`;
   return `${cg.seatsLeft} vagas`;

@@ -558,6 +558,7 @@ model ClassGroup {
   poloLocation     PoloLocation?    @relation(fields: [poloLocationId], references: [id], onDelete: SetNull)
   sessions         ClassSession[]
   enrollments      Enrollment[]
+  waitlistEntries  EnrollmentWaitlist[]
   exams            ClassGroupExam[]
 
   @@index([poloLocationId])
@@ -845,6 +846,7 @@ model Student {
   cep                   String?
   userId                String?             @unique
   enrollments           Enrollment[]
+  waitlistEntries       EnrollmentWaitlist[]
   deletedByUser         User?               @relation("StudentDeletedBy", fields: [deletedByUserId], references: [id])
   user                  User?               @relation(fields: [userId], references: [id])
   attachments           StudentAttachment[]
@@ -918,6 +920,29 @@ model Enrollment {
   sessionAttendances    SessionAttendance[]
   verificationTokens    VerificationToken[]
   examAttempts          ClassGroupExamAttempt[]
+  /// * Reserva convertida nesta matrícula (se houver).
+  convertedFromWaitlist EnrollmentWaitlist?
+}
+
+/// * Lista de espera / cadastro de reserva para turmas sem vagas.
+/// * Não ocupa vaga até ser promovida a Enrollment (FIFO por createdAt).
+model EnrollmentWaitlist {
+  id                      String      @id @default(uuid())
+  studentId               String
+  classGroupId            String
+  /// * WAITING | CONVERTED | CANCELLED
+  status                  String      @default("WAITING")
+  notes                   String?
+  convertedEnrollmentId   String?     @unique
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+  student                 Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup              ClassGroup  @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  convertedEnrollment     Enrollment? @relation(fields: [convertedEnrollmentId], references: [id], onDelete: SetNull)
+
+  @@unique([classGroupId, studentId])
+  @@index([classGroupId, status, createdAt])
+  @@index([studentId, status])
 }
 
 model EnrollmentLessonFavorite {

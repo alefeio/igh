@@ -12,6 +12,7 @@ import {
   poloCoordinatorOwnsClassGroup,
   poloCoordinatorOwnsEnrollment,
 } from "@/lib/polo-coordinator-scope";
+import { tryPromoteWaitlistAfterSeatFreed } from "@/lib/enrollment-waitlist";
 
 export async function GET(
   _request: Request,
@@ -73,7 +74,7 @@ export async function PATCH(
 
   const existing = await prisma.enrollment.findUnique({
     where: { id },
-    select: { studentId: true, classGroupId: true },
+    select: { studentId: true, classGroupId: true, status: true },
   });
   if (!existing) {
     return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
@@ -188,6 +189,14 @@ export async function PATCH(
     performedByUserId: user.id,
   });
 
+  if (
+    parsed.data.status === "CANCELLED" &&
+    existing.status === "ACTIVE" &&
+    updated.status === "CANCELLED"
+  ) {
+    await tryPromoteWaitlistAfterSeatFreed(updated.classGroupId, user.id);
+  }
+
   if (parsed.data.isPreEnrollment === false && updated.student.email && updated.student.userId) {
     const { token, expiresAt } = await createVerificationToken({
       userId: updated.student.userId,
@@ -262,11 +271,14 @@ export async function DELETE(
 
   const enrollment = await prisma.enrollment.findUnique({
     where: { id },
-    select: { id: true, studentId: true, classGroupId: true },
+    select: { id: true, studentId: true, classGroupId: true, status: true },
   });
   if (!enrollment) {
     return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
   }
+
+  const freedSeat = enrollment.status === "ACTIVE";
+  const classGroupId = enrollment.classGroupId;
 
   await prisma.enrollment.delete({ where: { id } });
 
@@ -277,6 +289,10 @@ export async function DELETE(
     diff: { deleted: enrollment },
     performedByUserId: user.id,
   });
+
+  if (freedSeat) {
+    await tryPromoteWaitlistAfterSeatFreed(classGroupId, user.id);
+  }
 
   return jsonOk({ deleted: true });
 }
