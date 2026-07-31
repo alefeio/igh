@@ -52,11 +52,11 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
 <h3>Guia do sistema (edição)</h3>
 <p>Edição destes textos por perfil, com rich text e imagens. O que você salva aqui é o que cada tipo de usuário lê em <strong>Como usar o sistema</strong>.</p>
 <h3>Usuários</h3>
-<p><strong>Exclusivo do Master.</strong> Criação, edição e desativação de contas e perfis. Nem o Administrador tem acesso.</p>
+<p><strong>Master e Administrador Geral.</strong> Criação, edição e desativação de contas e perfis. Somente o Master cria ou edita o perfil Administrador Geral; o Master não aparece nesta listagem para edição.</p>
 <h3>Acessos ao sistema</h3>
 <p>Auditoria de quem entrou e quando.</p>
 <h3>Aprovações do site</h3>
-<p><strong>Exclusivo do Master.</strong> Toda alteração de conteúdo do site feita pelo Administrador fica parada aqui até você aprovar ou rejeitar. Enquanto não for aprovada, nada muda no site público. Revise esta fila com regularidade — é ela que segura as publicações.</p>
+<p><strong>Master e Administrador Geral.</strong> Toda alteração de conteúdo do site feita pelo Administrador fica parada aqui até aprovar ou rejeitar. Enquanto não for aprovada, nada muda no site público. Revise esta fila com regularidade — é ela que segura as publicações.</p>
 <h3>Formações (catálogo)</h3>
 <p>Catálogo de formações usado pelo site e pelas inscrições.</p>
 <h3>Comunidade IGH — moderação e Comunidade IGH (PII)</h3>
@@ -71,14 +71,14 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
 <p>Regras de pontuação, níveis e o ranking apresentado aos alunos e professores.</p>
 
 <h2>Comunicação</h2>
-<p><strong>Exclusiva do Master</strong>, porque o disparo é irreversível: <strong>Campanhas SMS</strong>, <strong>Campanhas de e-mail</strong> e <strong>Campanhas (site e alunos)</strong>. Confira público, mensagem e base legal (LGPD) antes de enviar.</p>
+<p><strong>Master e Administrador Geral</strong>, porque o disparo é irreversível: <strong>Campanhas SMS</strong>, <strong>Campanhas de e-mail</strong> e <strong>Campanhas (site e alunos)</strong>. Confira público, mensagem e base legal (LGPD) antes de enviar.</p>
 
 <h2>Site</h2>
 <p>CMS do site público e dos banners do aluno: configurações gerais, menu, banners, mensagens de contato, páginas (Contato, Sobre, Espaço Maker, Formações, Inscreva-se), projetos, notícias, depoimentos, parceiros, unidades, FAQ, termos e privacidade e transparência.</p>
-<p>Quando <strong>você</strong> salva, a alteração vai direto para o ar. Quando o <strong>Administrador</strong> salva, ela entra na fila de <strong>Aprovações do site</strong> e só é publicada depois do seu aval.</p>
+<p>Quando <strong>você</strong> ou o <strong>Administrador Geral</strong> salva, a alteração vai direto para o ar. Quando o <strong>Administrador</strong> salva, ela entra na fila de <strong>Aprovações do site</strong> e só é publicada depois do aval.</p>
 
 <h2>Configurações</h2>
-<p><strong>Exclusivas do Master.</strong></p>
+<p><strong>Master e Administrador Geral.</strong></p>
 <ul>
 <li><strong>Horários (cadastro)</strong> — blocos de horário reutilizados na montagem das turmas.</li>
 <li><strong>Backup do banco</strong> — operação crítica; execute em janela segura.</li>
@@ -93,11 +93,57 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
 </ul>`,
   },
 
+  GENERAL_ADMIN: {
+    title: "Como usar o sistema — Administrador Geral",
+    contentRich: `<h2>Visão geral do perfil Administrador Geral</h2>
+<p>O <strong>Administrador Geral</strong> tem praticamente o mesmo alcance do Master na operação: pedagógico, site (publicação direta), aprovações, comunicação em massa, usuários e backup. A diferença está em três limites claros.</p>
+<p><strong>Você não pode:</strong> visualizar ou excluir a conta Master; criar ou editar outro Administrador Geral; atribuir o perfil Master. Somente o Master cria e gerencia o perfil Administrador Geral.</p>
+<p><strong>Você pode:</strong> criar e editar Admin, Coordenador e Coordenador de Polos; aprovar o site; disparar campanhas; fazer backup; operar toda a área pedagógica.</p>
+
+<h2>Início</h2>
+<h3>Página Inicial</h3>
+<p>Resumo da operação com indicadores, atalhos e avisos. Ponto de partida após o login.</p>
+<h3>Como usar o sistema</h3>
+<p>Esta página. Master e Administrador editam os guias em <strong>Guia do sistema (edição)</strong>.</p>
+<h3>Coordenação</h3>
+<p>Fila de <strong>reportes</strong> abertos por professores e equipe: mensagens, anexos e status até o encerramento.</p>
+
+<h2>Pedagógico</h2>
+<p>Mesmo acesso do Master: Professores, Alunos, Cursos, Planos de aula, Turmas, Polos, Matrículas, Quadro de horários e Frequência.</p>
+
+<h2>Administração</h2>
+<h3>Usuários</h3>
+<p>Crie e edite contas administrativas (Admin, Coordenador, Coordenador de Polos). Não altere nem crie Administrador Geral — isso é exclusivo do Master. A conta Master não aparece nesta listagem.</p>
+<h3>Aprovações do site</h3>
+<p>Aprove ou rejeite alterações feitas pelo Administrador no CMS. Enquanto pendente, o site público não muda.</p>
+<h3>Demais itens</h3>
+<p>Visão da plataforma, calendário institucional, comunidade, fóruns, avaliações, eventos, gamificação e ranking — no mesmo alcance do Master.</p>
+
+<h2>Comunicação</h2>
+<p>Campanhas SMS, e-mail e site/alunos. O disparo é irreversível: confira público, mensagem e base legal (LGPD) antes de enviar.</p>
+
+<h2>Site</h2>
+<p>Ao salvar no CMS, a alteração vai <strong>direto para o ar</strong> (como o Master). O Administrador comum continua passando pela fila de aprovações.</p>
+
+<h2>Configurações</h2>
+<ul>
+<li><strong>Horários (cadastro)</strong> — blocos reutilizados nas turmas.</li>
+<li><strong>Backup do banco</strong> — operação crítica; execute em janela segura.</li>
+</ul>
+
+<h2>Boas práticas</h2>
+<ul>
+<li>Trate a fila de aprovações como rotina.</li>
+<li>Não compartilhe credenciais; use contas pessoais e auditáveis.</li>
+<li>Trate dados pessoais conforme a LGPD e a política interna.</li>
+</ul>`,
+  },
+
   ADMIN: {
     title: "Como usar o sistema — Administrador",
     contentRich: `<h2>Visão geral do perfil Administrador</h2>
 <p>O <strong>Administrador</strong> toca o dia a dia inteiro da plataforma: pedagógico, governança e conteúdo do site. A diferença em relação ao Master está em dois pontos: o que você altera no <strong>site</strong> passa por aprovação, e algumas operações permanecem fora do seu alcance.</p>
-<p><strong>Fica só com o Master:</strong> Usuários, Aprovações do site, Campanhas (SMS, e-mail e site/alunos), Horários (cadastro) e Backup do banco. Se precisar de algo nessas áreas, peça ao Master.</p>
+<p><strong>Fica só com o Master / Administrador Geral:</strong> Usuários, Aprovações do site, Campanhas (SMS, e-mail e site/alunos), Horários (cadastro) e Backup do banco. Se precisar de algo nessas áreas, peça ao Master ou ao Administrador Geral.</p>
 
 <h2>Como funciona a aprovação do site</h2>
 <p>Ao salvar qualquer conteúdo da seção <strong>Site</strong>, a alteração <strong>não vai direto para o ar</strong>: ela entra numa fila e o Master aprova ou rejeita. A mensagem de confirmação na tela avisa quando a alteração ficou pendente — se ela disser que está aguardando aprovação, o site público só muda depois do aval. Isso vale para todas as telas do CMS, inclusive exclusões.</p>
@@ -321,6 +367,7 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
 
 export const ONBOARDING_ROLES_ORDER: UserRole[] = [
   "MASTER",
+  "GENERAL_ADMIN",
   "ADMIN",
   "COORDINATOR",
   "POLO_COORDINATOR",

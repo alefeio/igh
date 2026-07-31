@@ -4,7 +4,15 @@ import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@/generated/prisma/client";
 import { z } from "zod";
 
-const ROLES: UserRole[] = ["MASTER", "ADMIN", "COORDINATOR", "POLO_COORDINATOR", "TEACHER", "STUDENT"];
+const ROLES: UserRole[] = [
+  "MASTER",
+  "GENERAL_ADMIN",
+  "ADMIN",
+  "COORDINATOR",
+  "POLO_COORDINATOR",
+  "TEACHER",
+  "STUDENT",
+];
 
 const putSchema = z.object({
   title: z.string().max(500),

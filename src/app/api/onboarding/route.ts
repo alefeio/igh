@@ -5,6 +5,7 @@ import type { UserRole } from "@/generated/prisma/client";
 
 const DEFAULT_TITLE: Record<UserRole, string> = {
   MASTER: "Como usar o sistema — Master",
+  GENERAL_ADMIN: "Como usar o sistema — Administrador Geral",
   ADMIN: "Como usar o sistema — Administrador",
   COORDINATOR: "Como usar o sistema — Coordenador",
   POLO_COORDINATOR: "Como usar o sistema — Coordenador de Polos",

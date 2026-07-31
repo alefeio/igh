@@ -19,6 +19,7 @@ type OnboardingPayload = {
 
 const ROLE_LABEL: Record<string, string> = {
   MASTER: "Master",
+  GENERAL_ADMIN: "Administrador Geral",
   ADMIN: "Administrador",
   COORDINATOR: "Coordenador",
   POLO_COORDINATOR: "Coordenador de Polos",
@@ -65,7 +66,7 @@ export default function OnboardingPage() {
           <>
             Conteúdo pensado para o seu perfil: <strong>{roleLabel}</strong>. Use o menu lateral para explorar as
             funcionalidades; volte aqui quando quiser revisar o guia.
-            {(user?.role === "MASTER" || user?.role === "ADMIN") && (
+            {(user?.role === "MASTER" || user?.role === "GENERAL_ADMIN" || user?.role === "ADMIN") && (
               <span className="mt-2 block text-sm">
                 <Link
                   href="/admin/onboarding"
@@ -88,7 +89,7 @@ export default function OnboardingPage() {
               O conteúdo deste guia ainda não foi publicado para o seu perfil. Entre em contato com a equipe ou aguarde a
               atualização do administrador.
             </p>
-            {(user?.role === "MASTER" || user?.role === "ADMIN") && (
+            {(user?.role === "MASTER" || user?.role === "GENERAL_ADMIN" || user?.role === "ADMIN") && (
               <Link
                 href="/admin/onboarding"
                 className="mt-4 inline-block text-sm font-semibold text-[var(--igh-primary)] underline"
