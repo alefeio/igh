@@ -16,7 +16,7 @@ type ClassGroupOpt = {
   startDate: string;
   startTime: string;
   endTime: string;
-  status: string;
+  status?: string;
   course: { name: string };
 };
 
@@ -306,7 +306,7 @@ export function EnrollmentWaitlistPanel({
                 const isFull = cap > 0 && count >= cap;
                 return (
                   <option key={cg.id} value={cg.id}>
-                    {cg.course.name} — {STATUS_LABEL[cg.status] ?? cg.status} — Início{" "}
+                    {cg.course.name} — {STATUS_LABEL[cg.status ?? ""] ?? cg.status ?? "—"} — Início{" "}
                     {formatDateOnly(cg.startDate)} — ({count}/{cap || "—"} vagas)
                     {isFull ? " — Lotada" : ""}
                   </option>
