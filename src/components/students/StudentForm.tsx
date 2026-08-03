@@ -155,6 +155,8 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
   const [number, setNumber] = useState("");
   const [complement, setComplement] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
+  const [defaultCity, setDefaultCity] = useState("Belém");
+  const [defaultState, setDefaultState] = useState("PA");
   const [city, setCity] = useState("Belém");
   const [state, setState] = useState("PA");
   const [loadingCep, setLoadingCep] = useState(false);
@@ -232,8 +234,8 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
     setNumber("");
     setComplement("");
     setNeighborhood("");
-    setCity("Belém");
-    setState("PA");
+    setCity(defaultCity);
+    setState(defaultState);
     setGender("MALE");
     setHasDisability(false);
     setDisabilityDescription("");
@@ -248,7 +250,36 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
     setAttachments([]);
     setPendingIdDocument(null);
     setPendingAddressProof(null);
+  }, [defaultCity, defaultState]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAddressDefaults() {
+      try {
+        const res = await fetch("/api/students/address-defaults");
+        const json = (await res.json()) as ApiResponse<{ city: string; state: string }>;
+        if (!res.ok || !json.ok || cancelled) return;
+        const nextCity = json.data.city.trim() || "Belém";
+        const nextState = json.data.state.trim().toUpperCase().slice(0, 2) || "PA";
+        setDefaultCity(nextCity);
+        setDefaultState(nextState);
+      } catch {
+        /* mantém Belém/PA */
+      }
+    }
+    void loadAddressDefaults();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // Novo aluno: quando os padrões da configuração chegam, só atualiza Cidade/UF.
+  useEffect(() => {
+    if (!editing) {
+      setCity(defaultCity);
+      setState(defaultState);
+    }
+  }, [defaultCity, defaultState, editing]);
 
   useEffect(() => {
     if (editing) {
@@ -264,8 +295,8 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
       setNumber(editing.number ?? "");
       setComplement(editing.complement ?? "");
       setNeighborhood(editing.neighborhood ?? "");
-      setCity(editing.city ?? "Belém");
-      setState(editing.state ?? "PA");
+      setCity(editing.city?.trim() ? editing.city : defaultCity);
+      setState(editing.state?.trim() ? editing.state : defaultState);
       setGender(editing.gender ?? "MALE");
       setHasDisability(Boolean(editing.hasDisability));
       setDisabilityDescription(editing.disabilityDescription ?? "");
@@ -297,7 +328,9 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
     } else {
       resetForm();
     }
-  }, [editing, resetForm]);
+    // defaultCity/defaultState: aplicados no efeito acima para novo aluno; no edit usamos o valor atual no momento da abertura.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- evita limpar o formulário quando os padrões carregam
+  }, [editing]);
 
   function buildPayload() {
     return {
@@ -605,7 +638,7 @@ export function StudentForm({ editing, onSuccess, onCancel, isMaster = false }: 
           </div>
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)]">Cidade</label>
-            <Input value={city} onChange={(e) => setCity(e.target.value)} className="mt-1" placeholder="Belém" />
+            <Input value={city} onChange={(e) => setCity(e.target.value)} className="mt-1" placeholder={defaultCity || "Cidade"} />
           </div>
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)]">UF</label>
