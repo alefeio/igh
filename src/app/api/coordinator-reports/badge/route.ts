@@ -9,19 +9,14 @@ export async function GET() {
     return jsonErr("UNAUTHORIZED", "Não autorizado.", 401);
   }
 
-  if (user.role === "COORDINATOR") {
+  if (user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN") {
     const unreadCount = await prisma.coordinatorReport.count({
       where: { unreadByCoordinator: true, status: { not: "CLOSED" } },
     });
     return jsonOk({ unreadCount });
   }
 
-  if (
-    user.role === "TEACHER" ||
-    user.role === "ADMIN" ||
-    user.role === "MASTER" ||
-    user.role === "GENERAL_ADMIN"
-  ) {
+  if (user.role === "TEACHER") {
     const unreadCount = await prisma.coordinatorReport.count({
       where: {
         fromUserId: user.id,

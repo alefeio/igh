@@ -65,7 +65,7 @@ function mapPolo(p: {
 }
 
 export async function GET(_request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
 
   const polo = await prisma.polo.findUnique({
@@ -78,7 +78,7 @@ export async function GET(_request: Request, ctx: Ctx) {
 }
 
 export async function PATCH(request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
 
   const existing = await prisma.polo.findUnique({
@@ -191,7 +191,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
   const { id } = await ctx.params;
 
   const existing = await prisma.polo.findUnique({

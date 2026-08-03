@@ -20,7 +20,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return jsonErr("NOT_FOUND", "Reporte não encontrado.", 404);
   }
 
-  if (user.role === "COORDINATOR") {
+  if (user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN") {
     await prisma.coordinatorReport.update({
       where: { id },
       data: { unreadByCoordinator: false, updatedAt: new Date() },

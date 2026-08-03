@@ -2,13 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAuditLog } from "@/lib/audit";
-import { poloCoordinatorOwnsClassGroup } from "@/lib/polo-coordinator-scope";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 /** Cancela uma reserva da lista de espera. */
 export async function DELETE(_request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
+  // Somente Master (papel exato) pode remover reservas da lista de espera.
+  const user = await requireRole(["MASTER"], { exactMaster: true });
   const { id } = await ctx.params;
 
   const entry = await prisma.enrollmentWaitlist.findUnique({
@@ -17,13 +17,6 @@ export async function DELETE(_request: Request, ctx: Ctx) {
   });
   if (!entry) {
     return jsonErr("NOT_FOUND", "Reserva não encontrada.", 404);
-  }
-
-  if (user.role === "POLO_COORDINATOR") {
-    const ok = await poloCoordinatorOwnsClassGroup(user.id, entry.classGroupId);
-    if (!ok) {
-      return jsonErr("FORBIDDEN", "Reserva fora do escopo dos polos que você coordena.", 403);
-    }
   }
 
   if (entry.status !== "WAITING") {

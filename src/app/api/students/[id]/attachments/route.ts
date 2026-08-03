@@ -18,15 +18,12 @@ async function canAccessStudent(user: SessionUser, studentId: string): Promise<b
     return !!enrollment;
   }
   return (
-    user.role === "ADMIN" ||
-    user.role === "MASTER" ||
-    user.role === "GENERAL_ADMIN" ||
-    user.role === "COORDINATOR"
+    user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN"
   );
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
   const { id: studentId } = await context.params;
 
   if (!(await canAccessStudent(user, studentId))) {
@@ -50,7 +47,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "TEACHER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
   const { id: studentId } = await context.params;
 
   if (!(await canAccessStudent(user, studentId))) {

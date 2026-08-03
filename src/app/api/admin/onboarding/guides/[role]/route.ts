@@ -8,7 +8,7 @@ const ROLES: UserRole[] = [
   "MASTER",
   "GENERAL_ADMIN",
   "ADMIN",
-  "COORDINATOR",
+  "SITE_ADMIN",
   "POLO_COORDINATOR",
   "TEACHER",
   "STUDENT",

@@ -6,7 +6,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await context.params;
   try {
     const r = await prisma.siteQrCode.deleteMany({ where: { id } });

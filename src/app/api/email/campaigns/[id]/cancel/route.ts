@@ -5,7 +5,7 @@ import { cancelEmailCampaign } from "@/lib/email-campaigns";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(_request: Request, ctx: Ctx) {
-  const user = await requireRole(["MASTER"]);
+  const user = await requireRole(["MASTER", "SITE_ADMIN"]);
   const { id } = await ctx.params;
   const campaign = await cancelEmailCampaign(id, user.id);
   if (!campaign) {

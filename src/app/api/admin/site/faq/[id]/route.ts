@@ -21,7 +21,7 @@ function faqPrevious(existing: {
 }
 
 export async function GET(_request: Request, ctx: RouteCtx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const item = await prisma.siteFaqItem.findUnique({ where: { id } });
   if (!item) return jsonErr("NOT_FOUND", "Item FAQ não encontrado.", 404);
@@ -29,7 +29,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
 }
 
 export async function PATCH(request: Request, ctx: RouteCtx) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = siteFaqItemSchema.safeParse(body);
@@ -53,7 +53,7 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
 }
 
 export async function DELETE(_request: Request, ctx: RouteCtx) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const existing = await prisma.siteFaqItem.findUnique({ where: { id } });
   if (!existing) return jsonErr("NOT_FOUND", "Item FAQ não encontrado.", 404);

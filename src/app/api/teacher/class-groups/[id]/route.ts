@@ -29,6 +29,7 @@ export async function GET(
       status: true,
       location: true,
       course: { select: { id: true, name: true } },
+      cycle: { select: { cycle: true, year: true } },
       _count: { select: { enrollments: true } },
     },
   });
@@ -39,6 +40,8 @@ export async function GET(
       id: cg.id,
       courseId: cg.course.id,
       courseName: cg.course.name,
+      cycleNumber: cg.cycle.cycle,
+      cycleYear: cg.cycle.year,
       startDate: cg.startDate,
       endDate: cg.endDate,
       daysOfWeek: cg.daysOfWeek,

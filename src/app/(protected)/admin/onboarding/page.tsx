@@ -15,7 +15,7 @@ type Role =
   | "MASTER"
   | "GENERAL_ADMIN"
   | "ADMIN"
-  | "COORDINATOR"
+  | "SITE_ADMIN"
   | "POLO_COORDINATOR"
   | "TEACHER"
   | "STUDENT";
@@ -23,8 +23,8 @@ type Role =
 const ROLES: { value: Role; label: string }[] = [
   { value: "MASTER", label: "Master" },
   { value: "GENERAL_ADMIN", label: "Administrador Geral" },
-  { value: "ADMIN", label: "Administrador" },
-  { value: "COORDINATOR", label: "Coordenador" },
+  { value: "ADMIN", label: "Administrador Pedagógico" },
+  { value: "SITE_ADMIN", label: "Administrador Site" },
   { value: "POLO_COORDINATOR", label: "Coordenador de Polos" },
   { value: "TEACHER", label: "Professor" },
   { value: "STUDENT", label: "Aluno" },

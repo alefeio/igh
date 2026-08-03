@@ -6,7 +6,7 @@ import { confirmSmsCampaignSchema } from "@/lib/validators/sms";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, ctx: Ctx) {
-  const user = await requireRole(["MASTER"]);
+  const user = await requireRole(["MASTER", "SITE_ADMIN"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = confirmSmsCampaignSchema.safeParse(body);

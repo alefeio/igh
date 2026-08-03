@@ -14,7 +14,7 @@ export const metadata = {
 
 export default async function AdminCalendarioPage() {
   const user = await requireSessionUser();
-  if (user.role !== "ADMIN" && user.role !== "MASTER" && user.role !== "COORDINATOR") {
+  if (user.role !== "ADMIN" && user.role !== "MASTER" && user.role !== "GENERAL_ADMIN") {
     notFound();
   }
 

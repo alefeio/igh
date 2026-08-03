@@ -5,7 +5,7 @@ import { ToastProvider } from "@/components/feedback/ToastProvider";
 import { LegalConsentBanner } from "@/components/site/LegalConsentBanner";
 import { RequireChangePassword } from "@/components/layout/RequireChangePassword";
 import { ResponsiveShell } from "@/components/layout/ResponsiveShell";
-import { UserProvider } from "@/components/layout/UserProvider";
+import { UserProvider, type SessionUser } from "@/components/layout/UserProvider";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { getSiteSettings } from "@/lib/site-data";
 
@@ -21,7 +21,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   const sessionUser = {
     ...user,
     mustChangePassword: (user as { mustChangePassword?: boolean }).mustChangePassword ?? false,
-  };
+  } as SessionUser;
 
   /** Perfis que o usuário pode assumir (calculado no servidor para o select do menu). */
   const availableRoles = {
@@ -30,12 +30,12 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     canStudent: user.hasStudentProfile === true,
     canTeacher: user.hasTeacherProfile === true,
     canAdmin: user.isAdmin === true || user.baseRole === "ADMIN",
-    canCoordinator: user.isCoordinator === true || user.baseRole === "COORDINATOR",
+    canSiteAdmin: user.isSiteAdmin === true || user.baseRole === "SITE_ADMIN",
     canPoloCoordinator: user.isPoloCoordinator === true || user.baseRole === "POLO_COORDINATOR",
   };
 
   const shellUser = {
-    ...user,
+    ...sessionUser,
     availableRoles,
   };
 

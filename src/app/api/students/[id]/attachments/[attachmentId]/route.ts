@@ -17,16 +17,13 @@ async function canAccessStudent(user: SessionUser, studentId: string): Promise<b
     return !!enrollment;
   }
   return (
-    user.role === "ADMIN" ||
-    user.role === "MASTER" ||
-    user.role === "GENERAL_ADMIN" ||
-    user.role === "COORDINATOR"
+    user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN"
   );
 }
 
 /** Remoção lógica de anexo (Master, Admin ou Coordenador). */
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string; attachmentId: string }> }) {
-  const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+  const user = await requireRole(["MASTER", "ADMIN"]);
   const { id: studentId, attachmentId } = await context.params;
 
   if (!(await canAccessStudent(user, studentId))) {

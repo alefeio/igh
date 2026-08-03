@@ -33,7 +33,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return jsonErr("VALIDATION_ERROR", "Este reporte está encerrado.", 400);
   }
 
-  const isCoordinator = user.role === "COORDINATOR";
+  const isCoordinator =
+    user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN";
   const isReporter = report.fromUserId === user.id;
 
   if (!isCoordinator && !isReporter) {

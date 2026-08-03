@@ -6,7 +6,7 @@ function canAccessReport(
   user: { id: string; role: string },
   report: { fromUserId: string },
 ): boolean {
-  if (user.role === "COORDINATOR") return true;
+  if (user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN") return true;
   return report.fromUserId === user.id;
 }
 

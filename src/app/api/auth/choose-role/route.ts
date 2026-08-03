@@ -13,9 +13,9 @@ const ALLOWED_ROLES: UserRole[] = [
   "STUDENT",
   "TEACHER",
   "ADMIN",
+  "SITE_ADMIN",
   "MASTER",
   "GENERAL_ADMIN",
-  "COORDINATOR",
   "POLO_COORDINATOR",
 ];
 
@@ -28,7 +28,7 @@ function jsonOkWithSession<T>(data: T, user: Parameters<typeof buildAuthSessionT
   })();
 }
 
-/** Define o papel da sessão (Aluno, Professor, Admin, Coordenador ou Master) quando há múltiplos perfis. */
+/** Define o papel da sessão quando há múltiplos perfis. */
 export async function POST(request: Request) {
   const user = await getSessionUserFromCookie();
   if (!user) {
@@ -44,7 +44,17 @@ export async function POST(request: Request) {
   const [full, hasStudent, hasTeacher] = await Promise.all([
     prisma.user.findUnique({
       where: { id: user.id },
-      select: { id: true, name: true, email: true, role: true, isAdmin: true, isCoordinator: true, isPoloCoordinator: true, isActive: true, mustChangePassword: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isAdmin: true,
+        isSiteAdmin: true,
+        isPoloCoordinator: true,
+        isActive: true,
+        mustChangePassword: true,
+      },
     }),
     prisma.student.findFirst({
       where: { userId: user.id, deletedAt: null },
@@ -67,6 +77,7 @@ export async function POST(request: Request) {
     isActive: full.isActive,
     mustChangePassword: full.mustChangePassword ?? false,
     isAdmin: full.isAdmin ?? false,
+    isSiteAdmin: full.isSiteAdmin ?? false,
   };
 
   if (role === "MASTER") {
@@ -85,16 +96,16 @@ export async function POST(request: Request) {
 
   if (role === "ADMIN") {
     if (!full.isAdmin && full.role !== "ADMIN") {
-      return jsonErr("FORBIDDEN", "Você não tem acesso como Admin.", 403);
+      return jsonErr("FORBIDDEN", "Você não tem acesso como Admin Pedagógico.", 403);
     }
     return jsonOkWithSession({ role: "ADMIN" as const }, sessionPayload, "ADMIN");
   }
 
-  if (role === "COORDINATOR") {
-    if (full.role !== "COORDINATOR" && !full.isCoordinator) {
-      return jsonErr("FORBIDDEN", "Você não tem perfil de Coordenador.", 403);
+  if (role === "SITE_ADMIN") {
+    if (!full.isSiteAdmin && full.role !== "SITE_ADMIN") {
+      return jsonErr("FORBIDDEN", "Você não tem acesso como Administrador Site.", 403);
     }
-    return jsonOkWithSession({ role: "COORDINATOR" as const }, sessionPayload, "COORDINATOR");
+    return jsonOkWithSession({ role: "SITE_ADMIN" as const }, sessionPayload, "SITE_ADMIN");
   }
 
   if (role === "POLO_COORDINATOR") {

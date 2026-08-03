@@ -137,15 +137,11 @@ export default function StudentsPage() {
   const user = useUser();
   const isTeacher = user.role === "TEACHER";
   const staffFullAccess =
-    user.role === "MASTER" ||
-    user.role === "GENERAL_ADMIN" ||
-    user.role === "ADMIN" ||
-    user.role === "COORDINATOR";
+    user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "ADMIN";
   const canExport =
     user.role === "MASTER" ||
     user.role === "GENERAL_ADMIN" ||
     user.role === "ADMIN" ||
-    user.role === "COORDINATOR" ||
     user.role === "TEACHER";
 
   const [loading, setLoading] = useState(true);
@@ -199,10 +195,7 @@ export default function StudentsPage() {
   });
 
   const canChangePassword =
-    (user.role === "ADMIN" ||
-      user.role === "MASTER" ||
-      user.role === "GENERAL_ADMIN" ||
-      user.role === "COORDINATOR") &&
+    (user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN") &&
     !isTeacher;
 
   function openExport(format: "pdf" | "xlsx") {

@@ -25,7 +25,7 @@ function menuPrevious(existing: {
 }
 
 export async function GET(_request: Request, context: Context) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await context.params;
 
   const item = await prisma.siteMenuItem.findUnique({
@@ -37,7 +37,7 @@ export async function GET(_request: Request, context: Context) {
 }
 
 export async function PATCH(request: Request, context: Context) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
@@ -81,7 +81,7 @@ export async function PATCH(request: Request, context: Context) {
 }
 
 export async function DELETE(_request: Request, context: Context) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await context.params;
 
   const existing = await prisma.siteMenuItem.findUnique({

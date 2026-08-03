@@ -44,8 +44,10 @@ type UserOption = { id: string; name: string; email: string };
 function roleLabel(role: string): string {
   const m: Record<string, string> = {
     MASTER: "Master",
-    ADMIN: "Admin",
-    COORDINATOR: "Coordenador",
+    GENERAL_ADMIN: "Administrador Geral",
+    ADMIN: "Administrador Pedagógico",
+    SITE_ADMIN: "Administrador Site",
+    POLO_COORDINATOR: "Coordenador de Polos",
     TEACHER: "Professor",
     STUDENT: "Aluno",
   };
@@ -54,7 +56,7 @@ function roleLabel(role: string): string {
 
 const PAGE_SIZE = 50;
 
-const STAFF_ROLES = new Set(["MASTER", "ADMIN", "COORDINATOR"]);
+const STAFF_ROLES = new Set(["MASTER", "GENERAL_ADMIN", "ADMIN", "SITE_ADMIN"]);
 
 export default function MasterAccessLogsPage() {
   const toast = useToast();

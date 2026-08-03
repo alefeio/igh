@@ -15,7 +15,7 @@ const bodySchema = z
   });
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
 
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);

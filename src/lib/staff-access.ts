@@ -1,15 +1,15 @@
-export type StaffAccessRole = "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR";
+export type StaffAccessRole = "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR";
 export type ManagedAccessRole = StaffAccessRole | "GENERAL_ADMIN";
 
 export const STAFF_ACCESS_ROLES: readonly StaffAccessRole[] = [
   "ADMIN",
-  "COORDINATOR",
+  "SITE_ADMIN",
   "POLO_COORDINATOR",
 ] as const;
 
 export const STAFF_ACCESS_LABEL: Record<StaffAccessRole, string> = {
-  ADMIN: "Admin",
-  COORDINATOR: "Coordenador",
+  ADMIN: "Administrador Pedagógico",
+  SITE_ADMIN: "Administrador Site",
   POLO_COORDINATOR: "Coordenador de Polos",
 };
 
@@ -21,7 +21,7 @@ export const MANAGED_ACCESS_LABEL: Record<ManagedAccessRole, string> = {
 /** Prioridade ao escolher o papel-base quando vários tipos são marcados. */
 const BASE_PRIORITY: readonly StaffAccessRole[] = [
   "ADMIN",
-  "COORDINATOR",
+  "SITE_ADMIN",
   "POLO_COORDINATOR",
 ];
 
@@ -39,8 +39,6 @@ export function normalizeManagedRoles(
 ): ManagedAccessRole[] {
   const unique = Array.from(new Set(roles ?? []));
   if (unique.includes("GENERAL_ADMIN")) {
-    // Administrador Geral é papel exclusivo na seleção; vínculos de polo são
-    // preservados via isPoloCoordinator na API de usuários.
     return ["GENERAL_ADMIN"];
   }
   return normalizeStaffRoles(unique.filter((r): r is StaffAccessRole => r !== "GENERAL_ADMIN"));
@@ -53,10 +51,11 @@ export function pickStaffBaseRole(roles: readonly StaffAccessRole[]): StaffAcces
 export function staffOverlaysForBase(
   roles: readonly StaffAccessRole[],
   base: StaffAccessRole,
-): { isAdmin: boolean; isCoordinator: boolean; isPoloCoordinator: boolean } {
+): { isAdmin: boolean; isSiteAdmin: boolean; isCoordinator: boolean; isPoloCoordinator: boolean } {
   return {
     isAdmin: roles.includes("ADMIN") && base !== "ADMIN",
-    isCoordinator: roles.includes("COORDINATOR") && base !== "COORDINATOR",
+    isSiteAdmin: roles.includes("SITE_ADMIN") && base !== "SITE_ADMIN",
+    isCoordinator: false,
     isPoloCoordinator: roles.includes("POLO_COORDINATOR") && base !== "POLO_COORDINATOR",
   };
 }
@@ -65,19 +64,21 @@ export function userHasStaffAccess(
   user: {
     role: string;
     isAdmin?: boolean;
+    isSiteAdmin?: boolean;
     isCoordinator?: boolean;
     isPoloCoordinator?: boolean;
   },
   target: StaffAccessRole,
 ): boolean {
   if (target === "ADMIN") return user.role === "ADMIN" || !!user.isAdmin;
-  if (target === "COORDINATOR") return user.role === "COORDINATOR" || !!user.isCoordinator;
+  if (target === "SITE_ADMIN") return user.role === "SITE_ADMIN" || !!user.isSiteAdmin;
   return user.role === "POLO_COORDINATOR" || !!user.isPoloCoordinator;
 }
 
 export function staffRolesFromUser(user: {
   role: string;
   isAdmin?: boolean;
+  isSiteAdmin?: boolean;
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
 }): StaffAccessRole[] {
@@ -87,6 +88,7 @@ export function staffRolesFromUser(user: {
 export function managedRolesFromUser(user: {
   role: string;
   isAdmin?: boolean;
+  isSiteAdmin?: boolean;
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
 }): ManagedAccessRole[] {
@@ -96,7 +98,6 @@ export function managedRolesFromUser(user: {
 
 /**
  * Calcula papel-base + overlays a partir dos tipos marcados.
- * Para aluno/professor/master/admin geral, preserva o papel-base e só ajusta as flags (quando staff).
  */
 export function resolveStaffAccessUpdate(
   currentRole: string,
@@ -104,6 +105,7 @@ export function resolveStaffAccessUpdate(
 ): {
   role?: StaffAccessRole;
   isAdmin: boolean;
+  isSiteAdmin: boolean;
   isCoordinator: boolean;
   isPoloCoordinator: boolean;
 } {
@@ -116,13 +118,16 @@ export function resolveStaffAccessUpdate(
   ) {
     return {
       isAdmin: roles.includes("ADMIN"),
-      isCoordinator: roles.includes("COORDINATOR"),
+      isSiteAdmin: roles.includes("SITE_ADMIN"),
+      isCoordinator: false,
       isPoloCoordinator: roles.includes("POLO_COORDINATOR"),
     };
   }
 
   const keepBase =
-    (currentRole === "ADMIN" || currentRole === "COORDINATOR" || currentRole === "POLO_COORDINATOR") &&
+    (currentRole === "ADMIN" ||
+      currentRole === "SITE_ADMIN" ||
+      currentRole === "POLO_COORDINATOR") &&
     roles.includes(currentRole as StaffAccessRole)
       ? (currentRole as StaffAccessRole)
       : pickStaffBaseRole(roles);

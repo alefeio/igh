@@ -37,10 +37,7 @@ export async function GET(
 
   const isOwner = ticket.userId === user.id;
   const isSupport =
-    user.role === "MASTER" ||
-    user.role === "GENERAL_ADMIN" ||
-    user.role === "ADMIN" ||
-    user.role === "COORDINATOR";
+    user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "ADMIN";
 
   if (!isOwner && !isSupport) {
     return jsonErr("FORBIDDEN", "Sem permissão para ver este chamado.", 403);
@@ -88,7 +85,6 @@ export async function PATCH(
     user.role === "MASTER" ||
     user.role === "GENERAL_ADMIN" ||
     user.role === "ADMIN" ||
-    user.role === "COORDINATOR" ||
     user.baseRole === "MASTER" ||
     user.baseRole === "GENERAL_ADMIN" ||
     user.baseRole === "ADMIN" ||

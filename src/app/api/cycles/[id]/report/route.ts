@@ -13,7 +13,7 @@ type RouteCtx = { params: Promise<{ id: string }> };
  */
 export async function GET(_request: Request, ctx: RouteCtx) {
   try {
-    await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+    await requireRole(["ADMIN", "MASTER"]);
     const { id: cycleId } = await ctx.params;
 
     const report = await buildCycleClassGroupsReport(cycleId);

@@ -18,7 +18,7 @@ type RouteCtx = { params: Promise<{ id: string }> };
  */
 export async function GET(request: Request, ctx: RouteCtx) {
   try {
-    const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "TEACHER"]);
+    const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
     const { id: classGroupId } = await ctx.params;
     const pages = parseCertificateZipPages(new URL(request.url).searchParams.get("pages"));
 

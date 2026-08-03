@@ -25,8 +25,7 @@ const bodySchema = z
       "espaco-maker",
       "teachers",
       "onboarding",
-      "legal",
-    ]),
+      "legal"]),
     id: z.string().uuid().optional(),
   })
   .refine(
@@ -40,7 +39,7 @@ const bodySchema = z
 /** Devolve URL e chave da API Apimages (fluxo análogo ao “assinado” Cloudinary: cliente envia só o arquivo para APIMG_UPLOAD_URL). */
 export async function POST(request: Request) {
   try {
-    const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "TEACHER"]);
+    const user = await requireRole(["SITE_ADMIN", "MASTER", "TEACHER"]);
 
     const body = await request.json().catch(() => null);
     const parsed = bodySchema.safeParse(body);

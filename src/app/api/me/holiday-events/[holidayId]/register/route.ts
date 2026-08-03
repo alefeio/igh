@@ -8,7 +8,7 @@ type RouteCtx = { params: Promise<{ holidayId: string }> };
 
 export async function POST(request: Request, ctx: RouteCtx) {
   try {
-    const user = await requireRole(["STUDENT", "TEACHER", "ADMIN", "MASTER", "COORDINATOR"]);
+    const user = await requireRole(["STUDENT", "TEACHER", "ADMIN", "MASTER"]);
     if (!user.isActive) return jsonErr("FORBIDDEN", "Conta inativa.", 403);
 
     const { holidayId } = await ctx.params;

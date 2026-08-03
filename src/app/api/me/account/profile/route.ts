@@ -8,7 +8,14 @@ import {
 } from "@/lib/validators/person-contact";
 import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 
-const STAFF_ROLES = ["MASTER", "ADMIN", "TEACHER", "COORDINATOR", "POLO_COORDINATOR"] as const;
+const STAFF_ROLES = [
+  "MASTER",
+  "GENERAL_ADMIN",
+  "ADMIN",
+  "SITE_ADMIN",
+  "TEACHER",
+  "POLO_COORDINATOR",
+] as const;
 
 function isStaffRole(role: string): role is (typeof STAFF_ROLES)[number] {
   return (STAFF_ROLES as readonly string[]).includes(role);

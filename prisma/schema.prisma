@@ -38,7 +38,9 @@ model User {
   updatedAt                    DateTime                     @updatedAt
   mustChangePassword           Boolean                      @default(false)
   isAdmin                      Boolean                      @default(false)
-  /// * Acesso sobreposto como Coordenador (além do papel-base, ex.: professor que também coordena).
+  /// * Overlay: Administrador Site quando o papel-base é outro.
+  isSiteAdmin                  Boolean                      @default(false)
+  /// * Deprecated: perfil Coordenador removido; mantido no schema por compatibilidade.
   isCoordinator                Boolean                      @default(false)
   /// * Acesso sobreposto como Coordenador de Polos (além do papel-base).
   isPoloCoordinator            Boolean                      @default(false)
@@ -1796,9 +1798,13 @@ enum UserRole {
   MASTER
   /// * Administrador Geral: mesmas permissões do Master, exceto gerir Master e criar/editar outro Admin Geral.
   GENERAL_ADMIN
+  /// * Administrador Pedagógico: Início, Pedagógico e Administração (sem Site/Comunicação).
   ADMIN
+  /// * Administrador Site: Comunicação e Site.
+  SITE_ADMIN
   TEACHER
   STUDENT
+  /// * Deprecated — migrado para ADMIN; valor mantido no enum do banco.
   COORDINATOR
   /// * Coordena matrículas apenas nas turmas dos polos sob sua responsabilidade.
   POLO_COORDINATOR

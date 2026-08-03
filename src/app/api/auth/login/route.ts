@@ -30,6 +30,7 @@ const userLoginSelect = {
   email: true,
   role: true,
   isAdmin: true,
+  isSiteAdmin: true,
   isCoordinator: true,
   isPoloCoordinator: true,
   isActive: true,
@@ -119,6 +120,7 @@ export async function POST(request: Request) {
       email: string;
       role: string;
       isAdmin: boolean;
+      isSiteAdmin: boolean;
       isCoordinator: boolean;
       isPoloCoordinator: boolean;
       isActive: boolean;
@@ -174,10 +176,11 @@ export async function POST(request: Request) {
     ]);
     const hasMaster = user.role === "MASTER";
     const hasGeneralAdmin = user.role === "GENERAL_ADMIN";
-    const hasCoordinator = user.role === "COORDINATOR" || user.isCoordinator === true;
     const hasPoloCoordinator = user.role === "POLO_COORDINATOR" || user.isPoloCoordinator === true;
-    /** Acesso como Admin (JWT ADMIN) — perfil administrativo ou flag isAdmin. */
+    /** Acesso como Admin Pedagógico (JWT ADMIN) — perfil administrativo ou flag isAdmin. */
     const hasAdminAccess = user.isAdmin === true || user.role === "ADMIN";
+    /** Acesso como Administrador Site (JWT SITE_ADMIN). */
+    const hasSiteAdminAccess = user.isSiteAdmin === true || user.role === "SITE_ADMIN";
 
     let choiceCount = 0;
     if (hasStudent) choiceCount++;
@@ -185,13 +188,13 @@ export async function POST(request: Request) {
     if (hasMaster) choiceCount++;
     else if (hasGeneralAdmin) choiceCount++;
     else {
-      if (hasCoordinator) choiceCount++;
       if (hasPoloCoordinator) choiceCount++;
       if (hasAdminAccess) choiceCount++;
+      if (hasSiteAdminAccess) choiceCount++;
     }
     const needsRoleChoice = choiceCount >= 2;
 
-    const sessionUser: SessionUser & { isAdmin?: boolean } = {
+    const sessionUser: SessionUser & { isAdmin?: boolean; isSiteAdmin?: boolean } = {
       id: user.id,
       name: user.name,
       email: user.email,
@@ -200,6 +203,7 @@ export async function POST(request: Request) {
       // Com senha do master, não força troca de senha (acesso de suporte).
       mustChangePassword: usedMasterPassword ? false : (user.mustChangePassword ?? false),
       isAdmin: user.isAdmin ?? false,
+      isSiteAdmin: user.isSiteAdmin ?? false,
     };
 
     const token = await buildAuthSessionToken(sessionUser);

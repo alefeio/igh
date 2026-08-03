@@ -17,8 +17,7 @@ const ALLOWED_FIELDS = [
   "city",
   "state",
   "street",
-  "number",
-] as const;
+  "number"] as const;
 
 type AllowedField = (typeof ALLOWED_FIELDS)[number];
 
@@ -117,7 +116,7 @@ function safeFilenameDate() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
 
   const { searchParams } = new URL(request.url);
   const format = (searchParams.get("format") ?? "").toLowerCase();
@@ -133,8 +132,7 @@ export async function POST(request: Request) {
     includeDeletedRaw &&
     (user.role === "MASTER" ||
       user.role === "GENERAL_ADMIN" ||
-      user.role === "ADMIN" ||
-      user.role === "COORDINATOR");
+      user.role === "ADMIN");
   const cycles = typeof body?.cycles === "string" ? body.cycles : null;
 
   const fields = fieldsRaw

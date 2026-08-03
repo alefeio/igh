@@ -32,125 +32,112 @@ export async function proxy(request: NextRequest) {
 
   const dashboardUrl = new URL("/dashboard", request.url);
 
-  /**
-   * Governança da plataforma (Administração, Site e Configurações).
-   *
-   * O coordenador fica de fora: o perfil é de coordenação pedagógica e não responde por
-   * essas áreas. O admin entra em tudo, mas o que mexe no site passa pela fila de aprovação
-   * do Master.
-   */
-  const PLATFORM_GOVERNANCE = ["MASTER", "GENERAL_ADMIN", "ADMIN"];
+  /** Administração pedagógica (sem Site/Comunicação). */
+  const PEDAGOGICAL_GOVERNANCE = ["MASTER", "GENERAL_ADMIN", "ADMIN"];
+  /** Site e Comunicação. */
+  const SITE_AND_COMMS = ["MASTER", "GENERAL_ADMIN", "SITE_ADMIN"];
 
   const isMasterEquivalent = role === "MASTER" || role === "GENERAL_ADMIN";
 
-  // Usuários, backup e cadastro de horários: Master e Administrador Geral
   if (["/users", "/backup", "/time-slots"].some((p) => pathname.startsWith(p))) {
     if (!isMasterEquivalent) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Fila de aprovação do site: Master e Administrador Geral
   if (pathname.startsWith("/approvacoes")) {
     if (!isMasterEquivalent) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Professores e turmas (cadastro): Master, Admin Geral, Admin ou Coordenador
   if (pathname.startsWith("/teachers") || pathname.startsWith("/class-groups")) {
-    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+    if (!PEDAGOGICAL_GOVERNANCE.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Cursos: Master, Admin Geral, Admin, Coordenador ou Professor
   if (pathname.startsWith("/courses")) {
-    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
+    if (![...PEDAGOGICAL_GOVERNANCE, "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Matrículas: Master, Admin Geral, Admin, Coordenador, Coordenador de Polos ou Professor
   if (pathname.startsWith("/enrollments")) {
-    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "POLO_COORDINATOR", "TEACHER"].includes(role ?? "")) {
+    if (![...PEDAGOGICAL_GOVERNANCE, "POLO_COORDINATOR", "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Polos: Master, Admin Geral, Admin ou Coordenador
   if (pathname.startsWith("/admin/polos")) {
-    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR"].includes(role ?? "")) {
+    if (!PEDAGOGICAL_GOVERNANCE.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Alunos: Master, Admin Geral, Admin, Coordenador ou Professor
   if (pathname.startsWith("/students")) {
-    if (!["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "TEACHER"].includes(role ?? "")) {
+    if (![...PEDAGOGICAL_GOVERNANCE, "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Moderação da comunidade, fóruns e avaliações de experiência
   if (
     pathname.startsWith("/admin/comunidade") ||
     pathname.startsWith("/admin/forum") ||
     pathname.startsWith("/admin/avaliacoes-experiencia")
   ) {
-    if (!PLATFORM_GOVERNANCE.includes(role ?? "")) {
+    if (!PEDAGOGICAL_GOVERNANCE.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Gamificação e ranking: governança da plataforma e professores (que acompanham as turmas)
   if (pathname.startsWith("/gamificacao") || pathname.startsWith("/ranking-alunos")) {
-    if (![...PLATFORM_GOVERNANCE, "TEACHER"].includes(role ?? "")) {
+    if (![...PEDAGOGICAL_GOVERNANCE, "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Rotas apenas STUDENT (minhas turmas)
   if (pathname.startsWith("/minhas-turmas")) {
     if (role !== "STUDENT") {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // CMS Site e banners do tablet: Master e Admin.
-  // O Admin não grava direto — as alterações entram na fila de aprovação do Master.
+  // CMS Site e banners do tablet: Master, Admin Geral e Administrador Site
   if (pathname.startsWith("/admin/site") || pathname.startsWith("/admin/tablet")) {
-    if (!PLATFORM_GOVERNANCE.includes(role ?? "")) {
+    // Formações (catálogo) fica em Administração pedagógica
+    if (pathname.startsWith("/admin/site/formacoes") && !pathname.includes("formacoes-pagina")) {
+      if (!PEDAGOGICAL_GOVERNANCE.includes(role ?? "")) {
+        return NextResponse.redirect(dashboardUrl);
+      }
+    } else if (!SITE_AND_COMMS.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Comunicação: disparo de SMS, e-mail e campanhas — Master e Administrador Geral
   if (
     pathname.startsWith("/admin/sms") ||
     pathname.startsWith("/admin/email") ||
     pathname.startsWith("/admin/campanhas")
   ) {
-    if (!isMasterEquivalent) {
+    if (!SITE_AND_COMMS.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Edição do onboarding, visão da plataforma, calendário institucional e acessos
   if (
     pathname.startsWith("/admin/onboarding") ||
     pathname.startsWith("/admin/plataforma") ||
     pathname.startsWith("/admin/calendario") ||
     pathname.startsWith("/master/acessos")
   ) {
-    if (!PLATFORM_GOVERNANCE.includes(role ?? "")) {
+    if (!PEDAGOGICAL_GOVERNANCE.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }
 
-  // Inscrições em eventos / feriados
   if (pathname.startsWith("/holidays")) {
-    if (!PLATFORM_GOVERNANCE.includes(role ?? "")) {
+    if (!PEDAGOGICAL_GOVERNANCE.includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }

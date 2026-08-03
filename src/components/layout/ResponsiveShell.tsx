@@ -20,9 +20,10 @@ export function ResponsiveShell({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
+    isSiteAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     /** Perfis disponíveis (calculado no servidor); quando presente, o select usa isso. */
@@ -32,7 +33,7 @@ export function ResponsiveShell({
       canStudent: boolean;
       canTeacher: boolean;
       canAdmin: boolean;
-      canCoordinator?: boolean;
+      canSiteAdmin?: boolean;
       canPoloCoordinator?: boolean;
     };
   };

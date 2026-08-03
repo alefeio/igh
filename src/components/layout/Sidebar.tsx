@@ -11,7 +11,7 @@ type PanelRole =
   | "MASTER"
   | "GENERAL_ADMIN"
   | "ADMIN"
-  | "COORDINATOR"
+  | "SITE_ADMIN"
   | "POLO_COORDINATOR"
   | "TEACHER"
   | "STUDENT";
@@ -28,21 +28,20 @@ const ALL_ROLES = [
   "MASTER",
   "GENERAL_ADMIN",
   "ADMIN",
-  "COORDINATOR",
+  "SITE_ADMIN",
   "POLO_COORDINATOR",
   "TEACHER",
   "STUDENT",
 ] as const;
-/** Equipe administrativa da sede. */
-const STAFF = ["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR"] as const;
-const STAFF_AND_TEACHER = ["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "TEACHER"] as const;
-/**
- * Governança da plataforma: Administração, Site e Configurações.
- * O coordenador fica fora — o perfil dele é de coordenação pedagógica.
- */
+/** Equipe pedagógica da sede (sem Admin Site). */
+const STAFF = ["MASTER", "GENERAL_ADMIN", "ADMIN"] as const;
+const STAFF_AND_TEACHER = ["MASTER", "GENERAL_ADMIN", "ADMIN", "TEACHER"] as const;
+/** Administração pedagógica (sem Site/Comunicação). */
 const MASTER_AND_ADMIN = ["MASTER", "GENERAL_ADMIN", "ADMIN"] as const;
 /** Master e Administrador Geral (governança plena). */
 const MASTER_OR_GENERAL = ["MASTER", "GENERAL_ADMIN"] as const;
+/** Comunicação e Site: Master, Admin Geral e Administrador Site. */
+const SITE_AND_COMMS = ["MASTER", "GENERAL_ADMIN", "SITE_ADMIN"] as const;
 
 /**
  * Ordem do array = ordem no menu dentro de cada categoria.
@@ -50,10 +49,25 @@ const MASTER_OR_GENERAL = ["MASTER", "GENERAL_ADMIN"] as const;
  * → Administração (governança) → Comunicação → Site público → Configurações do sistema.
  */
 const ITEMS: Item[] = [
-  /* —— Início (todos) —— */
-  { href: "/dashboard", label: "Página Inicial", roles: ALL_ROLES, category: "Início" },
-  { href: "/onboarding", label: "Como usar o sistema", roles: ALL_ROLES, category: "Início" },
-  { href: "/minhas-indicacoes", label: "Minhas indicações", roles: ALL_ROLES, category: "Início" },
+  /* —— Início —— */
+  {
+    href: "/dashboard",
+    label: "Página Inicial",
+    roles: [...ALL_ROLES],
+    category: "Início",
+  },
+  {
+    href: "/onboarding",
+    label: "Como usar o sistema",
+    roles: [...ALL_ROLES],
+    category: "Início",
+  },
+  {
+    href: "/minhas-indicacoes",
+    label: "Minhas indicações",
+    roles: ["MASTER", "GENERAL_ADMIN", "ADMIN", "POLO_COORDINATOR", "TEACHER", "STUDENT"],
+    category: "Início",
+  },
   { href: "/coordenacao", label: "Coordenação", roles: STAFF_AND_TEACHER, category: "Início" },
 
   /* —— Aluno —— */
@@ -75,7 +89,7 @@ const ITEMS: Item[] = [
   { href: "/ranking-alunos", label: "Ranking dos alunos", roles: ["TEACHER"], category: "Professor" },
   { href: "/professor/avaliacoes-experiencia", label: "Avaliações de experiência", roles: ["TEACHER"], category: "Professor" },
 
-  /* —— Pedagógico (pessoas, oferta e acompanhamento das turmas) —— */
+  /* —— Pedagógico —— */
   { href: "/teachers", label: "Professores", roles: STAFF, category: "Pedagógico" },
   { href: "/students", label: "Alunos", roles: STAFF_AND_TEACHER, category: "Pedagógico" },
   { href: "/courses", label: "Cursos", roles: STAFF_AND_TEACHER, category: "Pedagógico" },
@@ -85,13 +99,13 @@ const ITEMS: Item[] = [
   {
     href: "/enrollments",
     label: "Matrículas",
-    roles: ["MASTER", "GENERAL_ADMIN", "ADMIN", "COORDINATOR", "POLO_COORDINATOR"],
+    roles: ["MASTER", "GENERAL_ADMIN", "ADMIN", "POLO_COORDINATOR"],
     category: "Pedagógico",
   },
   { href: "/horarios", label: "Quadro de horários", roles: STAFF, category: "Pedagógico" },
   { href: "/admin/frequencia", label: "Frequência — todas as turmas", roles: STAFF, category: "Pedagógico" },
 
-  /* —— Administração (governança e controle) —— */
+  /* —— Administração —— */
   { href: "/admin/plataforma", label: "Visão da plataforma", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/admin/calendario", label: "Calendário institucional", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/admin/onboarding", label: "Guia do sistema (edição)", roles: MASTER_AND_ADMIN, category: "Administração" },
@@ -112,32 +126,32 @@ const ITEMS: Item[] = [
   { href: "/gamificacao", label: "Gamificação", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/ranking-alunos", label: "Ranking dos alunos", roles: MASTER_AND_ADMIN, category: "Administração" },
 
-  /* —— Comunicação (disparos irreversíveis: Master e Admin Geral) —— */
-  { href: "/admin/sms", label: "Campanhas SMS", roles: MASTER_OR_GENERAL, category: "Comunicação" },
-  { href: "/admin/email", label: "Campanhas de e-mail", roles: MASTER_OR_GENERAL, category: "Comunicação" },
-  { href: "/admin/campanhas", label: "Campanhas (site e alunos)", roles: MASTER_OR_GENERAL, category: "Comunicação" },
+  /* —— Comunicação —— */
+  { href: "/admin/sms", label: "Campanhas SMS", roles: SITE_AND_COMMS, category: "Comunicação" },
+  { href: "/admin/email", label: "Campanhas de e-mail", roles: SITE_AND_COMMS, category: "Comunicação" },
+  { href: "/admin/campanhas", label: "Campanhas (site e alunos)", roles: SITE_AND_COMMS, category: "Comunicação" },
 
-  /* —— Site (CMS: geral → navegação → conteúdos → institucional) —— */
-  { href: "/admin/site/configuracoes", label: "Configurações gerais", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/menu", label: "Menu do site", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/banners", label: "Banners", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/tablet/banners", label: "Banners (aluno)", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/contato-pagina", label: "Página de contato", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/sobre", label: "Página Sobre", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/espaco-maker", label: "Página Espaço Maker", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/formacoes-pagina", label: "Página de formações", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/inscreva-pagina", label: "Página Inscreva-se", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/projetos", label: "Projetos", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/noticias", label: "Notícias", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/depoimentos", label: "Depoimentos", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/parceiros", label: "Parceiros", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/unidades", label: "Unidades", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/faq", label: "FAQ", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/legal", label: "Termos e privacidade", roles: MASTER_AND_ADMIN, category: "Site" },
-  { href: "/admin/site/transparencia", label: "Transparência", roles: MASTER_AND_ADMIN, category: "Site" },
+  /* —— Site —— */
+  { href: "/admin/site/configuracoes", label: "Configurações gerais", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/menu", label: "Menu do site", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/banners", label: "Banners", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/tablet/banners", label: "Banners (aluno)", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/contato-pagina", label: "Página de contato", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/sobre", label: "Página Sobre", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/espaco-maker", label: "Página Espaço Maker", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/formacoes-pagina", label: "Página de formações", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/inscreva-pagina", label: "Página Inscreva-se", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/projetos", label: "Projetos", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/noticias", label: "Notícias", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/depoimentos", label: "Depoimentos", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/parceiros", label: "Parceiros", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/unidades", label: "Unidades", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/faq", label: "FAQ", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/legal", label: "Termos e privacidade", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/transparencia", label: "Transparência", roles: SITE_AND_COMMS, category: "Site" },
 
-  /* —— Configurações (sistema / infra) —— */
+  /* —— Configurações —— */
   { href: "/time-slots", label: "Horários (cadastro)", roles: MASTER_OR_GENERAL, category: "Configurações" },
   { href: "/backup", label: "Backup do banco", roles: MASTER_OR_GENERAL, category: "Configurações" },
 ];
@@ -155,17 +169,19 @@ export function Sidebar({
   user: {
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
+    isSiteAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     availableRoles?: {
-      canMaster: boolean; canGeneralAdmin?: boolean;
+      canMaster: boolean;
+      canGeneralAdmin?: boolean;
       canStudent: boolean;
       canTeacher: boolean;
       canAdmin: boolean;
-      canCoordinator?: boolean;
+      canSiteAdmin?: boolean;
       canPoloCoordinator?: boolean;
     };
   };

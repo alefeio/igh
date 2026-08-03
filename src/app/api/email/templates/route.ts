@@ -4,7 +4,7 @@ import { createEmailTemplate, listEmailTemplates } from "@/lib/email-campaigns";
 import { createEmailTemplateSchema } from "@/lib/validators/email-campaigns";
 
 export async function GET(request: Request) {
-  await requireRole(["MASTER"]);
+  await requireRole(["MASTER", "SITE_ADMIN"]);
   const activeOnly =
     new URL(request.url).searchParams.get("activeOnly") === "true";
   const items = await listEmailTemplates(activeOnly);
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["MASTER"]);
+  const user = await requireRole(["MASTER", "SITE_ADMIN"]);
   const body = await request.json().catch(() => null);
   const parsed = createEmailTemplateSchema.safeParse(body);
   if (!parsed.success) {

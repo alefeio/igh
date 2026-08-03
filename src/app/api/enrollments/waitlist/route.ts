@@ -11,7 +11,7 @@ import {
 
 /** Lista reservas (WAITING por padrão). Query: classGroupId, status, all=1. */
 export async function GET(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
   const url = new URL(request.url);
   const classGroupId = url.searchParams.get("classGroupId")?.trim() || null;
   const status = url.searchParams.get("status")?.trim() || "WAITING";
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
 
 /** Cria cadastro de reserva (aluno já cadastrado; turma lotada). */
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = createWaitlistSchema.safeParse(body);
   if (!parsed.success) {

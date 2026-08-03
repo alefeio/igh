@@ -29,7 +29,7 @@ function ensureUniqueSlug(base: string, excludeId?: string): Promise<string> {
 }
 
 export async function GET() {
-  const user = await requireRole(["MASTER", "ADMIN", "TEACHER", "COORDINATOR"]);
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER"]);
 
   if (user.role === "TEACHER") {
     const teacher = await prisma.teacher.findFirst({

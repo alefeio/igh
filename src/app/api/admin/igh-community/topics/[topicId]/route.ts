@@ -8,7 +8,7 @@ type RouteCtx = { params: Promise<{ topicId: string }> };
 
 export async function DELETE(_request: Request, ctx: RouteCtx) {
   try {
-    const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+    const user = await requireRole(["MASTER", "ADMIN"]);
     if (!isCommunityModerator(user)) return jsonErr("FORBIDDEN", "Sem permissão.", 403);
 
     const { topicId } = await ctx.params;

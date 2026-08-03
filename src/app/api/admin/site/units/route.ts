@@ -5,7 +5,7 @@ import { enqueueIfNeedsApproval, PENDING_SITE_CHANGE_MESSAGE } from "@/lib/pendi
 import { reorderSchema, siteUnitSchema } from "@/lib/validators/site";
 
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["SITE_ADMIN", "MASTER"]);
   const items = await prisma.siteUnit.findMany({
     orderBy: [{ city: "asc" }, { state: "asc" }],
     include: { courses: { include: { course: true }, orderBy: [{ order: "asc" }] } },
@@ -14,7 +14,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   const body = await request.json().catch(() => null);
   const parsed = siteUnitSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
  * Por ora, preservamos compatibilidade com padrão do CMS.
  */
 export async function PATCH(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["SITE_ADMIN", "MASTER"]);
   const body = await request.json().catch(() => null);
   const parsed = reorderSchema.safeParse(body);
   if (!parsed.success) return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);

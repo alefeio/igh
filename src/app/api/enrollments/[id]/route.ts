@@ -18,7 +18,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
   const { id } = await context.params;
 
   if (user.role === "POLO_COORDINATOR") {
@@ -64,7 +64,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
   const { id } = await context.params;
 
   if (user.role === "POLO_COORDINATOR") {
@@ -120,7 +120,7 @@ export async function PATCH(
       return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
     }
     const canOverrideEnrollmentRules =
-      user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "COORDINATOR";
+      user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "ADMIN";
     const statusesPermitidos = canOverrideEnrollmentRules
       ? ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "INTERNO"]
       : ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"];
@@ -261,7 +261,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
   const { id } = await context.params;
 
   if (user.role === "POLO_COORDINATOR") {

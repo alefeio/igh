@@ -25,8 +25,9 @@ type AdminUser = {
   id: string;
   name: string;
   email: string;
-  role: "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "STUDENT" | "TEACHER";
+  role: "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "STUDENT" | "TEACHER";
   isAdmin?: boolean;
+  isSiteAdmin?: boolean;
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
   isActive: boolean;
@@ -45,13 +46,13 @@ const STAFF_ACCESS_OPTIONS: { value: ManagedAccessRole; label: string; hint: str
   },
   {
     value: "ADMIN",
-    label: "Administrador",
-    hint: "Pode alterar cadastros",
+    label: "Administrador Pedagógico",
+    hint: "Pode alterar cadastros pedagógicos",
   },
   {
-    value: "COORDINATOR",
-    label: "Coordenador",
-    hint: "Somente leitura nas áreas de acompanhamento",
+    value: "SITE_ADMIN",
+    label: "Administrador Site",
+    hint: "CMS do site, tablet e comunicação (SMS/e-mail/campanhas)",
   },
   {
     value: "POLO_COORDINATOR",
@@ -66,11 +67,11 @@ function roleLabel(u: AdminUser): string {
   if (u.role === "STUDENT") parts.push("Aluno");
   else if (u.role === "TEACHER") parts.push("Professor");
   else if (u.role === "GENERAL_ADMIN") parts.push("Administrador Geral");
-  else if (u.role === "ADMIN") parts.push("Admin");
-  else if (u.role === "COORDINATOR") parts.push("Coordenador");
+  else if (u.role === "ADMIN") parts.push("Administrador Pedagógico");
+  else if (u.role === "SITE_ADMIN") parts.push("Administrador Site");
   else if (u.role === "POLO_COORDINATOR") parts.push("Coordenador de Polos");
-  if (u.isAdmin && u.role !== "ADMIN") parts.push("Admin");
-  if (u.isCoordinator && u.role !== "COORDINATOR") parts.push("Coordenador");
+  if (u.isAdmin && u.role !== "ADMIN") parts.push("Administrador Pedagógico");
+  if (u.isSiteAdmin && u.role !== "SITE_ADMIN") parts.push("Administrador Site");
   if (u.isPoloCoordinator && u.role !== "POLO_COORDINATOR") parts.push("Coordenador de Polos");
   return Array.from(new Set(parts)).join(" + ") || u.role;
 }

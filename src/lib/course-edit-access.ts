@@ -19,7 +19,7 @@ export async function requireCourseReadAccess(courseId: string): Promise<
   | { user: SessionUser; teacherId?: string }
   | { err: Response }
 > {
-  const user = await requireRole(["MASTER", "ADMIN", "TEACHER", "COORDINATOR"]);
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER"]);
   if (user.role === "TEACHER") {
     const teacher = await prisma.teacher.findFirst({
       where: { userId: user.id, deletedAt: null },
@@ -47,7 +47,7 @@ export async function requireCourseEditAccess(courseId: string): Promise<
   | { user: SessionUser; teacherId?: string }
   | { err: Response }
 > {
-  const user = await requireRole(["MASTER", "ADMIN", "TEACHER", "COORDINATOR"]);
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER"]);
   if (user.role === "TEACHER") {
     const teacher = await prisma.teacher.findFirst({
       where: { userId: user.id, deletedAt: null },

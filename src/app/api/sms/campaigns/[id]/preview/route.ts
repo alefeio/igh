@@ -6,7 +6,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /** Prévia para uma campanha existente (usa audience da campanha). */
 export async function POST(_request: Request, ctx: Ctx) {
-  await requireRole(["MASTER"]);
+  await requireRole(["MASTER", "SITE_ADMIN"]);
   const { id } = await ctx.params;
   const campaign = await getSmsCampaignDetails(id);
   if (!campaign) return jsonErr("NOT_FOUND", "Campanha não encontrada.", 404);

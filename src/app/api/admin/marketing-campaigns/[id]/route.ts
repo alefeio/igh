@@ -6,7 +6,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 type RouteCtx = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, ctx: RouteCtx) {
-  await requireRole(["MASTER"]);
+  await requireRole(["MASTER", "SITE_ADMIN"]);
   const { id } = await ctx.params;
 
   const campaign = await prisma.marketingCampaign.findUnique({
@@ -51,7 +51,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
 }
 
 export async function PATCH(request: Request, ctx: RouteCtx) {
-  await requireRole(["MASTER"]);
+  await requireRole(["MASTER", "SITE_ADMIN"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
 

@@ -1174,11 +1174,11 @@ export default async function DashboardPage() {
       {data.role === "ADMIN" ||
       data.role === "MASTER" ||
       data.role === "GENERAL_ADMIN" ||
-      data.role === "COORDINATOR" ? (
+      data.role === "SITE_ADMIN" ? (
         <DashboardAdmin
           data={data}
           userName={user.name}
-          readOnly={data.role === "COORDINATOR"}
+          readOnly={false}
         />
       ) : data.role === "TEACHER" ? (
         <DashboardTeacher data={data} userName={user.name} />
@@ -1194,7 +1194,7 @@ export default async function DashboardPage() {
           data.role !== "GENERAL_ADMIN" &&
           (data.role === "STUDENT" ||
             data.role === "ADMIN" ||
-            data.role === "COORDINATOR" ||
+            data.role === "SITE_ADMIN" ||
             data.role === "TEACHER")
         }
         steps={
@@ -1203,7 +1203,7 @@ export default async function DashboardPage() {
             : data.role === "ADMIN" ||
                 data.role === "MASTER" ||
                 data.role === "GENERAL_ADMIN" ||
-                data.role === "COORDINATOR"
+                data.role === "SITE_ADMIN"
               ? ADMIN_TUTORIAL_STEPS
               : data.role === "TEACHER"
                 ? TEACHER_TUTORIAL_STEPS
@@ -1213,7 +1213,7 @@ export default async function DashboardPage() {
           data.role === "ADMIN" ||
           data.role === "MASTER" ||
           data.role === "GENERAL_ADMIN" ||
-          data.role === "COORDINATOR"
+          data.role === "SITE_ADMIN"
             ? "admin-dashboard-tutorial-done"
             : data.role === "TEACHER"
               ? "teacher-dashboard-tutorial-done"

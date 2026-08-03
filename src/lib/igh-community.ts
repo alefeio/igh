@@ -60,11 +60,11 @@ export function userCanParticipateInCommunity(user: SessionUser): boolean {
 }
 
 export function userCanReplyAsStaff(user: SessionUser): boolean {
-  return ["MASTER", "ADMIN", "COORDINATOR", "TEACHER"].includes(user.role) && user.isActive;
+  return ["MASTER", "GENERAL_ADMIN", "ADMIN", "TEACHER"].includes(user.role) && user.isActive;
 }
 
 export function isCommunityModerator(user: SessionUser): boolean {
-  return ["MASTER", "ADMIN", "COORDINATOR"].includes(user.role);
+  return ["MASTER", "GENERAL_ADMIN", "ADMIN"].includes(user.role);
 }
 
 export function canReadCommunity(user: SessionUser): boolean {

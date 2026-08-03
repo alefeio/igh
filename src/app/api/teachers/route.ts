@@ -11,7 +11,7 @@ import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateProfessorWelcome, templateAddedAsProfessor } from "@/lib/email/templates";
 
 export async function GET(request: Request) {
-  await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+  await requireRole(["MASTER", "ADMIN"]);
 
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get("status") ?? "active"; // active | inactive | all

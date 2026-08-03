@@ -12,11 +12,20 @@ type RolesResponse = {
   canStudent: boolean;
   canTeacher: boolean;
   canAdmin: boolean;
-  canCoordinator?: boolean;
+  canSiteAdmin?: boolean;
   canPoloCoordinator?: boolean;
   canMaster?: boolean;
   canGeneralAdmin?: boolean;
 };
+
+type EnterRole =
+  | "STUDENT"
+  | "TEACHER"
+  | "ADMIN"
+  | "SITE_ADMIN"
+  | "MASTER"
+  | "GENERAL_ADMIN"
+  | "POLO_COORDINATOR";
 
 export default function EscolherPerfilPage() {
   useUser();
@@ -39,7 +48,7 @@ export default function EscolherPerfilPage() {
   }, []);
 
   const canAdmin = roles?.canAdmin === true;
-  const canCoordinator = roles?.canCoordinator === true;
+  const canSiteAdmin = roles?.canSiteAdmin === true;
   const canPoloCoordinator = roles?.canPoloCoordinator === true;
   const canStudent = roles?.canStudent === true;
   const canTeacher = roles?.canTeacher === true;
@@ -47,7 +56,13 @@ export default function EscolherPerfilPage() {
   const canGeneralAdmin = roles?.canGeneralAdmin === true;
   const hidesStaffPicker = canMaster || canGeneralAdmin;
   const hasAny =
-    canAdmin || canCoordinator || canPoloCoordinator || canStudent || canTeacher || canMaster || canGeneralAdmin;
+    canAdmin ||
+    canSiteAdmin ||
+    canPoloCoordinator ||
+    canStudent ||
+    canTeacher ||
+    canMaster ||
+    canGeneralAdmin;
 
   useEffect(() => {
     if (roles !== null && !hasAny) {
@@ -74,9 +89,7 @@ export default function EscolherPerfilPage() {
     return null;
   }
 
-  async function enterAs(
-    role: "STUDENT" | "TEACHER" | "ADMIN" | "MASTER" | "GENERAL_ADMIN" | "COORDINATOR" | "POLO_COORDINATOR",
-  ) {
+  async function enterAs(role: EnterRole) {
     if (submittingRole) return;
     setSubmittingRole(role);
     try {
@@ -158,17 +171,17 @@ export default function EscolherPerfilPage() {
               disabled={!!submittingRole}
               onClick={() => enterAs("ADMIN")}
             >
-              {submittingRole === "ADMIN" ? "Entrando…" : "Entrar como Admin"}
+              {submittingRole === "ADMIN" ? "Entrando…" : "Entrar como Administrador Pedagógico"}
             </Button>
           )}
-          {canCoordinator && !hidesStaffPicker && (
+          {canSiteAdmin && !hidesStaffPicker && (
             <Button
               variant="secondary"
               className="w-full"
               disabled={!!submittingRole}
-              onClick={() => enterAs("COORDINATOR")}
+              onClick={() => enterAs("SITE_ADMIN")}
             >
-              {submittingRole === "COORDINATOR" ? "Entrando…" : "Entrar como Coordenador"}
+              {submittingRole === "SITE_ADMIN" ? "Entrando…" : "Entrar como Administrador Site"}
             </Button>
           )}
           {canPoloCoordinator && !hidesStaffPicker && (

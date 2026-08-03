@@ -20,8 +20,8 @@ type OnboardingPayload = {
 const ROLE_LABEL: Record<string, string> = {
   MASTER: "Master",
   GENERAL_ADMIN: "Administrador Geral",
-  ADMIN: "Administrador",
-  COORDINATOR: "Coordenador",
+  ADMIN: "Administrador Pedagógico",
+  SITE_ADMIN: "Administrador Site",
   POLO_COORDINATOR: "Coordenador de Polos",
   TEACHER: "Professor",
   STUDENT: "Aluno",

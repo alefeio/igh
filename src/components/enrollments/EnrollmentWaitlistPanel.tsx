@@ -59,6 +59,7 @@ export function EnrollmentWaitlistPanel({
   onNeedClassGroups,
   reloadToken = 0,
   isMaster = false,
+  canRemove = false,
 }: {
   canManage: boolean;
   classGroups: ClassGroupOpt[];
@@ -66,6 +67,8 @@ export function EnrollmentWaitlistPanel({
   /** Incrementa para forçar reload (ex.: após excluir/cancelar matrícula). */
   reloadToken?: number;
   isMaster?: boolean;
+  /** Somente Master (papel exato) pode remover reservas. */
+  canRemove?: boolean;
 }) {
   const toast = useToast();
   const [items, setItems] = useState<WaitlistRow[]>([]);
@@ -236,14 +239,16 @@ export function EnrollmentWaitlistPanel({
                       {formatDateTime(w.createdAt)}
                     </td>
                     <td className="px-2 py-2 text-right">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="text-red-600"
-                        onClick={() => cancelEntry(w.id, w.student.name)}
-                      >
-                        Remover
-                      </Button>
+                      {canRemove ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="text-red-600"
+                          onClick={() => cancelEntry(w.id, w.student.name)}
+                        >
+                          Remover
+                        </Button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

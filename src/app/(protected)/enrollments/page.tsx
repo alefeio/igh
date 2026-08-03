@@ -18,7 +18,7 @@ import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 import { formatClassGroupTurmaLine } from "@/lib/turma-display";
-import { isMasterOrGeneralAdmin } from "@/lib/rbac";
+import { isExactMaster, isMasterOrGeneralAdmin } from "@/lib/rbac";
 
 const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Ativa",
@@ -243,7 +243,7 @@ export default function EnrollmentsPage() {
   const toast = useToast();
   const isMaster = isMasterOrGeneralAdmin(user);
   const isPoloCoordinator = user.role === "POLO_COORDINATOR";
-  const canOverrideEnrollment = isMaster || user.role === "COORDINATOR";
+  const canOverrideEnrollment = isMaster || user.role === "ADMIN";
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Enrollment[]>([]);
   const [open, setOpen] = useState(false);
@@ -499,7 +499,7 @@ export default function EnrollmentsPage() {
     if (isPoloCoordinator) {
       return permiteMatriculaPadrao || isInterno || isExterno;
     }
-    const canSeeExterno = user?.role === "ADMIN" || isMaster || user?.role === "COORDINATOR";
+    const canSeeExterno = user?.role === "ADMIN" || isMaster;
     return (
       permiteMatriculaPadrao ||
       (canOverrideEnrollment && isInterno) ||
@@ -1212,7 +1212,6 @@ export default function EnrollmentsPage() {
             {(user.role === "ADMIN" ||
               user.role === "MASTER" ||
               user.role === "GENERAL_ADMIN" ||
-              user.role === "COORDINATOR" ||
               user.role === "POLO_COORDINATOR") && (
               <Button onClick={openCreate} className="w-full sm:w-auto">
                 Nova matrícula
@@ -1227,13 +1226,13 @@ export default function EnrollmentsPage() {
           user.role === "ADMIN" ||
           user.role === "MASTER" ||
           user.role === "GENERAL_ADMIN" ||
-          user.role === "COORDINATOR" ||
           user.role === "POLO_COORDINATOR"
         }
         classGroups={filteredClassGroupsForModal}
         onNeedClassGroups={loadFormOptions}
         reloadToken={waitlistReloadToken}
         isMaster={isMaster}
+        canRemove={isExactMaster(user)}
       />
 
       {loading ? (

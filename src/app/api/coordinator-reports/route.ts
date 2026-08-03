@@ -12,18 +12,19 @@ function canCreateReport(role: string): boolean {
   return role === "TEACHER" || role === "ADMIN" || role === "MASTER" || role === "GENERAL_ADMIN";
 }
 
-function isCoordinatorRole(role: string): boolean {
-  return role === "COORDINATOR";
+/** Visualizadores de todos os reportes (substitui o antigo COORDINATOR). */
+function isReportViewerRole(role: string): boolean {
+  return role === "ADMIN" || role === "MASTER" || role === "GENERAL_ADMIN";
 }
 
-/** Lista reportes: coordenador vê todos; professor/admin/master vê só os seus. */
+/** Lista reportes: admin/master vê todos; professor vê só os seus. */
 export async function GET() {
   const user = await getSessionUserFromCookie();
   if (!user) {
     return jsonErr("UNAUTHORIZED", "Não autorizado.", 401);
   }
 
-  if (isCoordinatorRole(user.role)) {
+  if (isReportViewerRole(user.role)) {
     const reports = await prisma.coordinatorReport.findMany({
       orderBy: { updatedAt: "desc" },
       select: {
@@ -114,14 +115,17 @@ export async function POST(request: Request) {
   }
 
   const coordinators = await prisma.user.findMany({
-    where: { role: "COORDINATOR", isActive: true },
+    where: {
+      isActive: true,
+      OR: [{ role: "ADMIN" }, { role: "MASTER" }, { role: "GENERAL_ADMIN" }, { isAdmin: true }],
+    },
     select: { id: true, name: true, email: true },
   });
 
   if (coordinators.length === 0) {
     return jsonErr(
       "NO_COORDINATOR",
-      "Não há coordenador cadastrado no sistema. Peça ao Master para criar um usuário Coordenador antes de enviar reportes.",
+      "Não há administrador pedagógico cadastrado no sistema. Peça ao Master para criar um usuário Admin Pedagógico antes de enviar reportes.",
       400,
     );
   }

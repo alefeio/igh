@@ -31,13 +31,13 @@ export default function CoordenacaoPage() {
   const [loading, setLoading] = useState(true);
   const [showClosed, setShowClosed] = useState(false);
 
-  const isCoordinator = user.role === "COORDINATOR";
+  const isCoordinator =
+    user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN";
   const canCreate =
     user.role === "TEACHER" ||
     user.role === "ADMIN" ||
     user.role === "MASTER" ||
-    user.role === "GENERAL_ADMIN" ||
-    user.role === "COORDINATOR";
+    user.role === "GENERAL_ADMIN";
 
   useEffect(() => {
     if (user.role === "STUDENT") {

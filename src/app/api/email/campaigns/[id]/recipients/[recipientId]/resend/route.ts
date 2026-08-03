@@ -8,7 +8,7 @@ import {
 type Ctx = { params: Promise<{ id: string; recipientId: string }> };
 
 export async function POST(_request: Request, ctx: Ctx) {
-  await requireRole(["MASTER"]);
+  await requireRole(["MASTER", "SITE_ADMIN"]);
   const { id: campaignId, recipientId } = await ctx.params;
 
   const result = await requeueEmailCampaignRecipient(campaignId, recipientId);

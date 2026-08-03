@@ -80,7 +80,7 @@ export async function createPendingSiteChange(
 
 /**
  * Só o MASTER e o Administrador Geral gravam direto no conteúdo público.
- * Para os demais perfis com acesso ao CMS (ADMIN e COORDINATOR), enfileira a alteração para aprovação e retorna true.
+ * Para os demais perfis com acesso ao CMS (SITE_ADMIN e ADMIN legado), enfileira a alteração para aprovação e retorna true.
  */
 export async function enqueueIfNeedsApproval(
   user: { id: string; role: string },

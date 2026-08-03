@@ -82,7 +82,7 @@ function labelIdentity(k: string) {
 }
 
 export async function GET(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
 
   const where: Prisma.StudentWhereInput = {};
   where.deletedAt = null;
@@ -190,8 +190,7 @@ export async function GET(request: Request) {
       prisma.student.findMany({
         where,
         select: { birthDate: true },
-      }),
-    ]);
+      })]);
 
   const gender = toBuckets(
     total,
@@ -234,8 +233,7 @@ export async function GET(request: Request) {
     { key: "25-34", label: "25–34", count: 0 },
     { key: "35-44", label: "35–44", count: 0 },
     { key: "45-59", label: "45–59", count: 0 },
-    { key: "60+", label: "60+", count: 0 },
-  ];
+    { key: "60+", label: "60+", count: 0 }];
   for (const a of ages) {
     if (a <= 17) ageBucketsRaw[0]!.count++;
     else if (a <= 24) ageBucketsRaw[1]!.count++;

@@ -13,15 +13,14 @@ import { jsonErr } from "@/lib/http";
  */
 export async function POST(request: Request) {
   try {
-    await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+    await requireRole(["ADMIN", "MASTER"]);
     const body = (await request.json().catch(() => null)) as {
       classGroupIds?: unknown;
       pages?: unknown;
     } | null;
     const rawIds = Array.isArray(body?.classGroupIds) ? body!.classGroupIds : [];
     const classGroupIds = [
-      ...new Set(rawIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)),
-    ];
+      ...new Set(rawIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0))];
     const pages = parseCertificateZipPages(
       typeof body?.pages === "string" ? body.pages : null,
     );

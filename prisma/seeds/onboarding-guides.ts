@@ -189,6 +189,29 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
 </ul>`,
   },
 
+  SITE_ADMIN: {
+    title: "Como usar o sistema — Administrador Site",
+    contentRich: `<h2>Visão geral do perfil Administrador Site</h2>
+<p>O <strong>Administrador Site</strong> cuida do <strong>conteúdo público</strong> (CMS), dos banners do tablet e da <strong>comunicação</strong> (SMS, e-mail e campanhas). O menu pedagógico completo fica com o Administrador Pedagógico e o Master.</p>
+<p>Alterações no site feitas por este perfil seguem para <strong>aprovação do Master</strong> (ou Administrador Geral) antes de ir ao ar.</p>
+
+<h2>Início</h2>
+<h3>Página Inicial</h3>
+<p>Resumo e atalhos para as áreas de site e comunicação.</p>
+<h3>Como usar o sistema</h3>
+<p>Esta página.</p>
+
+<h2>Site e comunicação</h2>
+<p>Use o menu <strong>Site</strong> para banners, menu, notícias, páginas institucionais, unidades e demais conteúdos públicos. Em <strong>Comunicação</strong> estão as campanhas de SMS, e-mail e campanhas do site/alunos.</p>
+
+<h2>Boas práticas</h2>
+<ul>
+<li>Depois de editar o site, acompanhe a fila de aprovação com o Master.</li>
+<li>Revise textos e links antes de enviar alterações.</li>
+<li>Encerre a sessão em equipamentos compartilhados.</li>
+</ul>`,
+  },
+
   COORDINATOR: {
     title: "Como usar o sistema — Coordenador",
     contentRich: `<h2>Visão geral do perfil Coordenador</h2>

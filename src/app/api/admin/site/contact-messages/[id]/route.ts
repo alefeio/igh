@@ -10,7 +10,7 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(request: Request, ctx: Ctx) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = patchSchema.safeParse(body);

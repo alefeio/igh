@@ -16,7 +16,7 @@ import { buildClassGroupWhereForPoloCoordinator } from "@/lib/polo-coordinator-s
 
 export async function GET() {
   try {
-    const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR", "POLO_COORDINATOR"]);
+    const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
 
     await applyClassGroupAutomaticStatusUpdatesCached();
 
@@ -92,7 +92,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createClassGroupSchema.safeParse(body);
@@ -124,8 +124,7 @@ export async function POST(request: Request) {
       where: { id: cycleId },
       select: { id: true },
     }),
-    prisma.course.findUnique({ where: { id: courseId }, select: { id: true, workloadHours: true } }),
-  ]);
+    prisma.course.findUnique({ where: { id: courseId }, select: { id: true, workloadHours: true } })]);
 
   if (!cycle) return jsonErr("INVALID_CYCLE", "Ciclo inválido.", 400);
   if (!course) return jsonErr("INVALID_COURSE", "Curso inválido.", 400);

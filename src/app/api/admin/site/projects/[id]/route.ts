@@ -27,14 +27,14 @@ function projectPrevious(existing: {
 }
 
 export async function GET(_r: Request, ctx: { params: Promise<{ id: string }> }) {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["SITE_ADMIN", "MASTER"]);
   const item = await prisma.siteProject.findUnique({ where: { id: (await ctx.params).id } });
   if (!item) return jsonErr("NOT_FOUND", "Projeto nao encontrado.", 404);
   return jsonOk({ item });
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = siteProjectSchema.safeParse(body);
@@ -60,7 +60,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(_r: Request, ctx: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const existing = await prisma.siteProject.findUnique({ where: { id } });
   if (!existing) return jsonErr("NOT_FOUND", "Projeto nao encontrado.", 404);

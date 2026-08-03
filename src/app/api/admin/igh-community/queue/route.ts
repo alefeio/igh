@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+    const user = await requireRole(["MASTER", "ADMIN"]);
     if (!isCommunityModerator(user)) return jsonErr("FORBIDDEN", "Sem permissão.", 403);
 
     const { searchParams } = new URL(request.url);
@@ -23,8 +23,7 @@ export async function GET(request: Request) {
           ? {
               OR: [
                 { title: { contains: q, mode: "insensitive" } },
-                { content: { contains: q, mode: "insensitive" } },
-              ],
+                { content: { contains: q, mode: "insensitive" } }],
             }
           : {},
         orderBy: { createdAt: "desc" },
@@ -42,8 +41,7 @@ export async function GET(request: Request) {
           author: { select: { name: true, role: true } },
           topic: { select: { id: true, title: true } },
         },
-      }),
-    ]);
+      })]);
 
     return jsonOk({
       topics: topics.map((t) => ({

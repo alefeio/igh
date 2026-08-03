@@ -6,7 +6,7 @@ import { birthDateInputToDate } from "@/lib/validators/person-contact";
 import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
-import { templateAdminRoleAssigned, templateCoordinatorRoleAssigned } from "@/lib/email/templates";
+import { templateAdminRoleAssigned } from "@/lib/email/templates";
 import { Prisma } from "@/generated/prisma/client";
 import { isExactMaster } from "@/lib/rbac";
 import {
@@ -24,10 +24,10 @@ const adminListFilter = {
   OR: [
     { role: "GENERAL_ADMIN" as const },
     { role: "ADMIN" as const },
-    { role: "COORDINATOR" as const },
+    { role: "SITE_ADMIN" as const },
     { role: "POLO_COORDINATOR" as const },
     { isAdmin: true },
-    { isCoordinator: true },
+    { isSiteAdmin: true },
     { isPoloCoordinator: true },
   ],
 };
@@ -38,6 +38,7 @@ const userSelect = {
   email: true,
   role: true,
   isAdmin: true,
+  isSiteAdmin: true,
   isCoordinator: true,
   isPoloCoordinator: true,
   isActive: true,
@@ -53,6 +54,7 @@ function mapUser(u: {
   email: string;
   role: string;
   isAdmin: boolean;
+  isSiteAdmin: boolean;
   isCoordinator: boolean;
   isPoloCoordinator: boolean;
   isActive: boolean;
@@ -67,6 +69,7 @@ function mapUser(u: {
     email: u.email,
     role: u.role,
     isAdmin: u.isAdmin,
+    isSiteAdmin: u.isSiteAdmin,
     isCoordinator: u.isCoordinator,
     isPoloCoordinator: u.isPoloCoordinator,
     isActive: u.isActive,
@@ -118,6 +121,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     isActive?: boolean;
     role?: "GENERAL_ADMIN" | StaffAccessRole;
     isAdmin?: boolean;
+    isSiteAdmin?: boolean;
     isCoordinator?: boolean;
     isPoloCoordinator?: boolean;
     passwordHash?: string;
@@ -149,6 +153,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
         hasPoloLinks || userKeepsPoloCoordinatorAccess(existing);
       data.role = "GENERAL_ADMIN";
       data.isAdmin = false;
+      data.isSiteAdmin = false;
       data.isCoordinator = false;
       data.isPoloCoordinator = keepPoloAccess;
     } else {
@@ -167,12 +172,14 @@ export async function PATCH(request: Request, ctx: Ctx) {
         const access = resolveStaffAccessUpdate("ADMIN", staffSelected);
         data.role = access.role ?? "ADMIN";
         data.isAdmin = access.isAdmin;
+        data.isSiteAdmin = access.isSiteAdmin;
         data.isCoordinator = access.isCoordinator;
         data.isPoloCoordinator = access.isPoloCoordinator;
       } else {
         const access = resolveStaffAccessUpdate(existing.role, staffSelected);
         if (access.role !== undefined) data.role = access.role;
         data.isAdmin = access.isAdmin;
+        data.isSiteAdmin = access.isSiteAdmin;
         data.isCoordinator = access.isCoordinator;
         data.isPoloCoordinator = access.isPoloCoordinator;
       }
@@ -237,18 +244,16 @@ export async function PATCH(request: Request, ctx: Ctx) {
   });
 
   if (selectedRoles !== undefined) {
-    const newlyGranted = selectedRoles.filter((r) => !previousRoles.includes(r) && r !== "GENERAL_ADMIN");
+    const newlyGranted = selectedRoles.filter(
+      (r) => !previousRoles.includes(r) && (r === "ADMIN" || r === "SITE_ADMIN"),
+    );
     for (const role of newlyGranted) {
-      if (role !== "ADMIN" && role !== "COORDINATOR") continue;
-      const welcome =
-        role === "COORDINATOR"
-          ? templateCoordinatorRoleAssigned({ name: updated.name, email: updated.email })
-          : templateAdminRoleAssigned({ name: updated.name, email: updated.email });
+      const welcome = templateAdminRoleAssigned({ name: updated.name, email: updated.email });
       const emailResult = await sendEmailAndRecord({
         to: updated.email,
         subject: welcome.subject,
         html: welcome.html,
-        emailType: role === "COORDINATOR" ? "coordinator_role_assigned" : "admin_role_assigned",
+        emailType: "admin_role_assigned",
         entityType: "User",
         entityId: id,
         performedByUserId: actor.id,
@@ -258,7 +263,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
         entityId: id,
         action: "EMAIL_SENT",
         diff: {
-          type: role === "COORDINATOR" ? "coordinator_role_assigned" : "admin_role_assigned",
+          type: "admin_role_assigned",
+          grantedRole: role,
           success: emailResult.success,
           messageId: emailResult.messageId,
         },

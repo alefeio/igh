@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireRole(["STUDENT", "TEACHER", "ADMIN", "MASTER", "COORDINATOR"]);
+    const user = await requireRole(["STUDENT", "TEACHER", "ADMIN", "MASTER"]);
     const { searchParams } = new URL(request.url);
     const from = searchParams.get("from")?.trim();
     const to = searchParams.get("to")?.trim();

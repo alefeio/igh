@@ -43,7 +43,7 @@ function buildStudentSearchOr(q: string): Prisma.StudentWhereInput[] {
 }
 
 export async function GET(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";
@@ -51,8 +51,7 @@ export async function GET(request: Request) {
     searchParams.get("includeDeleted") === "true" &&
     (user.role === "MASTER" ||
       user.role === "GENERAL_ADMIN" ||
-      user.role === "ADMIN" ||
-      user.role === "COORDINATOR");
+      user.role === "ADMIN");
 
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const pageSizeRaw = parseInt(searchParams.get("pageSize") ?? "20", 10) || 20;
@@ -113,8 +112,7 @@ export async function GET(request: Request) {
       take: pageSize,
       include: { attachments: { select: { type: true } } },
     }),
-    prisma.student.count({ where }),
-  ]);
+    prisma.student.count({ where })]);
 
   const studentsWithDocs = students.map((s) => {
     const { attachments, ...rest } = s;
@@ -127,7 +125,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createStudentSchema.safeParse(body);

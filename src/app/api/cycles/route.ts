@@ -11,7 +11,7 @@ const createCycleSchema = z.object({
 
 export async function GET() {
   // Leitura de ciclos é necessária em matrículas e listagens (inclui TEACHER e coordenador de polo).
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR", "TEACHER", "POLO_COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
   const cycles = await prisma.cycle.findMany({
     orderBy: [{ year: "desc" }, { cycle: "desc" }],
   });

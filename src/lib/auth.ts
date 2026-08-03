@@ -24,6 +24,7 @@ export function getAuthCookieOptions() {
 
 export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActive" | "mustChangePassword"> & {
   isAdmin?: boolean;
+  isSiteAdmin?: boolean;
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
   baseRole?: UserRole;
@@ -112,6 +113,7 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
         email: true,
         role: true,
         isAdmin: true,
+        isSiteAdmin: true,
         isCoordinator: true,
         isPoloCoordinator: true,
         isActive: true,
@@ -128,14 +130,19 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
     if (payload.role === "GENERAL_ADMIN" && user.role !== "GENERAL_ADMIN") {
       return null;
     }
-    if (payload.role === "COORDINATOR" && user.role !== "COORDINATOR" && !user.isCoordinator) {
-      return null;
-    }
     if (payload.role === "POLO_COORDINATOR" && user.role !== "POLO_COORDINATOR" && !user.isPoloCoordinator) {
       return null;
     }
     if (payload.role === "ADMIN" && user.role !== "ADMIN" && user.role !== "MASTER" && user.role !== "GENERAL_ADMIN") {
       if (!user.isAdmin) return null;
+    }
+    if (
+      payload.role === "SITE_ADMIN" &&
+      user.role !== "SITE_ADMIN" &&
+      user.role !== "MASTER" &&
+      user.role !== "GENERAL_ADMIN"
+    ) {
+      if (!user.isSiteAdmin) return null;
     }
     return {
       id: user.id,
@@ -146,6 +153,7 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
       isActive: user.isActive,
       mustChangePassword: user.mustChangePassword ?? false,
       isAdmin: user.isAdmin ?? false,
+      isSiteAdmin: user.isSiteAdmin ?? false,
       isCoordinator: user.isCoordinator ?? false,
       isPoloCoordinator: user.isPoloCoordinator ?? false,
       hasStudentProfile: !!user.student,
@@ -177,14 +185,14 @@ export async function requireRole(
   return user;
 }
 
-/** Leitura de relatórios e listagens administrativas (Admin, Master, Admin Geral e Coordenador). */
+/** Leitura de relatórios e listagens administrativas (Admin Pedagógico, Master e Admin Geral). */
 export async function requireStaffRead(): Promise<SessionUser> {
-  return requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  return requireRole(["ADMIN", "MASTER"]);
 }
 
-/** Alterações operacionais no painel (Admin, Master, Admin Geral e Coordenador). */
+/** Alterações operacionais no painel (Admin Pedagógico, Master e Admin Geral). */
 export async function requireStaffWrite(): Promise<SessionUser> {
-  return requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  return requireRole(["ADMIN", "MASTER"]);
 }
 
 /**

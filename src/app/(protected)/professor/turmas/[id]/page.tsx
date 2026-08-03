@@ -9,13 +9,18 @@ import { useUser } from "@/components/layout/UserProvider";
 import { AttendanceGrid } from "@/components/professor/AttendanceGrid";
 import { ForumPostBody } from "@/components/forum/ForumPostBody";
 import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
+import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 import { isForumPostEmpty } from "@/lib/forum-question-content";
-import { AlertCircle, Cake, Presentation } from "lucide-react";
+import { buildStudentsVcfFile, classGroupVcfFileName } from "@/lib/student-vcf";
+import { AlertCircle, Cake, Download, Presentation } from "lucide-react";
 
 type ClassGroup = {
   id: string;
   courseName: string;
+  /** Número do ciclo da turma (ex.: 3 → arquivo c3-...). */
+  cycleNumber?: number;
+  cycleYear?: number;
   startDate: string;
   startTime: string;
   endTime: string;
@@ -163,6 +168,7 @@ export default function ProfessorTurmaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
   const [togglingCertificateId, setTogglingCertificateId] = useState<string | null>(null);
+  const [exportingVcf, setExportingVcf] = useState(false);
 
   type ProfLessonQuestion = {
     id: string;
@@ -246,6 +252,39 @@ export default function ProfessorTurmaDetailPage() {
       toast.push("error", "Falha de rede ao atualizar certificado.");
     } finally {
       setTogglingCertificateId(null);
+    }
+  }
+
+  async function exportStudentsVcf() {
+    if (!classGroup || enrollments.length === 0 || exportingVcf) return;
+    setExportingVcf(true);
+    try {
+      const cycleNumber = classGroup.cycleNumber ?? 1;
+      const content = buildStudentsVcfFile(
+        enrollments.map((e) => ({
+          name: e.studentName,
+          phone: e.studentPhone,
+          email: e.studentEmail,
+        })),
+      );
+      const downloadName = classGroupVcfFileName({
+        cycleNumber,
+        courseName: classGroup.courseName,
+      });
+      const blob = new Blob([content], { type: "text/vcard;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = downloadName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.push("success", `${enrollments.length} contato(s) exportado(s) em .vcf.`);
+    } catch {
+      toast.push("error", "Não foi possível exportar os contatos.");
+    } finally {
+      setExportingVcf(false);
     }
   }
 
@@ -550,9 +589,22 @@ export default function ProfessorTurmaDetailPage() {
 
       {tab === "alunos" && (
         <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] overflow-hidden">
-          <h2 className="border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">
-            Alunos da turma
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3">
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Alunos da turma</h2>
+            {enrollments.length > 0 ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={exportingVcf}
+                onClick={() => void exportStudentsVcf()}
+                className="gap-1.5"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                {exportingVcf ? "Exportando…" : "Exportar .vcf"}
+              </Button>
+            ) : null}
+          </div>
           {enrollments.length === 0 ? (
             <p className="p-4 text-sm text-[var(--text-muted)]">Nenhum aluno matriculado.</p>
           ) : (

@@ -78,8 +78,8 @@ function buildTeacherDashboardStudentRankingTop(
 const ROLE_LABELS: Record<string, string> = {
   MASTER: "Administrador Master",
   GENERAL_ADMIN: "Administrador Geral",
-  ADMIN: "Administrador",
-  COORDINATOR: "Coordenador",
+  ADMIN: "Administrador Pedagógico",
+  SITE_ADMIN: "Administrador Site",
   POLO_COORDINATOR: "Coordenador de Polos",
   TEACHER: "Professor",
   STUDENT: "Aluno",
@@ -168,9 +168,9 @@ export type DashboardAccessActivitySummary = {
   }>;
 };
 
-/** Painel inicial admin/coordenador/master: só totais (detalhes em /admin/plataforma e /admin/calendario). */
+/** Painel inicial admin/site/master: só totais (detalhes em /admin/plataforma e /admin/calendario). */
 export type DashboardDataAdmin = {
-  role: "ADMIN" | "MASTER" | "GENERAL_ADMIN" | "COORDINATOR";
+  role: "ADMIN" | "MASTER" | "GENERAL_ADMIN" | "SITE_ADMIN";
   roleLabel: string;
   stats: DashboardStats;
 };
@@ -693,7 +693,7 @@ async function loadAdminDashboardHome(
   }
 
   return {
-    role: user.role as "ADMIN" | "MASTER" | "GENERAL_ADMIN" | "COORDINATOR",
+    role: user.role as "ADMIN" | "MASTER" | "GENERAL_ADMIN" | "SITE_ADMIN",
     roleLabel,
     stats: {
       students,
@@ -810,7 +810,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
     user.role === "ADMIN" ||
     user.role === "MASTER" ||
     user.role === "GENERAL_ADMIN" ||
-    user.role === "COORDINATOR"
+    user.role === "SITE_ADMIN"
   ) {
     return loadAdminDashboardHome(user, roleLabel);
   }
@@ -1237,8 +1237,7 @@ export async function getAdminPlataformaPagePayload(
   if (
     user.role !== "ADMIN" &&
     user.role !== "MASTER" &&
-    user.role !== "GENERAL_ADMIN" &&
-    user.role !== "COORDINATOR"
+    user.role !== "GENERAL_ADMIN"
   ) {
     return null;
   }

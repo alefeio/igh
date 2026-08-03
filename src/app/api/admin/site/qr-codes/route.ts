@@ -12,7 +12,7 @@ const createBodySchema = z.object({
 
 /** Lista QR Codes gerados (admin). */
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  await requireRole(["SITE_ADMIN", "MASTER"]);
   try {
     const items = await prisma.siteQrCode.findMany({
       orderBy: { createdAt: "desc" },
@@ -34,7 +34,7 @@ export async function GET() {
 
 /** Registra um QR gerado (após upload do PNG no cliente). */
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   try {
     const body = await request.json().catch(() => null);
     const parsed = createBodySchema.safeParse(body);

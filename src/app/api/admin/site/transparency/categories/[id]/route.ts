@@ -25,7 +25,7 @@ function categoryPrevious(existing: {
 }
 
 export async function PATCH(request: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = siteTransparencyCategorySchema.safeParse(body);
@@ -68,7 +68,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_r: Request, ctx: Ctx) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["SITE_ADMIN", "MASTER"]);
   const { id } = await ctx.params;
   const existing = await prisma.siteTransparencyCategory.findUnique({ where: { id } });
   if (!existing) return jsonErr("NOT_FOUND", "Categoria nao encontrada.", 404);

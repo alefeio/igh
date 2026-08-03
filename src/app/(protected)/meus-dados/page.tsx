@@ -12,13 +12,13 @@ export const metadata = {
 };
 
 const STAFF_ROLE_LABEL: Record<
-  "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "COORDINATOR" | "POLO_COORDINATOR" | "TEACHER",
+  "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER",
   string
 > = {
   MASTER: "Master",
   GENERAL_ADMIN: "Administrador Geral",
-  ADMIN: "Administrador",
-  COORDINATOR: "Coordenador",
+  ADMIN: "Administrador Pedagógico",
+  SITE_ADMIN: "Administrador Site",
   POLO_COORDINATOR: "Coordenador de Polos",
   TEACHER: "Professor",
 };
@@ -66,7 +66,7 @@ export default async function MeusDadosPage() {
     user.role === "MASTER" ||
     user.role === "GENERAL_ADMIN" ||
     user.role === "ADMIN" ||
-    user.role === "COORDINATOR" ||
+    user.role === "SITE_ADMIN" ||
     user.role === "POLO_COORDINATOR" ||
     user.role === "TEACHER"
   ) {

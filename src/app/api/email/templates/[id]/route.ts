@@ -9,7 +9,7 @@ import { updateEmailTemplateSchema } from "@/lib/validators/email-campaigns";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, ctx: Ctx) {
-  await requireRole(["MASTER"]);
+  await requireRole(["MASTER", "SITE_ADMIN"]);
   const { id } = await ctx.params;
   const template = await getEmailTemplate(id);
   if (!template)
@@ -18,7 +18,7 @@ export async function GET(_request: Request, ctx: Ctx) {
 }
 
 export async function PUT(request: Request, ctx: Ctx) {
-  await requireRole(["MASTER"]);
+  await requireRole(["MASTER", "SITE_ADMIN"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = updateEmailTemplateSchema.safeParse(body);

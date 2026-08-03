@@ -24,7 +24,7 @@ const poloInclude = {
 
 /** Lista polos (Admin/Master/Coordenador). */
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER"]);
 
   const polos = await prisma.polo.findMany({
     orderBy: { name: "asc" },
@@ -56,7 +56,7 @@ export async function GET() {
 
 /** Cria polo com coordenador e opcionalmente locais. */
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createPoloSchema.safeParse(body);

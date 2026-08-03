@@ -17,7 +17,7 @@ import {
 } from "@/lib/polo-coordinator-scope";
 
 export async function GET() {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "COORDINATOR", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
 
   const isTeacher = user.role === "TEACHER";
   const isPoloCoordinator = user.role === "POLO_COORDINATOR";
@@ -109,7 +109,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "COORDINATOR", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createEnrollmentSchema.safeParse(body);
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
   }
 
   const canOverrideEnrollmentRules =
-    user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "COORDINATOR";
+    user.role === "MASTER" || user.role === "GENERAL_ADMIN";
   if (classGroup.status === "INTERNO" && !canOverrideEnrollmentRules) {
     return jsonErr("FORBIDDEN", "Apenas Master ou Coordenador podem matricular alunos em turmas com status Interno.", 403);
   }

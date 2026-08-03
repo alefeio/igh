@@ -19,30 +19,22 @@ import {
 } from "@/lib/staff-access";
 import {
   templateAdminWelcome,
-  templateCoordinatorWelcome,
   templatePoloCoordinatorWelcome,
   templateAdminRoleAssigned,
-  templateCoordinatorRoleAssigned,
   templatePoloCoordinatorRoleAssigned,
 } from "@/lib/email/templates";
 
 const ROLE_LABEL_PT: Record<string, string> = {
   MASTER: "Administrador Master",
   GENERAL_ADMIN: "Administrador Geral",
-  ADMIN: "Admin",
-  COORDINATOR: "Coordenador",
+  ADMIN: "Administrador Pedagógico",
+  SITE_ADMIN: "Administrador Site",
   POLO_COORDINATOR: "Coordenador de Polos",
   TEACHER: "Professor",
   STUDENT: "Aluno",
 };
 
 function assignedEmailFor(role: StaffAccessRole, name: string, email: string) {
-  if (role === "COORDINATOR") {
-    return {
-      template: templateCoordinatorRoleAssigned({ name, email }),
-      emailType: "coordinator_role_assigned" as const,
-    };
-  }
   if (role === "POLO_COORDINATOR") {
     return {
       template: templatePoloCoordinatorRoleAssigned({ name, email }),
@@ -56,12 +48,6 @@ function assignedEmailFor(role: StaffAccessRole, name: string, email: string) {
 }
 
 function welcomeEmailFor(role: string, name: string, email: string, tempPassword: string) {
-  if (role === "COORDINATOR") {
-    return {
-      template: templateCoordinatorWelcome({ name, email, tempPassword }),
-      emailType: "welcome_coordinator" as const,
-    };
-  }
   if (role === "POLO_COORDINATOR") {
     return {
       template: templatePoloCoordinatorWelcome({ name, email, tempPassword }),
@@ -82,10 +68,10 @@ export async function GET() {
       OR: [
         { role: "GENERAL_ADMIN" },
         { role: "ADMIN" },
-        { role: "COORDINATOR" },
+        { role: "SITE_ADMIN" },
         { role: "POLO_COORDINATOR" },
         { isAdmin: true },
-        { isCoordinator: true },
+        { isSiteAdmin: true },
         { isPoloCoordinator: true },
       ],
     },
@@ -96,6 +82,7 @@ export async function GET() {
       email: true,
       role: true,
       isAdmin: true,
+      isSiteAdmin: true,
       isCoordinator: true,
       isPoloCoordinator: true,
       isActive: true,
@@ -114,6 +101,7 @@ export async function GET() {
       email: u.email,
       role: u.role,
       isAdmin: u.isAdmin,
+      isSiteAdmin: u.isSiteAdmin,
       isCoordinator: u.isCoordinator,
       isPoloCoordinator: u.isPoloCoordinator,
       isActive: u.isActive,
@@ -158,6 +146,7 @@ export async function POST(request: Request) {
       role: true,
       isActive: true,
       isAdmin: true,
+      isSiteAdmin: true,
       isCoordinator: true,
       isPoloCoordinator: true,
     },
@@ -190,8 +179,9 @@ export async function POST(request: Request) {
 
     const finalOverlay = {
       isAdmin: existing.isAdmin || (newlyGranted.includes("ADMIN") && existing.role !== "ADMIN"),
-      isCoordinator:
-        existing.isCoordinator || (newlyGranted.includes("COORDINATOR") && existing.role !== "COORDINATOR"),
+      isSiteAdmin:
+        existing.isSiteAdmin || (newlyGranted.includes("SITE_ADMIN") && existing.role !== "SITE_ADMIN"),
+      isCoordinator: false,
       isPoloCoordinator:
         existing.isPoloCoordinator ||
         (newlyGranted.includes("POLO_COORDINATOR") && existing.role !== "POLO_COORDINATOR"),
@@ -211,6 +201,7 @@ export async function POST(request: Request) {
         email: true,
         role: true,
         isAdmin: true,
+        isSiteAdmin: true,
         isCoordinator: true,
         isPoloCoordinator: true,
         isActive: true,
@@ -276,6 +267,7 @@ export async function POST(request: Request) {
     passwordHash: string;
     role: "GENERAL_ADMIN" | StaffAccessRole;
     isAdmin?: boolean;
+    isSiteAdmin?: boolean;
     isCoordinator?: boolean;
     isPoloCoordinator?: boolean;
     isActive: boolean;
@@ -292,6 +284,7 @@ export async function POST(request: Request) {
       passwordHash,
       role: "GENERAL_ADMIN",
       isAdmin: false,
+      isSiteAdmin: false,
       isCoordinator: false,
       isPoloCoordinator: false,
       isActive: true,
@@ -324,6 +317,7 @@ export async function POST(request: Request) {
       email: true,
       role: true,
       isAdmin: true,
+      isSiteAdmin: true,
       isCoordinator: true,
       isPoloCoordinator: true,
       isActive: true,

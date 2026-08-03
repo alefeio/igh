@@ -170,10 +170,7 @@ export default function ClassGroupsPage() {
   const toast = useToast();
   const user = useUser();
   const canMutate =
-    user.role === "MASTER" ||
-    user.role === "GENERAL_ADMIN" ||
-    user.role === "ADMIN" ||
-    user.role === "COORDINATOR";
+    user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "ADMIN";
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ClassGroup[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);

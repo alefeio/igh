@@ -6,7 +6,7 @@ import { confirmEmailCampaignSchema } from "@/lib/validators/email-campaigns";
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, ctx: Ctx) {
-  const user = await requireRole(["MASTER"]);
+  const user = await requireRole(["MASTER", "SITE_ADMIN"]);
   const { id } = await ctx.params;
   const body = await request.json().catch(() => null);
   const parsed = confirmEmailCampaignSchema.safeParse(body);

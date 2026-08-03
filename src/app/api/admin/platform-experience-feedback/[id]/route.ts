@@ -8,7 +8,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+    await requireRole(["MASTER", "ADMIN"]);
   } catch (e) {
     if (e instanceof Error && e.message === "UNAUTHENTICATED") {
       return jsonErr("UNAUTHENTICATED", "Sessão não encontrada.", 401);

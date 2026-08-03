@@ -48,7 +48,8 @@ export default function CoordenacaoReportePage() {
   const [sending, setSending] = useState(false);
   const [closing, setClosing] = useState(false);
 
-  const isCoordinator = user.role === "COORDINATOR";
+  const isCoordinator =
+    user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN";
   const canReply = report && report.status !== "CLOSED";
 
   const load = useCallback(() => {

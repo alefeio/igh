@@ -7,7 +7,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireRole(["MASTER", "ADMIN", "COORDINATOR"]);
+    await requireRole(["MASTER", "ADMIN"]);
     const { id } = await context.params;
 
     const sessions = await prisma.classSession.findMany({

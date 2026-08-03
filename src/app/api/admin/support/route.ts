@@ -8,7 +8,7 @@ export async function GET() {
   if (!user) {
     return jsonErr("UNAUTHORIZED", "Não autorizado.", 401);
   }
-  if (user.role !== "MASTER" && user.role !== "ADMIN" && user.role !== "COORDINATOR") {
+  if (user.role !== "MASTER" && user.role !== "ADMIN") {
     return jsonErr("FORBIDDEN", "Acesso negado.", 403);
   }
 

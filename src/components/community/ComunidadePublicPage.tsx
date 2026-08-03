@@ -29,7 +29,7 @@ function GuestPublishCta() {
 }
 
 export function ComunidadePublicPage({ sessionUser }: { sessionUser: CommunityViewer | null }) {
-  const isStaff = sessionUser?.role ? ["MASTER", "ADMIN", "COORDINATOR"].includes(sessionUser.role) : false;
+  const isStaff = sessionUser?.role ? ["MASTER", "GENERAL_ADMIN", "ADMIN"].includes(sessionUser.role) : false;
   const isTeacher = sessionUser?.role === "TEACHER";
   const isStudent = sessionUser?.role === "STUDENT";
 
