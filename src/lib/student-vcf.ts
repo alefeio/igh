@@ -23,6 +23,18 @@ export function firstAndLastNameSegment(fullName: string): string {
   );
 }
 
+/** Rótulo do contato: `c3-NomeDoCurso-PrimeiroEUltimoNomeDoAluno`. */
+export function studentVcfContactLabel(params: {
+  cycleNumber: number;
+  courseName: string;
+  studentName: string;
+}): string {
+  const cycle = Number.isFinite(params.cycleNumber) && params.cycleNumber > 0 ? params.cycleNumber : 1;
+  const course = toPascalFileSegment(params.courseName, "Curso");
+  const student = firstAndLastNameSegment(params.studentName);
+  return `c${cycle}-${course}-${student}`;
+}
+
 /** Nome do arquivo da turma: `c3-NomeDoCurso-Alunos.vcf`. */
 export function classGroupVcfFileName(params: {
   cycleNumber: number;
@@ -33,16 +45,13 @@ export function classGroupVcfFileName(params: {
   return `c${cycle}-${course}-Alunos.vcf`;
 }
 
-/** Nome do arquivo: `c3-NomeDoCurso-PrimeiroEUltimoNomeDoAluno.vcf`. */
+/** Nome do arquivo individual: `c3-NomeDoCurso-PrimeiroEUltimoNomeDoAluno.vcf`. */
 export function studentVcfFileName(params: {
   cycleNumber: number;
   courseName: string;
   studentName: string;
 }): string {
-  const cycle = Number.isFinite(params.cycleNumber) && params.cycleNumber > 0 ? params.cycleNumber : 1;
-  const course = toPascalFileSegment(params.courseName, "Curso");
-  const student = firstAndLastNameSegment(params.studentName);
-  return `c${cycle}-${course}-${student}.vcf`;
+  return `${studentVcfContactLabel(params)}.vcf`;
 }
 
 function escapeVcardValue(value: string): string {
@@ -53,22 +62,23 @@ function escapeVcardValue(value: string): string {
     .replace(/;/g, "\\;");
 }
 
-/** Gera um vCard 3.0 com nome, telefone e e-mail. */
+/** Gera um vCard 3.0; o nome exibido no contato é `displayName` (rótulo cN-Curso-Aluno). */
 export function buildStudentVcard(params: {
+  /** Nome real do aluno (usado só se `displayName` não for informado). */
   name: string;
+  /** Nome do card na agenda (ex.: c3-Robotica-MariaSilva). */
+  displayName?: string;
   phone?: string | null;
   email?: string | null;
 }): string {
-  const name = params.name.trim() || "Aluno";
-  const parts = name.split(/\s+/).filter(Boolean);
-  const family = parts.length > 1 ? parts[parts.length - 1] : "";
-  const given = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] ?? name;
+  const realName = params.name.trim() || "Aluno";
+  const displayName = (params.displayName ?? realName).trim() || realName;
 
   const lines = [
     "BEGIN:VCARD",
     "VERSION:3.0",
-    `FN:${escapeVcardValue(name)}`,
-    `N:${escapeVcardValue(family)};${escapeVcardValue(given)};;;`,
+    `FN:${escapeVcardValue(displayName)}`,
+    `N:${escapeVcardValue(displayName)};;;;`,
   ];
 
   const phoneDigits = (params.phone ?? "").replace(/\D/g, "");
@@ -92,7 +102,12 @@ export function buildStudentVcard(params: {
 
 /** Junta vários vCards em um único arquivo .vcf. */
 export function buildStudentsVcfFile(
-  students: Array<{ name: string; phone?: string | null; email?: string | null }>,
+  students: Array<{
+    name: string;
+    displayName?: string;
+    phone?: string | null;
+    email?: string | null;
+  }>,
 ): string {
   return students.map((s) => buildStudentVcard(s)).join("");
 }

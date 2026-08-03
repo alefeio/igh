@@ -12,7 +12,7 @@ import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 import { isForumPostEmpty } from "@/lib/forum-question-content";
-import { buildStudentsVcfFile, classGroupVcfFileName } from "@/lib/student-vcf";
+import { buildStudentsVcfFile, classGroupVcfFileName, studentVcfContactLabel } from "@/lib/student-vcf";
 import { AlertCircle, Cake, Download, Presentation } from "lucide-react";
 
 type ClassGroup = {
@@ -263,6 +263,11 @@ export default function ProfessorTurmaDetailPage() {
       const content = buildStudentsVcfFile(
         enrollments.map((e) => ({
           name: e.studentName,
+          displayName: studentVcfContactLabel({
+            cycleNumber,
+            courseName: classGroup.courseName,
+            studentName: e.studentName,
+          }),
           phone: e.studentPhone,
           email: e.studentEmail,
         })),
