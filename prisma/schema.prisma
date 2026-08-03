@@ -1755,6 +1755,8 @@ enum UserNotificationKind {
   ACHIEVEMENT_UNLOCKED
   FORUM_ACTIVITY
   BIRTHDAY
+  /// * Aluno promovido da lista de espera (cadastro de reserva) para a turma.
+  WAITLIST_ENROLLMENT
 }
 
 /// * Termos de uso, política de privacidade ou política de cookies (LGPD / ePrivacy).

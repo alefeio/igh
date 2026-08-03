@@ -1,6 +1,7 @@
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
+import { findEnrollmentIdsWithWelcomeEmail } from "@/lib/enrollment-welcome-email";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -32,6 +33,7 @@ export async function GET(
       enrolledAt: true,
       status: true,
       certificateEligible: true,
+      convertedFromWaitlist: { select: { id: true } },
       student: {
         select: {
           id: true,
@@ -51,7 +53,10 @@ export async function GET(
   });
 
   const enrollmentIds = enrollments.map((e) => e.id);
-  const summaries = await getEnrollmentAttendanceSummaries(enrollmentIds);
+  const [summaries, welcomeEmailIds] = await Promise.all([
+    getEnrollmentAttendanceSummaries(enrollmentIds),
+    findEnrollmentIdsWithWelcomeEmail(enrollmentIds),
+  ]);
 
   // Garante ativação automática para quem já tem ≥70% (sem override manual).
   await syncCertificateEligibleFromAttendance(enrollmentIds);
@@ -103,6 +108,8 @@ export async function GET(
           ? `${bd.getUTCFullYear()}-${String(bd.getUTCMonth() + 1).padStart(2, "0")}-${String(bd.getUTCDate()).padStart(2, "0")}`
           : null;
       const attendance = summaries.get(e.id);
+      const hasEmail = Boolean(st.email?.trim());
+      const welcomeEmailSent = welcomeEmailIds.has(e.id);
       return {
         id: e.id,
         enrolledAt: e.enrolledAt,
@@ -113,6 +120,12 @@ export async function GET(
         studentEmail: st.email,
         studentPhone: st.phone?.trim() ? st.phone.trim() : null,
         studentBirthDate,
+        /** Entrou na turma via cadastro de reserva (lista de espera). */
+        fromWaitlist: Boolean(e.convertedFromWaitlist),
+        /** Já recebeu (ou enfileirou) o e-mail de cadastro nesta turma. */
+        welcomeEmailSent,
+        /** Tem e-mail no cadastro e ainda não recebeu o de boas-vindas da turma. */
+        welcomeEmailPending: hasEmail && !welcomeEmailSent,
         /** Presenças em aulas da turma (até hoje) / total de aulas elegíveis. */
         attendancePresentCount: attendance?.presentCount ?? 0,
         attendanceTotalSessions: attendance?.totalSessions ?? 0,

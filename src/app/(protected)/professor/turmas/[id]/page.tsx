@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 import { isForumPostEmpty } from "@/lib/forum-question-content";
 import { buildStudentsVcfFile, classGroupVcfFileName, studentVcfContactLabel } from "@/lib/student-vcf";
-import { AlertCircle, Cake, Download, Presentation } from "lucide-react";
+import { AlertCircle, Cake, Download, Mail, Presentation } from "lucide-react";
 
 type ClassGroup = {
   id: string;
@@ -43,6 +43,12 @@ type Enrollment = {
   attendancePercent?: number | null;
   /** Apto a receber certificado (≥70% presença ou liberado pelo professor). */
   certificateEligible?: boolean;
+  /** Entrou na turma via cadastro de reserva (lista de espera). */
+  fromWaitlist?: boolean;
+  /** Já recebeu o e-mail de cadastro nesta turma. */
+  welcomeEmailSent?: boolean;
+  /** Tem e-mail e ainda não recebeu o de cadastro. */
+  welcomeEmailPending?: boolean;
   enrolledAt: string;
   documentationAlert: "yellow" | "red" | null;
 };
@@ -169,6 +175,7 @@ export default function ProfessorTurmaDetailPage() {
   const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
   const [togglingCertificateId, setTogglingCertificateId] = useState<string | null>(null);
   const [exportingVcf, setExportingVcf] = useState(false);
+  const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
 
   type ProfLessonQuestion = {
     id: string;
@@ -252,6 +259,51 @@ export default function ProfessorTurmaDetailPage() {
       toast.push("error", "Falha de rede ao atualizar certificado.");
     } finally {
       setTogglingCertificateId(null);
+    }
+  }
+
+  async function sendPendingWelcomeEmails() {
+    if (!classGroup || sendingWelcomeEmails) return;
+    const pendingCount = enrollments.filter((e) => e.welcomeEmailPending).length;
+    if (pendingCount === 0) {
+      toast.push("success", "Não há alunos pendentes de e-mail de cadastro.");
+      return;
+    }
+    if (
+      !confirm(
+        `Enviar e-mail de cadastro na turma para ${pendingCount} aluno(s) que ainda não receberam?`,
+      )
+    ) {
+      return;
+    }
+    setSendingWelcomeEmails(true);
+    try {
+      const res = await fetch(
+        `/api/teacher/class-groups/${id}/enrollments/send-welcome-emails`,
+        { method: "POST" },
+      );
+      const json = (await res.json()) as ApiResponse<{
+        sent: number;
+        failed: number;
+        message?: string;
+      }>;
+      if (!res.ok || !json?.ok) {
+        toast.push(
+          "error",
+          (json as { error?: { message?: string } })?.error?.message ??
+            "Não foi possível enviar os e-mails.",
+        );
+        return;
+      }
+      toast.push(
+        json.data.failed > 0 ? "error" : "success",
+        json.data.message ?? `E-mails enviados: ${json.data.sent}.`,
+      );
+      await loadEnrollments();
+    } catch {
+      toast.push("error", "Falha de rede ao enviar os e-mails.");
+    } finally {
+      setSendingWelcomeEmails(false);
     }
   }
 
@@ -597,17 +649,34 @@ export default function ProfessorTurmaDetailPage() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3">
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">Alunos da turma</h2>
             {enrollments.length > 0 ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={exportingVcf}
-                onClick={() => void exportStudentsVcf()}
-                className="gap-1.5"
-              >
-                <Download className="h-3.5 w-3.5" aria-hidden />
-                {exportingVcf ? "Exportando…" : "Exportar .vcf"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {enrollments.some((e) => e.welcomeEmailPending) ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={sendingWelcomeEmails}
+                    onClick={() => void sendPendingWelcomeEmails()}
+                    className="gap-1.5"
+                  >
+                    <Mail className="h-3.5 w-3.5" aria-hidden />
+                    {sendingWelcomeEmails
+                      ? "Enviando…"
+                      : `Enviar e-mails pendentes (${enrollments.filter((e) => e.welcomeEmailPending).length})`}
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={exportingVcf}
+                  onClick={() => void exportStudentsVcf()}
+                  className="gap-1.5"
+                >
+                  <Download className="h-3.5 w-3.5" aria-hidden />
+                  {exportingVcf ? "Exportando…" : "Exportar .vcf"}
+                </Button>
+              </div>
             ) : null}
           </div>
           {enrollments.length === 0 ? (
@@ -616,7 +685,8 @@ export default function ProfessorTurmaDetailPage() {
             <>
               <p className="border-b border-[var(--card-border)] px-4 py-2 text-xs text-[var(--text-muted)]">
                 Certificado: ativa automaticamente com 70% de presença. Você pode liberar ou bloquear
-                manualmente para cada aluno.
+                manualmente para cada aluno. Use «Enviar e-mails pendentes» para disparar o e-mail de
+                cadastro só para quem ainda não recebeu.
               </p>
               <ul className="divide-y divide-[var(--card-border)]">
               {enrollments.map((e) => (
@@ -636,6 +706,36 @@ export default function ProfessorTurmaDetailPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium text-[var(--text-primary)]">{e.studentName}</p>
+                        {e.fromWaitlist && (
+                          <span
+                            title="Este aluno entrou na turma pelo cadastro de reserva (lista de espera)."
+                            className="inline-flex rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-900 dark:text-sky-200"
+                          >
+                            Lista de espera
+                          </span>
+                        )}
+                        {e.welcomeEmailSent ? (
+                          <span
+                            title="E-mail de cadastro nesta turma já foi enviado."
+                            className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 dark:text-emerald-200"
+                          >
+                            E-mail enviado
+                          </span>
+                        ) : e.welcomeEmailPending ? (
+                          <span
+                            title="Ainda não recebeu o e-mail de cadastro nesta turma."
+                            className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-200"
+                          >
+                            E-mail pendente
+                          </span>
+                        ) : (
+                          <span
+                            title="Aluno sem e-mail cadastrado — não é possível enviar."
+                            className="inline-flex rounded-full bg-[var(--igh-surface)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-muted)] border border-[var(--card-border)]"
+                          >
+                            Sem e-mail
+                          </span>
+                        )}
                         {e.status === "SUSPENDED" && (
                           <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-200">
                             Suspensa
