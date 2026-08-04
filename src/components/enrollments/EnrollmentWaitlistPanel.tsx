@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import type { ApiResponse } from "@/lib/api-types";
 import { formatDateOnly, formatDateTime } from "@/lib/format";
+import { formatEnrollmentClassGroupOptionLabel } from "@/lib/turma-display";
 
 type StudentOpt = { id: string; name: string; email: string | null };
 type ClassGroupOpt = {
@@ -17,6 +18,8 @@ type ClassGroupOpt = {
   startDate: string;
   startTime: string;
   endTime: string;
+  daysOfWeek?: string[];
+  location?: string | null;
   status?: string;
   course: { name: string };
 };
@@ -35,16 +38,6 @@ type WaitlistRow = {
     capacity: number;
     activeEnrollments: number;
   };
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  PLANEJADA: "Planejada",
-  ABERTA: "Aberta",
-  EM_ANDAMENTO: "Em andamento",
-  ENCERRADA: "Encerrada",
-  CANCELADA: "Cancelada",
-  INTERNO: "Interno",
-  EXTERNO: "Externo",
 };
 
 function isClassGroupFull(cg: ClassGroupOpt): boolean {
@@ -335,16 +328,11 @@ export function EnrollmentWaitlistPanel({
               <option value="">
                 {fullClassGroups.length === 0 ? "Nenhuma turma lotada no momento" : "Selecione"}
               </option>
-              {fullClassGroups.map((cg) => {
-                const cap = cg.capacity ?? 0;
-                const count = cg.enrollmentsCount ?? 0;
-                return (
-                  <option key={cg.id} value={cg.id}>
-                    {cg.course.name} — {STATUS_LABEL[cg.status ?? ""] ?? cg.status ?? "—"} — Início{" "}
-                    {formatDateOnly(cg.startDate)} — ({count}/{cap} vagas) — Lotada
-                  </option>
-                );
-              })}
+              {fullClassGroups.map((cg) => (
+                <option key={cg.id} value={cg.id}>
+                  {formatEnrollmentClassGroupOptionLabel(cg, formatDateOnly)}
+                </option>
+              ))}
             </select>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
               Só aparecem turmas sem vagas disponíveis.

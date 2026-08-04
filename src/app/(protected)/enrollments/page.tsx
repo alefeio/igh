@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
-import { formatClassGroupTurmaLine } from "@/lib/turma-display";
+import { formatClassGroupTurmaLine, formatDaysOrderedPt, formatEnrollmentClassGroupOptionLabel } from "@/lib/turma-display";
 import { isExactMaster, isMasterOrGeneralAdmin } from "@/lib/rbac";
 
 const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
@@ -31,25 +31,6 @@ const ENROLLMENT_STATUS_TONE: Record<string, "zinc" | "green" | "red" | "blue" |
   CANCELLED: "red",
   COMPLETED: "blue",
 };
-
-const DAY_ORDER = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"] as const;
-
-function formatDaysOrderedPt(days: string[] | undefined | null): string {
-  const raw = Array.isArray(days) ? days : [];
-  const normalized = raw
-    .map((d) => String(d ?? "").trim().toUpperCase())
-    .filter(Boolean);
-  if (normalized.length === 0) return "";
-
-  // Dedupe mantendo valores válidos
-  const unique = Array.from(new Set(normalized));
-  const idx = (d: string) => {
-    const i = DAY_ORDER.indexOf(d as (typeof DAY_ORDER)[number]);
-    return i >= 0 ? i : 999;
-  };
-  const sorted = [...unique].sort((a, b) => idx(a) - idx(b) || a.localeCompare(b, "pt-BR"));
-  return sorted.join(", ");
-}
 
 /** Normaliza string removendo acentos: permite digitar "Jose" e encontrar "José". */
 function normalizeForSearch(value: string): string {
@@ -2009,19 +1990,9 @@ export default function EnrollmentsPage() {
                   const count = cg.enrollmentsCount ?? 0;
                   const isFull = cap > 0 && count >= cap;
                   const disabled = !canOverrideEnrollment && isFull;
-                  const label = [
-                    cg.course.name,
-                    CLASS_GROUP_STATUS_OPTIONS.find((option) => option.value === cg.status)?.label ?? cg.status,
-                    `Início ${formatDateOnly(cg.startDate)}`,
-                    `${cg.startTime}-${cg.endTime}`,
-                    Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? formatDaysOrderedPt(cg.daysOfWeek) : null,
-                    cg.location || null,
-                  ]
-                    .filter(Boolean)
-                    .join(" — ");
                   return (
                     <option key={cg.id} value={cg.id} disabled={disabled}>
-                      {label} — ({count} / {cap || "—"} vagas){isFull ? " — Lotada" : ""}
+                      {formatEnrollmentClassGroupOptionLabel(cg, formatDateOnly)}
                     </option>
                   );
                 })}
@@ -2069,19 +2040,9 @@ export default function EnrollmentsPage() {
                     const count = cg.enrollmentsCount ?? 0;
                     const isFull = cap > 0 && count >= cap;
                     const disabled = !canOverrideEnrollment && !isCurrent && isFull;
-                    const label = [
-                      cg.course.name,
-                      CLASS_GROUP_STATUS_OPTIONS.find((option) => option.value === cg.status)?.label ?? cg.status,
-                      `Início ${formatDateOnly(cg.startDate)}`,
-                      `${cg.startTime}-${cg.endTime}`,
-                      Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? formatDaysOrderedPt(cg.daysOfWeek) : null,
-                      cg.location || null,
-                    ]
-                      .filter(Boolean)
-                      .join(" — ");
                     return (
                       <option key={cg.id} value={cg.id} disabled={disabled}>
-                        {label} — ({count} / {cap || "—"} vagas){isFull ? " — Lotada" : ""}
+                        {formatEnrollmentClassGroupOptionLabel(cg, formatDateOnly)}
                       </option>
                     );
                   });
