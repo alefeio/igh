@@ -21,7 +21,7 @@ export async function GET(_req: Request, ctx: RouteCtx) {
     orderBy: { attemptNumber: "desc" },
     include: {
       questions: { orderBy: { order: "asc" } },
-      answers: { select: { attemptQuestionId: true, selectedOptionId: true } },
+      answers: { select: { attemptQuestionId: true, selectedOptionId: true, correct: true } },
     },
   });
 
@@ -32,7 +32,7 @@ export async function GET(_req: Request, ctx: RouteCtx) {
         where: { id: attempt.id },
         include: {
           questions: { orderBy: { order: "asc" } },
-          answers: { select: { attemptQuestionId: true, selectedOptionId: true } },
+          answers: { select: { attemptQuestionId: true, selectedOptionId: true, correct: true } },
         },
       });
     }
@@ -54,7 +54,7 @@ export async function GET(_req: Request, ctx: RouteCtx) {
       startBlockedReason: startCheck.ok ? null : startCheck.reason,
     },
     attempt: attempt
-      ? serializeAttemptForStudent(attempt, exam)
+      ? await serializeAttemptForStudent(attempt, exam)
       : null,
   });
 }

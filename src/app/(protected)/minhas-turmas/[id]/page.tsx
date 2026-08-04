@@ -398,14 +398,30 @@ export default function MinhasTurmasDetailPage() {
                             ? "Disponível"
                             : "Indisponível"}
                     </span>
-                    {(ex.canStart || ex.attemptStatus === "IN_PROGRESS") && (
+                    {ex.attemptStatus === "IN_PROGRESS" ? (
                       <Link
                         href={`/minhas-turmas/${e.id}/prova/${ex.id}`}
                         className="text-sm font-medium text-[var(--igh-primary)] hover:underline"
                       >
-                        {ex.attemptStatus === "IN_PROGRESS" ? "Continuar prova" : "Fazer prova"}
+                        Continuar prova
                       </Link>
-                    )}
+                    ) : ex.attemptStatus === "SUBMITTED" ||
+                      ex.attemptStatus === "ABANDONED" ||
+                      ex.attemptStatus === "EXPIRED" ? (
+                      <Link
+                        href={`/minhas-turmas/${e.id}/prova/${ex.id}`}
+                        className="text-sm font-medium text-[var(--igh-primary)] hover:underline"
+                      >
+                        Ver prova
+                      </Link>
+                    ) : ex.canStart ? (
+                      <Link
+                        href={`/minhas-turmas/${e.id}/prova/${ex.id}`}
+                        className="text-sm font-medium text-[var(--igh-primary)] hover:underline"
+                      >
+                        Fazer prova
+                      </Link>
+                    ) : null}
                   </li>
                 ))}
               </ul>

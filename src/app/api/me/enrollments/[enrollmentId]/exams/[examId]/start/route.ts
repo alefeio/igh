@@ -25,7 +25,7 @@ export async function POST(_req: Request, ctx: RouteCtx) {
       },
     });
     if (!full) return jsonErr("INTERNAL_ERROR", "Falha ao iniciar.", 500);
-    return jsonOk({ attempt: serializeAttemptForStudent(full, exam) });
+    return jsonOk({ attempt: await serializeAttemptForStudent(full, exam) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Não foi possível iniciar.";
     return jsonErr("FORBIDDEN", msg, 403);

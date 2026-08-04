@@ -133,7 +133,7 @@ export async function createExamAttempt(examId: string, enrollmentId: string) {
   return attempt;
 }
 
-export function serializeAttemptForStudent(
+export async function serializeAttemptForStudent(
   attempt: {
     id: string;
     status: string;
@@ -143,14 +143,42 @@ export function serializeAttemptForStudent(
     scorePercent: number | null;
     correctCount: number | null;
     totalQuestions: number | null;
-    questions: { id: string; order: number; questionText: string; optionsJson: unknown }[];
-    answers?: { attemptQuestionId: string; selectedOptionId: string | null }[];
+    questions: {
+      id: string;
+      order: number;
+      questionText: string;
+      optionsJson: unknown;
+      exerciseId: string;
+      correctOptionId: string;
+    }[];
+    answers?: {
+      attemptQuestionId: string;
+      selectedOptionId: string | null;
+      correct?: boolean | null;
+    }[];
   },
   exam: { title: string; instructions: string | null; showScoreAfterSubmit: boolean }
 ) {
   const now = new Date();
   const remainingSeconds = Math.ceil(remainingMs(attempt.expiresAt, now) / 1000);
   const finished = attempt.status !== "IN_PROGRESS";
+  const answerByQ = new Map(
+    (attempt.answers ?? []).map((a) => [a.attemptQuestionId, a])
+  );
+
+  let justificationByExercise = new Map<string, string | null>();
+  if (finished) {
+    const exerciseIds = [...new Set(attempt.questions.map((q) => q.exerciseId))];
+    if (exerciseIds.length > 0) {
+      const exercises = await prisma.courseLessonExercise.findMany({
+        where: { id: { in: exerciseIds } },
+        select: { id: true, answerJustification: true },
+      });
+      justificationByExercise = new Map(
+        exercises.map((e) => [e.id, e.answerJustification])
+      );
+    }
+  }
 
   return {
     attemptId: attempt.id,
@@ -159,14 +187,39 @@ export function serializeAttemptForStudent(
     expiresAt: attempt.expiresAt.toISOString(),
     exam: { title: exam.title, instructions: exam.instructions },
     questions: finished
-      ? []
+      ? attempt.questions.map((q) => {
+          const opts = (
+            q.optionsJson as { id: string; text: string; order: number }[]
+          )
+            .slice()
+            .sort((a, b) => a.order - b.order);
+          const ans = answerByQ.get(q.id);
+          const selectedOptionId = ans?.selectedOptionId ?? null;
+          const isCorrect =
+            ans?.correct ??
+            (selectedOptionId != null && selectedOptionId === q.correctOptionId);
+          return {
+            id: q.id,
+            order: q.order,
+            questionText: q.questionText,
+            options: opts.map((o) => ({
+              id: o.id,
+              text: o.text,
+              order: o.order,
+              isCorrect: o.id === q.correctOptionId,
+              isSelected: o.id === selectedOptionId,
+            })),
+            selectedOptionId,
+            isCorrect,
+            answerJustification: justificationByExercise.get(q.exerciseId) ?? null,
+          };
+        })
       : attempt.questions.map((q) => ({
           id: q.id,
           order: q.order,
           questionText: q.questionText,
           options: q.optionsJson as { id: string; text: string; order: number }[],
-          selectedOptionId:
-            attempt.answers?.find((a) => a.attemptQuestionId === q.id)?.selectedOptionId ?? null,
+          selectedOptionId: answerByQ.get(q.id)?.selectedOptionId ?? null,
         })),
     result:
       finished && exam.showScoreAfterSubmit

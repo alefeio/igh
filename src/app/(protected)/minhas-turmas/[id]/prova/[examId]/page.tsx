@@ -20,12 +20,22 @@ type ExamInfo = {
   startBlockedReason: string | null;
 };
 
+type QuestionOption = {
+  id: string;
+  text: string;
+  order: number;
+  isCorrect?: boolean;
+  isSelected?: boolean;
+};
+
 type Question = {
   id: string;
   order: number;
   questionText: string;
-  options: { id: string; text: string; order: number }[];
+  options: QuestionOption[];
   selectedOptionId?: string | null;
+  isCorrect?: boolean;
+  answerJustification?: string | null;
 };
 
 type AttemptState = {
@@ -259,19 +269,102 @@ export default function StudentExamPage() {
 
   if (finished && attempt) {
     return (
-      <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-6 p-6 sm:p-10">
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Prova encerrada</h1>
-        {attempt.result?.scorePercent != null ? (
-          <p className="text-lg text-[var(--text-secondary)]">
-            Você acertou <strong>{attempt.result.correctCount}</strong> de{" "}
-            <strong>{attempt.result.totalQuestions}</strong> ({attempt.result.scorePercent}%).
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 p-6 sm:p-10">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Prova realizada
           </p>
-        ) : (
-          <p className="text-sm text-[var(--text-muted)]">Suas respostas foram registradas.</p>
-        )}
-        <Button variant="secondary" onClick={() => router.push(`/minhas-turmas/${enrollmentId}`)}>
-          Voltar à turma
-        </Button>
+          <h1 className="mt-1 text-2xl font-bold text-[var(--text-primary)]">{attempt.exam.title}</h1>
+          {attempt.result?.scorePercent != null ? (
+            <p className="mt-3 text-lg text-[var(--text-secondary)]">
+              Você acertou <strong>{attempt.result.correctCount}</strong> de{" "}
+              <strong>{attempt.result.totalQuestions}</strong> ({attempt.result.scorePercent}%).
+            </p>
+          ) : (
+            <p className="mt-3 text-sm text-[var(--text-muted)]">
+              Confira abaixo suas respostas, os acertos e as justificativas.
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          {attempt.questions.map((q, idx) => (
+            <div
+              key={q.id}
+              className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 sm:p-5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-[var(--text-muted)]">Questão {idx + 1}</p>
+                <span
+                  className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
+                    q.isCorrect
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                      : "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300"
+                  }`}
+                >
+                  {q.selectedOptionId == null
+                    ? "Sem resposta"
+                    : q.isCorrect
+                      ? "Acertou"
+                      : "Errou"}
+                </span>
+              </div>
+              <p className="mt-2 text-base font-medium text-[var(--text-primary)]">{q.questionText}</p>
+              <ul className="mt-4 flex flex-col gap-2">
+                {q.options.map((opt, optIdx) => {
+                  const correct = Boolean(opt.isCorrect);
+                  const selected = Boolean(opt.isSelected);
+                  let className =
+                    "w-full rounded-lg border px-3 py-2.5 text-left text-sm border-[var(--card-border)] text-[var(--text-secondary)]";
+                  if (correct) {
+                    className =
+                      "w-full rounded-lg border px-3 py-2.5 text-left text-sm border-emerald-500/60 bg-emerald-500/15 font-medium text-[var(--text-primary)]";
+                  } else if (selected) {
+                    className =
+                      "w-full rounded-lg border px-3 py-2.5 text-left text-sm border-red-500/60 bg-red-500/10 font-medium text-[var(--text-primary)]";
+                  }
+                  return (
+                    <li key={opt.id} className={className}>
+                      <span className="font-semibold">{examOptionLabel(optIdx)} </span>
+                      <span>{opt.text}</span>
+                      {correct ? (
+                        <span className="ml-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          (correta)
+                        </span>
+                      ) : null}
+                      {selected && !correct ? (
+                        <span className="ml-2 text-xs font-semibold text-red-700 dark:text-red-300">
+                          (sua resposta)
+                        </span>
+                      ) : null}
+                      {selected && correct ? (
+                        <span className="ml-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          (sua resposta)
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+              {q.answerJustification?.trim() ? (
+                <div className="mt-3 rounded-lg border border-[var(--igh-primary)]/25 bg-[var(--igh-primary)]/5 px-3 py-2.5 text-sm text-[var(--text-secondary)]">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--igh-primary)]">
+                    Justificativa
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap leading-relaxed">
+                    {q.answerJustification.trim()}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+
+        <div className="pb-8">
+          <Button variant="secondary" onClick={() => router.push(`/minhas-turmas/${enrollmentId}`)}>
+            Voltar à turma
+          </Button>
+        </div>
       </div>
     );
   }

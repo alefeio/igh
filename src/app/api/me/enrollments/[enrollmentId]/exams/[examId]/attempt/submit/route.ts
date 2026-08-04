@@ -60,9 +60,12 @@ export async function POST(request: Request, ctx: RouteCtx) {
 
   const full = await prisma.classGroupExamAttempt.findUnique({
     where: { id: attempt.id },
-    include: { questions: { orderBy: { order: "asc" } } },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      answers: { select: { attemptQuestionId: true, selectedOptionId: true, correct: true } },
+    },
   });
   if (!full) return jsonErr("INTERNAL_ERROR", "Falha ao carregar resultado.", 500);
 
-  return jsonOk({ attempt: serializeAttemptForStudent(full, exam) });
+  return jsonOk({ attempt: await serializeAttemptForStudent(full, exam) });
 }
