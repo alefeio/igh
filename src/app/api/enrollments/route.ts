@@ -148,11 +148,20 @@ export async function POST(request: Request) {
 
   const canOverrideEnrollmentRules =
     user.role === "MASTER" || user.role === "GENERAL_ADMIN";
-  if (classGroup.status === "INTERNO" && !canOverrideEnrollmentRules) {
-    return jsonErr("FORBIDDEN", "Apenas Master ou Coordenador podem matricular alunos em turmas com status Interno.", 403);
+  const canUseInternoExterno =
+    canOverrideEnrollmentRules || user.role === "POLO_COORDINATOR";
+
+  if ((classGroup.status === "INTERNO" || classGroup.status === "EXTERNO") && !canUseInternoExterno) {
+    return jsonErr(
+      "FORBIDDEN",
+      "Apenas Master, Administrador Geral ou Coordenador de Polos podem matricular em turmas Interno/Externo.",
+      403,
+    );
   }
-  // Em turmas EXTERNO: Admin e Master podem matricular (não é inscrição pública).
-  if (!canOverrideEnrollmentRules && !["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "EXTERNO"].includes(classGroup.status)) {
+  const statusesPermitidos = canUseInternoExterno
+    ? ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "INTERNO", "EXTERNO"]
+    : ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"];
+  if (!statusesPermitidos.includes(classGroup.status)) {
     return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
   }
   if (!canOverrideEnrollmentRules) {

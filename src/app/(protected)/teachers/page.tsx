@@ -45,9 +45,28 @@ type Teacher = {
   units: TeacherUnit[];
 };
 
+type EligibleUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  phone: string | null;
+  birthDate: string | null;
+};
+
 type StatusFilter = "active" | "inactive" | "all";
 
 const ALL_UNITS = "";
+
+const ROLE_LABEL: Record<string, string> = {
+  MASTER: "Master",
+  GENERAL_ADMIN: "Administrador Geral",
+  ADMIN: "Administrador Pedagógico",
+  SITE_ADMIN: "Administrador Site",
+  POLO_COORDINATOR: "Coordenador de Polos",
+  TEACHER: "Professor",
+  STUDENT: "Aluno",
+};
 
 /** "Belém | Unidade 14 de Abril" quando o polo é conhecido; só a unidade quando não é. */
 function unitLabel(unit: TeacherUnit): string {
@@ -73,10 +92,17 @@ export default function TeachersPage() {
   const [photoUrl, setPhotoUrl] = useState("");
   const [signatureUrl, setSignatureUrl] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [eligibleUsers, setEligibleUsers] = useState<EligibleUser[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [loadingEligibleUsers, setLoadingEligibleUsers] = useState(false);
+
+  const linkingExistingUser = !editing && Boolean(selectedUserId);
 
   const canSubmit = useMemo(() => {
+    if (editing) return name.trim().length >= 2 && email.trim().length > 0;
+    if (linkingExistingUser) return true;
     return name.trim().length >= 2 && email.trim().length > 0;
-  }, [name, email]);
+  }, [editing, linkingExistingUser, name, email]);
 
   /** Opções do filtro: todas as unidades presentes na lista carregada. */
   const unitOptions = useMemo(() => {
@@ -103,15 +129,30 @@ export default function TeachersPage() {
     setSignatureUrl("");
     setIsActive(true);
     setEditing(null);
+    setSelectedUserId("");
+  }
+
+  async function loadEligibleUsers() {
+    setLoadingEligibleUsers(true);
+    try {
+      const res = await fetch("/api/teachers/eligible-users");
+      const json = await parseResponseJson<{ users: EligibleUser[] }>(res);
+      if (res.ok && json?.ok) setEligibleUsers(json.data.users);
+      else setEligibleUsers([]);
+    } finally {
+      setLoadingEligibleUsers(false);
+    }
   }
 
   function openCreate() {
     resetForm();
     setOpen(true);
+    void loadEligibleUsers();
   }
 
   function openEdit(t: Teacher) {
     setEditing(t);
+    setSelectedUserId("");
     setName(t.name);
     setEmail(t.email ?? "");
     setPhone(t.phone ?? "");
@@ -120,6 +161,23 @@ export default function TeachersPage() {
     setSignatureUrl(t.signatureUrl ?? "");
     setIsActive(t.isActive);
     setOpen(true);
+  }
+
+  function onSelectExistingUser(userId: string) {
+    setSelectedUserId(userId);
+    if (!userId) {
+      setName("");
+      setEmail("");
+      setPhone("");
+      setBirthDate("");
+      return;
+    }
+    const u = eligibleUsers.find((x) => x.id === userId);
+    if (!u) return;
+    setName(u.name);
+    setEmail(u.email);
+    setPhone(u.phone ?? "");
+    setBirthDate(u.birthDate ?? "");
   }
 
   async function load() {
@@ -148,16 +206,25 @@ export default function TeachersPage() {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || undefined,
-        birthDate: birthDate.trim() || "",
         isActive,
       };
       if (editing) {
+        payload.name = name.trim();
+        payload.email = email.trim();
+        payload.phone = phone.trim() || undefined;
+        payload.birthDate = birthDate.trim() || "";
         payload.photoUrl = photoUrl.trim();
         payload.signatureUrl = signatureUrl.trim();
+      } else if (linkingExistingUser) {
+        payload.userId = selectedUserId;
+        if (photoUrl.trim()) payload.photoUrl = photoUrl.trim();
+        if (signatureUrl.trim()) payload.signatureUrl = signatureUrl.trim();
+        if (phone.trim()) payload.phone = phone.trim();
       } else {
+        payload.name = name.trim();
+        payload.email = email.trim();
+        payload.phone = phone.trim() || undefined;
+        payload.birthDate = birthDate.trim() || "";
         if (photoUrl.trim()) payload.photoUrl = photoUrl.trim();
         if (signatureUrl.trim()) payload.signatureUrl = signatureUrl.trim();
       }
@@ -402,38 +469,78 @@ export default function TeachersPage() {
         onClose={() => { setOpen(false); resetForm(); }}
       >
         <form className="flex flex-col gap-3" onSubmit={save}>
-          <div>
-            <label className="text-sm font-medium">Nome</label>
-            <div className="mt-1">
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium">E-mail</label>
-            <div className="mt-1">
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
-            </div>
-            {!editing && (
+          {!editing && (
+            <div>
+              <label className="text-sm font-medium">Usuário existente</label>
+              <select
+                value={selectedUserId}
+                onChange={(e) => onSelectExistingUser(e.target.value)}
+                className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
+                disabled={loadingEligibleUsers}
+              >
+                <option value="">
+                  {loadingEligibleUsers
+                    ? "Carregando usuários…"
+                    : "Não vincular — criar novo usuário abaixo"}
+                </option>
+                {eligibleUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.email}) — {ROLE_LABEL[u.role] ?? u.role}
+                  </option>
+                ))}
+              </select>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Um mesmo usuário pode ter vários perfis. Se o e-mail já existir como <strong>aluno</strong> ou <strong>admin</strong>, o perfil de professor será vinculado (a pessoa poderá acessar como Professor) e nenhuma senha será enviada. E-mail novo: senha temporária será enviada por e-mail.
+                Usuários já cadastrados em /users que ainda não são professores. Ao selecionar um, o
+                formulário de criação some.
               </p>
-            )}
-          </div>
-          <div>
-            <label className="text-sm font-medium">Telefone (opcional)</label>
-            <div className="mt-1">
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium">Data de nascimento</label>
-            <div className="mt-1">
-              <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+          )}
+
+          {!linkingExistingUser && (
+            <>
+              <div>
+                <label className="text-sm font-medium">Nome</label>
+                <div className="mt-1">
+                  <Input value={name} onChange={(e) => setName(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">E-mail</label>
+                <div className="mt-1">
+                  <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+                </div>
+                {!editing && (
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">
+                    Se o e-mail já existir, o perfil de professor será vinculado a essa conta. E-mail
+                    novo: senha temporária será enviada por e-mail.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium">Telefone (opcional)</label>
+                <div className="mt-1">
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Data de nascimento</label>
+                <div className="mt-1">
+                  <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+                </div>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  Usada para e-mail e notificação de aniversário.
+                </p>
+              </div>
+            </>
+          )}
+
+          {linkingExistingUser && (
+            <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)]/40 px-3 py-2 text-sm text-[var(--text-secondary)]">
+              Vincular como professor:{" "}
+              <strong className="text-[var(--text-primary)]">{name}</strong> ({email})
             </div>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Usada para e-mail e notificação de aniversário.
-            </p>
-          </div>
+          )}
+
           <div>
             <label className="text-sm font-medium">Foto (opcional)</label>
             <Input

@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
-import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 import { formatClassGroupTurmaLine } from "@/lib/turma-display";
 import { isExactMaster, isMasterOrGeneralAdmin } from "@/lib/rbac";
 
@@ -32,9 +31,6 @@ const ENROLLMENT_STATUS_TONE: Record<string, "zinc" | "green" | "red" | "blue" |
   CANCELLED: "red",
   COMPLETED: "blue",
 };
-
-const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-const ALLOWED_CERT_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
 
 const DAY_ORDER = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"] as const;
 
@@ -108,27 +104,12 @@ const CLASS_GROUP_STATUS_OPTIONS = [
   { value: "EXTERNO", label: "Externo" },
 ] as const;
 
-const DEFAULT_ENROLLMENT_CLASS_GROUP_STATUSES = [
-  "PLANEJADA",
-  "ABERTA",
-  "EM_ANDAMENTO",
-  "INTERNO",
-  "EXTERNO",
-];
-
-/** Status que sempre devem aparecer no modal de nova matrícula (mesmo com preferência antiga no navegador). */
-const REQUIRED_ENROLLMENT_CLASS_GROUP_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
-
 const DEFAULT_CLASS_GROUP_STATUS_FILTERS = [
   "PLANEJADA",
   "EM_ANDAMENTO",
   "ENCERRADA",
   "EXTERNO",
 ];
-
-function mergeRequiredEnrollmentStatuses(statuses: string[]): string[] {
-  return Array.from(new Set([...REQUIRED_ENROLLMENT_CLASS_GROUP_STATUSES, ...statuses]));
-}
 
 function haveSameValues(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value) => right.includes(value));
@@ -250,7 +231,8 @@ export default function EnrollmentsPage() {
   const toast = useToast();
   const isMaster = isMasterOrGeneralAdmin(user);
   const isPoloCoordinator = user.role === "POLO_COORDINATOR";
-  const canOverrideEnrollment = isMaster || user.role === "ADMIN";
+  /** Só Master / Admin Geral: matricular em turma lotada e acessar Interno/Externo. */
+  const canOverrideEnrollment = isMaster;
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Enrollment[]>([]);
   const [open, setOpen] = useState(false);
@@ -258,15 +240,12 @@ export default function EnrollmentsPage() {
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(null);
   const [editStatus, setEditStatus] = useState("ACTIVE");
   const [editClassGroupId, setEditClassGroupId] = useState("");
-  const [editCertFile, setEditCertFile] = useState<File | null>(null);
-  const [editRemovingCert, setEditRemovingCert] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [allClassGroups, setAllClassGroups] = useState<ClassGroup[]>([]);
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [studentId, setStudentId] = useState("");
   const [classGroupId, setClassGroupId] = useState("");
-  const [createCertFile, setCreateCertFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -317,11 +296,6 @@ export default function EnrollmentsPage() {
   const [cycleFilterIds, setCycleFilterIds] = useState<string[]>([]);
   const cycleFilterInitializedRef = useRef(false);
   const [filtersHydrated, setFiltersHydrated] = useState(false);
-  /** No modal de matrícula (Master/Coord): incluir turmas de ciclos não visíveis, se marcados. */
-  const [extraModalCycleIds, setExtraModalCycleIds] = useState<string[]>([]);
-  const [modalClassGroupStatuses, setModalClassGroupStatuses] = useState<string[]>(
-    () => mergeRequiredEnrollmentStatuses([...DEFAULT_ENROLLMENT_CLASS_GROUP_STATUSES])
-  );
   const [showTeacherDetails, setShowTeacherDetails] = useState(false);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
   const toggleCourseDetails = useCallback((courseId: string) => {
@@ -334,7 +308,6 @@ export default function EnrollmentsPage() {
   }, []);
 
   const filtersStorageKey = `enrollments:filters:v1:${user.id}`;
-  const modalStatusStorageKey = `enrollments:new-statuses:v2:${user.id}`;
 
   useEffect(() => {
     try {
@@ -372,19 +345,12 @@ export default function EnrollmentsPage() {
           setPageSize(saved.pageSize!);
         }
       }
-
-      const savedStatuses = JSON.parse(
-        localStorage.getItem(modalStatusStorageKey) ?? "null"
-      ) as string[] | null;
-      if (Array.isArray(savedStatuses)) {
-        setModalClassGroupStatuses(mergeRequiredEnrollmentStatuses(savedStatuses));
-      }
     } catch {
       // Mantém os padrões quando o armazenamento estiver indisponível ou inválido.
     } finally {
       setFiltersHydrated(true);
     }
-  }, [filtersStorageKey, modalStatusStorageKey]);
+  }, [filtersStorageKey]);
 
   useEffect(() => {
     if (!filtersHydrated) return;
@@ -419,15 +385,6 @@ export default function EnrollmentsPage() {
     statusFilterState,
     turmaFilterIds,
   ]);
-
-  useEffect(() => {
-    if (!filtersHydrated) return;
-    try {
-      localStorage.setItem(modalStatusStorageKey, JSON.stringify(modalClassGroupStatuses));
-    } catch {
-      // Armazenamento pode estar indisponível em navegação privada.
-    }
-  }, [filtersHydrated, modalClassGroupStatuses, modalStatusStorageKey]);
 
   async function load() {
     setLoading(true);
@@ -479,10 +436,9 @@ export default function EnrollmentsPage() {
   const modalCycleIds = useMemo(() => {
     // Coordenador de polo: todas as turmas do polo (API já escopa), em qualquer ciclo.
     if (isPoloCoordinator) return cycles.map((c) => c.id);
-    const base = visibleCycleIds;
-    if (!canOverrideEnrollment) return base;
-    return Array.from(new Set([...base, ...extraModalCycleIds]));
-  }, [visibleCycleIds, extraModalCycleIds, canOverrideEnrollment, isPoloCoordinator, cycles]);
+    // Demais perfis: só ciclos visíveis para matrículas (sem ciclos anteriores).
+    return visibleCycleIds;
+  }, [visibleCycleIds, isPoloCoordinator, cycles]);
 
   const classGroupsForModal = useMemo(() => {
     if (isPoloCoordinator) {
@@ -503,30 +459,22 @@ export default function EnrollmentsPage() {
       cg.status === "EM_ANDAMENTO";
     const isInterno = cg.status === "INTERNO";
     const isExterno = cg.status === "EXTERNO";
-    if (canOverrideEnrollment) return true;
-    // Coordenador de polo: enxerga todas as turmas do polo aptas a matrícula (inclui interno/externo).
+    // Master / Admin Geral: padrão + interno/externo (não Encerrada/Cancelada).
+    if (canOverrideEnrollment) {
+      return permiteMatriculaPadrao || isInterno || isExterno;
+    }
+    // Coordenador de polo: turmas do polo aptas a matrícula (inclui interno/externo).
     if (isPoloCoordinator) {
       return permiteMatriculaPadrao || isInterno || isExterno;
     }
-    const canSeeExterno = user?.role === "ADMIN" || isMaster;
-    return (
-      permiteMatriculaPadrao ||
-      (canOverrideEnrollment && isInterno) ||
-      (canSeeExterno && isExterno)
-    );
+    // Admin pedagógico: só Planejada, Aberta e Em andamento.
+    return permiteMatriculaPadrao;
   }
 
   const filteredClassGroupsForModal = useMemo(
-    () =>
-      classGroupsForModal.filter(
-        (cg) =>
-          isClassGroupSelectableForEnrollment(cg) &&
-          !!cg.status &&
-          modalClassGroupStatuses.includes(cg.status)
-      ),
-    // A função depende apenas dos papéis já incluídos no ciclo de renderização.
+    () => classGroupsForModal.filter((cg) => isClassGroupSelectableForEnrollment(cg)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [classGroupsForModal, modalClassGroupStatuses, canOverrideEnrollment, isPoloCoordinator, user.role]
+    [classGroupsForModal, canOverrideEnrollment, isPoloCoordinator, user.role]
   );
 
   useEffect(() => {
@@ -998,8 +946,6 @@ export default function EnrollmentsPage() {
     setClassGroupId("");
     setStudentSearchQuery("");
     setStudentDropdownOpen(false);
-    setCreateCertFile(null);
-    setExtraModalCycleIds([]);
     setOpen(true);
     void loadFormOptions();
   }
@@ -1008,15 +954,6 @@ export default function EnrollmentsPage() {
     setEditingEnrollment(e);
     setEditStatus(e.status);
     setEditClassGroupId(e.classGroup.id);
-    setEditCertFile(null);
-    setEditRemovingCert(false);
-    // Se a matrícula atual estiver em ciclo não visível, inclui por padrão para o select não "sumir".
-    const currentCycleId =
-      (e.classGroup as unknown as { cycleId?: string; cycle?: { id: string; isVisibleForEnrollments?: boolean } }).cycleId ??
-      e.classGroup.cycle?.id ??
-      "";
-    const isCurrentVisible = e.classGroup.cycle?.isVisibleForEnrollments !== false;
-    setExtraModalCycleIds(!isCurrentVisible && currentCycleId ? [currentCycleId] : []);
     setEditOpen(true);
     void loadFormOptions();
   }
@@ -1049,50 +986,6 @@ export default function EnrollmentsPage() {
     setWaitlistReloadToken((n) => n + 1);
   }
 
-  async function uploadCertificateForEnrollment(
-    enrollmentId: string,
-    file: File
-  ): Promise<{ url: string; publicId: string; fileName: string } | null> {
-    if (file.size > MAX_FILE_BYTES) {
-      toast.push("error", "Arquivo deve ter no máximo 5MB.");
-      return null;
-    }
-    if (!ALLOWED_CERT_TYPES.includes(file.type)) {
-      toast.push("error", "Use PDF ou imagem (JPEG, PNG).");
-      return null;
-    }
-    const signRes = await fetch("/api/uploads/apimages-signature", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enrollmentId }),
-    });
-    const signJson = (await signRes.json()) as ApiResponse<{
-      uploadUrl: string;
-      apiKey: string;
-    }>;
-    if (!signRes.ok || !signJson.ok) {
-      toast.push("error", "Falha ao obter permissão de upload.");
-      return null;
-    }
-    const { uploadUrl, apiKey } = signJson.data;
-    const formData = buildApimagesUploadFormData(file);
-    const uploadRes = await fetch(uploadUrl, {
-      method: "POST",
-      headers: apimagesUploadHeaders(apiKey),
-      body: formData,
-    });
-    const cloudResult = parseApimagesUploadJson(await uploadRes.json());
-    if (!uploadRes.ok || !cloudResult.url || !cloudResult.publicId) {
-      toast.push("error", cloudResult.errorMessage ?? "Falha no upload.");
-      return null;
-    }
-    return {
-      url: cloudResult.url,
-      publicId: cloudResult.publicId,
-      fileName: cloudResult.originalFilename ?? file.name,
-    };
-  }
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!studentId || !classGroupId || submitting) return;
@@ -1117,23 +1010,8 @@ export default function EnrollmentsPage() {
         toast.push("error", !json?.ok && json && "error" in json ? json.error.message : "Falha ao matricular.");
         return;
       }
-      const created = json.data.enrollment;
       const emailSent = json.data.emailSent;
       const studentHadNoEmail = json.data.studentHadNoEmail;
-      if (createCertFile) {
-        const up = await uploadCertificateForEnrollment(created.id, createCertFile);
-        if (up) {
-          await fetch(`/api/enrollments/${created.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              certificateUrl: up.url,
-              certificatePublicId: up.publicId,
-              certificateFileName: up.fileName,
-            }),
-          });
-        }
-      }
       toast.push(
         "success",
         emailSent
@@ -1154,23 +1032,11 @@ export default function EnrollmentsPage() {
     if (!editingEnrollment || editSubmitting) return;
     setEditSubmitting(true);
     try {
-      const body: { status: string; classGroupId?: string; certificateUrl?: string | null; certificatePublicId?: string | null; certificateFileName?: string | null } = {
+      const body: { status: string; classGroupId?: string } = {
         status: editStatus,
       };
       if (editClassGroupId && editClassGroupId !== editingEnrollment.classGroup.id) {
         body.classGroupId = editClassGroupId;
-      }
-      if (editRemovingCert) {
-        body.certificateUrl = null;
-        body.certificatePublicId = null;
-        body.certificateFileName = null;
-      } else if (editCertFile) {
-        const up = await uploadCertificateForEnrollment(editingEnrollment.id, editCertFile);
-        if (up) {
-          body.certificateUrl = up.url;
-          body.certificatePublicId = up.publicId;
-          body.certificateFileName = up.fileName;
-        }
       }
       const res = await fetch(`/api/enrollments/${editingEnrollment.id}`, {
         method: "PATCH",
@@ -2129,87 +1995,6 @@ export default function EnrollmentsPage() {
           {!studentId && (
             <p className="text-xs text-[var(--text-muted)]">Selecione um aluno da lista ao digitar.</p>
           )}
-          {canOverrideEnrollment && cycles.some((c) => !c.isVisibleForEnrollments) && (
-            <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)]/20 p-3">
-              <div className="text-sm font-medium text-[var(--text-primary)]">Incluir turmas de ciclos anteriores</div>
-              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                Por padrão, o select mostra só turmas de ciclos visíveis para matrículas. Marque abaixo para incluir também outros ciclos.
-              </p>
-              <div className="mt-2 flex flex-wrap gap-3">
-                {cycles
-                  .filter((c) => !c.isVisibleForEnrollments)
-                  .map((c) => {
-                    const checked = extraModalCycleIds.includes(c.id);
-                    return (
-                      <label key={c.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            const next = e.target.checked;
-                            setExtraModalCycleIds((prev) => {
-                              if (next) return prev.includes(c.id) ? prev : [...prev, c.id];
-                              return prev.filter((id) => id !== c.id);
-                            });
-                          }}
-                        />
-                        {`Ciclo ${c.cycle}/${c.year}`}
-                      </label>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-          <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)]/20 p-3">
-            <div className="text-sm font-medium text-[var(--text-primary)]">
-              Status das turmas
-            </div>
-            <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-              Marque os status que devem aparecer no campo Turma. Planejada, Aberta e Em andamento
-              ficam sempre disponíveis para matrícula. A seleção fica salva para seus próximos
-              cadastros.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
-              {CLASS_GROUP_STATUS_OPTIONS.map((option) => {
-                const checked = modalClassGroupStatuses.includes(option.value);
-                const required = (
-                  REQUIRED_ENROLLMENT_CLASS_GROUP_STATUSES as readonly string[]
-                ).includes(option.value);
-                return (
-                  <label
-                    key={option.value}
-                    className="flex items-center gap-2 text-sm text-[var(--text-secondary)]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={required}
-                      onChange={(event) => {
-                        setModalClassGroupStatuses((previous) => {
-                          const next = event.target.checked
-                            ? previous.includes(option.value)
-                              ? previous
-                              : [...previous, option.value]
-                            : previous.filter((status) => status !== option.value);
-                          return mergeRequiredEnrollmentStatuses(next);
-                        });
-                      }}
-                      className="h-4 w-4 accent-[var(--igh-primary)]"
-                    />
-                    {option.label}
-                    {required ? (
-                      <span className="text-[10px] text-[var(--text-muted)]">(sempre)</span>
-                    ) : null}
-                  </label>
-                );
-              })}
-            </div>
-            {modalClassGroupStatuses.length === 0 && (
-              <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-300">
-                Selecione pelo menos um status para listar turmas.
-              </p>
-            )}
-          </div>
           <div>
             <label className="text-sm font-medium">Turma</label>
             <select
@@ -2242,18 +2027,8 @@ export default function EnrollmentsPage() {
                 })}
             </select>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Inscritos / capacidade. Turmas lotadas só podem receber mais alunos se você for Master ou Coordenador.
+              Inscritos / capacidade. Turmas lotadas só podem receber mais alunos se você for Master ou Administrador Geral.
             </p>
-          </div>
-          <div>
-            <label className="text-sm font-medium">Certificado (opcional)</label>
-            <input
-              type="file"
-              accept=".pdf,image/jpeg,image/jpg,image/png"
-              className="mt-1 w-full text-sm"
-              onChange={(e) => setCreateCertFile(e.target.files?.[0] ?? null)}
-            />
-            <p className="mt-1 text-xs text-[var(--text-muted)]">PDF ou imagem, máx. 5MB.</p>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
@@ -2274,37 +2049,6 @@ export default function EnrollmentsPage() {
               <p className="mt-0.5 font-medium">{editingEnrollment.student.name}</p>
               <p className="text-xs text-[var(--text-muted)]">{editingEnrollment.student.email ?? "-"}</p>
             </div>
-            {canOverrideEnrollment && cycles.some((c) => !c.isVisibleForEnrollments) && (
-              <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)]/20 p-3">
-                <div className="text-sm font-medium text-[var(--text-primary)]">Incluir turmas de ciclos anteriores</div>
-                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                  Marque ciclos adicionais para incluir suas turmas no select (além dos ciclos visíveis para matrículas).
-                </p>
-                <div className="mt-2 flex flex-wrap gap-3">
-                  {cycles
-                    .filter((c) => !c.isVisibleForEnrollments)
-                    .map((c) => {
-                      const checked = extraModalCycleIds.includes(c.id);
-                      return (
-                        <label key={c.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              const next = e.target.checked;
-                              setExtraModalCycleIds((prev) => {
-                                if (next) return prev.includes(c.id) ? prev : [...prev, c.id];
-                                return prev.filter((id) => id !== c.id);
-                              });
-                            }}
-                          />
-                          {`Ciclo ${c.cycle}/${c.year}`}
-                        </label>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
             <div>
               <label className="text-sm font-medium">Turma</label>
               <select
@@ -2312,19 +2056,22 @@ export default function EnrollmentsPage() {
                 onChange={(e) => setEditClassGroupId(e.target.value)}
                 className="theme-input mt-1 w-full rounded border px-3 py-2 text-sm"
               >
-                {classGroupsForModal
-                  .filter((cg) => {
-                    const isCurrent = cg.id === editingEnrollment.classGroup.id;
-                    return isCurrent || isClassGroupSelectableForEnrollment(cg);
-                  })
-                  .map((cg) => {
-                    const isCurrent = cg.id === editingEnrollment.classGroup.id;
+                {(() => {
+                  const currentId = editingEnrollment.classGroup.id;
+                  const options = [...filteredClassGroupsForModal];
+                  if (!options.some((cg) => cg.id === currentId)) {
+                    const current = allClassGroups.find((cg) => cg.id === currentId);
+                    if (current) options.unshift(current);
+                  }
+                  return options.map((cg) => {
+                    const isCurrent = cg.id === currentId;
                     const cap = cg.capacity ?? 0;
                     const count = cg.enrollmentsCount ?? 0;
                     const isFull = cap > 0 && count >= cap;
                     const disabled = !canOverrideEnrollment && !isCurrent && isFull;
                     const label = [
                       cg.course.name,
+                      CLASS_GROUP_STATUS_OPTIONS.find((option) => option.value === cg.status)?.label ?? cg.status,
                       `Início ${formatDateOnly(cg.startDate)}`,
                       `${cg.startTime}-${cg.endTime}`,
                       Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? formatDaysOrderedPt(cg.daysOfWeek) : null,
@@ -2337,10 +2084,11 @@ export default function EnrollmentsPage() {
                         {label} — ({count} / {cap || "—"} vagas){isFull ? " — Lotada" : ""}
                       </option>
                     );
-                  })}
+                  });
+                })()}
               </select>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Inscritos / capacidade. Master e Coordenador podem transferir para turma lotada.
+                Inscritos / capacidade. Master e Administrador Geral podem transferir para turma lotada.
               </p>
             </div>
             <div>
@@ -2355,43 +2103,6 @@ export default function EnrollmentsPage() {
                 <option value="CANCELLED">Cancelada</option>
                 <option value="COMPLETED">Concluída</option>
               </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium">Certificado</label>
-              {editingEnrollment.certificateUrl ? (
-                <div className="mt-1 space-y-2">
-                  <a
-                    href={editingEnrollment.certificateUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-blue-600 underline text-sm"
-                  >
-                    {editingEnrollment.certificateFileName ?? "Ver certificado"}
-                  </a>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={editRemovingCert}
-                      onChange={(e) => setEditRemovingCert(e.target.checked)}
-                    />
-                    Remover certificado
-                  </label>
-                  {!editRemovingCert && (
-                    <p className="text-xs text-[var(--text-muted)]">Ou selecione um novo arquivo para substituir:</p>
-                  )}
-                </div>
-              ) : (
-                <p className="mt-1 text-xs text-[var(--text-muted)]">Nenhum certificado anexado.</p>
-              )}
-              {!editRemovingCert && (
-                <input
-                  type="file"
-                  accept=".pdf,image/jpeg,image/jpg,image/png"
-                  className="mt-1 w-full text-sm"
-                  onChange={(e) => setEditCertFile(e.target.files?.[0] ?? null)}
-                />
-              )}
-              <p className="mt-1 text-xs text-[var(--text-muted)]">PDF ou imagem, máx. 5MB.</p>
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>

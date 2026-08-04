@@ -120,9 +120,11 @@ export async function PATCH(
       return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
     }
     const canOverrideEnrollmentRules =
-      user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "ADMIN";
-    const statusesPermitidos = canOverrideEnrollmentRules
-      ? ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "INTERNO"]
+      user.role === "MASTER" || user.role === "GENERAL_ADMIN";
+    const canUseInternoExterno =
+      canOverrideEnrollmentRules || user.role === "POLO_COORDINATOR";
+    const statusesPermitidos = canUseInternoExterno
+      ? ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "INTERNO", "EXTERNO"]
       : ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"];
     if (!statusesPermitidos.includes(newClassGroup.status)) {
       return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);

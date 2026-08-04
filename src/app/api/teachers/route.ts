@@ -55,13 +55,54 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const existingUser = await prisma.user.findUnique({
-    where: { email: parsed.data.email },
-    select: { id: true },
-  });
+  let linkUserId = parsed.data.userId?.trim() || null;
+  let name = parsed.data.name?.trim() ?? "";
+  let email = parsed.data.email?.trim().toLowerCase() ?? "";
+  let phoneDigits = parsed.data.phone?.replace(/\D/g, "") || null;
+  let birthDateValue = birthDateInputToDate(parsed.data.birthDate);
 
-  const phoneDigits = parsed.data.phone?.replace(/\D/g, "") || null;
-  const birthDateValue = birthDateInputToDate(parsed.data.birthDate);
+  if (linkUserId) {
+    const existing = await prisma.user.findUnique({
+      where: { id: linkUserId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        whatsapp: true,
+        birthDate: true,
+        teacher: { select: { id: true, deletedAt: true } },
+      },
+    });
+    if (!existing) {
+      return jsonErr("NOT_FOUND", "Usuário não encontrado.", 404);
+    }
+    if (existing.teacher && existing.teacher.deletedAt == null) {
+      return jsonErr("ALREADY_TEACHER", "Este usuário já está cadastrado como professor.", 409);
+    }
+    if (existing.teacher) {
+      return jsonErr(
+        "ALREADY_TEACHER",
+        "Este usuário já possui cadastro de professor inativo. Reative-o na lista de professores.",
+        409,
+      );
+    }
+    linkUserId = existing.id;
+    name = existing.name;
+    email = existing.email;
+    if (!phoneDigits && existing.whatsapp) {
+      phoneDigits = existing.whatsapp.replace(/\D/g, "").slice(0, 13) || null;
+    }
+    if (!birthDateValue && existing.birthDate) {
+      birthDateValue = existing.birthDate;
+    }
+  }
+
+  const existingUser = linkUserId
+    ? { id: linkUserId }
+    : await prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
 
   let teacher: { id: string; name: string; email: string | null; userId: string | null; [key: string]: unknown };
   let emailSent = false;
@@ -78,9 +119,9 @@ export async function POST(request: Request) {
     // Multi-perfil: permite vincular perfil de professor a usuário que já possui outro perfil (aluno ou admin).
     teacher = await prisma.teacher.create({
       data: {
-        name: parsed.data.name,
+        name,
         phone: phoneDigits,
-        email: parsed.data.email,
+        email,
         photoUrl: parsed.data.photoUrl?.trim() || null,
         signatureUrl: parsed.data.signatureUrl?.trim() || null,
         isActive: true,
@@ -91,13 +132,17 @@ export async function POST(request: Request) {
       where: { id: existingUser.id },
       data: {
         ...(phoneDigits ? { whatsapp: phoneDigits } : {}),
-        ...(birthDateValue ? { birthDate: birthDateValue } : parsed.data.birthDate === null ? { birthDate: null } : {}),
+        ...(birthDateValue
+          ? { birthDate: birthDateValue }
+          : parsed.data.birthDate === null
+            ? { birthDate: null }
+            : {}),
       },
     });
     linkedToExistingUser = true;
-    const { subject, html } = templateAddedAsProfessor({ name: teacher.name, email: parsed.data.email });
+    const { subject, html } = templateAddedAsProfessor({ name: teacher.name, email });
     const emailResult = await sendEmailAndRecord({
-      to: parsed.data.email,
+      to: email,
       subject,
       html,
       emailType: "added_as_professor",
@@ -114,12 +159,15 @@ export async function POST(request: Request) {
       performedByUserId: user.id,
     });
   } else {
+    if (!name || !email) {
+      return jsonErr("VALIDATION_ERROR", "Nome e e-mail são obrigatórios para criar um novo usuário.", 400);
+    }
     const tempPassword = generateTempPassword();
     const passwordHash = await hashPassword(tempPassword);
     const createdUser = await prisma.user.create({
       data: {
-        name: parsed.data.name,
-        email: parsed.data.email,
+        name,
+        email,
         passwordHash,
         role: "TEACHER",
         isActive: true,
@@ -130,9 +178,9 @@ export async function POST(request: Request) {
     });
     teacher = await prisma.teacher.create({
       data: {
-        name: parsed.data.name,
+        name,
         phone: phoneDigits,
-        email: parsed.data.email,
+        email,
         photoUrl: parsed.data.photoUrl?.trim() || null,
         signatureUrl: parsed.data.signatureUrl?.trim() || null,
         isActive: true,

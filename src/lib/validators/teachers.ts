@@ -12,14 +12,26 @@ const optionalPhone = z
     return v.replace(/\D/g, "").slice(0, 13);
   });
 
-export const createTeacherSchema = z.object({
-  name: z.string().min(2, "Nome é obrigatório"),
-  phone: optionalPhone,
-  email: z.string().email("E-mail inválido"),
-  birthDate: optionalBirthDateSchema,
-  photoUrl: optionalPhoto,
-  signatureUrl: optionalSignature,
-});
+export const createTeacherSchema = z
+  .object({
+    /** Se informado, vincula perfil de professor a este usuário (sem criar conta nova). */
+    userId: z.string().uuid().optional(),
+    name: z.string().min(2, "Nome é obrigatório").optional(),
+    phone: optionalPhone,
+    email: z.string().email("E-mail inválido").optional(),
+    birthDate: optionalBirthDateSchema,
+    photoUrl: optionalPhoto,
+    signatureUrl: optionalSignature,
+  })
+  .superRefine((data, ctx) => {
+    if (data.userId) return;
+    if (!data.name || data.name.trim().length < 2) {
+      ctx.addIssue({ code: "custom", message: "Nome é obrigatório", path: ["name"] });
+    }
+    if (!data.email) {
+      ctx.addIssue({ code: "custom", message: "E-mail inválido", path: ["email"] });
+    }
+  });
 
 export const updateTeacherSchema = z.object({
   name: z.string().min(2).optional(),
