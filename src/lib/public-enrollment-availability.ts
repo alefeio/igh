@@ -4,8 +4,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 
-/** Turmas inscrevíveis pelo público: só as planejadas, antes do início das aulas. */
-export const PUBLIC_INSCREVA_STATUSES = ["PLANEJADA"] as const;
+/** Turmas inscrevíveis pelo público (site /inscreva), inclusive já em andamento. */
+export const PUBLIC_INSCREVA_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
 
 /**
  * Filtro das turmas que aparecem em /inscreva. Mantido em um só lugar para que a listagem

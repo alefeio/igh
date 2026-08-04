@@ -164,7 +164,7 @@ export function InscrevaForm() {
         setClassGroupsEmAndamento(meJson.data.classGroupsEmAndamento ?? []);
       }
       if (cgJson?.ok && cgJson.data.classGroups) {
-        setClassGroups(cgJson.data.classGroups.filter((cg) => cg.status === "PLANEJADA"));
+        setClassGroups(cgJson.data.classGroups);
       }
     } finally {
       setLoading(false);

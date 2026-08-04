@@ -116,12 +116,19 @@ const DEFAULT_ENROLLMENT_CLASS_GROUP_STATUSES = [
   "EXTERNO",
 ];
 
+/** Status que sempre devem aparecer no modal de nova matrícula (mesmo com preferência antiga no navegador). */
+const REQUIRED_ENROLLMENT_CLASS_GROUP_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
+
 const DEFAULT_CLASS_GROUP_STATUS_FILTERS = [
   "PLANEJADA",
   "EM_ANDAMENTO",
   "ENCERRADA",
   "EXTERNO",
 ];
+
+function mergeRequiredEnrollmentStatuses(statuses: string[]): string[] {
+  return Array.from(new Set([...REQUIRED_ENROLLMENT_CLASS_GROUP_STATUSES, ...statuses]));
+}
 
 function haveSameValues(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value) => right.includes(value));
@@ -313,7 +320,7 @@ export default function EnrollmentsPage() {
   /** No modal de matrícula (Master/Coord): incluir turmas de ciclos não visíveis, se marcados. */
   const [extraModalCycleIds, setExtraModalCycleIds] = useState<string[]>([]);
   const [modalClassGroupStatuses, setModalClassGroupStatuses] = useState<string[]>(
-    DEFAULT_ENROLLMENT_CLASS_GROUP_STATUSES
+    () => mergeRequiredEnrollmentStatuses([...DEFAULT_ENROLLMENT_CLASS_GROUP_STATUSES])
   );
   const [showTeacherDetails, setShowTeacherDetails] = useState(false);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
@@ -327,7 +334,7 @@ export default function EnrollmentsPage() {
   }, []);
 
   const filtersStorageKey = `enrollments:filters:v1:${user.id}`;
-  const modalStatusStorageKey = `enrollments:new-statuses:v1:${user.id}`;
+  const modalStatusStorageKey = `enrollments:new-statuses:v2:${user.id}`;
 
   useEffect(() => {
     try {
@@ -369,7 +376,9 @@ export default function EnrollmentsPage() {
       const savedStatuses = JSON.parse(
         localStorage.getItem(modalStatusStorageKey) ?? "null"
       ) as string[] | null;
-      if (Array.isArray(savedStatuses)) setModalClassGroupStatuses(savedStatuses);
+      if (Array.isArray(savedStatuses)) {
+        setModalClassGroupStatuses(mergeRequiredEnrollmentStatuses(savedStatuses));
+      }
     } catch {
       // Mantém os padrões quando o armazenamento estiver indisponível ou inválido.
     } finally {
@@ -2156,11 +2165,16 @@ export default function EnrollmentsPage() {
               Status das turmas
             </div>
             <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-              Marque os status que devem aparecer no campo Turma. A seleção fica salva para seus próximos cadastros.
+              Marque os status que devem aparecer no campo Turma. Planejada, Aberta e Em andamento
+              ficam sempre disponíveis para matrícula. A seleção fica salva para seus próximos
+              cadastros.
             </p>
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
               {CLASS_GROUP_STATUS_OPTIONS.map((option) => {
                 const checked = modalClassGroupStatuses.includes(option.value);
+                const required = (
+                  REQUIRED_ENROLLMENT_CLASS_GROUP_STATUSES as readonly string[]
+                ).includes(option.value);
                 return (
                   <label
                     key={option.value}
@@ -2169,18 +2183,23 @@ export default function EnrollmentsPage() {
                     <input
                       type="checkbox"
                       checked={checked}
+                      disabled={required}
                       onChange={(event) => {
-                        setModalClassGroupStatuses((previous) =>
-                          event.target.checked
+                        setModalClassGroupStatuses((previous) => {
+                          const next = event.target.checked
                             ? previous.includes(option.value)
                               ? previous
                               : [...previous, option.value]
-                            : previous.filter((status) => status !== option.value)
-                        );
+                            : previous.filter((status) => status !== option.value);
+                          return mergeRequiredEnrollmentStatuses(next);
+                        });
                       }}
                       className="h-4 w-4 accent-[var(--igh-primary)]"
                     />
                     {option.label}
+                    {required ? (
+                      <span className="text-[10px] text-[var(--text-muted)]">(sempre)</span>
+                    ) : null}
                   </label>
                 );
               })}

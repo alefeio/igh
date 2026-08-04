@@ -1,13 +1,14 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_INSCREVA_STATUSES } from "@/lib/public-enrollment-availability";
 
 const WAITLIST_ELIGIBLE_STATUSES = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"] as const;
 
 export async function assertCanJoinWaitlist(args: {
   studentId: string;
   classGroupId: string;
-  /** Público: só PLANEJADA; admin pode nas elegíveis. */
+  /** Público: mesmos status de /inscreva; admin pode nas elegíveis. */
   publicOnly?: boolean;
 }): Promise<{ ok: true } | { ok: false; code: string; message: string; status: number }> {
   const student = await prisma.student.findFirst({
@@ -33,7 +34,7 @@ export async function assertCanJoinWaitlist(args: {
   }
 
   if (args.publicOnly) {
-    if (classGroup.status !== "PLANEJADA") {
+    if (!(PUBLIC_INSCREVA_STATUSES as readonly string[]).includes(classGroup.status)) {
       return {
         ok: false,
         code: "VALIDATION_ERROR",
