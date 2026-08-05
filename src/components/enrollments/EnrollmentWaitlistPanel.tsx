@@ -102,8 +102,11 @@ export function EnrollmentWaitlistPanel({
     if (res.ok && json?.ok) setStudents(json.data.students ?? []);
   }
 
+  // Só busca com o dropdown aberto e sem aluno já selecionado.
+  // Evita que limpar a query após selecionar (pós-digitação) recarregue a 1ª página
+  // e remova o aluno escolhido da lista — o que apagava o nome no input.
   useEffect(() => {
-    if (!open) return;
+    if (!open || !studentDropdownOpen || studentId) return;
     if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
     searchTimerRef.current = window.setTimeout(() => {
       void searchStudents(studentSearchQuery);
@@ -111,7 +114,7 @@ export function EnrollmentWaitlistPanel({
     return () => {
       if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
     };
-  }, [studentSearchQuery, open]);
+  }, [studentSearchQuery, open, studentDropdownOpen, studentId]);
 
   useEffect(() => {
     if (classGroupId && !fullClassGroups.some((cg) => cg.id === classGroupId)) {
@@ -305,6 +308,9 @@ export function EnrollmentWaitlistPanel({
                       className="cursor-pointer px-3 py-2 text-sm hover:bg-[var(--igh-surface)]"
                       onMouseDown={(e) => {
                         e.preventDefault();
+                        setStudents((prev) =>
+                          prev.some((x) => x.id === s.id) ? prev : [s, ...prev],
+                        );
                         setStudentId(s.id);
                         setStudentSearchQuery("");
                         setStudentDropdownOpen(false);

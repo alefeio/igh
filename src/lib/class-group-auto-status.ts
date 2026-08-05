@@ -3,13 +3,12 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
-/** Status que passam automaticamente para EM_ANDAMENTO quando startDate <= hoje (calendário Brasil). */
-const STATUSES_PROMOTE_TO_EM_ANDAMENTO = [
-  "PLANEJADA",
-  "ABERTA",
-  "EXTERNO",
-  "INTERNO",
-] as const;
+/**
+ * Status que passam automaticamente para EM_ANDAMENTO quando startDate <= hoje (calendário Brasil).
+ * INTERNO e EXTERNO não entram: são modos especiais (fora da inscrição pública) e precisam
+ * permanecer filtráveis / identificáveis mesmo após o início das aulas.
+ */
+const STATUSES_PROMOTE_TO_EM_ANDAMENTO = ["PLANEJADA", "ABERTA"] as const;
 
 /**
  * Data de hoje (só calendário) em America/Sao_Paulo, representada como UTC midnight daquele Y-M-D
@@ -34,8 +33,9 @@ export function getTodayCalendarDateUtcBrazil(): Date {
 
 /**
  * Atualiza status de turmas de forma idempotente:
- * - PLANEJADA, ABERTA, EXTERNO, INTERNO com início <= hoje (Brasil) → EM_ANDAMENTO
+ * - PLANEJADA, ABERTA com início <= hoje (Brasil) → EM_ANDAMENTO
  * - EM_ANDAMENTO com fim < hoje e sem preventAutoClose → ENCERRADA
+ * - INTERNO / EXTERNO não são alterados automaticamente
  */
 export async function applyClassGroupAutomaticStatusUpdates(): Promise<{
   promotedToEmAndamento: number;

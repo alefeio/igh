@@ -531,11 +531,15 @@ export default function EnrollmentsPage() {
 
     if (classGroupStatusFilter.length > 0) {
       const allowedStatuses = new Set(classGroupStatusFilter);
-      list = list.filter(
-        (enrollment) =>
-          !!enrollment.classGroup.status &&
-          allowedStatuses.has(enrollment.classGroup.status)
+      const statusByClassGroupId = new Map(
+        allClassGroups.map((cg) => [cg.id, cg.status] as const),
       );
+      list = list.filter((enrollment) => {
+        const status =
+          statusByClassGroupId.get(enrollment.classGroup.id) ??
+          enrollment.classGroup.status;
+        return !!status && allowedStatuses.has(status);
+      });
     } else {
       list = [];
     }
@@ -547,7 +551,7 @@ export default function EnrollmentsPage() {
       if (dateTo && d > dateTo) return false;
       return true;
     });
-  }, [items, classGroupStatusFilter, dateFrom, dateTo, cycleFilterIds]);
+  }, [items, allClassGroups, classGroupStatusFilter, dateFrom, dateTo, cycleFilterIds]);
 
   /** Fonte única dos filtros: alimenta cards, gráficos, vagas, professores e listagem. */
   const filteredItems = useMemo(() => {
