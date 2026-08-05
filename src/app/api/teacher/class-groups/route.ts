@@ -40,7 +40,11 @@ export async function GET(request: Request) {
       status: true,
       location: true,
       course: { select: { id: true, name: true } },
-      _count: { select: { enrollments: true } },
+      _count: {
+        select: {
+          enrollments: { where: { status: { in: ["ACTIVE", "SUSPENDED"] } } },
+        },
+      },
     },
   });
   return jsonOk({

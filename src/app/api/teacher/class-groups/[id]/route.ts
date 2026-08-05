@@ -30,7 +30,11 @@ export async function GET(
       location: true,
       course: { select: { id: true, name: true } },
       cycle: { select: { cycle: true, year: true } },
-      _count: { select: { enrollments: true } },
+      _count: {
+        select: {
+          enrollments: { where: { status: { in: ["ACTIVE", "SUSPENDED"] } } },
+        },
+      },
     },
   });
   if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);

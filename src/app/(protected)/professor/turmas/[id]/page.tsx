@@ -206,8 +206,16 @@ export default function ProfessorTurmaDetailPage() {
   const loadEnrollments = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${id}/enrollments`);
     const json = (await res.json()) as ApiResponse<{ enrollments: Enrollment[] }>;
-    if (res.ok && json?.ok) setEnrollments(json.data.enrollments);
+    if (res.ok && json?.ok) {
+      // Defesa extra: nunca exibir matrículas canceladas na lista do professor.
+      setEnrollments(json.data.enrollments.filter((e) => e.status !== "CANCELLED"));
+    }
   }, [id]);
+
+  const visibleEnrollments = useMemo(
+    () => enrollments.filter((e) => e.status !== "CANCELLED"),
+    [enrollments],
+  );
 
   async function toggleCertificateEligible(enrollment: Enrollment) {
     if (togglingCertificateId) return;
@@ -264,7 +272,7 @@ export default function ProfessorTurmaDetailPage() {
 
   async function sendPendingWelcomeEmails() {
     if (!classGroup || sendingWelcomeEmails) return;
-    const pendingCount = enrollments.filter((e) => e.welcomeEmailPending).length;
+    const pendingCount = visibleEnrollments.filter((e) => e.welcomeEmailPending).length;
     if (pendingCount === 0) {
       toast.push("success", "Não há alunos pendentes de e-mail de cadastro.");
       return;
@@ -308,12 +316,12 @@ export default function ProfessorTurmaDetailPage() {
   }
 
   async function exportStudentsVcf() {
-    if (!classGroup || enrollments.length === 0 || exportingVcf) return;
+    if (!classGroup || visibleEnrollments.length === 0 || exportingVcf) return;
     setExportingVcf(true);
     try {
       const cycleNumber = classGroup.cycleNumber ?? 1;
       const content = buildStudentsVcfFile(
-        enrollments.map((e) => ({
+        visibleEnrollments.map((e) => ({
           name: e.studentName,
           displayName: studentVcfContactLabel({
             cycleNumber,
@@ -337,7 +345,7 @@ export default function ProfessorTurmaDetailPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.push("success", `${enrollments.length} contato(s) exportado(s) em .vcf.`);
+      toast.push("success", `${visibleEnrollments.length} contato(s) exportado(s) em .vcf.`);
     } catch {
       toast.push("error", "Não foi possível exportar os contatos.");
     } finally {
@@ -648,9 +656,9 @@ export default function ProfessorTurmaDetailPage() {
         <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3">
             <h2 className="text-sm font-semibold text-[var(--text-primary)]">Alunos da turma</h2>
-            {enrollments.length > 0 ? (
+            {visibleEnrollments.length > 0 ? (
               <div className="flex flex-wrap items-center gap-2">
-                {enrollments.some((e) => e.welcomeEmailPending) ? (
+                {visibleEnrollments.some((e) => e.welcomeEmailPending) ? (
                   <Button
                     type="button"
                     variant="secondary"
@@ -662,7 +670,7 @@ export default function ProfessorTurmaDetailPage() {
                     <Mail className="h-3.5 w-3.5" aria-hidden />
                     {sendingWelcomeEmails
                       ? "Enviando…"
-                      : `Enviar e-mails pendentes (${enrollments.filter((e) => e.welcomeEmailPending).length})`}
+                      : `Enviar e-mails pendentes (${visibleEnrollments.filter((e) => e.welcomeEmailPending).length})`}
                   </Button>
                 ) : null}
                 <Button
@@ -679,7 +687,7 @@ export default function ProfessorTurmaDetailPage() {
               </div>
             ) : null}
           </div>
-          {enrollments.length === 0 ? (
+          {visibleEnrollments.length === 0 ? (
             <p className="p-4 text-sm text-[var(--text-muted)]">Nenhum aluno matriculado.</p>
           ) : (
             <>
@@ -689,7 +697,7 @@ export default function ProfessorTurmaDetailPage() {
                 cadastro só para quem ainda não recebeu.
               </p>
               <ul className="divide-y divide-[var(--card-border)]">
-              {enrollments.map((e) => (
+              {visibleEnrollments.map((e) => (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                   <div className="flex items-center gap-2">
                     {e.documentationAlert && (
