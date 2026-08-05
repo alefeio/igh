@@ -161,6 +161,32 @@ function formatPhoneBr(raw: string): string {
   return raw.trim();
 }
 
+/** Digitos internacionais para wa.me (assume Brasil 55 se 10–11 dígitos). */
+function whatsappDigits(phone: string): string | null {
+  const d = phone.replace(/\D/g, "");
+  if (d.length < 10) return null;
+  if (d.length === 10 || d.length === 11) return `55${d}`;
+  if (d.startsWith("55") && d.length >= 12) return d;
+  return `55${d.slice(-11)}`;
+}
+
+function whatsappChatUrl(phone: string): string | null {
+  const full = whatsappDigits(phone);
+  return full ? `https://wa.me/${full}` : null;
+}
+
+/** Abre o chat com mensagem pronta — o WhatsApp não permite adicionar a um grupo só por link. */
+function whatsappGroupInviteChatUrl(
+  phone: string,
+  studentName: string,
+  courseName: string,
+): string | null {
+  const full = whatsappDigits(phone);
+  if (!full) return null;
+  const text = `Olá, ${studentName}! Bem-vindo(a) à turma de ${courseName}. Vou adicioná-lo(a) ao grupo do WhatsApp da turma — por favor aceite o convite quando aparecer.`;
+  return `https://wa.me/${full}?text=${encodeURIComponent(text)}`;
+}
+
 export default function ProfessorTurmaDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -215,6 +241,15 @@ export default function ProfessorTurmaDetailPage() {
   const visibleEnrollments = useMemo(
     () => enrollments.filter((e) => e.status !== "CANCELLED"),
     [enrollments],
+  );
+
+  /** Mais recentes primeiro — facilita achar quem entrou pela lista de espera. */
+  const enrollmentsByRecent = useMemo(
+    () =>
+      [...visibleEnrollments].sort((a, b) =>
+        String(b.enrolledAt).localeCompare(String(a.enrolledAt)),
+      ),
+    [visibleEnrollments],
   );
 
   async function toggleCertificateEligible(enrollment: Enrollment) {
@@ -692,12 +727,23 @@ export default function ProfessorTurmaDetailPage() {
           ) : (
             <>
               <p className="border-b border-[var(--card-border)] px-4 py-2 text-xs text-[var(--text-muted)]">
-                Certificado: ativa automaticamente com 70% de presença. Você pode liberar ou bloquear
-                manualmente para cada aluno. Use «Enviar e-mails pendentes» para disparar o e-mail de
-                cadastro só para quem ainda não recebeu.
+                Ordenados do mais recente ao mais antigo. Clique no celular para abrir o WhatsApp; «Convidar
+                ao grupo» envia uma mensagem pronta — depois adicione o aluno ao grupo no app (o WhatsApp não
+                permite adicionar só por link). Certificado: ativa com 70% de presença; você pode liberar ou
+                bloquear manualmente.
               </p>
               <ul className="divide-y divide-[var(--card-border)]">
-              {visibleEnrollments.map((e) => (
+              {enrollmentsByRecent.map((e) => {
+                const waChat = e.studentPhone ? whatsappChatUrl(e.studentPhone) : null;
+                const waGroup =
+                  e.studentPhone && classGroup
+                    ? whatsappGroupInviteChatUrl(
+                        e.studentPhone,
+                        e.studentName,
+                        classGroup.courseName,
+                      )
+                    : null;
+                return (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                   <div className="flex items-center gap-2">
                     {e.documentationAlert && (
@@ -770,9 +816,42 @@ export default function ProfessorTurmaDetailPage() {
                           <span>Nasc.: {formatDate(e.studentBirthDate)}</span>
                         </p>
                       )}
+                      <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                        Matrícula:{" "}
+                        <span className="font-medium text-[var(--text-secondary)]">
+                          {formatDateTime(e.enrolledAt)}
+                        </span>
+                        {e.fromWaitlist ? " · via lista de espera" : ""}
+                      </p>
                       {e.studentPhone && (
-                        <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                          Cel.: {formatPhoneBr(e.studentPhone)}
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--text-muted)]">
+                          <span>
+                            Cel.:{" "}
+                            {waChat ? (
+                              <a
+                                href={waChat}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium text-[var(--igh-primary)] underline-offset-2 hover:underline"
+                                title="Abrir conversa no WhatsApp"
+                              >
+                                {formatPhoneBr(e.studentPhone)}
+                              </a>
+                            ) : (
+                              formatPhoneBr(e.studentPhone)
+                            )}
+                          </span>
+                          {waGroup ? (
+                            <a
+                              href={waGroup}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-[var(--igh-primary)] underline-offset-2 hover:underline"
+                              title="Abre o WhatsApp com mensagem pronta. Depois adicione o aluno ao grupo no app (o WhatsApp não permite adicionar só por link)."
+                            >
+                              Convidar ao grupo
+                            </a>
+                          ) : null}
                         </p>
                       )}
                     </div>
@@ -811,12 +890,10 @@ export default function ProfessorTurmaDetailPage() {
                         {e.certificateEligible ? "Sim" : "Não"}
                       </span>
                     </label>
-                    <span className="text-xs text-[var(--text-muted)]">
-                      Matrícula em {formatDate(e.enrolledAt)}
-                    </span>
                   </div>
                 </li>
-              ))}
+                );
+              })}
               </ul>
             </>
           )}
