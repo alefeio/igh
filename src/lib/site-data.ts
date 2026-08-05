@@ -662,47 +662,66 @@ export type CourseForSite = {
   formationId: string | null;
   formationTitle: string | null;
   formationSlug: string | null;
-  /** Há turma PLANEJADA com vaga e ciclo liberado para inscrição. */
+  /** Há turma inscrevível (PLANEJADA/ABERTA/EM_ANDAMENTO) com vaga e ciclo liberado. */
   hasOpenClassGroups?: boolean;
+  /** Há turmas no /inscreva, mas todas lotadas (lista de espera). */
+  hasWaitlistClassGroups?: boolean;
   /** Preenchido apenas em getCourseBySlug (detalhe). */
   modules?: ModuleForSiteDetail[];
 };
 
 /**
- * IDs de cursos com pelo menos uma turma aberta para pré-matrícula (PLANEJADA, com vaga).
+ * Disponibilidade pública por curso — alinhada a /inscreva
+ * (PLANEJADA, ABERTA, EM_ANDAMENTO + ciclo visível).
  */
-export async function getCourseIdsWithOpenClassGroups(): Promise<Set<string>> {
+export async function getCourseEnrollmentAvailability(): Promise<{
+  openCourseIds: Set<string>;
+  waitlistCourseIds: Set<string>;
+}> {
   try {
-    const ids = await unstable_cache(
+    const { publicInscrevaClassGroupWhere } = await import(
+      "@/lib/public-enrollment-availability"
+    );
+    const rows = await unstable_cache(
       async () => {
         const classGroups = await prisma.classGroup.findMany({
-          where: {
-            status: "PLANEJADA",
-            course: { status: "ACTIVE" },
-            cycle: { isVisibleForEnrollments: true },
-          },
+          where: publicInscrevaClassGroupWhere(),
           select: {
             courseId: true,
             capacity: true,
             enrollments: { where: { status: "ACTIVE" }, select: { id: true } },
           },
         });
-        return classGroups
-          .filter((cg) => cg.enrollments.length < cg.capacity)
-          .map((cg) => cg.courseId);
+        const open = new Set<string>();
+        const listed = new Set<string>();
+        for (const cg of classGroups) {
+          listed.add(cg.courseId);
+          if (cg.enrollments.length < cg.capacity) open.add(cg.courseId);
+        }
+        const waitlist = [...listed].filter((id) => !open.has(id));
+        return { open: [...open], waitlist };
       },
-      ["course-ids-open-enrollments-v1"],
+      ["course-enrollment-availability-v2"],
       { revalidate: 60 }
     )();
-    return new Set(ids);
+    return {
+      openCourseIds: new Set(rows.open),
+      waitlistCourseIds: new Set(rows.waitlist),
+    };
   } catch {
-    return new Set();
+    return { openCourseIds: new Set(), waitlistCourseIds: new Set() };
   }
+}
+
+/** @deprecated Prefer getCourseEnrollmentAvailability — mantido para compatibilidade. */
+export async function getCourseIdsWithOpenClassGroups(): Promise<Set<string>> {
+  const { openCourseIds } = await getCourseEnrollmentAvailability();
+  return openCourseIds;
 }
 
 export async function getCoursesForSite(formationSlug?: string): Promise<CourseForSite[]> {
   try {
-    const openIds = await getCourseIdsWithOpenClassGroups();
+    const { openCourseIds, waitlistCourseIds } = await getCourseEnrollmentAvailability();
 
     if (formationSlug) {
       const formation = await prisma.siteFormation.findFirst({
@@ -741,7 +760,8 @@ export async function getCoursesForSite(formationSlug?: string): Promise<CourseF
           formationId: formation.id,
           formationTitle: formation.title,
           formationSlug: formation.slug,
-          hasOpenClassGroups: openIds.has(fc.course!.id),
+          hasOpenClassGroups: openCourseIds.has(fc.course!.id),
+          hasWaitlistClassGroups: waitlistCourseIds.has(fc.course!.id),
         }));
     }
 
@@ -777,7 +797,8 @@ export async function getCoursesForSite(formationSlug?: string): Promise<CourseF
         formationId: first?.id ?? null,
         formationTitle: first?.title ?? null,
         formationSlug: first?.slug ?? null,
-        hasOpenClassGroups: openIds.has(c.id),
+        hasOpenClassGroups: openCourseIds.has(c.id),
+        hasWaitlistClassGroups: waitlistCourseIds.has(c.id),
       };
     });
   } catch {
@@ -1018,9 +1039,9 @@ export async function getCourseBySlug(slug: string): Promise<CourseForSite | nul
     });
     if (!course) return null;
     const first = course.siteFormations[0]?.formation;
-    const [modulesWithLessons, openIds] = await Promise.all([
+    const [modulesWithLessons, availability] = await Promise.all([
       getModulesWithLessonsByCourseId(course.id),
-      getCourseIdsWithOpenClassGroups(),
+      getCourseEnrollmentAvailability(),
     ]);
     const modules: ModuleForSiteDetail[] = modulesWithLessons.map((m) => ({
       id: m.id,
@@ -1045,7 +1066,8 @@ export async function getCourseBySlug(slug: string): Promise<CourseForSite | nul
       formationId: first?.id ?? null,
       formationTitle: first?.title ?? null,
       formationSlug: first?.slug ?? null,
-      hasOpenClassGroups: openIds.has(course.id),
+      hasOpenClassGroups: availability.openCourseIds.has(course.id),
+      hasWaitlistClassGroups: availability.waitlistCourseIds.has(course.id),
       modules,
     };
   } catch {

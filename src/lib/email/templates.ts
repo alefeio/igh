@@ -592,6 +592,99 @@ export function templateBirthdayCongratulations(params: {
   };
 }
 
+/** Oferta de vaga em outra turma para quem está na lista de espera. */
+export function templateWaitlistAlternateSeatOffer(params: {
+  name: string;
+  courseName: string;
+  cycleLabel: string;
+  startDate: string;
+  daysOfWeek: string;
+  startTime: string;
+  endTime: string;
+  location: string | null;
+  originalTurmaLabel: string;
+  acceptUrl: string;
+}): { subject: string; html: string } {
+  const {
+    name,
+    courseName,
+    cycleLabel,
+    startDate,
+    daysOfWeek,
+    startTime,
+    endTime,
+    location,
+    originalTurmaLabel,
+    acceptUrl,
+  } = params;
+  const firstName = name.trim().split(/\s+/)[0] || name;
+  const locationRow = location
+    ? `<tr><td style="padding:8px 0;font-size:14px;color:#4b5563;"><strong>Local:</strong></td><td style="padding:8px 0;font-size:14px;color:#1f2937;">${escapeHtml(location)}</td></tr>`
+    : "";
+  const body = `
+<h2>Abriu uma vaga em outra turma</h2>
+<p>Olá, <strong>${escapeHtml(firstName)}</strong>.</p>
+<p>Você está na lista de espera de <strong>${escapeHtml(courseName)}</strong> (${escapeHtml(originalTurmaLabel)}).</p>
+<p>Surgiu uma vaga em <strong>outra turma</strong> do mesmo curso neste ciclo (${escapeHtml(cycleLabel)}). Tem interesse?</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:10px;margin:16px 0;">
+  <tr><td style="padding:16px 20px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="padding:8px 0;font-size:14px;color:#4b5563;"><strong>Curso:</strong></td><td style="padding:8px 0;font-size:14px;color:#1f2937;">${escapeHtml(courseName)}</td></tr>
+      <tr><td style="padding:8px 0;font-size:14px;color:#4b5563;"><strong>Início:</strong></td><td style="padding:8px 0;font-size:14px;color:#1f2937;">${escapeHtml(startDate)}</td></tr>
+      <tr><td style="padding:8px 0;font-size:14px;color:#4b5563;"><strong>Dias:</strong></td><td style="padding:8px 0;font-size:14px;color:#1f2937;">${escapeHtml(daysOfWeek)}</td></tr>
+      <tr><td style="padding:8px 0;font-size:14px;color:#4b5563;"><strong>Horário:</strong></td><td style="padding:8px 0;font-size:14px;color:#1f2937;">${escapeHtml(startTime)} às ${escapeHtml(endTime)}</td></tr>
+      ${locationRow}
+    </table>
+  </td></tr>
+</table>
+<p style="margin:20px 0;">
+  <a href="${acceptUrl}" style="display:inline-block;background:#1e40af;color:#fff!important;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">Quero esta vaga</a>
+</p>
+<p style="font-size:13px;color:#6b7280;">O link é pessoal e tem validade limitada. Se a vaga for preenchida antes, a inscrição não será concluída.</p>
+`;
+  return {
+    subject: `Vaga disponível em outra turma — ${courseName}`,
+    html: wrapHtml(body),
+  };
+}
+
+/** Aviso de abertura de um novo ciclo para quem ficou na lista de espera. */
+export function templateWaitlistNewCycleOpen(params: {
+  name: string;
+  cycleLabel: string;
+  courses: { name: string; hasOpenSeats: boolean }[];
+  inscrevaUrl: string;
+}): { subject: string; html: string } {
+  const { name, cycleLabel, courses, inscrevaUrl } = params;
+  const firstName = name.trim().split(/\s+/)[0] || name;
+  const courseList =
+    courses.length === 0
+      ? "<p>Em breve publicaremos as turmas disponíveis.</p>"
+      : `<ul>${courses
+          .map(
+            (c) =>
+              `<li><strong>${escapeHtml(c.name)}</strong>${
+                c.hasOpenSeats ? " — com vagas" : " — lista de espera"
+              }</li>`
+          )
+          .join("")}</ul>`;
+  const body = `
+<h2>Inscrições abertas — ${escapeHtml(cycleLabel)}</h2>
+<p>Olá, <strong>${escapeHtml(firstName)}</strong>.</p>
+<p>Você esteve na lista de espera em um ciclo anterior e não conseguiu vaga. Boas notícias: as inscrições do <strong>${escapeHtml(cycleLabel)}</strong> estão abertas.</p>
+<p><strong>Cursos disponíveis neste ciclo:</strong></p>
+${courseList}
+<p style="margin:24px 0;">
+  <a href="${inscrevaUrl}" style="display:inline-block;background:#1e40af;color:#fff!important;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">Ver turmas e se inscrever</a>
+</p>
+<p style="font-size:13px;color:#6b7280;">As vagas são limitadas. Garanta sua inscrição o quanto antes.</p>
+`;
+  return {
+    subject: `Inscrições abertas — ${cycleLabel}`,
+    html: wrapHtml(body),
+  };
+}
+
 export { TERMS_VERSION };
 
 function escapeHtml(s: string): string {

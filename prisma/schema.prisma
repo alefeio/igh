@@ -566,6 +566,7 @@ model ClassGroup {
   sessions         ClassSession[]
   enrollments      Enrollment[]
   waitlistEntries  EnrollmentWaitlist[]
+  waitlistSeatOffers WaitlistSeatOffer[]
   exams            ClassGroupExam[]
 
   @@index([poloLocationId])
@@ -855,6 +856,7 @@ model Student {
   userId                String?             @unique
   enrollments           Enrollment[]
   waitlistEntries       EnrollmentWaitlist[]
+  waitlistSeatOffers    WaitlistSeatOffer[]
   deletedByUser         User?               @relation("StudentDeletedBy", fields: [deletedByUserId], references: [id])
   user                  User?               @relation(fields: [userId], references: [id])
   attachments           StudentAttachment[]
@@ -947,10 +949,35 @@ model EnrollmentWaitlist {
   student                 Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
   classGroup              ClassGroup  @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
   convertedEnrollment     Enrollment? @relation(fields: [convertedEnrollmentId], references: [id], onDelete: SetNull)
+  seatOffers              WaitlistSeatOffer[]
 
   @@unique([classGroupId, studentId])
   @@index([classGroupId, status, createdAt])
   @@index([studentId, status])
+}
+
+/// * Oferta de vaga em outra turma para quem está na lista de espera (e-mail com link).
+model WaitlistSeatOffer {
+  id                 String   @id @default(uuid())
+  studentId          String
+  /// * Turma com vaga oferecida.
+  classGroupId       String
+  /// * Reserva original (WAITING) que motivou a oferta.
+  sourceWaitlistId   String?
+  tokenHash          String   @unique
+  /// * PENDING | ACCEPTED | EXPIRED | CANCELLED
+  status             String   @default("PENDING")
+  expiresAt          DateTime
+  emailedAt          DateTime @default(now())
+  acceptedAt         DateTime?
+  createdAt          DateTime @default(now())
+  student            Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup         ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  sourceWaitlist     EnrollmentWaitlist? @relation(fields: [sourceWaitlistId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, classGroupId])
+  @@index([status, expiresAt])
+  @@index([classGroupId])
 }
 
 model EnrollmentLessonFavorite {

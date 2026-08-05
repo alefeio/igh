@@ -22,6 +22,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   try {
+    const previous = await prisma.cycle.findUnique({
+      where: { id },
+      select: { isVisibleForEnrollments: true },
+    });
+    if (!previous) return jsonErr("NOT_FOUND", "Ciclo não encontrado.", 404);
+
     const updated = await prisma.cycle.update({
       where: { id },
       data: {
@@ -30,6 +36,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         isVisibleForEnrollments: parsed.data.isVisibleForEnrollments,
       },
     });
+
+    const openedEnrollments =
+      parsed.data.isVisibleForEnrollments === true && !previous.isVisibleForEnrollments;
+
+    if (openedEnrollments) {
+      // Dispara em background para não bloquear a resposta do PATCH.
+      void import("@/lib/waitlist-new-cycle-notify")
+        .then(({ notifyWaitlistStudentsOfNewCycle }) =>
+          notifyWaitlistStudentsOfNewCycle(updated.id)
+        )
+        .catch((e) => console.error("[cycle] falha ao notificar lista de espera", e));
+    }
+
     return jsonOk({ cycle: updated });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Falha ao atualizar ciclo.";
@@ -42,4 +61,3 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return jsonErr("INTERNAL_ERROR", "Falha ao atualizar ciclo.", 500);
   }
 }
-

@@ -113,14 +113,21 @@ export async function promoteNextWaitlistForClassGroup(
   };
 }
 
-/** Após liberar vaga (cancelamento/exclusão), tenta promover a próxima reserva. */
+/** Após liberar vaga (cancelamento/exclusão), tenta promover a próxima reserva.
+ * Se não houver fila nesta turma, oferece a vaga a quem espera em outras turmas
+ * do mesmo curso/ciclo. */
 export async function tryPromoteWaitlistAfterSeatFreed(
   classGroupId: string,
   performedByUserId?: string | null,
 ): Promise<void> {
   try {
-    await promoteNextWaitlistForClassGroup(classGroupId, performedByUserId);
+    const result = await promoteNextWaitlistForClassGroup(classGroupId, performedByUserId);
+    if (result.promoted) return;
+    const { notifyWaitlistStudentsOfAlternateSeat } = await import(
+      "@/lib/waitlist-alternate-seat"
+    );
+    await notifyWaitlistStudentsOfAlternateSeat(classGroupId, performedByUserId);
   } catch (e) {
-    console.error("[waitlist] falha ao promover reserva", classGroupId, e);
+    console.error("[waitlist] falha ao promover reserva / ofertar vaga", classGroupId, e);
   }
 }

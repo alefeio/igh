@@ -6,14 +6,17 @@ import Link from "next/link";
 type CourseCtaFloatingProps = {
   courseId: string;
   hasOpenClassGroups?: boolean;
+  hasWaitlistClassGroups?: boolean;
 };
 
 export function CourseCtaFloating({
   courseId,
   hasOpenClassGroups = true,
+  hasWaitlistClassGroups = false,
 }: CourseCtaFloatingProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [showFloating, setShowFloating] = useState(false);
+  const enrollHref = `/inscreva?courseId=${encodeURIComponent(courseId)}`;
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -42,10 +45,17 @@ export function CourseCtaFloating({
           <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-4 sm:px-6 lg:px-8">
             {hasOpenClassGroups ? (
               <Link
-                href={`/inscreva?courseId=${encodeURIComponent(courseId)}`}
+                href={enrollHref}
                 className="flex w-full max-w-sm items-center justify-center rounded-lg bg-[var(--igh-primary)] px-6 py-3 text-base font-semibold text-white transition-colors hover:opacity-90"
               >
                 Inscreva-se
+              </Link>
+            ) : hasWaitlistClassGroups ? (
+              <Link
+                href={enrollHref}
+                className="flex w-full max-w-sm items-center justify-center rounded-lg bg-[var(--igh-primary)] px-6 py-3 text-base font-semibold text-white transition-colors hover:opacity-90"
+              >
+                Entrar na lista de espera
               </Link>
             ) : (
               <>

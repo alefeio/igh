@@ -113,6 +113,8 @@ function canEnrollSameCourseAfterInProgressEnds(args: {
 export function InscrevaForm() {
   const searchParams = useSearchParams();
   const courseIdFromUrl = searchParams.get("courseId");
+  const offerStatus = searchParams.get("offer");
+  const offerCourse = searchParams.get("course");
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<StudentData | null>(null);
@@ -437,6 +439,32 @@ export function InscrevaForm() {
     );
   }
 
+  const offerBanner = (() => {
+    if (!offerStatus) return null;
+    if (offerStatus === "accepted") {
+      return (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+          Matrícula realizada{offerCourse ? ` em ${offerCourse}` : ""}. Verifique seu e-mail para
+          confirmar a inscrição e acessar a plataforma.
+        </div>
+      );
+    }
+    const messages: Record<string, string> = {
+      invalid: "Link de oferta inválido.",
+      EXPIRED: "Esta oferta de vaga expirou.",
+      FULL: "A vaga já foi preenchida. Escolha outra turma ou entre na lista de espera.",
+      ALREADY_ENROLLED: "Você já possui matrícula ativa neste curso.",
+      ALREADY_ACCEPTED: "Você já aceitou esta vaga.",
+      CLASS_CLOSED: "Esta turma não está mais disponível.",
+      NOT_FOUND: "Link de oferta inválido ou expirado.",
+    };
+    return (
+      <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+        {messages[offerStatus] ?? "Não foi possível aceitar a oferta de vaga."}
+      </div>
+    );
+  })();
+
   if (enrollmentSuccess) {
     const { studentName, withoutEmail, turmas, kind } = enrollmentSuccess;
     const isWaitlist = kind === "waitlist";
@@ -544,6 +572,7 @@ export function InscrevaForm() {
 
   return (
     <div className="space-y-6">
+      {offerBanner}
       {showLimitBanner ? (
         <div className={`${cardClass} border-amber-200 bg-amber-50/80 dark:border-amber-800 dark:bg-amber-950/40`}>
           <p className="font-semibold text-[var(--text-primary)]">Limite de cursos atingido</p>

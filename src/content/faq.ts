@@ -41,7 +41,7 @@ export const enrollmentFaqItems = [
   {
     pergunta: "O curso mostra “Em breve”. O que fazer?",
     resposta:
-      "Isso significa que ainda não há turma planejada com vagas para inscrição. Você pode ver os detalhes do curso e voltar depois, ou falar conosco pelo WhatsApp/contato da unidade.",
+      "Isso significa que ainda não há turma disponível para inscrição nesse curso. Se as turmas estiverem lotadas, o botão muda para “Lista de espera”. Você também pode ver os detalhes do curso ou falar conosco pelo WhatsApp/contato da unidade.",
   },
   {
     pergunta: "Preciso de informática básica?",

@@ -49,8 +49,16 @@ export default async function CursoSlugPage({ params }: Props) {
         <Container className="relative z-10 py-16 sm:py-24">
           <div className="mx-auto max-w-3xl text-center">
             <div className="mb-4 flex justify-center">
-              <Badge tone={course.hasOpenClassGroups ? "primary" : "default"}>
-                {course.hasOpenClassGroups ? "Turmas abertas" : "Em breve"}
+              <Badge
+                tone={
+                  course.hasOpenClassGroups || course.hasWaitlistClassGroups ? "primary" : "default"
+                }
+              >
+                {course.hasOpenClassGroups
+                  ? "Turmas abertas"
+                  : course.hasWaitlistClassGroups
+                    ? "Lista de espera"
+                    : "Em breve"}
               </Badge>
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-[var(--igh-secondary)] sm:text-4xl lg:text-5xl">
@@ -84,6 +92,16 @@ export default async function CursoSlugPage({ params }: Props) {
             >
               Inscreva-se
             </Button>
+          ) : course.hasWaitlistClassGroups ? (
+            <Button
+              as="link"
+              href={`/inscreva?courseId=${encodeURIComponent(course.id)}`}
+              variant="primary"
+              size="lg"
+              className="w-full shrink-0 sm:w-auto"
+            >
+              Lista de espera
+            </Button>
           ) : (
             <Button
               as="link"
@@ -97,16 +115,23 @@ export default async function CursoSlugPage({ params }: Props) {
           )}
         </div>
 
-        {!course.hasOpenClassGroups && (
+        {!course.hasOpenClassGroups && !course.hasWaitlistClassGroups && (
           <p className="mb-6 rounded-lg border border-[var(--igh-border)] bg-[var(--igh-surface)] px-4 py-3 text-sm text-[var(--igh-muted)]">
             Ainda não há turmas com vagas abertas para este curso. Você pode explorar o conteúdo abaixo e
             voltar quando houver inscrição disponível, ou escolher outra formação no catálogo.
+          </p>
+        )}
+        {!course.hasOpenClassGroups && course.hasWaitlistClassGroups && (
+          <p className="mb-6 rounded-lg border border-[var(--igh-border)] bg-[var(--igh-surface)] px-4 py-3 text-sm text-[var(--igh-muted)]">
+            As turmas deste curso estão lotadas no momento. Você pode entrar na lista de espera e será
+            avisado quando houver vaga.
           </p>
         )}
 
         <CourseCtaFloating
           courseId={course.id}
           hasOpenClassGroups={course.hasOpenClassGroups === true}
+          hasWaitlistClassGroups={course.hasWaitlistClassGroups === true}
         />
 
         {course.description && (

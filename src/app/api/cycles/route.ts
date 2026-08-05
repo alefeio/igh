@@ -34,6 +34,13 @@ export async function POST(request: Request) {
         isVisibleForEnrollments: parsed.data.isVisibleForEnrollments ?? false,
       },
     });
+    if (cycle.isVisibleForEnrollments) {
+      void import("@/lib/waitlist-new-cycle-notify")
+        .then(({ notifyWaitlistStudentsOfNewCycle }) =>
+          notifyWaitlistStudentsOfNewCycle(cycle.id)
+        )
+        .catch((e) => console.error("[cycle] falha ao notificar lista de espera", e));
+    }
     return jsonOk({ cycle }, { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Falha ao criar ciclo.";

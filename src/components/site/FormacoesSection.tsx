@@ -264,6 +264,9 @@ export function FormacoesSection({
             const detailsHref = `/cursos/${encodeURIComponent(c.slug)}`;
             const enrollHref = `/inscreva?courseId=${encodeURIComponent(c.id)}`;
             const hasOpen = c.hasOpenClassGroups === true;
+            const hasWaitlist = !hasOpen && c.hasWaitlistClassGroups === true;
+            const badgeLabel = hasOpen ? "Turmas abertas" : hasWaitlist ? "Lista de espera" : "Em breve";
+            const badgeTone = hasOpen || hasWaitlist ? "primary" : "default";
             return (
               <Card key={c.id} as="article" className="flex h-full flex-col transition-shadow hover:shadow-md">
                 {c.imageUrl && (
@@ -274,18 +277,12 @@ export function FormacoesSection({
                       className="mb-3 h-32 w-full rounded-lg object-cover"
                     />
                     <span className="absolute left-2 top-2">
-                      <Badge tone={hasOpen ? "primary" : "default"}>
-                        {hasOpen ? "Turmas abertas" : "Em breve"}
-                      </Badge>
+                      <Badge tone={badgeTone}>{badgeLabel}</Badge>
                     </span>
                   </Link>
                 )}
                 <div className="flex flex-wrap items-center gap-2">
-                  {!c.imageUrl && (
-                    <Badge tone={hasOpen ? "primary" : "default"}>
-                      {hasOpen ? "Turmas abertas" : "Em breve"}
-                    </Badge>
-                  )}
+                  {!c.imageUrl && <Badge tone={badgeTone}>{badgeLabel}</Badge>}
                 </div>
                 <Link href={detailsHref} className="block">
                   <h3 className="text-lg font-semibold text-[var(--igh-secondary)] hover:text-[var(--igh-primary)]">
@@ -311,10 +308,17 @@ export function FormacoesSection({
                     >
                       Inscrever-se
                     </Link>
+                  ) : hasWaitlist ? (
+                    <Link
+                      href={enrollHref}
+                      className="inline-flex w-full min-h-[44px] items-center justify-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--igh-primary-hover)]"
+                    >
+                      Lista de espera
+                    </Link>
                   ) : (
                     <span
                       className="inline-flex w-full min-h-[44px] items-center justify-center rounded-lg border border-[var(--igh-border)] bg-[var(--igh-surface)] px-4 py-2 text-sm font-semibold text-[var(--igh-muted)]"
-                      title="Ainda não há turmas com vagas para este curso"
+                      title="Ainda não há turmas disponíveis para este curso"
                     >
                       Em breve
                     </span>
