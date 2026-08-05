@@ -13,6 +13,7 @@ import {
   poloCoordinatorOwnsEnrollment,
 } from "@/lib/polo-coordinator-scope";
 import { tryPromoteWaitlistAfterSeatFreed } from "@/lib/enrollment-waitlist";
+import { classGroupAllowsStaffEnrollment } from "@/lib/class-group-scope";
 
 export async function GET(
   _request: Request,
@@ -121,12 +122,16 @@ export async function PATCH(
     }
     const canOverrideEnrollmentRules =
       user.role === "MASTER" || user.role === "GENERAL_ADMIN";
-    const canUseInternoExterno =
+    const canEnrollExternal =
       canOverrideEnrollmentRules || user.role === "POLO_COORDINATOR";
-    const statusesPermitidos = canUseInternoExterno
-      ? ["ABERTA", "EM_ANDAMENTO", "PLANEJADA", "INTERNO", "EXTERNO"]
-      : ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"];
-    if (!statusesPermitidos.includes(newClassGroup.status)) {
+    if (!classGroupAllowsStaffEnrollment(newClassGroup, { canEnrollExternal })) {
+      if (newClassGroup.isExternal && !canEnrollExternal) {
+        return jsonErr(
+          "FORBIDDEN",
+          "Apenas Master, Administrador Geral ou Coordenador de Polos podem matricular em turmas externas.",
+          403,
+        );
+      }
       return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
     }
     if (!canOverrideEnrollmentRules) {

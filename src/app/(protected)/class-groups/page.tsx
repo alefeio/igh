@@ -51,9 +51,9 @@ type ClassGroup = {
     | "ABERTA"
     | "EM_ANDAMENTO"
     | "ENCERRADA"
-    | "CANCELADA"
-    | "INTERNO"
-    | "EXTERNO";
+    | "CANCELADA";
+  /** false = Interna; true = Externa. */
+  isExternal?: boolean;
   location: string | null;
   poloLocationId?: string | null;
   poloLocation?: {
@@ -95,8 +95,6 @@ const STATUS_TONE: Record<ClassGroup["status"], Parameters<typeof Badge>[0]["ton
   EM_ANDAMENTO: "amber",
   ENCERRADA: "green",
   CANCELADA: "red",
-  INTERNO: "violet",
-  EXTERNO: "blue",
 };
 
 const STATUS_SHORT: Record<ClassGroup["status"], string> = {
@@ -105,8 +103,6 @@ const STATUS_SHORT: Record<ClassGroup["status"], string> = {
   EM_ANDAMENTO: "And.",
   ENCERRADA: "Enc.",
   CANCELADA: "Canc.",
-  INTERNO: "Int.",
-  EXTERNO: "Ext.",
 };
 
 /** Início no formato dd/mm/aa */
@@ -198,6 +194,7 @@ export default function ClassGroupsPage() {
   const [endTime, setEndTime] = useState("10:00");
   const [capacity, setCapacity] = useState("20");
   const [status, setStatus] = useState<ClassGroup["status"]>("PLANEJADA");
+  const [isExternal, setIsExternal] = useState(false);
   const [location, setLocation] = useState("");
   const [poloLocationId, setPoloLocationId] = useState("");
   const [poloLocationOptions, setPoloLocationOptions] = useState<
@@ -282,6 +279,7 @@ export default function ClassGroupsPage() {
     setEndTime("10:00");
     setCapacity("20");
     setStatus("PLANEJADA");
+    setIsExternal(false);
     setLocation("");
     setPoloLocationId("");
     setSelectedTimeSlotId("");
@@ -319,6 +317,7 @@ export default function ClassGroupsPage() {
     setEndTime(cg.endTime);
     setCapacity(String(cg.capacity));
     setStatus(cg.status);
+    setIsExternal(cg.isExternal === true);
     setLocation(cg.location ?? "");
     setPoloLocationId(cg.poloLocationId ?? cg.poloLocation?.id ?? "");
     const matchingSlot = timeSlots.find(
@@ -449,6 +448,7 @@ export default function ClassGroupsPage() {
         endTime,
         capacity: Number(capacity),
         status,
+        isExternal,
         location,
         poloLocationId: poloLocationId || null,
       };
@@ -704,8 +704,6 @@ export default function ClassGroupsPage() {
     { value: "EM_ANDAMENTO", label: "Em andamento" },
     { value: "ENCERRADA", label: "Encerrada" },
     { value: "CANCELADA", label: "Cancelada" },
-    { value: "INTERNO", label: "Interno" },
-    { value: "EXTERNO", label: "Externo" },
   ];
 
   return (
@@ -1068,8 +1066,9 @@ export default function ClassGroupsPage() {
                         {formatTimeShort(cg.startTime, cg.endTime)}
                       </Td>
                       <Td>
-                        <span title={cg.status}>
+                        <span className="inline-flex flex-wrap items-center gap-1" title={cg.status}>
                           <Badge tone={STATUS_TONE[cg.status]}>{STATUS_SHORT[cg.status]}</Badge>
+                          {cg.isExternal ? <Badge tone="violet">Ext.</Badge> : null}
                         </span>
                       </Td>
                       <Td className="whitespace-nowrap text-[var(--text-secondary)]">
@@ -1553,12 +1552,43 @@ export default function ClassGroupsPage() {
                   <option value="EM_ANDAMENTO">EM_ANDAMENTO</option>
                   <option value="ENCERRADA">ENCERRADA</option>
                   <option value="CANCELADA">CANCELADA</option>
-                  <option value="INTERNO">INTERNO</option>
-                  <option value="EXTERNO">EXTERNO</option>
                 </select>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">
-                  Turmas <strong>EXTERNO</strong> não aparecem no site de inscrição. Matrículas apenas por Admin/Master.
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-[var(--card-border)] px-3 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">Tipo da turma</p>
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                  Turmas <strong>externas</strong> não aparecem no site de inscrição. Matrículas apenas por
+                  Master, Admin Geral ou Coordenador de Polos.
                 </p>
+              </div>
+              <div className="inline-flex rounded-md border border-[var(--card-border)] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setIsExternal(false)}
+                  className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                    !isExternal
+                      ? "bg-[var(--igh-primary)] text-white"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                >
+                  Interna
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsExternal(true)}
+                  className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                    isExternal
+                      ? "bg-[var(--igh-primary)] text-white"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                >
+                  Externa
+                </button>
               </div>
             </div>
           </div>

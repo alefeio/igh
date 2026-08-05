@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { cycleId, courseId, teacherIds, startDate, daysOfWeek, startTime, endTime, capacity, status, location, poloLocationId } =
+  const { cycleId, courseId, teacherIds, startDate, daysOfWeek, startTime, endTime, capacity, status, isExternal, location, poloLocationId } =
     parsed.data;
 
   const teacherValidation = await validateTeacherIds(teacherIds);
@@ -217,6 +217,7 @@ export async function POST(request: Request) {
         endTime,
         capacity,
         status: status ?? "PLANEJADA",
+        isExternal: isExternal ?? false,
         location: resolvedLocation,
         poloLocationId: resolvedPoloLocationId,
         createdByUserId: user.id,

@@ -54,8 +54,6 @@ const STATUS_LABELS: Record<string, string> = {
   EM_ANDAMENTO: "Em andamento",
   ENCERRADA: "Encerrada",
   CANCELADA: "Cancelada",
-  INTERNO: "Interno",
-  EXTERNO: "Externo",
 };
 
 /** Passos do tutorial exibido ao aluno na primeira vez no /dashboard */

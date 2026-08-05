@@ -57,6 +57,7 @@ type ClassGroup = {
   teacher?: Teacher;
   cycle?: Cycle;
   status?: string;
+  isExternal?: boolean;
   enrollmentsCount?: number;
 };
 type Enrollment = {
@@ -81,15 +82,13 @@ const CLASS_GROUP_STATUS_OPTIONS = [
   { value: "EM_ANDAMENTO", label: "Em andamento" },
   { value: "ENCERRADA", label: "Encerrada" },
   { value: "CANCELADA", label: "Cancelada" },
-  { value: "INTERNO", label: "Interno" },
-  { value: "EXTERNO", label: "Externo" },
 ] as const;
 
 const DEFAULT_CLASS_GROUP_STATUS_FILTERS = [
   "PLANEJADA",
+  "ABERTA",
   "EM_ANDAMENTO",
   "ENCERRADA",
-  "EXTERNO",
 ];
 
 function haveSameValues(left: string[], right: string[]): boolean {
@@ -438,18 +437,12 @@ export default function EnrollmentsPage() {
       cg.status === "PLANEJADA" ||
       cg.status === "ABERTA" ||
       cg.status === "EM_ANDAMENTO";
-    const isInterno = cg.status === "INTERNO";
-    const isExterno = cg.status === "EXTERNO";
-    // Master / Admin Geral: padrão + interno/externo (não Encerrada/Cancelada).
-    if (canOverrideEnrollment) {
-      return permiteMatriculaPadrao || isInterno || isExterno;
+    if (!permiteMatriculaPadrao) return false;
+    // Turmas externas: só Master / Admin Geral / Coordenador de polo.
+    if (cg.isExternal) {
+      return canOverrideEnrollment || isPoloCoordinator;
     }
-    // Coordenador de polo: turmas do polo aptas a matrícula (inclui interno/externo).
-    if (isPoloCoordinator) {
-      return permiteMatriculaPadrao || isInterno || isExterno;
-    }
-    // Admin pedagógico: só Planejada, Aberta e Em andamento.
-    return permiteMatriculaPadrao;
+    return true;
   }
 
   const filteredClassGroupsForModal = useMemo(

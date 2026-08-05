@@ -685,8 +685,6 @@ async function loadAdminDashboardHome(
     EM_ANDAMENTO: 0,
     ENCERRADA: 0,
     CANCELADA: 0,
-    INTERNO: 0,
-    EXTERNO: 0,
   };
   for (const row of classGroupsByStatusRows) {
     classGroupsByStatus[row.status] = row._count.id;

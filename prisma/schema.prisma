@@ -547,6 +547,8 @@ model ClassGroup {
   endTime          String
   capacity         Int
   status           ClassGroupStatus @default(PLANEJADA)
+  /// * false = Interna (padrão); true = Externa (fora do site público; matrícula privilegiada).
+  isExternal       Boolean          @default(false)
   location         String?
   /// * Local do polo (quando definido, a turma pertence ao polo daquele local).
   poloLocationId   String?
@@ -1857,8 +1859,6 @@ enum ClassGroupStatus {
   EM_ANDAMENTO
   ENCERRADA
   CANCELADA
-  INTERNO
-  EXTERNO
 }
 
 enum Gender {

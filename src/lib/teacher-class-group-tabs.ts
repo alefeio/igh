@@ -17,7 +17,7 @@ export const TEACHER_CLASS_GROUP_TAB_LABELS: Record<TeacherClassGroupTab, string
 };
 
 const TAB_STATUS_MAP: Record<TeacherClassGroupTab, ClassGroupStatus[]> = {
-  em_andamento: ["EM_ANDAMENTO", "ABERTA", "INTERNO", "EXTERNO"],
+  em_andamento: ["EM_ANDAMENTO", "ABERTA"],
   planejadas: ["PLANEJADA"],
   encerradas: ["ENCERRADA"],
   canceladas: ["CANCELADA"],

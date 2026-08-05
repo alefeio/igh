@@ -51,8 +51,6 @@ export const CLASS_GROUP_STATUS_LABELS: Record<string, string> = {
   EM_ANDAMENTO: "Em andamento",
   ENCERRADA: "Encerrada",
   CANCELADA: "Cancelada",
-  INTERNO: "Interno",
-  EXTERNO: "Externo",
 };
 
 export type ClassGroupTurmaParts = {
@@ -76,6 +74,7 @@ export function formatClassGroupTurmaLine(cg: ClassGroupTurmaParts): string {
 export type EnrollmentClassGroupOptionParts = {
   course: { name: string };
   status?: string | null;
+  isExternal?: boolean | null;
   startDate: string;
   startTime: string;
   endTime: string;
@@ -95,6 +94,7 @@ export function formatEnrollmentClassGroupOptionLabel(
   const label = [
     cg.course.name,
     CLASS_GROUP_STATUS_LABELS[cg.status ?? ""] ?? cg.status,
+    cg.isExternal ? "Externa" : null,
     `Início ${formatDateOnly(cg.startDate)}`,
     `${cg.startTime}-${cg.endTime}`,
     Array.isArray(cg.daysOfWeek) && cg.daysOfWeek.length ? formatDaysOrderedPt(cg.daysOfWeek) : null,

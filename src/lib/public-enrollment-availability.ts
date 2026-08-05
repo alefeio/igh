@@ -14,6 +14,7 @@ export const PUBLIC_INSCREVA_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] 
 export function publicInscrevaClassGroupWhere(): Prisma.ClassGroupWhereInput {
   return {
     status: { in: [...PUBLIC_INSCREVA_STATUSES] },
+    isExternal: false,
     course: { status: "ACTIVE" },
     cycle: { isVisibleForEnrollments: true },
   };

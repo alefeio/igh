@@ -25,6 +25,7 @@ export async function assertCanJoinWaitlist(args: {
       id: true,
       capacity: true,
       status: true,
+      isExternal: true,
       course: { select: { status: true } },
       cycle: { select: { isVisibleForEnrollments: true } },
     },
@@ -34,6 +35,14 @@ export async function assertCanJoinWaitlist(args: {
   }
 
   if (args.publicOnly) {
+    if (classGroup.isExternal) {
+      return {
+        ok: false,
+        code: "FORBIDDEN",
+        message: "Esta turma não está disponível para inscrição pública.",
+        status: 403,
+      };
+    }
     if (!(PUBLIC_INSCREVA_STATUSES as readonly string[]).includes(classGroup.status)) {
       return {
         ok: false,

@@ -25,16 +25,10 @@ const baseClassGroupFields = {
   endTime: z.string().min(3),
   capacity: z.number().int().positive(),
   status: z
-    .enum([
-      "PLANEJADA",
-      "ABERTA",
-      "EM_ANDAMENTO",
-      "ENCERRADA",
-      "CANCELADA",
-      "INTERNO",
-      "EXTERNO",
-    ])
+    .enum(["PLANEJADA", "ABERTA", "EM_ANDAMENTO", "ENCERRADA", "CANCELADA"])
     .optional(),
+  /** false = Interna (padrão); true = Externa. */
+  isExternal: z.boolean().optional(),
   location: z.string().optional().or(z.literal("")),
   /** Local do polo (FK). Quando informado, a turma passa a pertencer ao polo daquele local. */
   poloLocationId: nullableAppUuid,

@@ -25,6 +25,7 @@ export async function notifyWaitlistStudentsOfAlternateSeat(
       id: true,
       capacity: true,
       status: true,
+      isExternal: true,
       courseId: true,
       cycleId: true,
       startDate: true,
@@ -37,6 +38,7 @@ export async function notifyWaitlistStudentsOfAlternateSeat(
     },
   });
   if (!classGroup) return { offered: 0 };
+  if (classGroup.isExternal) return { offered: 0 };
   if (!PUBLIC_INSCREVA_STATUSES.includes(classGroup.status as (typeof PUBLIC_INSCREVA_STATUSES)[number])) {
     return { offered: 0 };
   }

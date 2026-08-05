@@ -5,8 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * Status que passam automaticamente para EM_ANDAMENTO quando startDate <= hoje (calendário Brasil).
- * INTERNO e EXTERNO não entram: são modos especiais (fora da inscrição pública) e precisam
- * permanecer filtráveis / identificáveis mesmo após o início das aulas.
+ * Turmas externas usam o mesmo fluxo operacional; o escopo (isExternal) é independente.
  */
 const STATUSES_PROMOTE_TO_EM_ANDAMENTO = ["PLANEJADA", "ABERTA"] as const;
 
@@ -35,7 +34,6 @@ export function getTodayCalendarDateUtcBrazil(): Date {
  * Atualiza status de turmas de forma idempotente:
  * - PLANEJADA, ABERTA com início <= hoje (Brasil) → EM_ANDAMENTO
  * - EM_ANDAMENTO com fim < hoje e sem preventAutoClose → ENCERRADA
- * - INTERNO / EXTERNO não são alterados automaticamente
  */
 export async function applyClassGroupAutomaticStatusUpdates(): Promise<{
   promotedToEmAndamento: number;

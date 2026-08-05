@@ -4,6 +4,7 @@ import { weeklyScheduleOverlaps } from "@/lib/class-group-overlap";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createPreEnrollmentSchema } from "@/lib/validators/public-enrollment";
 import { verifyStudentToken } from "@/lib/student-token";
+import { classGroupAllowsPublicEnrollment } from "@/lib/class-group-scope";
 
 function toDateOnlyString(value: Date | string | null | undefined): string | null {
   if (value == null) return null;
@@ -71,16 +72,16 @@ export async function POST(request: Request) {
   if (!classGroup) {
     return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
   }
-  // Turmas EXTERNO e INTERNO não devem ser inscrevíveis pelo público.
-  if (!["ABERTA", "EM_ANDAMENTO", "PLANEJADA"].includes(classGroup.status)) {
+  // Turmas externas e status não inscrevíveis não aceitam inscrição pública.
+  if (!classGroupAllowsPublicEnrollment(classGroup)) {
+    if (classGroup.isExternal) {
+      return jsonErr(
+        "FORBIDDEN",
+        "Esta turma não está disponível para inscrição pública. Entre em contato com a secretaria.",
+        403,
+      );
+    }
     return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
-  }
-  if (classGroup.status === "INTERNO" || classGroup.status === "EXTERNO") {
-    return jsonErr(
-      "FORBIDDEN",
-      "Esta turma não está disponível para inscrição pública. Entre em contato com a secretaria.",
-      403
-    );
   }
 
   const activeCount = await prisma.enrollment.count({

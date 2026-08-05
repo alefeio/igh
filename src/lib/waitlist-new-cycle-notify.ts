@@ -31,6 +31,7 @@ export async function notifyWaitlistStudentsOfNewCycle(cycleId: string): Promise
     where: {
       cycleId,
       status: { in: [...PUBLIC_INSCREVA_STATUSES] },
+      isExternal: false,
       course: { status: "ACTIVE" },
     },
     select: {

@@ -201,6 +201,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         endTime: parsed.data.endTime ?? undefined,
         capacity: parsed.data.capacity ?? undefined,
         status: parsed.data.status ?? undefined,
+        isExternal: parsed.data.isExternal ?? undefined,
         location:
           parsed.data.poloLocationId !== undefined || parsed.data.location !== undefined
             ? effectiveLocation

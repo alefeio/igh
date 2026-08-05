@@ -23,8 +23,6 @@ const STATUS_LABEL: Record<string, string> = {
   EM_ANDAMENTO: "Em andamento",
   ENCERRADA: "Encerrada",
   CANCELADA: "Cancelada",
-  INTERNO: "Interno",
-  EXTERNO: "Externo",
 };
 
 export type CycleClassGroupReportRow = {
@@ -92,7 +90,7 @@ function avg(nums: number[]): number | null {
 }
 
 /**
- * Relatório de turmas do ciclo (exclui CANCELADA; inclui INTERNO/EXTERNO).
+ * Relatório de turmas do ciclo (exclui CANCELADA; inclui internas e externas).
  * Inscritos = ACTIVE · Formados = Certificado Sim + turma ENCERRADA ·
  * Taxa = formados / (ACTIVE + SUSPENDED).
  */
@@ -593,7 +591,7 @@ export async function buildCycleClassGroupsReportXlsx(params: {
       "Média das frequências individuais (ACTIVE e SUSPENDED); sessões até hoje, exceto canceladas",
     ],
     ["Ocupação %", "Inscritos ÷ Capacidade × 100"],
-    ["Turmas incluídas", "Todas do ciclo, exceto CANCELADA (inclui INTERNO e EXTERNO)"],
+    ["Turmas incluídas", "Todas do ciclo, exceto CANCELADA (inclui internas e externas)"],
   ];
 
   glossario.forEach(([campo, significado], idx) => {
