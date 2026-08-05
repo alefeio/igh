@@ -65,6 +65,18 @@ export async function buildAttemptReview(attemptId: string, classGroupId: string
 
   const answerByQ = new Map(attempt.answers.map((a) => [a.attemptQuestionId, a]));
 
+  const exerciseIds = [...new Set(attempt.questions.map((q) => q.exerciseId))];
+  const justificationByExercise = new Map<string, string | null>();
+  if (exerciseIds.length > 0) {
+    const exercises = await prisma.courseLessonExercise.findMany({
+      where: { id: { in: exerciseIds } },
+      select: { id: true, answerJustification: true },
+    });
+    for (const ex of exercises) {
+      justificationByExercise.set(ex.id, ex.answerJustification);
+    }
+  }
+
   const questions = attempt.questions.map((q) => {
     const opts = (q.optionsJson as { id: string; text: string; order: number }[]).slice().sort(
       (a, b) => a.order - b.order
@@ -84,6 +96,7 @@ export async function buildAttemptReview(attemptId: string, classGroupId: string
       })),
       answered: selectedId != null,
       correct: ans?.correct ?? false,
+      answerJustification: justificationByExercise.get(q.exerciseId) ?? null,
     };
   });
 

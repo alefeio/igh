@@ -61,6 +61,7 @@ async function loadReviews(classGroupId: string, examId: string, attemptIds: str
         order: q.order,
         questionText: q.questionText,
         correct: q.correct,
+        answerJustification: q.answerJustification,
         options: q.options.map((o) => ({
           label: o.label,
           text: o.text,

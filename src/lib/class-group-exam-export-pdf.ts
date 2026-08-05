@@ -17,6 +17,7 @@ export type ExamAttemptPdfReview = {
     order: number;
     questionText: string;
     correct: boolean;
+    answerJustification?: string | null;
     options: {
       label: string;
       text: string;
@@ -198,6 +199,31 @@ export async function buildExamAttemptsPdfBytes(
               ? rgb(0.55, 0.1, 0.1)
               : rgb(0.25, 0.25, 0.25);
           pageRef.page.drawText(line, { x: margin + 8, y: yRef.y, size: 9, font, color });
+          yRef.y -= 11;
+        }
+      }
+
+      const justification = (q.answerJustification ?? "").trim();
+      if (justification) {
+        yRef.y -= 2;
+        ensureSpace(pdf, pageRef, yRef, 14, width, height, margin);
+        pageRef.page.drawText("Justificativa:", {
+          x: margin,
+          y: yRef.y,
+          size: 9,
+          font: fontBold,
+          color: rgb(0.2, 0.2, 0.35),
+        });
+        yRef.y -= 12;
+        for (const line of wrapLines(justification, font, 9, maxWidth)) {
+          ensureSpace(pdf, pageRef, yRef, 12, width, height, margin);
+          pageRef.page.drawText(line, {
+            x: margin,
+            y: yRef.y,
+            size: 9,
+            font,
+            color: rgb(0.25, 0.25, 0.35),
+          });
           yRef.y -= 11;
         }
       }
