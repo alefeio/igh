@@ -49,6 +49,7 @@ export async function GET() {
         cycle: true,
         course: true,
         teacher: true,
+        createdByUser: { select: { id: true, name: true } },
         poloLocation: {
           select: {
             id: true,
@@ -218,6 +219,7 @@ export async function POST(request: Request) {
         status: status ?? "PLANEJADA",
         location: resolvedLocation,
         poloLocationId: resolvedPoloLocationId,
+        createdByUserId: user.id,
       },
     });
 

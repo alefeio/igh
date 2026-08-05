@@ -94,6 +94,8 @@ model User {
   referredByUserId                   String?
   referredByUser                     User?                      @relation("UserReferredBy", fields: [referredByUserId], references: [id], onDelete: SetNull)
   usersReferred                      User[]                     @relation("UserReferredBy")
+  /// * Turmas criadas por este usuário (admin/master).
+  classGroupsCreated                 ClassGroup[]               @relation("ClassGroupCreatedBy")
 
   @@index([referredByUserId])
 }
@@ -548,6 +550,8 @@ model ClassGroup {
   location         String?
   /// * Local do polo (quando definido, a turma pertence ao polo daquele local).
   poloLocationId   String?
+  /// * Usuário (admin/master) que criou a turma.
+  createdByUserId  String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   endDate          DateTime?        @db.Date
@@ -558,12 +562,14 @@ model ClassGroup {
   classGroupTeachers ClassGroupTeacher[]
   cycle            Cycle            @relation(fields: [cycleId], references: [id])
   poloLocation     PoloLocation?    @relation(fields: [poloLocationId], references: [id], onDelete: SetNull)
+  createdByUser    User?            @relation("ClassGroupCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   sessions         ClassSession[]
   enrollments      Enrollment[]
   waitlistEntries  EnrollmentWaitlist[]
   exams            ClassGroupExam[]
 
   @@index([poloLocationId])
+  @@index([createdByUserId])
 }
 
 model ClassGroupTeacher {

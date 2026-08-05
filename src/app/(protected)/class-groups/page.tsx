@@ -62,6 +62,7 @@ type ClassGroup = {
     polo: { id: string; name: string };
   } | null;
   createdAt: string;
+  createdByUser?: { id: string; name: string } | null;
   cycle: Cycle;
   course: Course;
   teacher: Teacher;
@@ -1024,11 +1025,21 @@ export default function ClassGroupsPage() {
                       <Td className="whitespace-nowrap text-[var(--text-secondary)]">
                         {cg.cycle ? `${cg.cycle.cycle}/${String(cg.cycle.year).slice(2)}` : "—"}
                       </Td>
-                      <Td
-                        className="max-w-[12rem] truncate font-medium text-[var(--text-primary)]"
-                        title={cg.course.name}
-                      >
-                        {cg.course.name}
+                      <Td className="max-w-[12rem]">
+                        <div
+                          className="truncate font-medium text-[var(--text-primary)]"
+                          title={cg.course.name}
+                        >
+                          {cg.course.name}
+                        </div>
+                        {cg.createdByUser?.name ? (
+                          <small
+                            className="mt-0.5 block truncate text-[var(--text-muted)]"
+                            title={cg.createdByUser.name}
+                          >
+                            {cg.createdByUser.name}
+                          </small>
+                        ) : null}
                       </Td>
                       <Td
                         className="max-w-[10rem] truncate text-[var(--text-secondary)]"
