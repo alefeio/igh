@@ -183,6 +183,8 @@ export default function ClassGroupsPage() {
   const [statusFilters, setStatusFilters] = useState<ClassGroup["status"][]>([]);
   /** Quando false, lista só turmas dos ciclos marcados como visíveis p/ matrículas (ciclo atual). */
   const [includeOtherCycles, setIncludeOtherCycles] = useState(false);
+  /** Quando true, lista só turmas inativas (status CANCELADA). */
+  const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<ClassGroup | null>(null);
 
   const [cycleId, setCycleId] = useState("");
@@ -666,8 +668,13 @@ export default function ClassGroupsPage() {
         return !!cid && allowed.has(cid);
       });
     }
-    if (statusFilters.length > 0) {
-      list = list.filter((cg) => statusFilters.includes(cg.status));
+    if (showInactive) {
+      list = list.filter((cg) => cg.status === "CANCELADA");
+    } else {
+      list = list.filter((cg) => cg.status !== "CANCELADA");
+      if (statusFilters.length > 0) {
+        list = list.filter((cg) => statusFilters.includes(cg.status));
+      }
     }
     const q = searchQuery.trim();
     if (q) {
@@ -690,7 +697,7 @@ export default function ClassGroupsPage() {
       });
     }
     return list;
-  }, [items, statusFilters, searchQuery, includeOtherCycles, currentCycleIds]);
+  }, [items, statusFilters, searchQuery, includeOtherCycles, currentCycleIds, showInactive]);
 
   function toggleStatusFilter(status: ClassGroup["status"]) {
     setStatusFilters((prev) =>
@@ -703,7 +710,6 @@ export default function ClassGroupsPage() {
     { value: "ABERTA", label: "Aberta" },
     { value: "EM_ANDAMENTO", label: "Em andamento" },
     { value: "ENCERRADA", label: "Encerrada" },
-    { value: "CANCELADA", label: "Cancelada" },
   ];
 
   return (
@@ -738,23 +744,41 @@ export default function ClassGroupsPage() {
             />
             Incluir outros ciclos
           </label>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-[var(--text-muted)]">Status:</span>
-            {STATUS_OPTIONS.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => toggleStatusFilter(value)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  statusFilters.includes(value)
-                    ? "bg-[var(--igh-primary)] text-white"
-                    : "bg-[var(--igh-surface)] text-[var(--igh-muted)] hover:bg-[var(--card-border)]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <Button
+            type="button"
+            variant={showInactive ? "primary" : "secondary"}
+            size="sm"
+            onClick={() => {
+              setShowInactive((prev) => !prev);
+              setStatusFilters([]);
+            }}
+            className="w-full sm:w-auto"
+          >
+            {showInactive ? "Ver turmas ativas" : "Ver turmas inativas"}
+          </Button>
+          {!showInactive ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-[var(--text-muted)]">Status:</span>
+              {STATUS_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => toggleStatusFilter(value)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    statusFilters.includes(value)
+                      ? "bg-[var(--igh-primary)] text-white"
+                      : "bg-[var(--igh-surface)] text-[var(--igh-muted)] hover:bg-[var(--card-border)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--text-muted)]">
+              Exibindo apenas turmas inativas (canceladas).
+            </p>
+          )}
         </div>
         {!includeOtherCycles && currentCycleIds.length > 0 && (
           <p className="mt-2 text-xs text-[var(--text-muted)]">
@@ -921,14 +945,16 @@ export default function ClassGroupsPage() {
       </SectionCard>
 
       <SectionCard
-        title="Listagem de turmas"
+        title={showInactive ? "Turmas inativas" : "Listagem de turmas"}
         description={
           loading
             ? "Carregando…"
-            : `${visibleItems.length} ${visibleItems.length === 1 ? "turma" : "turmas"} com os filtros atuais.`
+            : showInactive
+              ? `${visibleItems.length} ${visibleItems.length === 1 ? "turma inativa" : "turmas inativas"} com os filtros atuais.`
+              : `${visibleItems.length} ${visibleItems.length === 1 ? "turma" : "turmas"} com os filtros atuais.`
         }
         action={
-          canMutate ? (
+          canMutate && !showInactive ? (
             <Button onClick={openCreate} className="w-full sm:w-auto">
               Nova turma
             </Button>
@@ -1111,9 +1137,11 @@ export default function ClassGroupsPage() {
                   <tr>
                     <Td colSpan={10}>
                       <span className="text-[var(--text-secondary)]">
-                        {items.length === 0
-                          ? "Nenhuma turma cadastrada."
-                          : "Nenhuma turma encontrada com os filtros aplicados."}
+                        {showInactive
+                          ? "Nenhuma turma inativa encontrada."
+                          : items.length === 0
+                            ? "Nenhuma turma cadastrada."
+                            : "Nenhuma turma encontrada com os filtros aplicados."}
                       </span>
                     </Td>
                   </tr>
