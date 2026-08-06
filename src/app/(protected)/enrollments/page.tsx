@@ -220,6 +220,10 @@ export default function EnrollmentsPage() {
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(null);
   const [editStatus, setEditStatus] = useState("ACTIVE");
   const [editClassGroupId, setEditClassGroupId] = useState("");
+  const [editStudentId, setEditStudentId] = useState("");
+  const [editStudentSearchQuery, setEditStudentSearchQuery] = useState("");
+  const [editStudentDropdownOpen, setEditStudentDropdownOpen] = useState(false);
+  const editStudentComboboxRef = useRef<HTMLDivElement>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [allClassGroups, setAllClassGroups] = useState<ClassGroup[]>([]);
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
@@ -485,11 +489,12 @@ export default function EnrollmentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Busca de alunos (combobox): debounce para evitar rajadas ao digitar.
+  // Busca de alunos (combobox Nova matrícula / Editar): debounce para evitar rajadas ao digitar.
   useEffect(() => {
-    if (!studentDropdownOpen) return;
+    const forEdit = editStudentDropdownOpen && canOverrideEnrollment;
+    if (!studentDropdownOpen && !forEdit) return;
     if (studentSearchTimerRef.current != null) window.clearTimeout(studentSearchTimerRef.current);
-    const q = studentSearchQuery;
+    const q = studentDropdownOpen ? studentSearchQuery : editStudentSearchQuery;
     studentSearchTimerRef.current = window.setTimeout(() => {
       studentSearchTimerRef.current = null;
       const now = Date.now();
@@ -501,7 +506,14 @@ export default function EnrollmentsPage() {
     return () => {
       if (studentSearchTimerRef.current != null) window.clearTimeout(studentSearchTimerRef.current);
     };
-  }, [studentSearchQuery, studentDropdownOpen, searchStudents]);
+  }, [
+    studentSearchQuery,
+    studentDropdownOpen,
+    editStudentSearchQuery,
+    editStudentDropdownOpen,
+    canOverrideEnrollment,
+    searchStudents,
+  ]);
 
   useEffect(() => {
     setPage(1);
@@ -932,6 +944,22 @@ export default function EnrollmentsPage() {
     setEditingEnrollment(e);
     setEditStatus(e.status);
     setEditClassGroupId(e.classGroup.id);
+    setEditStudentId(e.student.id);
+    setEditStudentSearchQuery("");
+    setEditStudentDropdownOpen(false);
+    setStudents((prev) =>
+      prev.some((s) => s.id === e.student.id)
+        ? prev
+        : [
+            ...prev,
+            {
+              id: e.student.id,
+              name: e.student.name,
+              email: e.student.email,
+              phone: e.student.phone,
+            },
+          ],
+    );
     setEditOpen(true);
     void loadFormOptions();
   }
@@ -1008,13 +1036,24 @@ export default function EnrollmentsPage() {
   async function submitEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingEnrollment || editSubmitting) return;
+    if (canOverrideEnrollment && !editStudentId) {
+      toast.push("error", "Selecione um aluno.");
+      return;
+    }
     setEditSubmitting(true);
     try {
-      const body: { status: string; classGroupId?: string } = {
+      const body: { status: string; classGroupId?: string; studentId?: string } = {
         status: editStatus,
       };
       if (editClassGroupId && editClassGroupId !== editingEnrollment.classGroup.id) {
         body.classGroupId = editClassGroupId;
+      }
+      if (
+        canOverrideEnrollment &&
+        editStudentId &&
+        editStudentId !== editingEnrollment.student.id
+      ) {
+        body.studentId = editStudentId;
       }
       const res = await fetch(`/api/enrollments/${editingEnrollment.id}`, {
         method: "PATCH",
@@ -1029,6 +1068,8 @@ export default function EnrollmentsPage() {
       toast.push("success", "Matrícula atualizada.");
       setEditOpen(false);
       setEditingEnrollment(null);
+      setEditStudentId("");
+      setEditStudentSearchQuery("");
       await load();
       setWaitlistReloadToken((n) => n + 1);
     } finally {
@@ -2009,14 +2050,103 @@ export default function EnrollmentsPage() {
         </form>
       </Modal>
 
-      <Modal open={editOpen} title="Editar matrícula" onClose={() => { setEditOpen(false); setEditingEnrollment(null); }}>
+      <Modal
+        open={editOpen}
+        title="Editar matrícula"
+        onClose={() => {
+          setEditOpen(false);
+          setEditingEnrollment(null);
+          setEditStudentId("");
+          setEditStudentSearchQuery("");
+          setEditStudentDropdownOpen(false);
+        }}
+      >
         {editingEnrollment && (
           <form onSubmit={submitEdit} className="flex flex-col gap-4">
-            <div>
-              <div className="text-sm font-medium text-[var(--text-secondary)]">Aluno</div>
-              <p className="mt-0.5 font-medium">{editingEnrollment.student.name}</p>
-              <p className="text-xs text-[var(--text-muted)]">{editingEnrollment.student.email ?? "-"}</p>
-            </div>
+            {canOverrideEnrollment ? (
+              <div>
+                <label className="text-sm font-medium">Aluno</label>
+                <div ref={editStudentComboboxRef} className="relative mt-1">
+                  <input
+                    type="text"
+                    value={
+                      editStudentId
+                        ? (() => {
+                            const s = students.find((x) => x.id === editStudentId);
+                            return s
+                              ? `${s.name}${s.email ? ` (${s.email})` : " (sem e-mail)"}`
+                              : editStudentSearchQuery ||
+                                  `${editingEnrollment.student.name}${
+                                    editingEnrollment.student.email
+                                      ? ` (${editingEnrollment.student.email})`
+                                      : ""
+                                  }`;
+                          })()
+                        : editStudentSearchQuery
+                    }
+                    onChange={(e) => {
+                      setEditStudentSearchQuery(e.target.value);
+                      setEditStudentId("");
+                      setEditStudentDropdownOpen(true);
+                    }}
+                    onFocus={() => {
+                      setEditStudentDropdownOpen(true);
+                      if (students.length === 0) void searchStudents(editStudentSearchQuery);
+                    }}
+                    onBlur={() => setTimeout(() => setEditStudentDropdownOpen(false), 150)}
+                    placeholder="Digite o nome ou e-mail do aluno..."
+                    className="theme-input w-full rounded border px-3 py-2 text-sm"
+                    autoComplete="off"
+                  />
+                  {editStudentDropdownOpen ? (
+                    <ul
+                      className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded border border-[var(--card-border)] bg-[var(--card-bg)] py-1 shadow-lg"
+                      role="listbox"
+                    >
+                      {students.length === 0 ? (
+                        <li className="px-3 py-2 text-sm text-[var(--text-muted)]">
+                          Nenhum aluno encontrado.
+                        </li>
+                      ) : (
+                        students.map((s) => {
+                          const label = `${s.name}${s.email ? ` (${s.email})` : " (sem e-mail)"}`;
+                          return (
+                            <li
+                              key={s.id}
+                              role="option"
+                              aria-selected={s.id === editStudentId}
+                              className="cursor-pointer px-3 py-2 text-sm hover:bg-[var(--igh-surface)]"
+                              onMouseDown={(ev) => {
+                                ev.preventDefault();
+                                setStudents((prev) =>
+                                  prev.some((x) => x.id === s.id) ? prev : [s, ...prev],
+                                );
+                                setEditStudentId(s.id);
+                                setEditStudentSearchQuery("");
+                                setEditStudentDropdownOpen(false);
+                              }}
+                            >
+                              {label}
+                            </li>
+                          );
+                        })
+                      )}
+                    </ul>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  Apenas Master e Administrador Geral podem alterar o aluno da matrícula.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="text-sm font-medium text-[var(--text-secondary)]">Aluno</div>
+                <p className="mt-0.5 font-medium">{editingEnrollment.student.name}</p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {editingEnrollment.student.email ?? "-"}
+                </p>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium">Turma</label>
               <select
@@ -2063,10 +2193,19 @@ export default function EnrollmentsPage() {
               </select>
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setEditOpen(false);
+                  setEditingEnrollment(null);
+                  setEditStudentId("");
+                  setEditStudentSearchQuery("");
+                }}
+              >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={editSubmitting}>
+              <Button type="submit" disabled={editSubmitting || (canOverrideEnrollment && !editStudentId)}>
                 {editSubmitting ? "Salvando..." : "Salvar"}
               </Button>
             </div>

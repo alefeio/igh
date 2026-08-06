@@ -91,6 +91,7 @@ export async function PATCH(
     status?: string;
     isPreEnrollment?: boolean;
     classGroupId?: string;
+    studentId?: string;
     certificateUrl?: string | null;
     certificatePublicId?: string | null;
     certificateFileName?: string | null;
@@ -100,6 +101,43 @@ export async function PATCH(
   if (parsed.data.certificateUrl !== undefined) data.certificateUrl = parsed.data.certificateUrl || null;
   if (parsed.data.certificatePublicId !== undefined) data.certificatePublicId = parsed.data.certificatePublicId || null;
   if (parsed.data.certificateFileName !== undefined) data.certificateFileName = parsed.data.certificateFileName || null;
+
+  if (parsed.data.studentId !== undefined && parsed.data.studentId !== existing.studentId) {
+    const canChangeStudent = user.role === "MASTER" || user.role === "GENERAL_ADMIN";
+    if (!canChangeStudent) {
+      return jsonErr(
+        "FORBIDDEN",
+        "Apenas Master ou Administrador Geral podem alterar o aluno da matrícula.",
+        403,
+      );
+    }
+    const newStudentId = parsed.data.studentId;
+    const student = await prisma.student.findFirst({
+      where: { id: newStudentId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!student) {
+      return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
+    }
+    const targetClassGroupId = parsed.data.classGroupId ?? existing.classGroupId;
+    const alreadyEnrolled = await prisma.enrollment.findFirst({
+      where: {
+        studentId: newStudentId,
+        classGroupId: targetClassGroupId,
+        status: "ACTIVE",
+        id: { not: id },
+      },
+      select: { id: true },
+    });
+    if (alreadyEnrolled) {
+      return jsonErr(
+        "DUPLICATE",
+        "Este aluno já possui matrícula ativa nesta turma.",
+        409,
+      );
+    }
+    data.studentId = newStudentId;
+  }
 
   if (parsed.data.classGroupId !== undefined && parsed.data.classGroupId !== existing.classGroupId) {
     const newClassGroupId = parsed.data.classGroupId;
@@ -144,7 +182,7 @@ export async function PATCH(
     }
     const alreadyInNew = await prisma.enrollment.findFirst({
       where: {
-        studentId: existing.studentId,
+        studentId: data.studentId ?? existing.studentId,
         classGroupId: newClassGroupId,
         status: "ACTIVE",
         id: { not: id },
@@ -156,7 +194,7 @@ export async function PATCH(
     const ACTIVE_CLASS_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
     const otherEnrollments = await prisma.enrollment.findMany({
       where: {
-        studentId: existing.studentId,
+        studentId: data.studentId ?? existing.studentId,
         status: "ACTIVE",
         id: { not: id },
         classGroup: { status: { in: [...ACTIVE_CLASS_STATUSES] } },
