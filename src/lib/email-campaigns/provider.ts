@@ -56,6 +56,7 @@ import {
   sleep,
   throttleBeforeResendCall,
 } from "@/lib/email/resend-rate-limit";
+import { formatEmailFrom, resolveEmailSiteBranding } from "@/lib/email/logo";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY ?? "";
 const RESEND_RATE_LIMIT_RETRIES = 5;
@@ -64,6 +65,7 @@ const RESEND_FROM_NAME = process.env.RESEND_FROM_NAME ?? "";
 
 /**
  * Provider Resend (configuração via env: RESEND_API_KEY, EMAIL_FROM ou RESEND_FROM_EMAIL, RESEND_FROM_NAME opcional).
+ * Nome exibido: SiteSettings.siteName (Configurações), senão RESEND_FROM_NAME.
  */
 export class ResendEmailProvider implements EmailProvider {
   readonly name = "resend";
@@ -80,8 +82,10 @@ export class ResendEmailProvider implements EmailProvider {
           "Resend não configurado. Defina RESEND_API_KEY (e opcionalmente EMAIL_FROM/RESEND_FROM_EMAIL, RESEND_FROM_NAME) no .env",
       };
     }
-    const from = RESEND_FROM_NAME
-      ? `${RESEND_FROM_NAME} <${EMAIL_FROM}>`
+    const { siteName } = await resolveEmailSiteBranding();
+    const displayName = siteName || RESEND_FROM_NAME.trim();
+    const from = displayName
+      ? formatEmailFrom(displayName, EMAIL_FROM)
       : EMAIL_FROM;
     const html =
       params.html != null && params.html.trim() !== ""

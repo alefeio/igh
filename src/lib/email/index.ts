@@ -6,7 +6,7 @@ import {
   sleep,
   throttleBeforeResendCall,
 } from "@/lib/email/resend-rate-limit";
-import { applyEmailLogoToHtml } from "@/lib/email/logo";
+import { prepareTransactionalEmail } from "@/lib/email/logo";
 
 export interface SendEmailParams {
   to: string | string[];
@@ -43,8 +43,11 @@ export async function resolvePublicAppUrl(): Promise<string> {
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 export async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
-  const { to, subject, from = EMAIL_FROM } = params;
-  const html = await applyEmailLogoToHtml(params.html);
+  const { to, subject, from: fromParam = EMAIL_FROM } = params;
+  const { html, from } = await prepareTransactionalEmail({
+    html: params.html,
+    from: fromParam,
+  });
   const toList = Array.isArray(to) ? to : [to];
 
   if (!RESEND_API_KEY) {
