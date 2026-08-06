@@ -88,6 +88,7 @@ export async function POST(
           imageUrl: source.imageUrl,
           workloadHours: source.workloadHours,
           status: source.status,
+          createdByUserId: user.id,
         },
       });
 

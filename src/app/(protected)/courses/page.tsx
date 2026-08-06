@@ -21,6 +21,7 @@ type Course = {
   workloadHours: number | null;
   status: "ACTIVE" | "INACTIVE" | "NOT_LISTED";
   createdAt: string;
+  createdByUser?: { id: string; name: string } | null;
 };
 
 export default function CoursesPage() {
@@ -389,6 +390,9 @@ export default function CoursesPage() {
                         {c.description && (
                           <span className="text-xs text-[var(--text-muted)] line-clamp-1">{c.description}</span>
                         )}
+                        <span className="text-xs text-[var(--text-muted)]">
+                          Criado por: {c.createdByUser?.name ?? "—"}
+                        </span>
                       </div>
                     </Td>
                     <Td>

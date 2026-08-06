@@ -96,6 +96,8 @@ model User {
   usersReferred                      User[]                     @relation("UserReferredBy")
   /// * Turmas criadas por este usuário (admin/master).
   classGroupsCreated                 ClassGroup[]               @relation("ClassGroupCreatedBy")
+  /// * Cursos criados por este usuário (admin/master).
+  coursesCreated                     Course[]                   @relation("CourseCreatedBy")
 
   @@index([referredByUserId])
 }
@@ -406,20 +408,25 @@ model Teacher {
 }
 
 model Course {
-  id             String                @id @default(uuid())
-  name           String                @unique
-  description    String?
-  workloadHours  Int?
-  status         CourseStatus          @default(ACTIVE)
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-  content        String?
-  imageUrl       String?
-  slug           String                @unique
-  classGroups    ClassGroup[]
-  modules        CourseModule[]
-  siteFormations SiteFormationCourse[]
-  siteUnits      SiteUnitCourse[]
+  id              String                @id @default(uuid())
+  name            String                @unique
+  description     String?
+  workloadHours   Int?
+  status          CourseStatus          @default(ACTIVE)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  content         String?
+  imageUrl        String?
+  slug            String                @unique
+  /// * Usuário (admin/master) que criou o curso.
+  createdByUserId String?
+  createdByUser   User?                 @relation("CourseCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  classGroups     ClassGroup[]
+  modules         CourseModule[]
+  siteFormations  SiteFormationCourse[]
+  siteUnits       SiteUnitCourse[]
+
+  @@index([createdByUserId])
 }
 
 model CourseModule {

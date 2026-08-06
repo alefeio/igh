@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await importCoursesBackup(payload);
+    const result = await importCoursesBackup(payload, { createdByUserId: user.id });
     await createAuditLog({
       entityType: "Course",
       entityId: result.courseIds[0] ?? "course-backup-import",

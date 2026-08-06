@@ -206,7 +206,10 @@ export type ImportCoursesResult = {
  * Importa backup com upsert por ID.
  * Se o curso já existe, remove módulos (cascade) e recria a árvore preservando IDs.
  */
-export async function importCoursesBackup(payload: CourseBackupPayload): Promise<ImportCoursesResult> {
+export async function importCoursesBackup(
+  payload: CourseBackupPayload,
+  options?: { createdByUserId?: string },
+): Promise<ImportCoursesResult> {
   const parsed = parseCourseBackupPayload(payload);
   let created = 0;
   let updated = 0;
@@ -256,6 +259,7 @@ export async function importCoursesBackup(payload: CourseBackupPayload): Promise
               imageUrl: course.imageUrl ?? null,
               workloadHours: course.workloadHours ?? null,
               status,
+              createdByUserId: options?.createdByUserId ?? null,
             },
           });
           created += 1;

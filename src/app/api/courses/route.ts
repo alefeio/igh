@@ -47,12 +47,18 @@ export async function GET() {
     const courses = await prisma.course.findMany({
       where: { id: { in: courseIds } },
       orderBy: { name: "asc" },
+      include: {
+        createdByUser: { select: { id: true, name: true } },
+      },
     });
     return jsonOk({ courses });
   }
 
   const courses = await prisma.course.findMany({
     orderBy: { name: "asc" },
+    include: {
+      createdByUser: { select: { id: true, name: true } },
+    },
   });
 
   return jsonOk({ courses });
@@ -85,6 +91,10 @@ export async function POST(request: Request) {
       imageUrl: imageUrl || null,
       workloadHours: workloadHours ?? null,
       status: status ?? "ACTIVE",
+      createdByUserId: user.id,
+    },
+    include: {
+      createdByUser: { select: { id: true, name: true } },
     },
   });
 
