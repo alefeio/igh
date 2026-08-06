@@ -2,12 +2,14 @@ import "server-only";
 
 import { BRAND } from "../brand";
 import { getAppUrl } from "./index";
+import { EMAIL_LOGO_SRC_PLACEHOLDER } from "./logo";
 
 const TERMS_VERSION = "v1-2026-02";
 const COMPANY_NAME = BRAND.legalName;
 
 function getLogoUrl(): string {
-  return getAppUrl("/images/logo.png");
+  // Substituído por SiteSettings.logoUrl no momento do envio (`sendEmail`).
+  return EMAIL_LOGO_SRC_PLACEHOLDER;
 }
 
 function emailHeader(): string {
