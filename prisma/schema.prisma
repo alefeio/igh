@@ -44,6 +44,8 @@ model User {
   isCoordinator                Boolean                      @default(false)
   /// * Acesso sobreposto como Coordenador de Polos (além do papel-base).
   isPoloCoordinator            Boolean                      @default(false)
+  /// * Acesso sobreposto à Gerência Administrativa (além do papel-base).
+  isAdminManager               Boolean                      @default(false)
   /// * Chaves dos tutoriais já concluídos pelo usuário (ex.: student-dashboard-tutorial-done).
   completedTutorialKeys        String[]                     @default([])
   auditLogs                    AuditLog[]                   @relation("UserAuditLogs")
@@ -94,6 +96,14 @@ model User {
   referredByUserId                   String?
   referredByUser                     User?                      @relation("UserReferredBy", fields: [referredByUserId], references: [id], onDelete: SetNull)
   usersReferred                      User[]                     @relation("UserReferredBy")
+  /// * Ficha de colaborador vinculada a esta conta (Gerência Administrativa).
+  employee                           Employee?                  @relation("EmployeeUser")
+  employeesCreated                   Employee[]                 @relation("EmployeeCreatedBy")
+  employeesDeleted                   Employee[]                 @relation("EmployeeDeletedBy")
+  employeeDocumentsUploaded          EmployeeDocument[]         @relation("EmployeeDocumentUploadedBy")
+  documentTemplatesCreated           DocumentTemplate[]         @relation("DocumentTemplateCreatedBy")
+  employeeContractsCreated           EmployeeContract[]         @relation("EmployeeContractCreatedBy")
+  employeeMonthlyInvoicesCreated     EmployeeMonthlyInvoice[]   @relation("EmployeeMonthlyInvoiceCreatedBy")
   /// * Turmas criadas por este usuário (admin/master).
   classGroupsCreated                 ClassGroup[]               @relation("ClassGroupCreatedBy")
   /// * Cursos criados por este usuário (admin/master).
@@ -518,6 +528,7 @@ model Polo {
   updatedAt          DateTime       @updatedAt
   coordinator        User           @relation(fields: [coordinatorUserId], references: [id])
   locations          PoloLocation[]
+  employees          Employee[]
 
   @@index([coordinatorUserId])
   @@index([isActive])
@@ -1213,6 +1224,171 @@ model StudentAttachment {
   @@index([studentId, type])
 }
 
+// ————————————————— Gerência Administrativa —————————————————
+
+/// * Ficha administrativa do colaborador. Independe de ter conta no sistema:
+/// * quem já é usuário fica vinculado por `userId`, os demais existem só aqui.
+model Employee {
+  id                 String             @id @default(uuid())
+  /// * Conta do sistema vinculada (professor, coordenador, gerente...). Nulo para quem não acessa o painel.
+  userId             String?            @unique
+  name               String
+  cpf                String             @unique
+  rg                 String?
+  rgIssuer           String?
+  birthDate          DateTime?          @db.Date
+  email              String?
+  phone              String?
+  position           EmployeePosition
+  /// * Rótulo livre quando o cargo oficial é mais específico que o enum (ex.: "Auxiliar de secretaria").
+  positionLabel      String?
+  employmentType     EmploymentType     @default(MEI)
+  status             EmployeeStatus     @default(ATIVO)
+  admissionDate      DateTime?          @db.Date
+  terminationDate    DateTime?          @db.Date
+  /// * Remuneração mensal em centavos (evita erro de arredondamento).
+  monthlyPayCents    Int?
+  uniformSize        UniformSize?
+  /// * Numeração do calçado (texto livre: "39", "40/41"...).
+  shoeSize           String?
+  meiCnpj            String?
+  meiCompanyName     String?
+  bankName           String?
+  bankAgency         String?
+  bankAccount        String?
+  bankAccountType    BankAccountType?
+  pixKeyType         PixKeyType?
+  pixKey             String?
+  cep                String?
+  street             String?
+  number             String?
+  complement         String?
+  neighborhood       String?
+  city               String?
+  state              String?
+  notes              String?
+  /// * Polo de lotação (vigia, limpeza, coordenação...).
+  poloId             String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  createdByUserId    String?
+  deletedAt          DateTime?
+  deletedByUserId    String?
+  user               User?              @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
+  polo               Polo?              @relation(fields: [poloId], references: [id], onDelete: SetNull)
+  createdByUser      User?              @relation("EmployeeCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  deletedByUser      User?              @relation("EmployeeDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  documents          EmployeeDocument[]
+  contracts          EmployeeContract[]
+  monthlyInvoices    EmployeeMonthlyInvoice[]
+
+  @@index([deletedAt, status])
+  @@index([position])
+  @@index([poloId])
+}
+
+/// * Anexo da ficha do colaborador: documentos pessoais, contrato, distrato e nota mensal.
+model EmployeeDocument {
+  id               String               @id @default(uuid())
+  employeeId       String
+  type             EmployeeDocumentType
+  title            String?
+  /// * Competência da nota mensal (sempre o dia 1º do mês de referência).
+  referenceMonth   DateTime?            @db.Date
+  /// * Valor da nota em centavos, quando o anexo é uma nota fiscal.
+  amountCents      Int?
+  fileName         String?
+  mimeType         String?
+  sizeBytes        Int?
+  publicId         String
+  url              String
+  createdAt        DateTime             @default(now())
+  uploadedByUserId String?
+  deletedAt        DateTime?
+  employee         Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  uploadedByUser   User?                @relation("EmployeeDocumentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, type])
+  @@index([referenceMonth])
+}
+
+/// * Modelo editável (TipTap) para contratos, distratos e termos de doação.
+model DocumentTemplate {
+  id              String               @id @default(uuid())
+  type            DocumentTemplateType
+  title           String
+  /// * HTML TipTap com variáveis {{funcionario.nome}}, {{contrato.valor}}, etc.
+  contentRich     String               @db.Text
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  createdByUserId String?
+  createdByUser   User?                @relation("DocumentTemplateCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  contracts       EmployeeContract[]
+
+  @@index([type, isActive])
+}
+
+/// * Contrato ou distrato emitido a partir de um modelo (HTML congelado + PDF).
+model EmployeeContract {
+  id                   String                 @id @default(uuid())
+  employeeId           String
+  templateId           String?
+  /// * CONTRATO ou DISTRATO (o tipo do registro; o modelo pode ser do mesmo tipo).
+  kind                 EmployeeContractKind   @default(CONTRATO)
+  /// * Contrato original quando este registro é um distrato.
+  parentContractId     String?
+  startDate            DateTime               @db.Date
+  endDate              DateTime?              @db.Date
+  monthlyValueCents    Int?
+  description          String?
+  status               EmployeeContractStatus @default(RASCUNHO)
+  /// * HTML com variáveis já resolvidas — não muda se o modelo for editado depois.
+  renderedHtml         String                 @db.Text
+  pdfUrl               String?
+  pdfPublicId          String?
+  signedPdfUrl         String?
+  signedPdfPublicId    String?
+  issuedAt             DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  createdByUserId      String?
+  deletedAt            DateTime?
+  employee             Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  template             DocumentTemplate?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  parentContract       EmployeeContract?      @relation("ContractDistrato", fields: [parentContractId], references: [id], onDelete: SetNull)
+  distratos            EmployeeContract[]     @relation("ContractDistrato")
+  createdByUser        User?                  @relation("EmployeeContractCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, kind, deletedAt])
+  @@index([status])
+  @@index([parentContractId])
+}
+
+/// * Nota mensal do colaborador (competência única por pessoa).
+model EmployeeMonthlyInvoice {
+  id              String                       @id @default(uuid())
+  employeeId      String
+  /// * Sempre o dia 1º do mês de referência.
+  referenceMonth  DateTime                     @db.Date
+  amountCents     Int?
+  status          EmployeeMonthlyInvoiceStatus @default(PENDENTE)
+  issuedAt        DateTime?
+  notes           String?
+  pdfUrl          String?
+  pdfPublicId     String?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  createdByUserId String?
+  deletedAt       DateTime?
+  employee        Employee                     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdByUser   User?                        @relation("EmployeeMonthlyInvoiceCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([employeeId, referenceMonth])
+  @@index([referenceMonth, status])
+  @@index([deletedAt])
+}
+
 model SiteSettings {
   id                    String   @id @default(uuid())
   siteName              String?
@@ -1846,6 +2022,8 @@ enum UserRole {
   ADMIN
   /// * Administrador Site: Comunicação e Site.
   SITE_ADMIN
+  /// * Gerência Administrativa: pessoas, contratos, patrimônio, doações e financeiro.
+  ADMIN_MANAGER
   TEACHER
   STUDENT
   /// * Deprecated — migrado para ADMIN; valor mantido no enum do banco.
@@ -1896,6 +2074,93 @@ enum EducationLevel {
 enum AttachmentType {
   ID_DOCUMENT
   ADDRESS_PROOF
+}
+
+enum EmployeePosition {
+  DIRETOR
+  GERENTE
+  COORDENADOR_POLO
+  PROFESSOR
+  VIGIA
+  LIMPEZA
+  MOTORISTA
+  ADMINISTRATIVO
+  OPERACIONAL
+}
+
+/// * Natureza do vínculo do colaborador com o instituto.
+enum EmploymentType {
+  MEI
+  CLT
+  PRESTADOR
+  VOLUNTARIO
+  ESTAGIO
+}
+
+enum EmployeeStatus {
+  ATIVO
+  AFASTADO
+  DESLIGADO
+}
+
+enum UniformSize {
+  PP
+  P
+  M
+  G
+  GG
+  XG
+  XGG
+}
+
+enum BankAccountType {
+  CORRENTE
+  POUPANCA
+  PAGAMENTO
+}
+
+enum PixKeyType {
+  CPF
+  CNPJ
+  EMAIL
+  TELEFONE
+  ALEATORIA
+}
+
+enum EmployeeDocumentType {
+  RG
+  CPF
+  CNPJ_MEI
+  COMPROVANTE_RESIDENCIA
+  DADOS_BANCARIOS
+  CONTRATO
+  DISTRATO
+  NOTA_MENSAL
+  OUTRO
+}
+
+enum DocumentTemplateType {
+  CONTRATO
+  DISTRATO
+  TERMO_DOACAO
+}
+
+enum EmployeeContractKind {
+  CONTRATO
+  DISTRATO
+}
+
+enum EmployeeContractStatus {
+  RASCUNHO
+  ATIVO
+  ENCERRADO
+  CANCELADO
+}
+
+enum EmployeeMonthlyInvoiceStatus {
+  PENDENTE
+  ENTREGUE
+  ATRASADA
 }
 
 enum SmsCampaignStatus {

@@ -25,11 +25,19 @@ type AdminUser = {
   id: string;
   name: string;
   email: string;
-  role: "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "STUDENT" | "TEACHER";
+  role:
+    | "GENERAL_ADMIN"
+    | "ADMIN"
+    | "ADMIN_MANAGER"
+    | "SITE_ADMIN"
+    | "POLO_COORDINATOR"
+    | "STUDENT"
+    | "TEACHER";
   isAdmin?: boolean;
   isSiteAdmin?: boolean;
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
+  isAdminManager?: boolean;
   isActive: boolean;
   phone?: string | null;
   birthDate?: string | null;
@@ -50,6 +58,11 @@ const STAFF_ACCESS_OPTIONS: { value: ManagedAccessRole; label: string; hint: str
     hint: "Pode alterar cadastros pedagógicos",
   },
   {
+    value: "ADMIN_MANAGER",
+    label: "Gerência Administrativa",
+    hint: "Colaboradores, contratos, patrimônio, doações e financeiro",
+  },
+  {
     value: "SITE_ADMIN",
     label: "Administrador Site",
     hint: "CMS do site, tablet e comunicação (SMS/e-mail/campanhas)",
@@ -68,9 +81,11 @@ function roleLabel(u: AdminUser): string {
   else if (u.role === "TEACHER") parts.push("Professor");
   else if (u.role === "GENERAL_ADMIN") parts.push("Administrador Geral");
   else if (u.role === "ADMIN") parts.push("Administrador Pedagógico");
+  else if (u.role === "ADMIN_MANAGER") parts.push("Gerência Administrativa");
   else if (u.role === "SITE_ADMIN") parts.push("Administrador Site");
   else if (u.role === "POLO_COORDINATOR") parts.push("Coordenador de Polos");
   if (u.isAdmin && u.role !== "ADMIN") parts.push("Administrador Pedagógico");
+  if (u.isAdminManager && u.role !== "ADMIN_MANAGER") parts.push("Gerência Administrativa");
   if (u.isSiteAdmin && u.role !== "SITE_ADMIN") parts.push("Administrador Site");
   if (u.isPoloCoordinator && u.role !== "POLO_COORDINATOR") parts.push("Coordenador de Polos");
   return Array.from(new Set(parts)).join(" + ") || u.role;

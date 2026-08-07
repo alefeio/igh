@@ -26,9 +26,11 @@ const adminListFilter = {
     { role: "ADMIN" as const },
     { role: "SITE_ADMIN" as const },
     { role: "POLO_COORDINATOR" as const },
+    { role: "ADMIN_MANAGER" as const },
     { isAdmin: true },
     { isSiteAdmin: true },
     { isPoloCoordinator: true },
+    { isAdminManager: true },
   ],
 };
 
@@ -41,6 +43,7 @@ const userSelect = {
   isSiteAdmin: true,
   isCoordinator: true,
   isPoloCoordinator: true,
+  isAdminManager: true,
   isActive: true,
   whatsapp: true,
   birthDate: true,
@@ -57,6 +60,7 @@ function mapUser(u: {
   isSiteAdmin: boolean;
   isCoordinator: boolean;
   isPoloCoordinator: boolean;
+  isAdminManager: boolean;
   isActive: boolean;
   whatsapp: string | null;
   birthDate: Date | null;
@@ -72,6 +76,7 @@ function mapUser(u: {
     isSiteAdmin: u.isSiteAdmin,
     isCoordinator: u.isCoordinator,
     isPoloCoordinator: u.isPoloCoordinator,
+    isAdminManager: u.isAdminManager,
     isActive: u.isActive,
     phone: u.whatsapp,
     birthDate: u.birthDate ? u.birthDate.toISOString().slice(0, 10) : null,
@@ -124,6 +129,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     isSiteAdmin?: boolean;
     isCoordinator?: boolean;
     isPoloCoordinator?: boolean;
+    isAdminManager?: boolean;
     passwordHash?: string;
     mustChangePassword?: boolean;
     whatsapp?: string | null;
@@ -156,6 +162,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
       data.isSiteAdmin = false;
       data.isCoordinator = false;
       data.isPoloCoordinator = keepPoloAccess;
+      data.isAdminManager = false;
     } else {
       const staffSelected = selectedRoles as StaffAccessRole[];
       const willKeepPolo = staffSelected.includes("POLO_COORDINATOR");
@@ -175,6 +182,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
         data.isSiteAdmin = access.isSiteAdmin;
         data.isCoordinator = access.isCoordinator;
         data.isPoloCoordinator = access.isPoloCoordinator;
+        data.isAdminManager = access.isAdminManager;
       } else {
         const access = resolveStaffAccessUpdate(existing.role, staffSelected);
         if (access.role !== undefined) data.role = access.role;
@@ -182,6 +190,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
         data.isSiteAdmin = access.isSiteAdmin;
         data.isCoordinator = access.isCoordinator;
         data.isPoloCoordinator = access.isPoloCoordinator;
+        data.isAdminManager = access.isAdminManager;
       }
     }
   }

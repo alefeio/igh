@@ -20,8 +20,8 @@ export function ResponsiveShell({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     hasStudentProfile?: boolean;
@@ -35,6 +35,7 @@ export function ResponsiveShell({
       canAdmin: boolean;
       canSiteAdmin?: boolean;
       canPoloCoordinator?: boolean;
+      canAdminManager?: boolean;
     };
   };
   logoUrl?: string | null;

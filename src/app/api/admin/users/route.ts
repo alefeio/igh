@@ -28,6 +28,7 @@ const ROLE_LABEL_PT: Record<string, string> = {
   MASTER: "Administrador Master",
   GENERAL_ADMIN: "Administrador Geral",
   ADMIN: "Administrador Pedagógico",
+  ADMIN_MANAGER: "Gerência Administrativa",
   SITE_ADMIN: "Administrador Site",
   POLO_COORDINATOR: "Coordenador de Polos",
   TEACHER: "Professor",
@@ -68,11 +69,13 @@ export async function GET() {
       OR: [
         { role: "GENERAL_ADMIN" },
         { role: "ADMIN" },
+        { role: "ADMIN_MANAGER" },
         { role: "SITE_ADMIN" },
         { role: "POLO_COORDINATOR" },
         { isAdmin: true },
         { isSiteAdmin: true },
         { isPoloCoordinator: true },
+        { isAdminManager: true },
       ],
     },
     orderBy: { createdAt: "desc" },
@@ -85,6 +88,7 @@ export async function GET() {
       isSiteAdmin: true,
       isCoordinator: true,
       isPoloCoordinator: true,
+      isAdminManager: true,
       isActive: true,
       whatsapp: true,
       birthDate: true,
@@ -104,6 +108,7 @@ export async function GET() {
       isSiteAdmin: u.isSiteAdmin,
       isCoordinator: u.isCoordinator,
       isPoloCoordinator: u.isPoloCoordinator,
+      isAdminManager: u.isAdminManager,
       isActive: u.isActive,
       phone: u.whatsapp,
       birthDate: u.birthDate ? u.birthDate.toISOString().slice(0, 10) : null,
@@ -149,6 +154,7 @@ export async function POST(request: Request) {
       isSiteAdmin: true,
       isCoordinator: true,
       isPoloCoordinator: true,
+      isAdminManager: true,
     },
   });
 
@@ -185,6 +191,9 @@ export async function POST(request: Request) {
       isPoloCoordinator:
         existing.isPoloCoordinator ||
         (newlyGranted.includes("POLO_COORDINATOR") && existing.role !== "POLO_COORDINATOR"),
+      isAdminManager:
+        existing.isAdminManager ||
+        (newlyGranted.includes("ADMIN_MANAGER") && existing.role !== "ADMIN_MANAGER"),
     };
 
     const updated = await prisma.user.update({
@@ -204,6 +213,7 @@ export async function POST(request: Request) {
         isSiteAdmin: true,
         isCoordinator: true,
         isPoloCoordinator: true,
+        isAdminManager: true,
         isActive: true,
         whatsapp: true,
         birthDate: true,
@@ -270,6 +280,7 @@ export async function POST(request: Request) {
     isSiteAdmin?: boolean;
     isCoordinator?: boolean;
     isPoloCoordinator?: boolean;
+    isAdminManager?: boolean;
     isActive: boolean;
     mustChangePassword: boolean;
     whatsapp?: string | null;
@@ -287,6 +298,7 @@ export async function POST(request: Request) {
       isSiteAdmin: false,
       isCoordinator: false,
       isPoloCoordinator: false,
+      isAdminManager: false,
       isActive: true,
       mustChangePassword: true,
       whatsapp: phone,
@@ -320,6 +332,7 @@ export async function POST(request: Request) {
       isSiteAdmin: true,
       isCoordinator: true,
       isPoloCoordinator: true,
+      isAdminManager: true,
       isActive: true,
       whatsapp: true,
       birthDate: true,

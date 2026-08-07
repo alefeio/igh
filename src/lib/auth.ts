@@ -27,6 +27,7 @@ export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActiv
   isSiteAdmin?: boolean;
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
+  isAdminManager?: boolean;
   baseRole?: UserRole;
   hasStudentProfile?: boolean;
   hasTeacherProfile?: boolean;
@@ -116,6 +117,7 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
         isSiteAdmin: true,
         isCoordinator: true,
         isPoloCoordinator: true,
+        isAdminManager: true,
         isActive: true,
         mustChangePassword: true,
         student: { select: { id: true } },
@@ -144,6 +146,14 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
     ) {
       if (!user.isSiteAdmin) return null;
     }
+    if (
+      payload.role === "ADMIN_MANAGER" &&
+      user.role !== "ADMIN_MANAGER" &&
+      user.role !== "MASTER" &&
+      user.role !== "GENERAL_ADMIN"
+    ) {
+      if (!user.isAdminManager) return null;
+    }
     return {
       id: user.id,
       name: user.name,
@@ -156,6 +166,7 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
       isSiteAdmin: user.isSiteAdmin ?? false,
       isCoordinator: user.isCoordinator ?? false,
       isPoloCoordinator: user.isPoloCoordinator ?? false,
+      isAdminManager: user.isAdminManager ?? false,
       hasStudentProfile: !!user.student,
       hasTeacherProfile: !!user.teacher,
     };
@@ -193,6 +204,11 @@ export async function requireStaffRead(): Promise<SessionUser> {
 /** Alterações operacionais no painel (Admin Pedagógico, Master e Admin Geral). */
 export async function requireStaffWrite(): Promise<SessionUser> {
   return requireRole(["ADMIN", "MASTER"]);
+}
+
+/** Módulo de Gerência Administrativa (pessoas, contratos, patrimônio, doações e financeiro). */
+export async function requireAdminManager(): Promise<SessionUser> {
+  return requireRole(["ADMIN_MANAGER", "MASTER"]);
 }
 
 /**

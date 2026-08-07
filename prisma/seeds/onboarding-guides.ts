@@ -212,6 +212,33 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
 </ul>`,
   },
 
+  ADMIN_MANAGER: {
+    title: "Como usar o sistema — Gerência Administrativa",
+    contentRich: `<h2>Visão geral do perfil Gerência Administrativa</h2>
+<p>A <strong>Gerência Administrativa</strong> responde pelo que sustenta a operação fora da sala de aula: <strong>colaboradores</strong>, contratos, patrimônio, doações e financeiro. Nada aqui interfere no pedagógico — matrículas, turmas e notas continuam com o Administrador Pedagógico.</p>
+
+<h2>Início</h2>
+<h3>Página Inicial</h3>
+<p>Resumo e atalhos das áreas administrativas.</p>
+<h3>Como usar o sistema</h3>
+<p>Esta página.</p>
+
+<h2>Gerência</h2>
+<h3>Central administrativa</h3>
+<p>Painel do módulo, com os indicadores de pessoas, documentos e pendências.</p>
+<h3>Colaboradores</h3>
+<p>Ficha de cada pessoa que trabalha no instituto: dados pessoais, cargo, vínculo, tamanho de uniforme, dados bancários com Pix e os documentos digitalizados (RG, CPF, MEI, comprovante de residência, contrato, distrato e as notas mensais).</p>
+<p>Quem já tem conta no sistema — professores, coordenadores, direção — deve ser <strong>vinculado à conta existente</strong> em vez de cadastrado de novo. Assim a ficha administrativa e o acesso ao painel ficam na mesma pessoa.</p>
+
+<h2>Boas práticas</h2>
+<ul>
+<li>Anexe os documentos em PDF sempre que possível; use foto só quando não houver alternativa.</li>
+<li>Registre a nota mensal com o mês de competência correto — é ele que organiza o financeiro.</li>
+<li>Desligamento não apaga a ficha: mude o status para <strong>Desligado</strong> e anexe o distrato.</li>
+<li>Os dados aqui são sensíveis (CPF, conta bancária). Encerre a sessão em equipamentos compartilhados.</li>
+</ul>`,
+  },
+
   COORDINATOR: {
     title: "Como usar o sistema — Coordenador",
     contentRich: `<h2>Visão geral do perfil Coordenador</h2>

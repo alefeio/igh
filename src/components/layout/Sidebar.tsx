@@ -11,6 +11,7 @@ type PanelRole =
   | "MASTER"
   | "GENERAL_ADMIN"
   | "ADMIN"
+  | "ADMIN_MANAGER"
   | "SITE_ADMIN"
   | "POLO_COORDINATOR"
   | "TEACHER"
@@ -28,6 +29,7 @@ const ALL_ROLES = [
   "MASTER",
   "GENERAL_ADMIN",
   "ADMIN",
+  "ADMIN_MANAGER",
   "SITE_ADMIN",
   "POLO_COORDINATOR",
   "TEACHER",
@@ -42,6 +44,8 @@ const MASTER_AND_ADMIN = ["MASTER", "GENERAL_ADMIN", "ADMIN"] as const;
 const MASTER_OR_GENERAL = ["MASTER", "GENERAL_ADMIN"] as const;
 /** Comunicação e Site: Master, Admin Geral e Administrador Site. */
 const SITE_AND_COMMS = ["MASTER", "GENERAL_ADMIN", "SITE_ADMIN"] as const;
+/** Gerência Administrativa: pessoas, patrimônio, doações e financeiro. */
+const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER"] as const;
 
 /**
  * Ordem do array = ordem no menu dentro de cada categoria.
@@ -126,6 +130,27 @@ const ITEMS: Item[] = [
   { href: "/gamificacao", label: "Gamificação", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/ranking-alunos", label: "Ranking dos alunos", roles: MASTER_AND_ADMIN, category: "Administração" },
 
+  /* —— Gerência —— */
+  { href: "/admin/gerencia", label: "Central administrativa", roles: ADMIN_MANAGEMENT, category: "Gerência" },
+  {
+    href: "/admin/gerencia/colaboradores",
+    label: "Colaboradores",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
+  {
+    href: "/admin/gerencia/contratos",
+    label: "Contratos",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
+  {
+    href: "/admin/gerencia/modelos",
+    label: "Modelos oficiais",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
+
   /* —— Comunicação —— */
   { href: "/admin/sms", label: "Campanhas SMS", roles: SITE_AND_COMMS, category: "Comunicação" },
   { href: "/admin/email", label: "Campanhas de e-mail", roles: SITE_AND_COMMS, category: "Comunicação" },
@@ -169,8 +194,8 @@ export function Sidebar({
   user: {
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     hasStudentProfile?: boolean;
@@ -183,6 +208,7 @@ export function Sidebar({
       canAdmin: boolean;
       canSiteAdmin?: boolean;
       canPoloCoordinator?: boolean;
+      canAdminManager?: boolean;
     };
   };
   logoUrl?: string | null;
@@ -212,6 +238,7 @@ export function Sidebar({
     "Professor",
     "Pedagógico",
     "Administração",
+    "Gerência",
     "Comunicação",
     "Site",
     "Configurações",

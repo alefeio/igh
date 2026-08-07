@@ -9,7 +9,15 @@ import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 
 type RoleOption = {
-  value: "STUDENT" | "TEACHER" | "ADMIN" | "SITE_ADMIN" | "MASTER" | "GENERAL_ADMIN" | "POLO_COORDINATOR";
+  value:
+    | "STUDENT"
+    | "TEACHER"
+    | "ADMIN"
+    | "ADMIN_MANAGER"
+    | "SITE_ADMIN"
+    | "MASTER"
+    | "GENERAL_ADMIN"
+    | "POLO_COORDINATOR";
   label: string;
 };
 
@@ -28,8 +36,8 @@ export function TopBar({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     hasStudentProfile?: boolean;
@@ -42,6 +50,7 @@ export function TopBar({
       canAdmin: boolean;
       canSiteAdmin?: boolean;
       canPoloCoordinator?: boolean;
+      canAdminManager?: boolean;
     };
   };
 }) {
@@ -172,11 +181,13 @@ export function TopBar({
   const canAdmin = r?.canAdmin ?? (user.isAdmin === true || user.baseRole === "ADMIN");
   const canSiteAdmin = r?.canSiteAdmin ?? (user.isSiteAdmin === true || user.baseRole === "SITE_ADMIN");
   const canPoloCoordinator = r?.canPoloCoordinator ?? (user.baseRole === "POLO_COORDINATOR");
+  const canAdminManager = r?.canAdminManager ?? (user.baseRole === "ADMIN_MANAGER");
 
   const roleLabels: Record<string, string> = {
     MASTER: "Administrador Master",
     GENERAL_ADMIN: "Administrador Geral",
     ADMIN: "Administrador Pedagógico",
+    ADMIN_MANAGER: "Gerência Administrativa",
     SITE_ADMIN: "Administrador Site",
     POLO_COORDINATOR: "Coordenador de Polos",
     TEACHER: "Professor",
@@ -191,6 +202,9 @@ export function TopBar({
     ...(canStudent ? [{ value: "STUDENT" as const, label: roleLabels.STUDENT }] : []),
     ...(canTeacher ? [{ value: "TEACHER" as const, label: roleLabels.TEACHER }] : []),
     ...(canAdmin && !hidesStaffPicker ? [{ value: "ADMIN" as const, label: roleLabels.ADMIN }] : []),
+    ...(canAdminManager && !hidesStaffPicker
+      ? [{ value: "ADMIN_MANAGER" as const, label: roleLabels.ADMIN_MANAGER }]
+      : []),
     ...(canSiteAdmin && !hidesStaffPicker
       ? [{ value: "SITE_ADMIN" as const, label: roleLabels.SITE_ADMIN }]
       : []),
@@ -203,9 +217,7 @@ export function TopBar({
   }
   const hasMoreThanOneProfile = roleOptions.length >= 2;
 
-  async function onRoleChange(
-    newRole: "STUDENT" | "TEACHER" | "ADMIN" | "SITE_ADMIN" | "MASTER" | "GENERAL_ADMIN" | "POLO_COORDINATOR",
-  ) {
+  async function onRoleChange(newRole: RoleOption["value"]) {
     if (newRole === user.role) return;
     setSwitchingRole(true);
     try {

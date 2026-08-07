@@ -33,6 +33,7 @@ const userLoginSelect = {
   isSiteAdmin: true,
   isCoordinator: true,
   isPoloCoordinator: true,
+  isAdminManager: true,
   isActive: true,
   mustChangePassword: true,
   passwordHash: true,
@@ -123,6 +124,7 @@ export async function POST(request: Request) {
       isSiteAdmin: boolean;
       isCoordinator: boolean;
       isPoloCoordinator: boolean;
+      isAdminManager: boolean;
       isActive: boolean;
       mustChangePassword: boolean | null;
       passwordHash: string;
@@ -181,6 +183,8 @@ export async function POST(request: Request) {
     const hasAdminAccess = user.isAdmin === true || user.role === "ADMIN";
     /** Acesso como Administrador Site (JWT SITE_ADMIN). */
     const hasSiteAdminAccess = user.isSiteAdmin === true || user.role === "SITE_ADMIN";
+    /** Acesso à Gerência Administrativa (JWT ADMIN_MANAGER). */
+    const hasAdminManagerAccess = user.isAdminManager === true || user.role === "ADMIN_MANAGER";
 
     let choiceCount = 0;
     if (hasStudent) choiceCount++;
@@ -191,6 +195,7 @@ export async function POST(request: Request) {
       if (hasPoloCoordinator) choiceCount++;
       if (hasAdminAccess) choiceCount++;
       if (hasSiteAdminAccess) choiceCount++;
+      if (hasAdminManagerAccess) choiceCount++;
     }
     const needsRoleChoice = choiceCount >= 2;
 

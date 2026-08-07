@@ -12,6 +12,7 @@ type RolesResponse = {
   canStudent: boolean;
   canTeacher: boolean;
   canAdmin: boolean;
+  canAdminManager?: boolean;
   canSiteAdmin?: boolean;
   canPoloCoordinator?: boolean;
   canMaster?: boolean;
@@ -22,6 +23,7 @@ type EnterRole =
   | "STUDENT"
   | "TEACHER"
   | "ADMIN"
+  | "ADMIN_MANAGER"
   | "SITE_ADMIN"
   | "MASTER"
   | "GENERAL_ADMIN"
@@ -48,6 +50,7 @@ export default function EscolherPerfilPage() {
   }, []);
 
   const canAdmin = roles?.canAdmin === true;
+  const canAdminManager = roles?.canAdminManager === true;
   const canSiteAdmin = roles?.canSiteAdmin === true;
   const canPoloCoordinator = roles?.canPoloCoordinator === true;
   const canStudent = roles?.canStudent === true;
@@ -57,6 +60,7 @@ export default function EscolherPerfilPage() {
   const hidesStaffPicker = canMaster || canGeneralAdmin;
   const hasAny =
     canAdmin ||
+    canAdminManager ||
     canSiteAdmin ||
     canPoloCoordinator ||
     canStudent ||
@@ -172,6 +176,16 @@ export default function EscolherPerfilPage() {
               onClick={() => enterAs("ADMIN")}
             >
               {submittingRole === "ADMIN" ? "Entrando…" : "Entrar como Administrador Pedagógico"}
+            </Button>
+          )}
+          {canAdminManager && !hidesStaffPicker && (
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={!!submittingRole}
+              onClick={() => enterAs("ADMIN_MANAGER")}
+            >
+              {submittingRole === "ADMIN_MANAGER" ? "Entrando…" : "Entrar como Gerência Administrativa"}
             </Button>
           )}
           {canSiteAdmin && !hidesStaffPicker && (

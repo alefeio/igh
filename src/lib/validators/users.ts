@@ -1,8 +1,14 @@
 import { z } from "zod";
 import { optionalBirthDateSchema, optionalPhoneDigitsSchema } from "@/lib/validators/person-contact";
 
-const staffAccessRoleSchema = z.enum(["ADMIN", "SITE_ADMIN", "POLO_COORDINATOR"]);
-const managedAccessRoleSchema = z.enum(["ADMIN", "SITE_ADMIN", "POLO_COORDINATOR", "GENERAL_ADMIN"]);
+const staffAccessRoleSchema = z.enum(["ADMIN", "ADMIN_MANAGER", "SITE_ADMIN", "POLO_COORDINATOR"]);
+const managedAccessRoleSchema = z.enum([
+  "ADMIN",
+  "ADMIN_MANAGER",
+  "SITE_ADMIN",
+  "POLO_COORDINATOR",
+  "GENERAL_ADMIN",
+]);
 
 const managedRolesField = z
   .array(managedAccessRoleSchema)

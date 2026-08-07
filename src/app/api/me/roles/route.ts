@@ -26,11 +26,13 @@ export async function GET() {
   const canPoloCoordinator = user.isPoloCoordinator === true || base === "POLO_COORDINATOR";
   const canAdmin = user.isAdmin === true || base === "ADMIN";
   const canSiteAdmin = user.isSiteAdmin === true || base === "SITE_ADMIN";
+  const canAdminManager = user.isAdminManager === true || base === "ADMIN_MANAGER";
 
   return jsonOk({
     canStudent: !!hasStudent,
     canTeacher: !!hasTeacher,
     canAdmin,
+    canAdminManager,
     canSiteAdmin,
     canPoloCoordinator,
     canMaster,

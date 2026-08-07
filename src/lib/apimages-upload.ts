@@ -1,4 +1,4 @@
-import type { ApiResponse } from "@/lib/api-types";
+﻿import type { ApiResponse } from "@/lib/api-types";
 
 /** Lê corpo JSON da API interna sem falhar em resposta vazia (ex.: exceção não tratada no servidor). */
 export async function readApiJson<T>(res: Response): Promise<ApiResponse<T>> {
@@ -27,6 +27,7 @@ export async function readApiJson<T>(res: Response): Promise<ApiResponse<T>> {
 export const COURSE_FORMATION_UPLOAD_SIGNATURE = "/api/courses/uploads/signature";
 export const SITE_UPLOAD_SIGNATURE = "/api/admin/site/uploads/signature";
 export const TEACHER_UPLOAD_SIGNATURE = "/api/teacher/uploads/apimages-signature";
+export const GERENCIA_UPLOAD_SIGNATURE = "/api/admin/gerencia/uploads/signature";
 
 /**
  * Cliente e servidor: upload para a API Apimages (https://apimg.com.br — OpenAPI /v1/upload).

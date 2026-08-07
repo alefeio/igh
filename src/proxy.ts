@@ -36,6 +36,8 @@ export async function proxy(request: NextRequest) {
   const PEDAGOGICAL_GOVERNANCE = ["MASTER", "GENERAL_ADMIN", "ADMIN"];
   /** Site e Comunicação. */
   const SITE_AND_COMMS = ["MASTER", "GENERAL_ADMIN", "SITE_ADMIN"];
+  /** Gerência Administrativa: pessoas, patrimônio, doações e financeiro. */
+  const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER"];
 
   const isMasterEquivalent = role === "MASTER" || role === "GENERAL_ADMIN";
 
@@ -142,6 +144,12 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/admin/gerencia")) {
+    if (!ADMIN_MANAGEMENT.includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
   return NextResponse.next();
 }
 
@@ -184,5 +192,6 @@ export const config = {
     "/admin/plataforma/:path*",
     "/admin/calendario/:path*",
     "/master/acessos/:path*",
+    "/admin/gerencia/:path*",
   ],
 };

@@ -1,14 +1,16 @@
-export type StaffAccessRole = "ADMIN" | "SITE_ADMIN" | "POLO_COORDINATOR";
+export type StaffAccessRole = "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR";
 export type ManagedAccessRole = StaffAccessRole | "GENERAL_ADMIN";
 
 export const STAFF_ACCESS_ROLES: readonly StaffAccessRole[] = [
   "ADMIN",
+  "ADMIN_MANAGER",
   "SITE_ADMIN",
   "POLO_COORDINATOR",
 ] as const;
 
 export const STAFF_ACCESS_LABEL: Record<StaffAccessRole, string> = {
   ADMIN: "Administrador Pedagógico",
+  ADMIN_MANAGER: "Gerência Administrativa",
   SITE_ADMIN: "Administrador Site",
   POLO_COORDINATOR: "Coordenador de Polos",
 };
@@ -21,6 +23,7 @@ export const MANAGED_ACCESS_LABEL: Record<ManagedAccessRole, string> = {
 /** Prioridade ao escolher o papel-base quando vários tipos são marcados. */
 const BASE_PRIORITY: readonly StaffAccessRole[] = [
   "ADMIN",
+  "ADMIN_MANAGER",
   "SITE_ADMIN",
   "POLO_COORDINATOR",
 ];
@@ -51,12 +54,19 @@ export function pickStaffBaseRole(roles: readonly StaffAccessRole[]): StaffAcces
 export function staffOverlaysForBase(
   roles: readonly StaffAccessRole[],
   base: StaffAccessRole,
-): { isAdmin: boolean; isSiteAdmin: boolean; isCoordinator: boolean; isPoloCoordinator: boolean } {
+): {
+  isAdmin: boolean;
+  isSiteAdmin: boolean;
+  isCoordinator: boolean;
+  isPoloCoordinator: boolean;
+  isAdminManager: boolean;
+} {
   return {
     isAdmin: roles.includes("ADMIN") && base !== "ADMIN",
     isSiteAdmin: roles.includes("SITE_ADMIN") && base !== "SITE_ADMIN",
     isCoordinator: false,
     isPoloCoordinator: roles.includes("POLO_COORDINATOR") && base !== "POLO_COORDINATOR",
+    isAdminManager: roles.includes("ADMIN_MANAGER") && base !== "ADMIN_MANAGER",
   };
 }
 
@@ -67,10 +77,12 @@ export function userHasStaffAccess(
     isSiteAdmin?: boolean;
     isCoordinator?: boolean;
     isPoloCoordinator?: boolean;
+    isAdminManager?: boolean;
   },
   target: StaffAccessRole,
 ): boolean {
   if (target === "ADMIN") return user.role === "ADMIN" || !!user.isAdmin;
+  if (target === "ADMIN_MANAGER") return user.role === "ADMIN_MANAGER" || !!user.isAdminManager;
   if (target === "SITE_ADMIN") return user.role === "SITE_ADMIN" || !!user.isSiteAdmin;
   return user.role === "POLO_COORDINATOR" || !!user.isPoloCoordinator;
 }
@@ -81,6 +93,7 @@ export function staffRolesFromUser(user: {
   isSiteAdmin?: boolean;
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
+  isAdminManager?: boolean;
 }): StaffAccessRole[] {
   return STAFF_ACCESS_ROLES.filter((r) => userHasStaffAccess(user, r));
 }
@@ -91,6 +104,7 @@ export function managedRolesFromUser(user: {
   isSiteAdmin?: boolean;
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
+  isAdminManager?: boolean;
 }): ManagedAccessRole[] {
   if (user.role === "GENERAL_ADMIN") return ["GENERAL_ADMIN"];
   return staffRolesFromUser(user);
@@ -108,6 +122,7 @@ export function resolveStaffAccessUpdate(
   isSiteAdmin: boolean;
   isCoordinator: boolean;
   isPoloCoordinator: boolean;
+  isAdminManager: boolean;
 } {
   const roles = normalizeStaffRoles(selected);
   if (
@@ -121,11 +136,13 @@ export function resolveStaffAccessUpdate(
       isSiteAdmin: roles.includes("SITE_ADMIN"),
       isCoordinator: false,
       isPoloCoordinator: roles.includes("POLO_COORDINATOR"),
+      isAdminManager: roles.includes("ADMIN_MANAGER"),
     };
   }
 
   const keepBase =
     (currentRole === "ADMIN" ||
+      currentRole === "ADMIN_MANAGER" ||
       currentRole === "SITE_ADMIN" ||
       currentRole === "POLO_COORDINATOR") &&
     roles.includes(currentRole as StaffAccessRole)

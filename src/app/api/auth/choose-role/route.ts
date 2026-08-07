@@ -13,6 +13,7 @@ const ALLOWED_ROLES: UserRole[] = [
   "STUDENT",
   "TEACHER",
   "ADMIN",
+  "ADMIN_MANAGER",
   "SITE_ADMIN",
   "MASTER",
   "GENERAL_ADMIN",
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
         isAdmin: true,
         isSiteAdmin: true,
         isPoloCoordinator: true,
+        isAdminManager: true,
         isActive: true,
         mustChangePassword: true,
       },
@@ -99,6 +101,13 @@ export async function POST(request: Request) {
       return jsonErr("FORBIDDEN", "Você não tem acesso como Admin Pedagógico.", 403);
     }
     return jsonOkWithSession({ role: "ADMIN" as const }, sessionPayload, "ADMIN");
+  }
+
+  if (role === "ADMIN_MANAGER") {
+    if (!full.isAdminManager && full.role !== "ADMIN_MANAGER") {
+      return jsonErr("FORBIDDEN", "Você não tem acesso à Gerência Administrativa.", 403);
+    }
+    return jsonOkWithSession({ role: "ADMIN_MANAGER" as const }, sessionPayload, "ADMIN_MANAGER");
   }
 
   if (role === "SITE_ADMIN") {
