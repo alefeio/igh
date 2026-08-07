@@ -150,6 +150,12 @@ const ITEMS: Item[] = [
     roles: ADMIN_MANAGEMENT,
     category: "Gerência",
   },
+  {
+    href: "/admin/gerencia/financeiro",
+    label: "Financeiro",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
 
   /* —— Comunicação —— */
   { href: "/admin/sms", label: "Campanhas SMS", roles: SITE_AND_COMMS, category: "Comunicação" },

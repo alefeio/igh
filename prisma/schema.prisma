@@ -104,6 +104,9 @@ model User {
   documentTemplatesCreated           DocumentTemplate[]         @relation("DocumentTemplateCreatedBy")
   employeeContractsCreated           EmployeeContract[]         @relation("EmployeeContractCreatedBy")
   employeeMonthlyInvoicesCreated     EmployeeMonthlyInvoice[]   @relation("EmployeeMonthlyInvoiceCreatedBy")
+  financialCategoriesCreated         FinancialCategory[]        @relation("FinancialCategoryCreatedBy")
+  financialEntriesCreated            FinancialEntry[]           @relation("FinancialEntryCreatedBy")
+  financialEntriesResponsible        FinancialEntry[]           @relation("FinancialEntryResponsible")
   /// * Turmas criadas por este usuário (admin/master).
   classGroupsCreated                 ClassGroup[]               @relation("ClassGroupCreatedBy")
   /// * Cursos criados por este usuário (admin/master).
@@ -529,6 +532,7 @@ model Polo {
   coordinator        User           @relation(fields: [coordinatorUserId], references: [id])
   locations          PoloLocation[]
   employees          Employee[]
+  financialEntries   FinancialEntry[]
 
   @@index([coordinatorUserId])
   @@index([isActive])
@@ -1389,6 +1393,59 @@ model EmployeeMonthlyInvoice {
   @@index([deletedAt])
 }
 
+/// * Categoria cadastrável de lançamentos financeiros (entrada ou saída).
+model FinancialCategory {
+  id              String              @id @default(uuid())
+  name            String
+  kind            FinancialEntryKind
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  createdByUserId String?
+  createdByUser   User?               @relation("FinancialCategoryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  entries         FinancialEntry[]
+
+  @@index([kind, isActive])
+  @@unique([name, kind])
+}
+
+/// * Lançamento financeiro (entrada ou saída) com anexo opcional da nota.
+model FinancialEntry {
+  id                   String                 @id @default(uuid())
+  kind                 FinancialEntryKind
+  description          String
+  /// * Valor em centavos.
+  amountCents          Int
+  /// * Data do lançamento / da nota.
+  entryDate            DateTime               @db.Date
+  categoryId           String?
+  paymentMethod        FinancialPaymentMethod @default(PIX)
+  poloId               String?
+  /// * Responsável com conta no sistema (quando houver).
+  responsibleUserId    String?
+  /// * Nome livre quando o responsável não tem conta.
+  responsibleName      String?
+  invoiceNumber        String?
+  supplier             String?
+  notes                String?
+  attachmentUrl        String?
+  attachmentPublicId   String?
+  attachmentFileName   String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  createdByUserId      String?
+  deletedAt            DateTime?
+  category             FinancialCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  polo                 Polo?                  @relation(fields: [poloId], references: [id], onDelete: SetNull)
+  responsibleUser      User?                  @relation("FinancialEntryResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  createdByUser        User?                  @relation("FinancialEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([deletedAt, entryDate])
+  @@index([kind, entryDate])
+  @@index([categoryId])
+  @@index([poloId])
+}
+
 model SiteSettings {
   id                    String   @id @default(uuid())
   siteName              String?
@@ -2161,6 +2218,21 @@ enum EmployeeMonthlyInvoiceStatus {
   PENDENTE
   ENTREGUE
   ATRASADA
+}
+
+enum FinancialEntryKind {
+  ENTRADA
+  SAIDA
+}
+
+enum FinancialPaymentMethod {
+  PIX
+  DINHEIRO
+  TRANSFERENCIA
+  BOLETO
+  CARTAO
+  CHEQUE
+  OUTRO
 }
 
 enum SmsCampaignStatus {

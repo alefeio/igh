@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, FileText, FileWarning, ScrollText, UserCheck, Users } from "lucide-react";
+import { AlertTriangle, FileText, FileWarning, ScrollText, UserCheck, Users, Wallet } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -119,6 +119,13 @@ export default function GerenciaHomePage() {
               icon: ScrollText,
               accent: "from-amber-600 to-orange-500",
             },
+            {
+              href: "/admin/gerencia/financeiro",
+              label: "Financeiro",
+              description: "Entradas, saídas e notas",
+              icon: Wallet,
+              accent: "from-violet-600 to-indigo-500",
+            },
           ]}
         />
       </SectionCard>
@@ -131,7 +138,6 @@ export default function GerenciaHomePage() {
         <ul className="grid gap-2 text-sm text-[var(--text-muted)] sm:grid-cols-2">
           <li>Termos de doação e acompanhamento das donatárias.</li>
           <li>Almoxarifado e estoque patrimonial, com alerta de estoque baixo.</li>
-          <li>Financeiro: entradas, saídas e notas com descrição, valor e responsável.</li>
         </ul>
       </SectionCard>
     </PanelPageStack>
