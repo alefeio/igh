@@ -154,6 +154,18 @@ async function embedRemoteImage(pdfDoc: PDFDocument, url: string | null | undefi
   return null;
 }
 
+/**
+ * Remove trechos entre parênteses do nome do curso no certificado
+ * (ex.: "Introdução à Informática (10h)" → "Introdução à Informática").
+ */
+export function formatCourseNameForCertificate(courseName: string | null | undefined): string {
+  const cleaned = (courseName || "")
+    .replace(/\s*\([^)]*\)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return cleaned || (courseName || "").trim() || "Curso";
+}
+
 function drawFrontPage(
   front: PDFPage,
   font: PDFFont,
@@ -161,7 +173,7 @@ function drawFrontPage(
   input: CourseCompletionCertificateInput,
 ) {
   const studentName = (input.studentName || "").trim().toUpperCase() || "ALUNO";
-  const courseNameUpper = (input.courseName || "").trim().toUpperCase() || "CURSO";
+  const courseNameUpper = formatCourseNameForCertificate(input.courseName).toUpperCase() || "CURSO";
   const hours = String(resolveCertificateWorkloadHours(input.workloadHours));
   const dateLabel = formatCertificateDatePtBr(input.issuedAt);
   const frontDate = formatCertificatePlaceDate(input.issueCityState ?? "", dateLabel);
@@ -190,7 +202,7 @@ async function drawBackPage(
   fontBold: PDFFont,
   input: CourseCompletionCertificateInput,
 ) {
-  const courseNameDisplay = (input.courseName || "").trim() || "Curso";
+  const courseNameDisplay = formatCourseNameForCertificate(input.courseName);
   const hours = String(resolveCertificateWorkloadHours(input.workloadHours));
   const dateLabel = formatCertificateDatePtBr(input.issuedAt);
   const backDate = formatCertificatePlaceDate(input.issueCity ?? "", dateLabel);

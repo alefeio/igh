@@ -53,6 +53,7 @@ export function EnrollmentWaitlistPanel({
   reloadToken = 0,
   isMaster = false,
   canRemove = false,
+  getActiveEnrollmentCountInCycle,
 }: {
   canManage: boolean;
   classGroups: ClassGroupOpt[];
@@ -62,6 +63,7 @@ export function EnrollmentWaitlistPanel({
   isMaster?: boolean;
   /** Somente Master (papel exato) pode remover reservas. */
   canRemove?: boolean;
+  getActiveEnrollmentCountInCycle?: (studentId: string) => number;
 }) {
   const toast = useToast();
   const [items, setItems] = useState<WaitlistRow[]>([]);
@@ -323,6 +325,14 @@ export function EnrollmentWaitlistPanel({
               </ul>
             ) : null}
           </div>
+          {studentId && getActiveEnrollmentCountInCycle ? (
+            <p className="text-xs text-[var(--text-muted)]">
+              Matrículas ativas neste ciclo:{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {getActiveEnrollmentCountInCycle(studentId)}
+              </span>
+            </p>
+          ) : null}
           <div>
             <label className="text-sm font-medium">Turma (lotada)</label>
             <select

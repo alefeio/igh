@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { weeklyScheduleOverlaps } from "@/lib/class-group-overlap";
+import { assertPublicCycleEnrollmentLimit } from "@/lib/enrollment-cycle-limit";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createPreEnrollmentSchema } from "@/lib/validators/public-enrollment";
 import { verifyStudentToken } from "@/lib/student-token";
@@ -98,46 +99,20 @@ export async function POST(request: Request) {
     return jsonErr("DUPLICATE", "Você já está inscrito nesta turma.", 409);
   }
 
-  const currentEmAndamentoEnrollments = await prisma.enrollment.findMany({
-    where: {
-      studentId,
-      status: "ACTIVE",
-      classGroup: { status: "EM_ANDAMENTO" },
-    },
-    select: { classGroup: { select: { courseId: true, startDate: true, endDate: true } } },
+  const cycleLimit = await assertPublicCycleEnrollmentLimit({
+    studentId,
+    cycleId: classGroup.cycleId,
   });
-  const newCourseId = classGroup.courseId;
+  if (!cycleLimit.ok) {
+    return jsonErr(cycleLimit.code, cycleLimit.message, cycleLimit.status);
+  }
+
   const candStartStr = toDateOnlyString(classGroup.startDate);
   const candEndStr = toDateOnlyString(classGroup.endDate ?? classGroup.startDate);
   const candStart = candStartStr ? dateOnlyToUtcDate(candStartStr) : null;
   const candEnd = candEndStr ? dateOnlyToUtcDate(candEndStr) : null;
   if (!candStart || !candEnd) {
     return jsonErr("VALIDATION_ERROR", "Data da turma inválida para inscrição. Contate a secretaria.", 400);
-  }
-
-  const overlappingCourseIds = new Set<string>();
-  for (const e of currentEmAndamentoEnrollments) {
-    const ipStartStr = toDateOnlyString(e.classGroup.startDate);
-    const ipEndStr = toDateOnlyString(e.classGroup.endDate ?? e.classGroup.startDate);
-    const ipStart = ipStartStr ? dateOnlyToUtcDate(ipStartStr) : null;
-    const ipEnd = ipEndStr ? dateOnlyToUtcDate(ipEndStr) : null;
-    if (!ipStart || !ipEnd) {
-      // conservador: se não souber datas, considera como sobreposição
-      overlappingCourseIds.add(e.classGroup.courseId);
-      continue;
-    }
-    if (rangesOverlap(ipStart, ipEnd, candStart, candEnd)) {
-      overlappingCourseIds.add(e.classGroup.courseId);
-    }
-  }
-
-  // Limite de 2 cursos se aplica apenas quando o período da turma nova "coincide" com 2 turmas em andamento.
-  if (overlappingCourseIds.size >= 2 && !overlappingCourseIds.has(newCourseId)) {
-    return jsonErr(
-      "LIMIT_EXCEEDED",
-      "Você já está inscrito em 2 cursos com turmas em andamento no mesmo período. Aguarde o encerramento de alguma turma ou entre em contato com a secretaria.",
-      400,
-    );
   }
 
   // Conflito de horário: o aluno não pode ficar em duas turmas que caem no mesmo dia e hora

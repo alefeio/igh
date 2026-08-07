@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site";
@@ -17,6 +17,13 @@ import {
 } from "@/lib/class-group-unit";
 
 const EMPTY_TURMAS_INSCREVA_MSG = "No momento não há turmas abertas para inscrição.";
+const MAX_ENROLLMENTS_PER_CYCLE = 2;
+
+type CycleEnrollmentSummary = {
+  cycleId: string;
+  count: number;
+  classGroupIds: string[];
+};
 
 type EnrollmentSuccess = {
   studentName: string;
@@ -62,31 +69,6 @@ function dateOnlyToUtcDate(dateOnly: string): Date | null {
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
-function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
-  return aStart.getTime() <= bEnd.getTime() && bStart.getTime() <= aEnd.getTime();
-}
-
-function overlapsWithTwoInProgress(
-  candidate: { startDate: string; endDate?: string | null },
-  inProgress: { startDate: string; endDate?: string | null }[],
-): boolean {
-  if (inProgress.length < 2) return false;
-  const cStartStr = toDateOnlyString(candidate.startDate);
-  const cEndStr = toDateOnlyString(candidate.endDate ?? candidate.startDate);
-  const cStart = cStartStr ? dateOnlyToUtcDate(cStartStr) : null;
-  const cEnd = cEndStr ? dateOnlyToUtcDate(cEndStr) : null;
-  if (!cStart || !cEnd) return true; // conservador
-  const overlapping = inProgress.filter((ip) => {
-    const ipStartStr = toDateOnlyString(ip.startDate);
-    const ipEndStr = toDateOnlyString(ip.endDate ?? ip.startDate);
-    const ipStart = ipStartStr ? dateOnlyToUtcDate(ipStartStr) : null;
-    const ipEnd = ipEndStr ? dateOnlyToUtcDate(ipEndStr) : null;
-    if (!ipStart || !ipEnd) return true; // conservador
-    return rangesOverlap(ipStart, ipEnd, cStart, cEnd);
-  }).length;
-  return overlapping >= 2;
-}
-
 function canEnrollSameCourseAfterInProgressEnds(args: {
   courseId: string;
   candidateStartDate: string;
@@ -129,11 +111,11 @@ export function InscrevaForm() {
   const [registeredWithoutEmail, setRegisteredWithoutEmail] = useState(false);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
   const [enrolledClassGroupIds, setEnrolledClassGroupIds] = useState<string[]>([]);
-  /** Cursos em que o aluno tem turma com status EM_ANDAMENTO (limite de 2 para novas inscrições). */
-  const [enrolledCourseIdsEmAndamento, setEnrolledCourseIdsEmAndamento] = useState<string[]>([]);
   const [classGroupsEmAndamento, setClassGroupsEmAndamento] = useState<
     { courseId: string; startDate: string; endDate?: string | null }[]
   >([]);
+  const [enrollmentsByCycle, setEnrollmentsByCycle] = useState<CycleEnrollmentSummary[]>([]);
+  const [maxPerCycle, setMaxPerCycle] = useState(MAX_ENROLLMENTS_PER_CYCLE);
   const [enrollmentSuccess, setEnrollmentSuccess] = useState<EnrollmentSuccess | null>(null);
   const successRef = useRef<HTMLDivElement>(null);
 
@@ -154,16 +136,18 @@ export function InscrevaForm() {
         student: StudentData | null;
         enrolledCourseIds?: string[];
         enrolledClassGroupIds?: string[];
-        enrolledCourseIdsEmAndamento?: string[];
         classGroupsEmAndamento?: { courseId: string; startDate: string; endDate?: string | null }[];
+        enrollmentsByCycle?: CycleEnrollmentSummary[];
+        maxEnrollmentsPerCycle?: number;
       }>;
       const cgJson = (await cgRes.json()) as ApiResponse<{ classGroups: ClassGroupOption[] }>;
       if (meJson?.ok) {
         setStudent(meJson.data.student ?? null);
         setEnrolledCourseIds(meJson.data.enrolledCourseIds ?? []);
         setEnrolledClassGroupIds(meJson.data.enrolledClassGroupIds ?? []);
-        setEnrolledCourseIdsEmAndamento(meJson.data.enrolledCourseIdsEmAndamento ?? []);
         setClassGroupsEmAndamento(meJson.data.classGroupsEmAndamento ?? []);
+        setEnrollmentsByCycle(meJson.data.enrollmentsByCycle ?? []);
+        setMaxPerCycle(meJson.data.maxEnrollmentsPerCycle ?? MAX_ENROLLMENTS_PER_CYCLE);
       }
       if (cgJson?.ok && cgJson.data.classGroups) {
         setClassGroups(cgJson.data.classGroups);
@@ -221,9 +205,50 @@ export function InscrevaForm() {
     return () => window.cancelAnimationFrame(t);
   }, [enrollmentSuccess]);
 
+  const enrolledCountByCycle = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const row of enrollmentsByCycle) {
+      m.set(row.cycleId, row.count);
+    }
+    return m;
+  }, [enrollmentsByCycle]);
+
+  const primaryCycleId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const cg of classGroups) {
+      if (!cg.cycleId) continue;
+      counts.set(cg.cycleId, (counts.get(cg.cycleId) ?? 0) + 1);
+    }
+    let best: string | null = null;
+    let bestN = 0;
+    for (const [id, n] of counts) {
+      if (n > bestN) {
+        best = id;
+        bestN = n;
+      }
+    }
+    return best;
+  }, [classGroups]);
+
+  const enrolledInPrimaryCycle = primaryCycleId
+    ? enrolledCountByCycle.get(primaryCycleId) ?? 0
+    : 0;
+  const slotsLeftInPrimaryCycle = Math.max(0, maxPerCycle - enrolledInPrimaryCycle);
+  const showLimitBanner = student != null && slotsLeftInPrimaryCycle === 0 && classGroups.length > 0;
+
+  function countSelectedInCycle(cycleId: string): number {
+    return selectedClassGroupIds.filter((id) => {
+      const cg = classGroups.find((c) => c.id === id);
+      return cg?.cycleId === cycleId;
+    }).length;
+  }
+
+  function slotsLeftForCycle(cycleId: string): number {
+    const enrolled = enrolledCountByCycle.get(cycleId) ?? 0;
+    return Math.max(0, maxPerCycle - enrolled - countSelectedInCycle(cycleId));
+  }
+
   const selectedClassGroups = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
-  const showLimitBanner =
-    classGroupsEmAndamento.length >= 2 && classGroups.some((cg) => overlapsWithTwoInProgress(cg, classGroupsEmAndamento));
 
   function handleRegistered(newStudent: StudentData, token: string) {
     setStudent(newStudent);
@@ -240,15 +265,13 @@ export function InscrevaForm() {
   }
 
   /**
-   * Bloqueia turmas de cursos em que o usuário já está matriculado (uma turma por curso).
-   * Limite “2 cursos” na inscrição pública aplica-se apenas a turmas em andamento (ver API + banner na página).
+   * Bloqueia turmas já matriculadas, cursos já matriculados (exceto reentrada após fim),
+   * conflito de horário e teto de 2 matrículas ACTIVE por ciclo.
    */
   function isClassGroupOptionDisabled(cg: ClassGroupOption): boolean {
     if (selectedClassGroupIds.includes(cg.id)) return false;
     if (enrolledClassGroupIds.includes(cg.id)) return true;
     if (enrolledCourseIds.includes(cg.courseId)) {
-      // Exceção: pode se inscrever novamente no mesmo curso se a turma nova começar só depois do término
-      // da(s) turma(s) em andamento desse curso.
       const canReEnrollSameCourse = canEnrollSameCourseAfterInProgressEnds({
         courseId: cg.courseId,
         candidateStartDate: cg.startDate,
@@ -256,50 +279,46 @@ export function InscrevaForm() {
       });
       if (!canReEnrollSameCourse) return true;
     }
-    // Regra: não permitir inscrição em turma cujo período sobreponha o período de 2 turmas EM_ANDAMENTO do aluno.
-    if (classGroupsEmAndamento.length >= 2) {
-      const cgStartStr = toDateOnlyString(cg.startDate);
-      const cgEndStr = toDateOnlyString(cg.endDate ?? cg.startDate);
-      const cgStart = cgStartStr ? dateOnlyToUtcDate(cgStartStr) : null;
-      const cgEnd = cgEndStr ? dateOnlyToUtcDate(cgEndStr) : null;
-      if (cgStart && cgEnd) {
-        const overlapping = classGroupsEmAndamento.filter((ip) => {
-          const ipStartStr = toDateOnlyString(ip.startDate);
-          const ipEndStr = toDateOnlyString(ip.endDate ?? ip.startDate);
-          const ipStart = ipStartStr ? dateOnlyToUtcDate(ipStartStr) : null;
-          const ipEnd = ipEndStr ? dateOnlyToUtcDate(ipEndStr) : null;
-          if (!ipStart || !ipEnd) return true; // conservador: se não souber, considera sobreposição
-          return rangesOverlap(ipStart, ipEnd, cgStart, cgEnd);
-        }).length;
-        if (overlapping >= 2) return true;
-      } else {
-        // Se não conseguir interpretar datas, mantém o bloqueio conservador.
-        return true;
-      }
-    }
-    if (selectedClassGroupIds.length >= 2) return true;
+    if (cg.cycleId && slotsLeftForCycle(cg.cycleId) <= 0) return true;
     const selected = classGroups.filter((c) => selectedClassGroupIds.includes(c.id));
     if (selected.some((other) => doOverlap(other, cg))) return true;
     return false;
   }
 
-  /** Aplica as regras de seleção (limite e sobreposição) e alterna a turma escolhida. */
+  /** Aplica as regras de seleção (limite por ciclo e sobreposição) e alterna a turma escolhida. */
   function toggleClassGroup(cg: ClassGroupOption) {
     if (isClassGroupOptionDisabled(cg)) return;
     const selected = selectedClassGroupIds.includes(cg.id);
+    if (!selected && cg.cycleId && slotsLeftForCycle(cg.cycleId) <= 0) {
+      toast.push(
+        "error",
+        `Você já atingiu o limite de ${maxPerCycle} turmas neste ciclo.`,
+      );
+      return;
+    }
     const newIds = selected
       ? selectedClassGroupIds.filter((id) => id !== cg.id)
       : [...selectedClassGroupIds, cg.id];
-    if (newIds.length > 2) {
-      toast.push("error", "Você pode selecionar no máximo 2 turmas.");
-      return;
+    if (!selected && cg.cycleId) {
+      const enrolled = enrolledCountByCycle.get(cg.cycleId) ?? 0;
+      const selectedInCycle = newIds.filter((id) => {
+        const other = classGroups.find((c) => c.id === id);
+        return other?.cycleId === cg.cycleId;
+      }).length;
+      if (enrolled + selectedInCycle > maxPerCycle) {
+        toast.push(
+          "error",
+          `Você pode selecionar no máximo ${Math.max(0, maxPerCycle - enrolled)} turma(s) neste ciclo.`,
+        );
+        return;
+      }
     }
     const newSelected = newIds
       .map((id) => classGroups.find((c) => c.id === id))
       .filter(Boolean) as ClassGroupOption[];
     for (let i = 0; i < newSelected.length; i++) {
       for (let j = i + 1; j < newSelected.length; j++) {
-        if (doOverlap(newSelected[i], newSelected[j])) {
+        if (doOverlap(newSelected[i]!, newSelected[j]!)) {
           toast.push("error", "Turmas no mesmo dia e horário não podem ser selecionadas juntas.");
           return;
         }
@@ -360,6 +379,23 @@ export function InscrevaForm() {
         const newClassGroupIds = succeeded.map((s) => s.cg.id);
         setEnrolledCourseIds((prev) => [...new Set([...prev, ...newCourseIds])]);
         setEnrolledClassGroupIds((prev) => [...new Set([...prev, ...newClassGroupIds])]);
+        setEnrollmentsByCycle((prev) => {
+          const next = new Map(prev.map((row) => [row.cycleId, { ...row, classGroupIds: [...row.classGroupIds] }]));
+          for (const s of succeeded) {
+            if (s.kind !== "enrollment" || !s.cg.cycleId) continue;
+            const row = next.get(s.cg.cycleId) ?? {
+              cycleId: s.cg.cycleId,
+              count: 0,
+              classGroupIds: [],
+            };
+            if (!row.classGroupIds.includes(s.cg.id)) {
+              row.classGroupIds.push(s.cg.id);
+              row.count = row.classGroupIds.length;
+            }
+            next.set(s.cg.cycleId, row);
+          }
+          return Array.from(next.values());
+        });
         const kind = succeeded.every((s) => s.kind === "waitlist")
           ? "waitlist"
           : succeeded.every((s) => s.kind === "enrollment")
@@ -575,9 +611,10 @@ export function InscrevaForm() {
       {offerBanner}
       {showLimitBanner ? (
         <div className={`${cardClass} border-amber-200 bg-amber-50/80 dark:border-amber-800 dark:bg-amber-950/40`}>
-          <p className="font-semibold text-[var(--text-primary)]">Limite de cursos atingido</p>
+          <p className="font-semibold text-[var(--text-primary)]">Limite de turmas neste ciclo atingido</p>
           <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-            Você já está inscrito em 2 cursos com turmas em andamento. Para se inscrever em outro curso, entre em contato com a secretaria ou aguarde o encerramento de alguma turma.
+            Você já está inscrito em {maxPerCycle} turmas neste ciclo. Não é possível se inscrever em outra
+            turma. Entre em contato com a secretaria se precisar de ajuda.
           </p>
         </div>
       ) : (
@@ -588,15 +625,17 @@ export function InscrevaForm() {
               {student ? (
                 <span
                   className="ml-auto rounded-full bg-[var(--igh-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--text-primary)]"
-                  aria-label={`Cursos em andamento: ${enrolledCourseIdsEmAndamento.length} de 2`}
+                  aria-label={`Matrículas neste ciclo: ${enrolledInPrimaryCycle} de ${maxPerCycle}`}
                 >
-                  Em andamento: {enrolledCourseIdsEmAndamento.length}/2
+                  Neste ciclo: {enrolledInPrimaryCycle}/{maxPerCycle}
                 </span>
               ) : null}
             </div>
             <p className={hintClass}>
-              Selecione até 2 turmas por envio, sem sobreposição de dia e horário. Turmas lotadas entram na
-              lista de espera: quando surgir vaga, a matrícula é feita automaticamente com e-mail de acesso.
+              Selecione até {slotsLeftInPrimaryCycle > 0 ? slotsLeftInPrimaryCycle : maxPerCycle} turma(s)
+              {student ? " restantes neste ciclo" : " por envio"}, sem sobreposição de dia e horário.
+              Turmas lotadas entram na lista de espera: quando surgir vaga, a matrícula é feita
+              automaticamente com e-mail de acesso.
             </p>
             <div className="mt-5">
               <ClassGroupPicker

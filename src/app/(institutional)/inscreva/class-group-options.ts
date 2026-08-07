@@ -4,6 +4,7 @@ import type { ClassGroupUnit } from "@/lib/class-group-unit";
 /** Turma disponível para pré-matrícula, conforme `GET /api/public/class-groups`. */
 export type ClassGroupOption = {
   id: string;
+  cycleId: string;
   courseId: string;
   courseName: string;
   courseDescription?: string | null;

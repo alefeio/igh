@@ -19,6 +19,7 @@ export async function GET(request: Request) {
       orderBy: [{ startDate: "asc" }, { course: { name: "asc" } }, { startTime: "asc" }],
       select: {
         id: true,
+        cycleId: true,
         capacity: true,
         startDate: true,
         endDate: true,
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
 
     const withVagas = classGroups.map((cg) => ({
       id: cg.id,
+      cycleId: cg.cycleId,
       courseId: cg.course.id,
       courseName: cg.course.name,
       courseDescription: cg.course.description,

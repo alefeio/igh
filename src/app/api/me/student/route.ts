@@ -4,12 +4,21 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { getOrCreateStudentForUser } from "@/lib/student-account";
 import { updateStudentSchema } from "@/lib/validators/students";
 import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
+import { MAX_ACTIVE_ENROLLMENTS_PER_CYCLE } from "@/lib/enrollment-cycle-limit";
 
 /** Retorna o aluno vinculado ao usuário logado (role STUDENT). Se não for STUDENT ou não tiver aluno, retorna student: null. */
 export async function GET() {
   const user = await getSessionUserFromCookie();
   if (!user || user.role !== "STUDENT") {
-    return jsonOk({ student: null, enrolledCourseIds: [], enrolledCourseIdsEmAndamento: [], classGroupsEmAndamento: [] });
+    return jsonOk({
+      student: null,
+      enrolledCourseIds: [],
+      enrolledClassGroupIds: [],
+      enrolledCourseIdsEmAndamento: [],
+      classGroupsEmAndamento: [],
+      enrollmentsByCycle: [],
+      maxEnrollmentsPerCycle: MAX_ACTIVE_ENROLLMENTS_PER_CYCLE,
+    });
   }
 
   const student = await prisma.student.findFirst({
@@ -25,7 +34,15 @@ export async function GET() {
   });
 
   if (!student) {
-    return jsonOk({ student: null, enrolledCourseIds: [], enrolledCourseIdsEmAndamento: [], classGroupsEmAndamento: [] });
+    return jsonOk({
+      student: null,
+      enrolledCourseIds: [],
+      enrolledClassGroupIds: [],
+      enrolledCourseIdsEmAndamento: [],
+      classGroupsEmAndamento: [],
+      enrollmentsByCycle: [],
+      maxEnrollmentsPerCycle: MAX_ACTIVE_ENROLLMENTS_PER_CYCLE,
+    });
   }
 
   const ACTIVE_CLASS_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
@@ -43,6 +60,7 @@ export async function GET() {
         select: {
           id: true,
           courseId: true,
+          cycleId: true,
           status: true,
           startDate: true,
           endDate: true,
@@ -50,6 +68,29 @@ export async function GET() {
       },
     },
   });
+
+  /** Todas as ACTIVE no ciclo (qualquer status de turma), para o teto de 2 por ciclo. */
+  const activeInAnyClassStatus = await prisma.enrollment.findMany({
+    where: {
+      studentId: student.id,
+      status: "ACTIVE",
+    },
+    select: {
+      classGroup: {
+        select: { id: true, cycleId: true },
+      },
+    },
+  });
+
+  const byCycle = new Map<string, { cycleId: string; count: number; classGroupIds: string[] }>();
+  for (const e of activeInAnyClassStatus) {
+    const cycleId = e.classGroup.cycleId;
+    const row = byCycle.get(cycleId) ?? { cycleId, count: 0, classGroupIds: [] };
+    row.count += 1;
+    row.classGroupIds.push(e.classGroup.id);
+    byCycle.set(cycleId, row);
+  }
+
   const enrolledCourseIds = [...new Set(activeEnrollments.map((e) => e.classGroup.courseId))];
   const enrolledClassGroupIds = [...new Set(activeEnrollments.map((e) => e.classGroup.id))];
   const enrolledCourseIdsEmAndamento = [
@@ -78,6 +119,8 @@ export async function GET() {
     enrolledClassGroupIds,
     enrolledCourseIdsEmAndamento,
     classGroupsEmAndamento,
+    enrollmentsByCycle: Array.from(byCycle.values()),
+    maxEnrollmentsPerCycle: MAX_ACTIVE_ENROLLMENTS_PER_CYCLE,
   });
 }
 

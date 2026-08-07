@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { assertPublicCycleEnrollmentLimit } from "@/lib/enrollment-cycle-limit";
 import { PUBLIC_INSCREVA_STATUSES } from "@/lib/public-enrollment-availability";
 
 const WAITLIST_ELIGIBLE_STATUSES = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"] as const;
@@ -26,6 +27,7 @@ export async function assertCanJoinWaitlist(args: {
       capacity: true,
       status: true,
       isExternal: true,
+      cycleId: true,
       course: { select: { status: true } },
       cycle: { select: { isVisibleForEnrollments: true } },
     },
@@ -65,6 +67,19 @@ export async function assertCanJoinWaitlist(args: {
         code: "VALIDATION_ERROR",
         message: "Esta turma não está disponível para inscrição pública.",
         status: 400,
+      };
+    }
+
+    const cycleLimit = await assertPublicCycleEnrollmentLimit({
+      studentId: args.studentId,
+      cycleId: classGroup.cycleId,
+    });
+    if (!cycleLimit.ok) {
+      return {
+        ok: false,
+        code: cycleLimit.code,
+        message: cycleLimit.message,
+        status: cycleLimit.status,
       };
     }
   } else if (!(WAITLIST_ELIGIBLE_STATUSES as readonly string[]).includes(classGroup.status)) {

@@ -84,15 +84,37 @@ const CLASS_GROUP_STATUS_OPTIONS = [
   { value: "CANCELADA", label: "Cancelada" },
 ] as const;
 
-const DEFAULT_CLASS_GROUP_STATUS_FILTERS = [
+/** Checkboxes sempre visíveis em Status das turmas. */
+const VISIBLE_CLASS_GROUP_STATUS_FILTERS = [
   "PLANEJADA",
   "ABERTA",
   "EM_ANDAMENTO",
   "ENCERRADA",
-];
+] as const;
 
-function haveSameValues(left: string[], right: string[]): boolean {
+/** Padrão ao carregar / Limpar filtros — Encerrada só se o usuário marcar. */
+const DEFAULT_CLASS_GROUP_STATUS_FILTERS = [
+  "PLANEJADA",
+  "ABERTA",
+  "EM_ANDAMENTO",
+] as const;
+
+function haveSameValues(left: string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((value) => right.includes(value));
+}
+
+/**
+ * Turma interna: entra se o status está no filtro.
+ * Turma externa: entra somente se Encerrada estiver marcada (qualquer status operacional).
+ */
+function classGroupMatchesStatusFilter(
+  cg: { status?: string | null; isExternal?: boolean },
+  allowedStatuses: ReadonlySet<string>,
+): boolean {
+  if (cg.isExternal) {
+    return allowedStatuses.has("ENCERRADA");
+  }
+  return !!cg.status && allowedStatuses.has(cg.status);
 }
 
 function CheckboxMultiSelect({
@@ -272,9 +294,9 @@ export default function EnrollmentsPage() {
   const [statusFilterState, setStatusFilterState] = useState("");
   const [preEnrollmentFilterState, setPreEnrollmentFilterState] = useState<"" | "pre" | "confirmed">("");
   const [turmaFilterIds, setTurmaFilterIds] = useState<string[]>([]);
-  const [classGroupStatusFilter, setClassGroupStatusFilter] = useState<string[]>(
-    DEFAULT_CLASS_GROUP_STATUS_FILTERS
-  );
+  const [classGroupStatusFilter, setClassGroupStatusFilter] = useState<string[]>([
+    ...DEFAULT_CLASS_GROUP_STATUS_FILTERS,
+  ]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cycleFilterIds, setCycleFilterIds] = useState<string[]>([]);
@@ -315,9 +337,9 @@ export default function EnrollmentsPage() {
         setClassGroupStatusFilter(
           Array.isArray(saved.classGroupStatusFilter)
             ? saved.classGroupStatusFilter.filter((status) =>
-                DEFAULT_CLASS_GROUP_STATUS_FILTERS.includes(status)
+                (VISIBLE_CLASS_GROUP_STATUS_FILTERS as readonly string[]).includes(status)
               )
-            : DEFAULT_CLASS_GROUP_STATUS_FILTERS
+            : [...DEFAULT_CLASS_GROUP_STATUS_FILTERS]
         );
         setDateFrom(saved.dateFrom ?? "");
         setDateTo(saved.dateTo ?? "");
@@ -436,6 +458,26 @@ export default function EnrollmentsPage() {
     });
   }, [allClassGroups, modalCycleIds, isPoloCoordinator]);
 
+  const getActiveEnrollmentCountInCycle = useCallback(
+    (sid: string) => {
+      if (!sid) return 0;
+      const allowedCycles = new Set(modalCycleIds);
+      return items.filter((e) => {
+        if (e.status !== "ACTIVE") return false;
+        if (e.student.id !== sid) return false;
+        const cid =
+          (e.classGroup as { cycleId?: string }).cycleId ?? e.classGroup.cycle?.id;
+        if (!cid) return false;
+        return allowedCycles.has(cid);
+      }).length;
+    },
+    [items, modalCycleIds],
+  );
+
+  const selectedStudentActiveInCycle = studentId
+    ? getActiveEnrollmentCountInCycle(studentId)
+    : null;
+
   function isClassGroupSelectableForEnrollment(cg: ClassGroup): boolean {
     const permiteMatriculaPadrao =
       cg.status === "PLANEJADA" ||
@@ -536,14 +578,14 @@ export default function EnrollmentsPage() {
 
     if (classGroupStatusFilter.length > 0) {
       const allowedStatuses = new Set(classGroupStatusFilter);
-      const statusByClassGroupId = new Map(
-        allClassGroups.map((cg) => [cg.id, cg.status] as const),
-      );
+      const cgById = new Map(allClassGroups.map((cg) => [cg.id, cg] as const));
       list = list.filter((enrollment) => {
-        const status =
-          statusByClassGroupId.get(enrollment.classGroup.id) ??
-          enrollment.classGroup.status;
-        return !!status && allowedStatuses.has(status);
+        const cg = cgById.get(enrollment.classGroup.id);
+        const meta = {
+          status: cg?.status ?? enrollment.classGroup.status,
+          isExternal: cg?.isExternal ?? enrollment.classGroup.isExternal,
+        };
+        return classGroupMatchesStatusFilter(meta, allowedStatuses);
       });
     } else {
       list = [];
@@ -607,7 +649,7 @@ export default function EnrollmentsPage() {
     for (const cg of allClassGroups) {
       const cid = cg.cycleId ?? cg.cycle?.id;
       if (!cid || !allowedCycles.has(cid)) continue;
-      if (!cg.status || !allowedClassGroupStatuses.has(cg.status)) continue;
+      if (!classGroupMatchesStatusFilter(cg, allowedClassGroupStatuses)) continue;
       if (allowedClassGroups.size > 0 && !allowedClassGroups.has(cg.id)) continue;
       byClassGroup.set(cg.id, {
         classGroup: cg,
@@ -712,7 +754,7 @@ export default function EnrollmentsPage() {
     for (const cg of allClassGroups) {
       const cycleId = cg.cycleId ?? cg.cycle?.id;
       if (!cycleId || !allowedCycles.has(cycleId)) continue;
-      if (!cg.status || !allowedStatuses.has(cg.status)) continue;
+      if (!classGroupMatchesStatusFilter(cg, allowedStatuses)) continue;
       const start = formatDateOnly(cg.startDate);
       const line = formatClassGroupTurmaLine({
         course: { name: cg.course.name },
@@ -1127,6 +1169,7 @@ export default function EnrollmentsPage() {
         reloadToken={waitlistReloadToken}
         isMaster={isMaster}
         canRemove={isExactMaster(user)}
+        getActiveEnrollmentCountInCycle={getActiveEnrollmentCountInCycle}
       />
 
       {loading ? (
@@ -1166,7 +1209,7 @@ export default function EnrollmentsPage() {
                     setStatusFilterState("");
                     setPreEnrollmentFilterState("");
                     setTurmaFilterIds([]);
-                    setClassGroupStatusFilter(DEFAULT_CLASS_GROUP_STATUS_FILTERS);
+                    setClassGroupStatusFilter([...DEFAULT_CLASS_GROUP_STATUS_FILTERS]);
                     setDateFrom("");
                     setDateTo("");
                     setCycleFilterIds(visibleCycleIds);
@@ -1301,7 +1344,7 @@ export default function EnrollmentsPage() {
                   </span>
                   <div className="flex min-h-[44px] flex-wrap items-center gap-3 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
                     {CLASS_GROUP_STATUS_OPTIONS.filter((option) =>
-                      DEFAULT_CLASS_GROUP_STATUS_FILTERS.includes(option.value)
+                      (VISIBLE_CLASS_GROUP_STATUS_FILTERS as readonly string[]).includes(option.value)
                     ).map((option) => {
                       const checked = classGroupStatusFilter.includes(option.value);
                       return (
@@ -2011,7 +2054,14 @@ export default function EnrollmentsPage() {
               </ul>
             )}
           </div>
-          {!studentId && (
+          {studentId ? (
+            <p className="text-xs text-[var(--text-muted)]">
+              Matrículas ativas neste ciclo:{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {selectedStudentActiveInCycle ?? 0}
+              </span>
+            </p>
+          ) : (
             <p className="text-xs text-[var(--text-muted)]">Selecione um aluno da lista ao digitar.</p>
           )}
           <div>
