@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
+import { RichTextViewer } from "@/components/ui/RichTextViewer";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Course = {
@@ -309,7 +310,13 @@ export default function CourseEditPage() {
           </div>
           <div className="card-body">
             {isTeacher ? (
-              <div className="prose prose-sm dark:prose-invert max-w-none min-h-[120px] rounded-md border border-[var(--card-border)] bg-[var(--input-bg)] px-3 py-2 text-sm [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-2" dangerouslySetInnerHTML={{ __html: content || "<p class=\"text-[var(--text-muted)]\">Nenhum conteúdo.</p>" }} />
+              content?.trim() ? (
+                <div className="min-h-[120px] rounded-md border border-[var(--card-border)] bg-[var(--input-bg)] px-3 py-2">
+                  <RichTextViewer content={content} />
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--text-muted)]">Nenhum conteúdo.</p>
+              )
             ) : (
               <RichTextEditor
                 key={course.id}
