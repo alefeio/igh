@@ -1,6 +1,17 @@
 "use client";
 
-import { AlertTriangle, FileText, FileWarning, ScrollText, UserCheck, Users, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  FileText,
+  FileWarning,
+  Gift,
+  Package,
+  ScrollText,
+  UserCheck,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -93,7 +104,7 @@ export default function GerenciaHomePage() {
 
       <SectionCard
         title="Atalhos"
-        description="Pessoas e documentos oficiais já disponíveis nesta etapa."
+        description="Pessoas, documentos, estoque, doações e financeiro."
         variant="elevated"
       >
         <QuickActionGrid
@@ -126,19 +137,29 @@ export default function GerenciaHomePage() {
               icon: Wallet,
               accent: "from-violet-600 to-indigo-500",
             },
+            {
+              href: "/admin/gerencia/almoxarifado",
+              label: "Almoxarifado",
+              description: "Estoque e movimentos",
+              icon: Package,
+              accent: "from-cyan-600 to-teal-500",
+            },
+            {
+              href: "/admin/gerencia/donatarias",
+              label: "Donatárias",
+              description: "Quem recebe doações",
+              icon: Building2,
+              accent: "from-rose-600 to-pink-500",
+            },
+            {
+              href: "/admin/gerencia/doacoes",
+              label: "Doações",
+              description: "Bens, dinheiro e termos",
+              icon: Gift,
+              accent: "from-fuchsia-600 to-purple-500",
+            },
           ]}
         />
-      </SectionCard>
-
-      <SectionCard
-        title="Próximos módulos"
-        description="Seguem na fila após esta entrega."
-        variant="elevated"
-      >
-        <ul className="grid gap-2 text-sm text-[var(--text-muted)] sm:grid-cols-2">
-          <li>Termos de doação e acompanhamento das donatárias.</li>
-          <li>Almoxarifado e estoque patrimonial, com alerta de estoque baixo.</li>
-        </ul>
       </SectionCard>
     </PanelPageStack>
   );

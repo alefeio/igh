@@ -59,6 +59,50 @@ export function buildDocumentVariableMap(
   };
 }
 
+export type DonationTemplateInput = {
+  donataria: {
+    name: string;
+    document?: string | null;
+    contactName?: string | null;
+    city?: string | null;
+    state?: string | null;
+    street?: string | null;
+    number?: string | null;
+  };
+  donatedAt?: Date | string | null;
+  description?: string | null;
+  amountCents?: number | null;
+  items?: Array<{ name: string; quantity: number; unit: string }>;
+};
+
+export function buildDonationVariableMap(donation: DonationTemplateInput): Record<string, string> {
+  const addr = [
+    donation.donataria.street,
+    donation.donataria.number,
+    donation.donataria.city && donation.donataria.state
+      ? `${donation.donataria.city}/${donation.donataria.state}`
+      : donation.donataria.city || donation.donataria.state,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const itemsText =
+    donation.items && donation.items.length > 0
+      ? donation.items.map((i) => `${i.quantity} ${i.unit} — ${i.name}`).join("; ")
+      : "—";
+
+  return {
+    "donataria.nome": donation.donataria.name,
+    "donataria.documento": donation.donataria.document?.trim() || "—",
+    "donataria.contato": donation.donataria.contactName?.trim() || "—",
+    "donataria.endereco": addr || "—",
+    "doacao.data": dateBr(donation.donatedAt ?? new Date()),
+    "doacao.descricao": donation.description?.trim() || "—",
+    "doacao.valor": formatCentsBRL(donation.amountCents),
+    "doacao.itens": itemsText,
+    "instituto.nome": BRAND.legalName || BRAND.shortName || "Instituto",
+  };
+}
+
 /** Substitui `{{chave}}` no HTML do modelo. */
 export function renderDocumentTemplateHtml(
   contentRich: string,
@@ -96,4 +140,12 @@ export const DOCUMENT_TEMPLATE_VARIABLE_HELP = [
   "{{contrato.fim}}",
   "{{contrato.data}}",
   "{{instituto.nome}}",
+  "{{donataria.nome}}",
+  "{{donataria.documento}}",
+  "{{donataria.contato}}",
+  "{{donataria.endereco}}",
+  "{{doacao.data}}",
+  "{{doacao.descricao}}",
+  "{{doacao.valor}}",
+  "{{doacao.itens}}",
 ] as const;

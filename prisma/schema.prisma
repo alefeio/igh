@@ -107,6 +107,11 @@ model User {
   financialCategoriesCreated         FinancialCategory[]        @relation("FinancialCategoryCreatedBy")
   financialEntriesCreated            FinancialEntry[]           @relation("FinancialEntryCreatedBy")
   financialEntriesResponsible        FinancialEntry[]           @relation("FinancialEntryResponsible")
+  inventoryItemsCreated              InventoryItem[]            @relation("InventoryItemCreatedBy")
+  inventoryMovementsCreated          InventoryMovement[]        @relation("InventoryMovementCreatedBy")
+  inventoryMovementsResponsible      InventoryMovement[]        @relation("InventoryMovementResponsible")
+  donatariasCreated                  Donataria[]                @relation("DonatariaCreatedBy")
+  donationsCreated                   Donation[]                 @relation("DonationCreatedBy")
   /// * Turmas criadas por este usuário (admin/master).
   classGroupsCreated                 ClassGroup[]               @relation("ClassGroupCreatedBy")
   /// * Cursos criados por este usuário (admin/master).
@@ -1329,6 +1334,7 @@ model DocumentTemplate {
   createdByUserId String?
   createdByUser   User?                @relation("DocumentTemplateCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   contracts       EmployeeContract[]
+  donations       Donation[]
 
   @@index([type, isActive])
 }
@@ -1439,11 +1445,144 @@ model FinancialEntry {
   polo                 Polo?                  @relation(fields: [poloId], references: [id], onDelete: SetNull)
   responsibleUser      User?                  @relation("FinancialEntryResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
   createdByUser        User?                  @relation("FinancialEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  donations            Donation[]
 
   @@index([deletedAt, entryDate])
   @@index([kind, entryDate])
   @@index([categoryId])
   @@index([poloId])
+}
+
+/// * Item do almoxarifado / estoque patrimonial.
+model InventoryItem {
+  id              String              @id @default(uuid())
+  name            String
+  /// * Código interno ou patrimônio (único quando informado).
+  code            String?
+  category        String?
+  unit            String              @default("UN")
+  /// * Quantidade mínima antes do alerta de estoque baixo.
+  minStock        Int                 @default(0)
+  location        String?
+  photoUrl        String?
+  photoPublicId   String?
+  /// * Saldo atual (atualizado em transação com cada movimento).
+  quantityOnHand  Int                 @default(0)
+  notes           String?
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  createdByUserId String?
+  deletedAt       DateTime?
+  createdByUser   User?               @relation("InventoryItemCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  movements       InventoryMovement[]
+  donationItems   DonationItem[]
+
+  @@unique([code])
+  @@index([deletedAt, isActive])
+  @@index([quantityOnHand, minStock])
+}
+
+/// * Movimento de estoque: entrada, saída ou ajuste.
+model InventoryMovement {
+  id                String                @id @default(uuid())
+  itemId            String
+  type              InventoryMovementType
+  /// * Quantidade sempre positiva; o sinal vem do tipo (AJUSTE usa quantity como saldo absoluto alvo via reason/notes ou delta).
+  quantity          Int
+  /// * Variação aplicada ao saldo (positiva ou negativa). Em AJUSTE, é o delta até o novo saldo.
+  quantityDelta     Int
+  reason            String?
+  responsibleUserId String?
+  responsibleName   String?
+  notes             String?
+  /// * Doação que originou a saída (quando houver).
+  donationId        String?
+  createdAt         DateTime              @default(now())
+  createdByUserId   String?
+  item              InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  responsibleUser   User?                 @relation("InventoryMovementResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  createdByUser     User?                 @relation("InventoryMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  donation          Donation?             @relation(fields: [donationId], references: [id], onDelete: SetNull)
+
+  @@index([itemId, createdAt(sort: Desc)])
+  @@index([donationId])
+}
+
+/// * Entidade que recebe doações do instituto (donatária).
+model Donataria {
+  id              String     @id @default(uuid())
+  name            String
+  document        String?
+  email           String?
+  phone           String?
+  contactName     String?
+  cep             String?
+  street          String?
+  number          String?
+  complement      String?
+  neighborhood    String?
+  city            String?
+  state           String?
+  notes           String?
+  isActive        Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  createdByUserId String?
+  deletedAt       DateTime?
+  createdByUser   User?      @relation("DonatariaCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  donations       Donation[]
+
+  @@index([deletedAt, isActive])
+  @@index([name])
+}
+
+/// * Doação de saída do IGH (bens e/ou dinheiro) para uma donatária.
+model Donation {
+  id                  String         @id @default(uuid())
+  donatariaId         String
+  kind                DonationKind
+  donatedAt           DateTime       @db.Date
+  description         String?
+  /// * Valor em centavos quando a doação inclui dinheiro.
+  amountCents         Int?
+  status              DonationStatus @default(RASCUNHO)
+  templateId          String?
+  renderedHtml        String?        @db.Text
+  pdfUrl              String?
+  pdfPublicId         String?
+  /// * Lançamento financeiro gerado na confirmação (doação em dinheiro).
+  financialEntryId    String?
+  /// * Se os itens de bens já foram baixados do estoque.
+  inventoryPosted     Boolean        @default(false)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  createdByUserId     String?
+  deletedAt           DateTime?
+  donataria           Donataria      @relation(fields: [donatariaId], references: [id], onDelete: Restrict)
+  template            DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  financialEntry      FinancialEntry?   @relation(fields: [financialEntryId], references: [id], onDelete: SetNull)
+  createdByUser       User?             @relation("DonationCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items               DonationItem[]
+  inventoryMovements  InventoryMovement[]
+
+  @@index([donatariaId, donatedAt])
+  @@index([status, deletedAt])
+}
+
+model DonationItem {
+  id              String         @id @default(uuid())
+  donationId      String
+  inventoryItemId String?
+  /// * Nome congelado no momento da doação.
+  name            String
+  quantity        Int
+  unit            String         @default("UN")
+  donation        Donation       @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
+  @@index([donationId])
+  @@index([inventoryItemId])
 }
 
 model SiteSettings {
@@ -2233,6 +2372,24 @@ enum FinancialPaymentMethod {
   CARTAO
   CHEQUE
   OUTRO
+}
+
+enum InventoryMovementType {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
+enum DonationKind {
+  BENS
+  DINHEIRO
+  MISTO
+}
+
+enum DonationStatus {
+  RASCUNHO
+  CONFIRMADA
+  CANCELADA
 }
 
 enum SmsCampaignStatus {

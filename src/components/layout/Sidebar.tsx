@@ -156,6 +156,24 @@ const ITEMS: Item[] = [
     roles: ADMIN_MANAGEMENT,
     category: "Gerência",
   },
+  {
+    href: "/admin/gerencia/almoxarifado",
+    label: "Almoxarifado",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
+  {
+    href: "/admin/gerencia/donatarias",
+    label: "Donatárias",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
+  {
+    href: "/admin/gerencia/doacoes",
+    label: "Doações",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
 
   /* —— Comunicação —— */
   { href: "/admin/sms", label: "Campanhas SMS", roles: SITE_AND_COMMS, category: "Comunicação" },
