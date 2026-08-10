@@ -37,9 +37,16 @@ export const createInventoryItemSchema = z.object({
   name: z.string().trim().min(2, "Nome é obrigatório"),
   code: optionalText,
   category: optionalText,
+  brand: optionalText,
+  model: optionalText,
+  assetTag: optionalText,
+  serialNumber: optionalText,
   unit: z.string().trim().min(1).default("UN"),
   minStock: z.number().int().min(0).optional().default(0),
   location: optionalText,
+  responsibleName: optionalText,
+  condition: z.enum(["OTIMO", "BOM", "REGULAR", "RUIM"]).optional().default("BOM"),
+  unitValue: optionalMoneyCents,
   photoUrl: optionalHttps,
   photoPublicId: optionalText,
   notes: optionalText,
@@ -75,6 +82,7 @@ export const createDonatariaSchema = z.object({
   neighborhood: optionalText,
   city: optionalText,
   state: optionalText,
+  zone: z.enum(["URBANA", "RURAL"]).optional().default("URBANA"),
   notes: optionalText,
   isActive: z.boolean().optional().default(true),
 });
@@ -95,6 +103,9 @@ export const createDonationSchema = z
     donatedAt: requiredDate,
     description: optionalText,
     amount: optionalMoneyCents,
+    kitsCount: z.number().int().min(0).optional().default(0),
+    belongsTo: optionalText,
+    placeDateText: optionalText,
     templateId: z.string().uuid().nullable().optional(),
     generatePdf: z.boolean().optional().default(true),
     confirmNow: z.boolean().optional().default(false),
@@ -103,11 +114,13 @@ export const createDonationSchema = z
     items: z.array(donationItemSchema).optional().default([]),
   })
   .superRefine((data, ctx) => {
-    if ((data.kind === "BENS" || data.kind === "MISTO") && data.items.length === 0) {
+    const hasGoods =
+      data.kitsCount > 0 || data.items.length > 0;
+    if ((data.kind === "BENS" || data.kind === "MISTO") && !hasGoods) {
       ctx.addIssue({
         code: "custom",
         path: ["items"],
-        message: "Informe ao menos um item para doação de bens.",
+        message: "Informe kits ou ao menos um item para doação de bens.",
       });
     }
     if ((data.kind === "DINHEIRO" || data.kind === "MISTO") && (data.amount == null || data.amount <= 0)) {

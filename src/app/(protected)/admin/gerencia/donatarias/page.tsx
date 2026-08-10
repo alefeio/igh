@@ -11,7 +11,12 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
-import type { DonatariaView } from "@/lib/inventory-donations-ui";
+import type { DonatariaZone } from "@/generated/prisma/client";
+import {
+  DONATARIA_ZONE_LABEL,
+  DONATARIA_ZONES,
+  type DonatariaView,
+} from "@/lib/inventory-donations-ui";
 
 type FormState = {
   name: string;
@@ -26,6 +31,7 @@ type FormState = {
   neighborhood: string;
   city: string;
   state: string;
+  zone: DonatariaZone;
   notes: string;
   isActive: boolean;
 };
@@ -44,6 +50,7 @@ function emptyForm(): FormState {
     neighborhood: "",
     city: "",
     state: "",
+    zone: "URBANA",
     notes: "",
     isActive: true,
   };
@@ -113,6 +120,7 @@ export default function DonatariasPage() {
       neighborhood: d.neighborhood ?? "",
       city: d.city ?? "",
       state: d.state ?? "",
+      zone: d.zone ?? "URBANA",
       notes: d.notes ?? "",
       isActive: d.isActive,
     });
@@ -139,6 +147,7 @@ export default function DonatariasPage() {
         neighborhood: form.neighborhood.trim() || null,
         city: form.city.trim() || null,
         state: form.state.trim() || null,
+        zone: form.zone,
         notes: form.notes.trim() || null,
         isActive: form.isActive,
       };
@@ -231,6 +240,7 @@ export default function DonatariasPage() {
               <Th>Nome</Th>
               <Th>Contato</Th>
               <Th>Cidade</Th>
+              <Th>Zona</Th>
               <Th>Doações</Th>
               <Th>Status</Th>
               <Th>Ações</Th>
@@ -252,6 +262,7 @@ export default function DonatariasPage() {
                 <Td>
                   {d.city && d.state ? `${d.city}/${d.state}` : d.city || d.state || "—"}
                 </Td>
+                <Td>{DONATARIA_ZONE_LABEL[d.zone] ?? d.zone}</Td>
                 <Td>{d._count?.donations ?? 0}</Td>
                 <Td>
                   <Badge tone={d.isActive ? "green" : "zinc"}>{d.isActive ? "Ativa" : "Inativa"}</Badge>
@@ -270,7 +281,7 @@ export default function DonatariasPage() {
             ))}
             {!loading && filtered.length === 0 ? (
               <tr>
-                <Td colSpan={6}>
+                <Td colSpan={7}>
                   <p className="py-6 text-center text-sm text-[var(--text-muted)]">
                     Nenhuma donatária encontrada.
                   </p>
@@ -347,6 +358,22 @@ export default function DonatariasPage() {
             <span className="mb-1 block text-sm">UF</span>
             <Input value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} />
           </label>
+          <fieldset className="sm:col-span-2">
+            <legend className="mb-1 text-sm">Zona</legend>
+            <div className="flex flex-wrap gap-4 text-sm">
+              {DONATARIA_ZONES.map((z) => (
+                <label key={z} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="zone"
+                    checked={form.zone === z}
+                    onChange={() => setForm((f) => ({ ...f, zone: z }))}
+                  />
+                  {DONATARIA_ZONE_LABEL[z]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <label className="flex items-center gap-2 self-end text-sm">
             <input
               type="checkbox"

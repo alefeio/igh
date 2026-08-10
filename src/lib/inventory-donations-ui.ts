@@ -1,4 +1,10 @@
-import type { DonationKind, DonationStatus, InventoryMovementType } from "@/generated/prisma/client";
+import type {
+  DonatariaZone,
+  DonationKind,
+  DonationStatus,
+  InventoryCondition,
+  InventoryMovementType,
+} from "@/generated/prisma/client";
 import { formatCentsBRL } from "@/lib/employees";
 
 export const DONATION_KINDS: readonly DonationKind[] = ["BENS", "DINHEIRO", "MISTO"] as const;
@@ -9,16 +15,31 @@ export const DONATION_KIND_LABEL: Record<DonationKind, string> = {
   MISTO: "Misto",
 };
 
-export const DONATION_STATUSES: readonly DonationStatus[] = [
-  "RASCUNHO",
-  "CONFIRMADA",
-  "CANCELADA",
-] as const;
-
 export const DONATION_STATUS_LABEL: Record<DonationStatus, string> = {
   RASCUNHO: "Rascunho",
   CONFIRMADA: "Confirmada",
   CANCELADA: "Cancelada",
+};
+
+export const DONATARIA_ZONES: readonly DonatariaZone[] = ["URBANA", "RURAL"] as const;
+
+export const DONATARIA_ZONE_LABEL: Record<DonatariaZone, string> = {
+  URBANA: "Urbana",
+  RURAL: "Rural",
+};
+
+export const INVENTORY_CONDITIONS: readonly InventoryCondition[] = [
+  "OTIMO",
+  "BOM",
+  "REGULAR",
+  "RUIM",
+] as const;
+
+export const INVENTORY_CONDITION_LABEL: Record<InventoryCondition, string> = {
+  OTIMO: "Ótimo",
+  BOM: "Bom",
+  REGULAR: "Regular",
+  RUIM: "Ruim",
 };
 
 export const INVENTORY_MOVEMENT_TYPES: readonly InventoryMovementType[] = [
@@ -38,9 +59,16 @@ export type InventoryItemView = {
   name: string;
   code: string | null;
   category: string | null;
+  brand: string | null;
+  model: string | null;
+  assetTag: string | null;
+  serialNumber: string | null;
   unit: string;
   minStock: number;
   location: string | null;
+  responsibleName: string | null;
+  condition: InventoryCondition;
+  unitValueCents: number | null;
   photoUrl: string | null;
   photoPublicId: string | null;
   quantityOnHand: number;
@@ -65,6 +93,7 @@ export type DonatariaView = {
   neighborhood: string | null;
   city: string | null;
   state: string | null;
+  zone: DonatariaZone;
   notes: string | null;
   isActive: boolean;
   createdAt: string;
@@ -79,6 +108,10 @@ export type DonationView = {
   donatedAt: string;
   description: string | null;
   amountCents: number | null;
+  kitsCount: number;
+  belongsTo: string | null;
+  placeDateText: string | null;
+  termNumber: number | null;
   status: DonationStatus;
   templateId: string | null;
   renderedHtml: string | null;
@@ -93,8 +126,11 @@ export type DonationView = {
     name: string;
     document: string | null;
     contactName: string | null;
+    email?: string | null;
+    phone?: string | null;
     city: string | null;
     state: string | null;
+    zone?: DonatariaZone;
   };
   template: { id: string; title: string; type: string } | null;
   financialEntry: { id: string; amountCents: number; description: string } | null;

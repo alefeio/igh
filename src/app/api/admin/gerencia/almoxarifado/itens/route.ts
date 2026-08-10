@@ -4,18 +4,24 @@ import { createAuditLog } from "@/lib/audit";
 import { applyInventoryMovement } from "@/lib/inventory";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import {
-  createInventoryItemSchema,
-} from "@/lib/validators/inventory-donations";
+import { createInventoryItemSchema } from "@/lib/validators/inventory-donations";
+import type { InventoryCondition } from "@/generated/prisma/client";
 
 function serializeItem(item: {
   id: string;
   name: string;
   code: string | null;
   category: string | null;
+  brand: string | null;
+  model: string | null;
+  assetTag: string | null;
+  serialNumber: string | null;
   unit: string;
   minStock: number;
   location: string | null;
+  responsibleName: string | null;
+  condition: InventoryCondition;
+  unitValueCents: number | null;
   photoUrl: string | null;
   photoPublicId: string | null;
   quantityOnHand: number;
@@ -43,15 +49,23 @@ export async function GET(request: Request) {
 
   const lowOnly = new URL(request.url).searchParams.get("lowStock") === "true";
   const items = await prisma.inventoryItem.findMany({
-    where: { deletedAt: null, ...(lowOnly ? {} : {}) },
+    where: { deletedAt: null },
     orderBy: [{ name: "asc" }],
   });
 
   const mapped = items.map(serializeItem);
   const filtered = lowOnly ? mapped.filter((i) => i.lowStock && i.isActive) : mapped;
   const lowStockCount = mapped.filter((i) => i.isActive && i.lowStock).length;
+  const estimatedValueCents = mapped
+    .filter((i) => i.isActive)
+    .reduce((sum, i) => sum + (i.unitValueCents ?? 0) * i.quantityOnHand, 0);
 
-  return jsonOk({ items: filtered, lowStockCount, total: mapped.length });
+  return jsonOk({
+    items: filtered,
+    lowStockCount,
+    total: mapped.length,
+    estimatedValueCents,
+  });
 }
 
 export async function POST(request: Request) {
@@ -70,7 +84,7 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { initialQuantity, code, ...rest } = parsed.data;
+  const { initialQuantity, code, unitValue, ...rest } = parsed.data;
   const normalizedCode = code?.trim() ? code.trim() : null;
 
   try {
@@ -78,6 +92,7 @@ export async function POST(request: Request) {
       data: {
         ...rest,
         code: normalizedCode,
+        unitValueCents: unitValue ?? null,
         createdByUserId: actor.id,
       },
     });

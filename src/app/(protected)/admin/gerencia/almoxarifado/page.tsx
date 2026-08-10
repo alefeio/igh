@@ -12,19 +12,29 @@ import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 import {
+  INVENTORY_CONDITION_LABEL,
+  INVENTORY_CONDITIONS,
   INVENTORY_MOVEMENT_LABEL,
   INVENTORY_MOVEMENT_TYPES,
+  formatCentsBRL,
   type InventoryItemView,
 } from "@/lib/inventory-donations-ui";
-import type { InventoryMovementType } from "@/generated/prisma/client";
+import type { InventoryCondition, InventoryMovementType } from "@/generated/prisma/client";
 
 type ItemForm = {
   name: string;
   code: string;
   category: string;
+  brand: string;
+  model: string;
+  assetTag: string;
+  serialNumber: string;
   unit: string;
   minStock: string;
   location: string;
+  responsibleName: string;
+  condition: InventoryCondition;
+  unitValue: string;
   notes: string;
   isActive: boolean;
   initialQuantity: string;
@@ -54,10 +64,17 @@ function emptyItemForm(): ItemForm {
   return {
     name: "",
     code: "",
-    category: "",
+    category: "Geral",
+    brand: "",
+    model: "",
+    assetTag: "",
+    serialNumber: "",
     unit: "UN",
     minStock: "0",
     location: "",
+    responsibleName: "",
+    condition: "BOM",
+    unitValue: "",
     notes: "",
     isActive: true,
     initialQuantity: "0",
@@ -76,6 +93,7 @@ export default function AlmoxarifadoPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<InventoryItemView[]>([]);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [estimatedValueCents, setEstimatedValueCents] = useState(0);
   const [search, setSearch] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
   const [activeOnly, setActiveOnly] = useState(true);
@@ -102,6 +120,7 @@ export default function AlmoxarifadoPage() {
       const json = (await res.json()) as ApiResponse<{
         items: InventoryItemView[];
         lowStockCount: number;
+        estimatedValueCents?: number;
       }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao carregar estoque.");
@@ -109,6 +128,7 @@ export default function AlmoxarifadoPage() {
       }
       setItems(json.data.items);
       setLowStockCount(json.data.lowStockCount);
+      setEstimatedValueCents(json.data.estimatedValueCents ?? 0);
     } catch {
       toast.push("error", "Falha ao carregar estoque.");
     } finally {
@@ -142,9 +162,19 @@ export default function AlmoxarifadoPage() {
       name: item.name,
       code: item.code ?? "",
       category: item.category ?? "",
+      brand: item.brand ?? "",
+      model: item.model ?? "",
+      assetTag: item.assetTag ?? "",
+      serialNumber: item.serialNumber ?? "",
       unit: item.unit,
       minStock: String(item.minStock),
       location: item.location ?? "",
+      responsibleName: item.responsibleName ?? "",
+      condition: item.condition ?? "BOM",
+      unitValue:
+        item.unitValueCents != null
+          ? (item.unitValueCents / 100).toFixed(2).replace(".", ",")
+          : "",
       notes: item.notes ?? "",
       isActive: item.isActive,
       initialQuantity: "0",
@@ -163,9 +193,16 @@ export default function AlmoxarifadoPage() {
         name: form.name.trim(),
         code: form.code.trim() || null,
         category: form.category.trim() || null,
+        brand: form.brand.trim() || null,
+        model: form.model.trim() || null,
+        assetTag: form.assetTag.trim() || null,
+        serialNumber: form.serialNumber.trim() || null,
         unit: form.unit.trim() || "UN",
         minStock: Number(form.minStock) || 0,
         location: form.location.trim() || null,
+        responsibleName: form.responsibleName.trim() || null,
+        condition: form.condition,
+        unitValue: form.unitValue.trim() || null,
         notes: form.notes.trim() || null,
         isActive: form.isActive,
         ...(editing ? {} : { initialQuantity: Number(form.initialQuantity) || 0 }),
@@ -285,7 +322,7 @@ export default function AlmoxarifadoPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Itens" value={loading ? "—" : items.length} icon={Package} />
         <StatTile
           label="Estoque baixo"
@@ -298,6 +335,12 @@ export default function AlmoxarifadoPage() {
           value={loading ? "—" : items.filter((i) => i.isActive).length}
           icon={Package}
           accent="emerald"
+        />
+        <StatTile
+          label="Valor estimado"
+          value={loading ? "—" : formatCentsBRL(estimatedValueCents)}
+          icon={Package}
+          accent="sky"
         />
       </div>
 
@@ -335,6 +378,7 @@ export default function AlmoxarifadoPage() {
               <Th>Item</Th>
               <Th>Saldo</Th>
               <Th>Mín.</Th>
+              <Th>Valor un.</Th>
               <Th>Local</Th>
               <Th>Status</Th>
               <Th>Ações</Th>
@@ -346,7 +390,8 @@ export default function AlmoxarifadoPage() {
                 <Td>
                   <div className="font-medium">{item.name}</div>
                   <div className="text-xs text-[var(--text-muted)]">
-                    {[item.code, item.category, item.unit].filter(Boolean).join(" · ") || "—"}
+                    {[item.code, item.category, item.assetTag, item.unit].filter(Boolean).join(" · ") ||
+                      "—"}
                   </div>
                 </Td>
                 <Td>
@@ -355,6 +400,7 @@ export default function AlmoxarifadoPage() {
                   </span>
                 </Td>
                 <Td>{item.minStock}</Td>
+                <Td>{item.unitValueCents != null ? formatCentsBRL(item.unitValueCents) : "—"}</Td>
                 <Td>{item.location || "—"}</Td>
                 <Td>
                   <div className="flex flex-wrap gap-1">
@@ -384,7 +430,7 @@ export default function AlmoxarifadoPage() {
             ))}
             {!loading && filtered.length === 0 ? (
               <tr>
-                <Td colSpan={6}>
+                <Td colSpan={7}>
                   <p className="py-6 text-center text-sm text-[var(--text-muted)]">
                     Nenhum item encontrado.
                   </p>
@@ -400,7 +446,7 @@ export default function AlmoxarifadoPage() {
         onClose={() => setFormOpen(false)}
         title={editing ? "Editar item" : "Novo item"}
       >
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid max-h-[70vh] gap-3 overflow-y-auto sm:grid-cols-2">
           <label className="block sm:col-span-2">
             <span className="mb-1 block text-sm">Nome</span>
             <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
@@ -417,6 +463,58 @@ export default function AlmoxarifadoPage() {
             />
           </label>
           <label className="block">
+            <span className="mb-1 block text-sm">Marca</span>
+            <Input value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm">Modelo</span>
+            <Input value={form.model} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm">Tombamento</span>
+            <Input
+              value={form.assetTag}
+              onChange={(e) => setForm((f) => ({ ...f, assetTag: e.target.value }))}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm">Nº de série</span>
+            <Input
+              value={form.serialNumber}
+              onChange={(e) => setForm((f) => ({ ...f, serialNumber: e.target.value }))}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm">Localização</span>
+            <Input
+              value={form.location}
+              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm">Responsável</span>
+            <Input
+              value={form.responsibleName}
+              onChange={(e) => setForm((f) => ({ ...f, responsibleName: e.target.value }))}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm">Conservação</span>
+            <select
+              className={selectClass}
+              value={form.condition}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, condition: e.target.value as InventoryCondition }))
+              }
+            >
+              {INVENTORY_CONDITIONS.map((c) => (
+                <option key={c} value={c}>
+                  {INVENTORY_CONDITION_LABEL[c]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
             <span className="mb-1 block text-sm">Unidade</span>
             <Input value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} />
           </label>
@@ -430,10 +528,11 @@ export default function AlmoxarifadoPage() {
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm">Local</span>
+            <span className="mb-1 block text-sm">Valor unitário (R$)</span>
             <Input
-              value={form.location}
-              onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+              placeholder="0,00"
+              value={form.unitValue}
+              onChange={(e) => setForm((f) => ({ ...f, unitValue: e.target.value }))}
             />
           </label>
           {!editing ? (

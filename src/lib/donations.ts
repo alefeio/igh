@@ -6,6 +6,7 @@ import {
   renderDocumentTemplateHtml,
 } from "@/lib/admin/document-template-vars";
 import { uploadGerenciaPdfBytes } from "@/lib/admin/gerencia-pdf-upload";
+import { expandDonationKitItems } from "@/lib/donation-kits";
 import { applyInventoryMovement } from "@/lib/inventory";
 import { prisma } from "@/lib/prisma";
 
@@ -34,6 +35,10 @@ export function serializeDonation(d: DonationLoaded) {
     donatedAt: d.donatedAt.toISOString().slice(0, 10),
     description: d.description,
     amountCents: d.amountCents,
+    kitsCount: d.kitsCount,
+    belongsTo: d.belongsTo,
+    placeDateText: d.placeDateText,
+    termNumber: d.termNumber,
     status: d.status,
     templateId: d.templateId,
     renderedHtml: d.renderedHtml,
@@ -48,8 +53,11 @@ export function serializeDonation(d: DonationLoaded) {
       name: d.donataria.name,
       document: d.donataria.document,
       contactName: d.donataria.contactName,
+      email: d.donataria.email,
+      phone: d.donataria.phone,
       city: d.donataria.city,
       state: d.donataria.state,
+      zone: d.donataria.zone,
     },
     template: d.template,
     financialEntry: d.financialEntry,
@@ -62,6 +70,38 @@ export function serializeDonation(d: DonationLoaded) {
       inventoryItem: item.inventoryItem,
     })),
   };
+}
+
+/** Resolve itens finais: lista enviada tem prioridade; senão, expande kits. */
+export function resolveDonationItems(input: {
+  kitsCount: number;
+  items: Array<{
+    inventoryItemId?: string | null;
+    name: string;
+    quantity: number;
+    unit: string;
+  }>;
+}) {
+  if (input.items.length > 0) {
+    return input.items.map((item) => ({
+      name: item.name.trim(),
+      quantity: item.quantity,
+      unit: item.unit || "UN",
+      inventoryItemId: item.inventoryItemId ?? null,
+    }));
+  }
+  return expandDonationKitItems(input.kitsCount).map((i) => ({
+    ...i,
+    inventoryItemId: null as string | null,
+  }));
+}
+
+async function nextTermNumber(): Promise<number> {
+  const agg = await prisma.donation.aggregate({
+    _max: { termNumber: true },
+    where: { termNumber: { not: null } },
+  });
+  return (agg._max.termNumber ?? 0) + 1;
 }
 
 export async function confirmDonationSideEffects(opts: {
@@ -86,6 +126,7 @@ export async function confirmDonationSideEffects(opts: {
   let pdfUrl = donation.pdfUrl;
   let pdfPublicId = donation.pdfPublicId;
   let templateId = opts.templateId ?? donation.templateId;
+  const termNumber = donation.termNumber ?? (await nextTermNumber());
 
   const shouldPostInventory =
     opts.postInventory &&
@@ -172,13 +213,17 @@ export async function confirmDonationSideEffects(opts: {
         donatedAt: donation.donatedAt,
         description: donation.description,
         amountCents: donation.amountCents,
+        kitsCount: donation.kitsCount,
+        belongsTo: donation.belongsTo,
+        placeDateText: donation.placeDateText,
+        termNumber,
         items: donation.items,
       });
       renderedHtml = renderDocumentTemplateHtml(template.contentRich, vars);
       const bytes = await renderDocumentHtmlToPdfBytes(renderedHtml, template.title);
       const uploaded = await uploadGerenciaPdfBytes(
         bytes,
-        `termo-doacao-${donation.donataria.name.replace(/\s+/g, "-").slice(0, 40)}.pdf`,
+        `termo-doacao-${termNumber}-${donation.donataria.name.replace(/\s+/g, "-").slice(0, 40)}.pdf`,
       );
       pdfUrl = uploaded.url;
       pdfPublicId = uploaded.publicId;
@@ -189,6 +234,7 @@ export async function confirmDonationSideEffects(opts: {
     where: { id: donation.id },
     data: {
       status: "CONFIRMADA",
+      termNumber,
       inventoryPosted,
       financialEntryId,
       templateId,

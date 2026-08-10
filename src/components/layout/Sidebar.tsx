@@ -163,6 +163,12 @@ const ITEMS: Item[] = [
     category: "Gerência",
   },
   {
+    href: "/admin/gerencia/equipamentos",
+    label: "Equipamentos",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
+  {
     href: "/admin/gerencia/donatarias",
     label: "Donatárias",
     roles: ADMIN_MANAGEMENT,
@@ -171,6 +177,12 @@ const ITEMS: Item[] = [
   {
     href: "/admin/gerencia/doacoes",
     label: "Doações",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
+  {
+    href: "/admin/gerencia/visitas",
+    label: "Checklist de visitas",
     roles: ADMIN_MANAGEMENT,
     category: "Gerência",
   },

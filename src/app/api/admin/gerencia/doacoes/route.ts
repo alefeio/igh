@@ -1,9 +1,12 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireAdminManager } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
+import { getKitComponentsFromCatalog } from "@/lib/equipment-catalog";
+import { expandDonationKitItems } from "@/lib/donation-kits";
 import {
   confirmDonationSideEffects,
   donationInclude,
+  resolveDonationItems,
   serializeDonation,
 } from "@/lib/donations";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -71,7 +74,32 @@ export async function POST(request: Request) {
     if (!template) return jsonErr("NOT_FOUND", "Modelo de termo de doação não encontrado.", 404);
   }
 
-  for (const item of data.items) {
+  const kitComponents = await getKitComponentsFromCatalog();
+  const resolvedItems =
+    data.items.length > 0
+      ? resolveDonationItems({ kitsCount: data.kitsCount, items: data.items })
+      : expandDonationKitItems(data.kitsCount, kitComponents).map((i) => ({
+          ...i,
+          inventoryItemId: null as string | null,
+        }));
+
+  if ((data.kind === "BENS" || data.kind === "MISTO") && resolvedItems.length === 0) {
+    return jsonErr("VALIDATION_ERROR", "Informe kits ou ao menos um item para doação de bens.", 400);
+  }
+
+  // Tenta vincular itens do kit ao estoque pelo nome (baixa automática quando houver match).
+  const stockByName = await prisma.inventoryItem.findMany({
+    where: { deletedAt: null, isActive: true },
+    select: { id: true, name: true },
+  });
+  const nameIndex = new Map(stockByName.map((i) => [i.name.trim().toLowerCase(), i.id]));
+  const linkedItems = resolvedItems.map((item) => {
+    if (item.inventoryItemId) return item;
+    const matchId = nameIndex.get(item.name.trim().toLowerCase());
+    return matchId ? { ...item, inventoryItemId: matchId } : item;
+  });
+
+  for (const item of linkedItems) {
     if (!item.inventoryItemId) continue;
     const inv = await prisma.inventoryItem.findFirst({
       where: { id: item.inventoryItemId, deletedAt: null },
@@ -89,11 +117,14 @@ export async function POST(request: Request) {
       donatedAt: data.donatedAt,
       description: data.description ?? null,
       amountCents: data.amount ?? null,
+      kitsCount: data.kitsCount,
+      belongsTo: data.belongsTo ?? null,
+      placeDateText: data.placeDateText ?? null,
       templateId: data.templateId ?? null,
       status: "RASCUNHO",
       createdByUserId: actor.id,
       items: {
-        create: data.items.map((item) => ({
+        create: linkedItems.map((item) => ({
           inventoryItemId: item.inventoryItemId ?? null,
           name: item.name,
           quantity: item.quantity,

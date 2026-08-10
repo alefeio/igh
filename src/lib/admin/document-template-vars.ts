@@ -64,14 +64,22 @@ export type DonationTemplateInput = {
     name: string;
     document?: string | null;
     contactName?: string | null;
+    email?: string | null;
+    phone?: string | null;
     city?: string | null;
     state?: string | null;
     street?: string | null;
     number?: string | null;
+    cep?: string | null;
+    zone?: string | null;
   };
   donatedAt?: Date | string | null;
   description?: string | null;
   amountCents?: number | null;
+  kitsCount?: number | null;
+  belongsTo?: string | null;
+  placeDateText?: string | null;
+  termNumber?: number | null;
   items?: Array<{ name: string; quantity: number; unit: string }>;
 };
 
@@ -79,6 +87,7 @@ export function buildDonationVariableMap(donation: DonationTemplateInput): Recor
   const addr = [
     donation.donataria.street,
     donation.donataria.number,
+    donation.donataria.cep,
     donation.donataria.city && donation.donataria.state
       ? `${donation.donataria.city}/${donation.donataria.state}`
       : donation.donataria.city || donation.donataria.state,
@@ -89,16 +98,37 @@ export function buildDonationVariableMap(donation: DonationTemplateInput): Recor
     donation.items && donation.items.length > 0
       ? donation.items.map((i) => `${i.quantity} ${i.unit} — ${i.name}`).join("; ")
       : "—";
+  const itemsLines =
+    donation.items && donation.items.length > 0
+      ? donation.items.map((i) => `${i.name}: ${String(i.quantity).padStart(2, "0")}`).join("\n")
+      : "—";
+  const zone =
+    donation.donataria.zone === "RURAL"
+      ? "Rural"
+      : donation.donataria.zone === "URBANA"
+        ? "Urbana"
+        : donation.donataria.zone?.trim() || "—";
 
   return {
     "donataria.nome": donation.donataria.name,
     "donataria.documento": donation.donataria.document?.trim() || "—",
     "donataria.contato": donation.donataria.contactName?.trim() || "—",
+    "donataria.telefone": donation.donataria.phone?.trim() || "—",
+    "donataria.email": donation.donataria.email?.trim() || "—",
     "donataria.endereco": addr || "—",
+    "donataria.cidade": donation.donataria.city?.trim() || "—",
+    "donataria.estado": donation.donataria.state?.trim() || "—",
+    "donataria.cep": donation.donataria.cep?.trim() || "—",
+    "donataria.zona": zone,
     "doacao.data": dateBr(donation.donatedAt ?? new Date()),
     "doacao.descricao": donation.description?.trim() || "—",
     "doacao.valor": formatCentsBRL(donation.amountCents),
     "doacao.itens": itemsText,
+    "doacao.itens_lista": itemsLines,
+    "doacao.kits": donation.kitsCount && donation.kitsCount > 0 ? String(donation.kitsCount) : "—",
+    "doacao.numero": donation.termNumber != null ? String(donation.termNumber) : "—",
+    "doacao.pertence_a": donation.belongsTo?.trim() || "—",
+    "doacao.local_data": donation.placeDateText?.trim() || "—",
     "instituto.nome": BRAND.legalName || BRAND.shortName || "Instituto",
   };
 }
@@ -143,9 +173,20 @@ export const DOCUMENT_TEMPLATE_VARIABLE_HELP = [
   "{{donataria.nome}}",
   "{{donataria.documento}}",
   "{{donataria.contato}}",
+  "{{donataria.telefone}}",
+  "{{donataria.email}}",
   "{{donataria.endereco}}",
+  "{{donataria.cidade}}",
+  "{{donataria.estado}}",
+  "{{donataria.cep}}",
+  "{{donataria.zona}}",
   "{{doacao.data}}",
   "{{doacao.descricao}}",
   "{{doacao.valor}}",
   "{{doacao.itens}}",
+  "{{doacao.itens_lista}}",
+  "{{doacao.kits}}",
+  "{{doacao.numero}}",
+  "{{doacao.pertence_a}}",
+  "{{doacao.local_data}}",
 ] as const;

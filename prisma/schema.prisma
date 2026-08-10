@@ -112,6 +112,8 @@ model User {
   inventoryMovementsResponsible      InventoryMovement[]        @relation("InventoryMovementResponsible")
   donatariasCreated                  Donataria[]                @relation("DonatariaCreatedBy")
   donationsCreated                   Donation[]                 @relation("DonationCreatedBy")
+  equipmentCatalogCreated            EquipmentCatalogItem[]     @relation("EquipmentCatalogCreatedBy")
+  technicalVisitsCreated             TechnicalVisit[]           @relation("TechnicalVisitCreatedBy")
   /// * Turmas criadas por este usuário (admin/master).
   classGroupsCreated                 ClassGroup[]               @relation("ClassGroupCreatedBy")
   /// * Cursos criados por este usuário (admin/master).
@@ -1460,10 +1462,19 @@ model InventoryItem {
   /// * Código interno ou patrimônio (único quando informado).
   code            String?
   category        String?
+  brand           String?
+  model           String?
+  /// * Número de tombamento patrimonial.
+  assetTag        String?
+  serialNumber    String?
   unit            String              @default("UN")
   /// * Quantidade mínima antes do alerta de estoque baixo.
   minStock        Int                 @default(0)
   location        String?
+  responsibleName String?
+  condition       InventoryCondition  @default(BOM)
+  /// * Valor unitário estimado em centavos.
+  unitValueCents  Int?
   photoUrl        String?
   photoPublicId   String?
   /// * Saldo atual (atualizado em transação com cada movimento).
@@ -1511,7 +1522,7 @@ model InventoryMovement {
 
 /// * Entidade que recebe doações do instituto (donatária).
 model Donataria {
-  id              String     @id @default(uuid())
+  id              String        @id @default(uuid())
   name            String
   document        String?
   email           String?
@@ -1524,14 +1535,17 @@ model Donataria {
   neighborhood    String?
   city            String?
   state           String?
+  /// * Zona usada no termo de doação (urbana/rural).
+  zone            DonatariaZone @default(URBANA)
   notes           String?
-  isActive        Boolean    @default(true)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   createdByUserId String?
   deletedAt       DateTime?
-  createdByUser   User?      @relation("DonatariaCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUser   User?         @relation("DonatariaCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   donations       Donation[]
+  technicalVisits TechnicalVisit[]
 
   @@index([deletedAt, isActive])
   @@index([name])
@@ -1546,6 +1560,14 @@ model Donation {
   description         String?
   /// * Valor em centavos quando a doação inclui dinheiro.
   amountCents         Int?
+  /// * Quantidade de kits padrão (Computadores para Inclusão).
+  kitsCount           Int            @default(0)
+  /// * Atribuição política/entidade no termo ("Pertence a").
+  belongsTo           String?
+  /// * Local e data por extenso impressos no termo.
+  placeDateText       String?
+  /// * Número sequencial do termo (atribuído na confirmação).
+  termNumber          Int?           @unique
   status              DonationStatus @default(RASCUNHO)
   templateId          String?
   renderedHtml        String?        @db.Text
@@ -1568,6 +1590,7 @@ model Donation {
 
   @@index([donatariaId, donatedAt])
   @@index([status, deletedAt])
+  @@index([termNumber])
 }
 
 model DonationItem {
@@ -1583,6 +1606,79 @@ model DonationItem {
 
   @@index([donationId])
   @@index([inventoryItemId])
+}
+
+/// * Catálogo de tipos de equipamento (CPU, Monitor…) usado em kits e doações.
+/// * Diferente do estoque patrimonial (quantidade/saldo).
+model EquipmentCatalogItem {
+  id              String   @id @default(uuid())
+  name            String
+  /// * Se > 0, entra na composição padrão do kit por unidade de kit.
+  quantityPerKit  Int      @default(0)
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdByUserId String?
+  deletedAt       DateTime?
+  createdByUser   User?    @relation("EquipmentCatalogCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([name])
+  @@index([deletedAt, isActive, sortOrder])
+}
+
+/// * Visita técnica / protocolo de implementação de laboratório.
+model TechnicalVisit {
+  id                       String                         @id @default(uuid())
+  locationName             String
+  municipality             String
+  state                    String                         @default("PA")
+  address                  String?
+  localContact             String?
+  visitedAt                DateTime                       @db.Date
+  visitors                 String?
+  /// * Meta pedagógica (valores de referência / planejados).
+  metaStudents             Int?
+  metaClassGroups          Int?
+  metaStudentsPerClass     Int?
+  classDuration            String?
+  classesPerWeek           String?
+  classDays                String?
+  pedagogicalPlan          String?
+  /// * Texto livre dos padrões estruturais (laboratório).
+  structuralStandards      String?                        @db.Text
+  finalClassification      TechnicalVisitClassification   @default(APTA_COM_PENDENCIAS)
+  finalNotes               String?                        @db.Text
+  /// * Vínculo opcional com donatária cadastrada.
+  donatariaId              String?
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+  createdByUserId          String?
+  deletedAt                DateTime?
+  donataria                Donataria?                     @relation(fields: [donatariaId], references: [id], onDelete: SetNull)
+  createdByUser            User?                          @relation("TechnicalVisitCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  checklistItems           TechnicalVisitChecklistItem[]
+
+  @@index([visitedAt])
+  @@index([municipality])
+  @@index([finalClassification, deletedAt])
+  @@index([donatariaId])
+}
+
+model TechnicalVisitChecklistItem {
+  id           String                     @id @default(uuid())
+  visitId      String
+  /// * Chave estável (ex.: COMPUTADORES).
+  key          String
+  label        String
+  standard     String
+  status       TechnicalVisitItemStatus   @default(PENDENTE)
+  observation  String?
+  sortOrder    Int                        @default(0)
+  visit        TechnicalVisit             @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([visitId, sortOrder])
+  @@unique([visitId, key])
 }
 
 model SiteSettings {
@@ -2390,6 +2486,30 @@ enum DonationStatus {
   RASCUNHO
   CONFIRMADA
   CANCELADA
+}
+
+enum DonatariaZone {
+  URBANA
+  RURAL
+}
+
+enum InventoryCondition {
+  OTIMO
+  BOM
+  REGULAR
+  RUIM
+}
+
+enum TechnicalVisitItemStatus {
+  OK
+  PENDENTE
+  NAO_APLICAVEL
+}
+
+enum TechnicalVisitClassification {
+  APTA
+  APTA_COM_PENDENCIAS
+  INAPTA
 }
 
 enum SmsCampaignStatus {

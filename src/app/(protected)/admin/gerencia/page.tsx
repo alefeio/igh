@@ -3,6 +3,8 @@
 import {
   AlertTriangle,
   Building2,
+  ClipboardCheck,
+  Cpu,
   FileText,
   FileWarning,
   Gift,
@@ -145,6 +147,13 @@ export default function GerenciaHomePage() {
               accent: "from-cyan-600 to-teal-500",
             },
             {
+              href: "/admin/gerencia/equipamentos",
+              label: "Equipamentos",
+              description: "Catálogo do kit de doação",
+              icon: Cpu,
+              accent: "from-slate-600 to-zinc-500",
+            },
+            {
               href: "/admin/gerencia/donatarias",
               label: "Donatárias",
               description: "Quem recebe doações",
@@ -157,6 +166,13 @@ export default function GerenciaHomePage() {
               description: "Bens, dinheiro e termos",
               icon: Gift,
               accent: "from-fuchsia-600 to-purple-500",
+            },
+            {
+              href: "/admin/gerencia/visitas",
+              label: "Visitas técnicas",
+              description: "Checklist de implantação",
+              icon: ClipboardCheck,
+              accent: "from-lime-600 to-green-500",
             },
           ]}
         />

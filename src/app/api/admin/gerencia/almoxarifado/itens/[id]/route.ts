@@ -74,8 +74,16 @@ export async function PATCH(request: Request, ctx: Ctx) {
     data.code = data.code?.trim() ? data.code.trim() : null;
   }
 
+  const { unitValue, ...rest } = data as typeof data & { unitValue?: number | null };
+
   try {
-    const item = await prisma.inventoryItem.update({ where: { id }, data });
+    const item = await prisma.inventoryItem.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(unitValue !== undefined ? { unitValueCents: unitValue } : {}),
+      },
+    });
     await createAuditLog({
       entityType: "InventoryItem",
       entityId: id,
