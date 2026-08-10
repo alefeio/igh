@@ -157,6 +157,12 @@ const ITEMS: Item[] = [
     category: "Gerência",
   },
   {
+    href: "/admin/gerencia/folha",
+    label: "Folha de pagamento",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
+  {
     href: "/admin/gerencia/metas",
     label: "Metas anuais",
     roles: ADMIN_MANAGEMENT,

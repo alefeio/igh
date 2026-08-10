@@ -55,7 +55,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { monthlyPay, userId, poloId, ...rest } = parsed.data;
+  const { monthlyPay, offBooksPay, userId, poloId, ...rest } = parsed.data;
 
   if (userId) {
     const linked = await prisma.employee.findFirst({
@@ -73,6 +73,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 
   const data: Prisma.EmployeeUpdateInput = { ...rest };
   if (monthlyPay !== undefined) data.monthlyPayCents = monthlyPay;
+  if (offBooksPay !== undefined) data.offBooksPayCents = offBooksPay;
   if (userId !== undefined) {
     data.user = userId ? { connect: { id: userId } } : { disconnect: true };
   }

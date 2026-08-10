@@ -4,6 +4,7 @@ export type {
   EmployeePosition,
   EmployeeStatus,
   EmploymentType,
+  FundingChannel,
   PixKeyType,
   UniformSize,
 } from "@/generated/prisma/client";
@@ -14,6 +15,7 @@ import type {
   EmployeePosition,
   EmployeeStatus,
   EmploymentType,
+  FundingChannel,
   PixKeyType,
   UniformSize,
 } from "@/generated/prisma/client";
@@ -51,6 +53,9 @@ export type EmployeeView = {
   admissionDate: string | null;
   terminationDate: string | null;
   monthlyPayCents: number | null;
+  fundingChannel: FundingChannel;
+  fundingContractRef: string | null;
+  offBooksPayCents: number | null;
   uniformSize: UniformSize | null;
   shoeSize: string | null;
   meiCnpj: string | null;
@@ -116,6 +121,13 @@ export const EMPLOYMENT_TYPE_LABEL: Record<EmploymentType, string> = {
   PRESTADOR: "Prestador de serviço",
   VOLUNTARIO: "Voluntário",
   ESTAGIO: "Estágio",
+};
+
+export const FUNDING_CHANNELS: readonly FundingChannel[] = ["CONVENIO", "POR_FORA"] as const;
+
+export const FUNDING_CHANNEL_LABEL: Record<FundingChannel, string> = {
+  CONVENIO: "Convênio",
+  POR_FORA: "Por fora",
 };
 
 export const EMPLOYEE_STATUSES: readonly EmployeeStatus[] = ["ATIVO", "AFASTADO", "DESLIGADO"] as const;

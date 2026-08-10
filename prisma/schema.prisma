@@ -117,6 +117,8 @@ model User {
   donorInstitutionUpdated            DonorInstitutionSettings[] @relation("DonorInstitutionUpdatedBy")
   annualGoalsCreated                 AnnualGoal[]               @relation("AnnualGoalCreatedBy")
   paymentAgreementsCreated           PaymentAgreement[]         @relation("PaymentAgreementCreatedBy")
+  payrollMonthsCreated               PayrollMonth[]             @relation("PayrollMonthCreatedBy")
+  mealTicketMonthsCreated            MealTicketMonth[]          @relation("MealTicketMonthCreatedBy")
   /// * Turmas criadas por este usuário (admin/master).
   classGroupsCreated                 ClassGroup[]               @relation("ClassGroupCreatedBy")
   /// * Cursos criados por este usuário (admin/master).
@@ -1262,6 +1264,12 @@ model Employee {
   terminationDate    DateTime?          @db.Date
   /// * Remuneração mensal em centavos (evita erro de arredondamento).
   monthlyPayCents    Int?
+  /// * Canal de recurso na folha: convênio institucional vs pagamento por fora.
+  fundingChannel     FundingChannel     @default(CONVENIO)
+  /// * Referência do contrato/fonte (ex.: "971744 - IGH CONVÊNIO ADITIVO").
+  fundingContractRef String?
+  /// * Valores pagos "por fora" além do contratual (centavos).
+  offBooksPayCents   Int?
   uniformSize        UniformSize?
   /// * Numeração do calçado (texto livre: "39", "40/41"...).
   shoeSize           String?
@@ -1298,11 +1306,14 @@ model Employee {
   documents          EmployeeDocument[]
   contracts          EmployeeContract[]
   monthlyInvoices    EmployeeMonthlyInvoice[]
+  payrollLines       PayrollLine[]
+  mealTicketLines    MealTicketLine[]
 
   @@index([deletedAt, status])
   @@index([position])
   @@index([poloId])
   @@index([paymentAgreementId])
+  @@index([fundingChannel])
 }
 
 /// * Anexo da ficha do colaborador: documentos pessoais, contrato, distrato e nota mensal.
@@ -1737,6 +1748,85 @@ model PaymentAgreement {
 
   @@unique([name])
   @@index([deletedAt, isActive, sortOrder])
+}
+
+/// * Competência mensal da folha de pagamento (substitui o Excel de controle).
+model PayrollMonth {
+  id              String             @id @default(uuid())
+  /// * Sempre o dia 1º do mês (UTC).
+  referenceMonth  DateTime           @db.Date
+  status          PayrollMonthStatus @default(ABERTA)
+  responsibleName String?
+  notes           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  createdByUserId String?
+  createdByUser   User?              @relation("PayrollMonthCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lines           PayrollLine[]
+  mealTicket      MealTicketMonth?
+
+  @@unique([referenceMonth])
+  @@index([status, referenceMonth])
+}
+
+/// * Linha da folha com snapshot dos dados do colaborador na abertura do mês.
+model PayrollLine {
+  id                    String                @id @default(uuid())
+  payrollMonthId        String
+  employeeId            String
+  employeeName          String
+  positionLabel         String
+  employmentType        EmploymentType
+  /// * CNPJ MEI ou CPF formatado para exibição.
+  documentId            String?
+  bankSummary           String?
+  fundingChannel        FundingChannel        @default(CONVENIO)
+  fundingContractRef    String?
+  paymentAgreementName  String?
+  amountCents           Int                   @default(0)
+  offBooksPayCents      Int                   @default(0)
+  observation           String?
+  paymentStatus         PayrollPaymentStatus  @default(PENDENTE)
+  paidAt                DateTime?
+  sortOrder             Int                   @default(0)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  payrollMonth          PayrollMonth          @relation(fields: [payrollMonthId], references: [id], onDelete: Cascade)
+  employee              Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([payrollMonthId, employeeId])
+  @@index([payrollMonthId, paymentStatus])
+  @@index([employeeId])
+}
+
+/// * Checklist mensal de tickets de alimentação, ligado à folha do mês.
+model MealTicketMonth {
+  id              String           @id @default(uuid())
+  payrollMonthId  String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  createdByUserId String?
+  createdByUser   User?            @relation("MealTicketMonthCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  payrollMonth    PayrollMonth     @relation(fields: [payrollMonthId], references: [id], onDelete: Cascade)
+  lines           MealTicketLine[]
+}
+
+model MealTicketLine {
+  id                String           @id @default(uuid())
+  mealTicketMonthId String
+  employeeId        String
+  employeeName      String
+  positionLabel     String
+  status            MealTicketStatus @default(PENDING)
+  notes             String?
+  confirmedAt       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  mealTicketMonth   MealTicketMonth  @relation(fields: [mealTicketMonthId], references: [id], onDelete: Cascade)
+  employee          Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([mealTicketMonthId, employeeId])
+  @@index([mealTicketMonthId, status])
 }
 
 model SiteSettings {
@@ -2451,6 +2541,27 @@ enum EmployeeStatus {
   ATIVO
   AFASTADO
   DESLIGADO
+}
+
+/// * Canal de recurso na folha (convênio institucional x por fora).
+enum FundingChannel {
+  CONVENIO
+  POR_FORA
+}
+
+enum PayrollMonthStatus {
+  ABERTA
+  FECHADA
+}
+
+enum PayrollPaymentStatus {
+  PENDENTE
+  PAGO
+}
+
+enum MealTicketStatus {
+  PENDING
+  CONFIRMED
 }
 
 enum UniformSize {

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { monthlyPay, userId, poloId, ...rest } = parsed.data;
+  const { monthlyPay, offBooksPay, userId, poloId, ...rest } = parsed.data;
 
   if (userId) {
     const linked = await prisma.employee.findFirst({
@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         userId: userId ?? null,
         poloId: poloId ?? null,
         monthlyPayCents: monthlyPay ?? null,
+        offBooksPayCents: offBooksPay ?? null,
         createdByUserId: actor.id,
       },
       select: employeeSelect,

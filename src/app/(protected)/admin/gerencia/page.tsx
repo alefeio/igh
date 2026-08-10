@@ -144,6 +144,13 @@ export default function GerenciaHomePage() {
               accent: "from-violet-600 to-indigo-500",
             },
             {
+              href: "/admin/gerencia/folha",
+              label: "Folha de pagamento",
+              description: "Competência, pagamentos e tickets",
+              icon: Wallet,
+              accent: "from-teal-700 to-emerald-600",
+            },
+            {
               href: "/admin/gerencia/metas",
               label: "Metas anuais",
               description: "Computadores e formação",

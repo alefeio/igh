@@ -16,6 +16,8 @@ import {
   EMPLOYEE_STATUSES,
   EMPLOYMENT_TYPE_LABEL,
   EMPLOYMENT_TYPES,
+  FUNDING_CHANNEL_LABEL,
+  FUNDING_CHANNELS,
   PIX_KEY_TYPE_LABEL,
   PIX_KEY_TYPES,
   UNIFORM_SIZES,
@@ -27,6 +29,7 @@ import type {
   EmployeePosition,
   EmployeeStatus,
   EmploymentType,
+  FundingChannel,
   PixKeyType,
   UniformSize,
 } from "@/generated/prisma/client";
@@ -50,6 +53,9 @@ type FormState = {
   admissionDate: string;
   terminationDate: string;
   monthlyPay: string;
+  fundingChannel: FundingChannel;
+  fundingContractRef: string;
+  offBooksPay: string;
   uniformSize: string;
   shoeSize: string;
   meiCnpj: string;
@@ -88,7 +94,10 @@ function emptyForm(): FormState {
     admissionDate: "",
     terminationDate: "",
     monthlyPay: "",
-  uniformSize: "",
+    fundingChannel: "CONVENIO",
+    fundingContractRef: "",
+    offBooksPay: "",
+    uniformSize: "",
   shoeSize: "",
   meiCnpj: "",
     meiCompanyName: "",
@@ -128,6 +137,10 @@ function fromEmployee(e: EmployeeView): FormState {
     terminationDate: e.terminationDate ?? "",
     monthlyPay:
       e.monthlyPayCents == null ? "" : (e.monthlyPayCents / 100).toFixed(2).replace(".", ","),
+    fundingChannel: e.fundingChannel ?? "CONVENIO",
+    fundingContractRef: e.fundingContractRef ?? "",
+    offBooksPay:
+      e.offBooksPayCents == null ? "" : (e.offBooksPayCents / 100).toFixed(2).replace(".", ","),
     uniformSize: e.uniformSize ?? "",
     shoeSize: e.shoeSize ?? "",
     meiCnpj: e.meiCnpj ?? "",
@@ -172,6 +185,9 @@ function payloadFromForm(form: FormState) {
     admissionDate: form.admissionDate,
     terminationDate: form.terminationDate,
     monthlyPay: centsFromPay(form.monthlyPay),
+    fundingChannel: form.fundingChannel,
+    fundingContractRef: form.fundingContractRef,
+    offBooksPay: centsFromPay(form.offBooksPay),
     uniformSize: (form.uniformSize || null) as UniformSize | null,
     shoeSize: form.shoeSize,
     meiCnpj: form.meiCnpj,
@@ -458,6 +474,34 @@ export function EmployeeFormModal({ open, editing, users, polos, onClose, onSave
                 inputMode="decimal"
                 value={form.monthlyPay}
                 onChange={(e) => set("monthlyPay", e.target.value)}
+                placeholder="0,00"
+              />
+            </Field>
+            <Field label="Canal de recurso">
+              <select
+                className={selectClass}
+                value={form.fundingChannel}
+                onChange={(e) => set("fundingChannel", e.target.value as FundingChannel)}
+              >
+                {FUNDING_CHANNELS.map((c) => (
+                  <option key={c} value={c}>
+                    {FUNDING_CHANNEL_LABEL[c]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Referência do contrato / fonte">
+              <Input
+                value={form.fundingContractRef}
+                onChange={(e) => set("fundingContractRef", e.target.value)}
+                placeholder="Ex.: 971744 - IGH CONVÊNIO"
+              />
+            </Field>
+            <Field label="Valores por fora (R$)">
+              <Input
+                inputMode="decimal"
+                value={form.offBooksPay}
+                onChange={(e) => set("offBooksPay", e.target.value)}
                 placeholder="0,00"
               />
             </Field>

@@ -36,7 +36,7 @@ type PoloOption = { id: string; name: string };
 type UserOption = { id: string; name: string; email: string };
 type Totals = { entradasCents: number; saidasCents: number; saldoCents: number };
 
-type TabId = "fluxo" | "notas-mei";
+type TabId = "fluxo" | "notas-mei" | "prestacao";
 
 type InvoiceSuggestion = {
   amount?: string;
@@ -540,6 +540,23 @@ export default function FinanceiroPage() {
     w.document.close();
   }
 
+  function exportPrestacao() {
+    const rows = entries.map((e, idx) => ({
+      "#": idx + 1,
+      Descrição: e.description,
+      Data: formatEntryDate(e.entryDate),
+      Valor: e.amountCents / 100,
+      "Forma de pagamento": FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod],
+      "Destino / observação": e.notes ?? "",
+      Responsável: responsibleLabel(e),
+      Tipo: FINANCIAL_ENTRY_KIND_LABEL[e.kind],
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Prestacao");
+    XLSX.writeFile(wb, `prestacao_contas_${month || "periodo"}.xlsx`);
+  }
+
   function tabBtn(id: TabId, label: string) {
     const active = tab === id;
     return (
@@ -568,14 +585,20 @@ export default function FinanceiroPage() {
             <Button variant="secondary" onClick={() => setCatOpen(true)}>
               Categorias
             </Button>
-            {tab === "fluxo" ? (
+            {tab === "fluxo" || tab === "prestacao" ? (
               <>
-                <Button variant="secondary" onClick={exportXlsx} disabled={entries.length === 0}>
+                <Button
+                  variant="secondary"
+                  onClick={tab === "prestacao" ? exportPrestacao : exportXlsx}
+                  disabled={entries.length === 0}
+                >
                   Excel
                 </Button>
-                <Button variant="secondary" onClick={exportPdf} disabled={entries.length === 0}>
-                  PDF
-                </Button>
+                {tab === "fluxo" ? (
+                  <Button variant="secondary" onClick={exportPdf} disabled={entries.length === 0}>
+                    PDF
+                  </Button>
+                ) : null}
                 <Button onClick={() => openCreate("SAIDA")}>
                   <Plus className="mr-1.5 h-4 w-4" aria-hidden />
                   Novo lançamento
@@ -590,25 +613,46 @@ export default function FinanceiroPage() {
         }
       />
 
-      <div className="flex flex-wrap gap-2">{tabBtn("fluxo", "Fluxo")}{tabBtn("notas-mei", "Notas MEI")}</div>
+      <div className="flex flex-wrap gap-2">
+        {tabBtn("fluxo", "Fluxo")}
+        {tabBtn("prestacao", "Prestação")}
+        {tabBtn("notas-mei", "Notas MEI")}
+      </div>
 
-      {tab === "fluxo" ? (
+      {tab === "fluxo" || tab === "prestacao" ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StatTile
-              label="Entradas"
-              value={formatCentsBRL(totals.entradasCents)}
-              icon={ArrowUpCircle}
-              accent="emerald"
-            />
-            <StatTile
-              label="Saídas"
-              value={formatCentsBRL(totals.saidasCents)}
-              icon={ArrowDownCircle}
-              accent="rose"
-            />
-            <StatTile label="Saldo" value={formatCentsBRL(totals.saldoCents)} icon={Scale} accent="sky" />
-          </div>
+          {tab === "prestacao" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <StatTile
+                label="Total de valores"
+                value={formatCentsBRL(totals.saidasCents + totals.entradasCents)}
+                icon={Scale}
+                accent="sky"
+              />
+              <StatTile
+                label="Total de lançamentos"
+                value={String(entries.length)}
+                icon={ArrowDownCircle}
+                accent="amber"
+              />
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <StatTile
+                label="Entradas"
+                value={formatCentsBRL(totals.entradasCents)}
+                icon={ArrowUpCircle}
+                accent="emerald"
+              />
+              <StatTile
+                label="Saídas"
+                value={formatCentsBRL(totals.saidasCents)}
+                icon={ArrowDownCircle}
+                accent="rose"
+              />
+              <StatTile label="Saldo" value={formatCentsBRL(totals.saldoCents)} icon={Scale} accent="sky" />
+            </div>
+          )}
 
           <SectionCard title="Filtros" variant="elevated">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -616,51 +660,55 @@ export default function FinanceiroPage() {
                 <span className="text-[var(--text-muted)]">Mês</span>
                 <Input className="mt-1" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
               </label>
-              <label className="block text-sm">
-                <span className="text-[var(--text-muted)]">Tipo</span>
-                <select
-                  className={`mt-1 ${selectClass}`}
-                  value={kindFilter}
-                  onChange={(e) => setKindFilter(e.target.value as "" | FinancialEntryKind)}
-                >
-                  <option value="">Todos</option>
-                  {FINANCIAL_ENTRY_KINDS.map((k) => (
-                    <option key={k} value={k}>
-                      {FINANCIAL_ENTRY_KIND_LABEL[k]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="text-[var(--text-muted)]">Categoria</span>
-                <select
-                  className={`mt-1 ${selectClass}`}
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                >
-                  <option value="">Todas</option>
-                  {categoriesForFilter.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="text-[var(--text-muted)]">Polo</span>
-                <select
-                  className={`mt-1 ${selectClass}`}
-                  value={poloFilter}
-                  onChange={(e) => setPoloFilter(e.target.value)}
-                >
-                  <option value="">Todos</option>
-                  {polos.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {tab === "fluxo" ? (
+                <>
+                  <label className="block text-sm">
+                    <span className="text-[var(--text-muted)]">Tipo</span>
+                    <select
+                      className={`mt-1 ${selectClass}`}
+                      value={kindFilter}
+                      onChange={(e) => setKindFilter(e.target.value as "" | FinancialEntryKind)}
+                    >
+                      <option value="">Todos</option>
+                      {FINANCIAL_ENTRY_KINDS.map((k) => (
+                        <option key={k} value={k}>
+                          {FINANCIAL_ENTRY_KIND_LABEL[k]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-[var(--text-muted)]">Categoria</span>
+                    <select
+                      className={`mt-1 ${selectClass}`}
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                    >
+                      <option value="">Todas</option>
+                      {categoriesForFilter.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-[var(--text-muted)]">Polo</span>
+                    <select
+                      className={`mt-1 ${selectClass}`}
+                      value={poloFilter}
+                      onChange={(e) => setPoloFilter(e.target.value)}
+                    >
+                      <option value="">Todos</option>
+                      {polos.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              ) : null}
               <label className="block text-sm">
                 <span className="text-[var(--text-muted)]">Busca</span>
                 <div className="relative mt-1">
@@ -670,7 +718,7 @@ export default function FinanceiroPage() {
                   />
                   <Input
                     className="pl-9"
-                    placeholder="Descrição, nota, fornecedor…"
+                    placeholder={tab === "prestacao" ? "Descrição, destino…" : "Descrição, nota, fornecedor…"}
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                   />
@@ -680,8 +728,12 @@ export default function FinanceiroPage() {
           </SectionCard>
 
           <SectionCard
-            title="Lançamentos"
-            description={`${entries.length} registro(s) no filtro atual.`}
+            title={tab === "prestacao" ? "Prestação de contas" : "Lançamentos"}
+            description={
+              tab === "prestacao"
+                ? `${entries.length} movimentação(ões) no mês · estilo controle de contas`
+                : `${entries.length} registro(s) no filtro atual.`
+            }
             variant="elevated"
           >
             {loading ? (
@@ -690,6 +742,37 @@ export default function FinanceiroPage() {
               <p className="rounded-md border border-dashed border-[var(--card-border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
                 Nenhum lançamento neste período.
               </p>
+            ) : tab === "prestacao" ? (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Descrição</Th>
+                    <Th>Data</Th>
+                    <Th>Valor</Th>
+                    <Th>Forma de pagamento</Th>
+                    <Th>Destino / observação</Th>
+                    <Th>Responsável</Th>
+                    <Th>Ações</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e) => (
+                    <tr key={e.id}>
+                      <Td className="font-medium">{e.description}</Td>
+                      <Td className="whitespace-nowrap">{formatEntryDate(e.entryDate)}</Td>
+                      <Td className="whitespace-nowrap font-medium">{formatCentsBRL(e.amountCents)}</Td>
+                      <Td>{FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod]}</Td>
+                      <Td className="max-w-[220px] text-sm text-[var(--text-muted)]">{e.notes ?? "—"}</Td>
+                      <Td>{responsibleLabel(e)}</Td>
+                      <Td>
+                        <Button size="sm" variant="secondary" onClick={() => openEdit(e)}>
+                          Editar
+                        </Button>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
             ) : (
               <Table>
                 <thead>
@@ -993,7 +1076,9 @@ export default function FinanceiroPage() {
               />
             </label>
             <label className="block text-sm sm:col-span-2">
-              <span className="text-[var(--text-muted)]">Observações</span>
+              <span className="text-[var(--text-muted)]">
+                Destino / observações (ex.: saídas para o galpão)
+              </span>
               <textarea
                 className="mt-1 min-h-20 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm"
                 value={form.notes}
