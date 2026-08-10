@@ -81,6 +81,8 @@ export type DonationTemplateInput = {
   placeDateText?: string | null;
   termNumber?: number | null;
   items?: Array<{ name: string; quantity: number; unit: string }>;
+  /** Dados da doadora (sobrescrevem BRAND nos placeholders instituto.*). */
+  donorInstitution?: Record<string, string> | null;
 };
 
 export function buildDonationVariableMap(donation: DonationTemplateInput): Record<string, string> {
@@ -130,6 +132,7 @@ export function buildDonationVariableMap(donation: DonationTemplateInput): Recor
     "doacao.pertence_a": donation.belongsTo?.trim() || "—",
     "doacao.local_data": donation.placeDateText?.trim() || "—",
     "instituto.nome": BRAND.legalName || BRAND.shortName || "Instituto",
+    ...(donation.donorInstitution ?? {}),
   };
 }
 
@@ -170,6 +173,16 @@ export const DOCUMENT_TEMPLATE_VARIABLE_HELP = [
   "{{contrato.fim}}",
   "{{contrato.data}}",
   "{{instituto.nome}}",
+  "{{instituto.cnpj}}",
+  "{{instituto.email}}",
+  "{{instituto.endereco}}",
+  "{{instituto.cidade}}",
+  "{{instituto.estado}}",
+  "{{instituto.cep}}",
+  "{{instituto.telefone}}",
+  "{{instituto.responsavel}}",
+  "{{instituto.cargo}}",
+  "{{instituto.cpf}}",
   "{{donataria.nome}}",
   "{{donataria.documento}}",
   "{{donataria.contato}}",

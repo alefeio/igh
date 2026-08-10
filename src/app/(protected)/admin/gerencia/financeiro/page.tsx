@@ -19,12 +19,12 @@ import {
   parseApimagesUploadJson,
   readApiJson,
 } from "@/lib/apimages-upload";
+import { formatCentsBRL, formatReferenceMonth } from "@/lib/employees";
 import {
   FINANCIAL_ENTRY_KIND_LABEL,
   FINANCIAL_ENTRY_KINDS,
   FINANCIAL_PAYMENT_METHOD_LABEL,
   FINANCIAL_PAYMENT_METHODS,
-  formatCentsBRL,
   formatEntryDate,
   responsibleLabel,
   type FinancialCategoryView,
@@ -35,6 +35,33 @@ import type { FinancialEntryKind, FinancialPaymentMethod } from "@/generated/pri
 type PoloOption = { id: string; name: string };
 type UserOption = { id: string; name: string; email: string };
 type Totals = { entradasCents: number; saidasCents: number; saldoCents: number };
+
+type TabId = "fluxo" | "notas-mei";
+
+type InvoiceSuggestion = {
+  amount?: string;
+  supplier?: string;
+  description?: string;
+  invoiceNumber?: string;
+  entryDate?: string;
+};
+
+type MeiInvoice = {
+  id: string;
+  employeeId: string;
+  referenceMonth: string;
+  amountCents: number | null;
+  status: string;
+  pdfUrl: string | null;
+  pdfPublicId: string | null;
+  notes: string | null;
+  employee?: {
+    id: string;
+    name: string;
+    cpf: string;
+    employmentType?: string;
+  } | null;
+};
 
 type EntryForm = {
   kind: FinancialEntryKind;
@@ -52,6 +79,12 @@ type EntryForm = {
   attachmentUrl: string;
   attachmentPublicId: string;
   attachmentFileName: string;
+};
+
+const INVOICE_STATUS_LABEL: Record<string, string> = {
+  PENDENTE: "Pendente",
+  ENTREGUE: "Entregue",
+  ATRASADA: "Atrasada",
 };
 
 function emptyForm(): EntryForm {
@@ -74,11 +107,17 @@ function emptyForm(): EntryForm {
   };
 }
 
+function suggestionHasAny(s: InvoiceSuggestion | null) {
+  if (!s) return false;
+  return Boolean(s.amount || s.supplier || s.description || s.invoiceNumber || s.entryDate);
+}
+
 const selectClass =
   "w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm";
 
 export default function FinanceiroPage() {
   const toast = useToast();
+  const [tab, setTab] = useState<TabId>("fluxo");
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<FinancialEntryView[]>([]);
   const [totals, setTotals] = useState<Totals>({ entradasCents: 0, saidasCents: 0, saldoCents: 0 });
@@ -97,6 +136,13 @@ export default function FinanceiroPage() {
   const [form, setForm] = useState<EntryForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [readingInvoice, setReadingInvoice] = useState(false);
+  const [suggestion, setSuggestion] = useState<InvoiceSuggestion | null>(null);
+  const [suggestionWarnings, setSuggestionWarnings] = useState<string[]>([]);
+  const [suggestionSource, setSuggestionSource] = useState<string | null>(null);
+
+  const [meiLoading, setMeiLoading] = useState(false);
+  const [meiInvoices, setMeiInvoices] = useState<MeiInvoice[]>([]);
 
   const [catOpen, setCatOpen] = useState(false);
   const [catName, setCatName] = useState("");
@@ -146,9 +192,33 @@ export default function FinanceiroPage() {
     }
   }, [queryString, toast]);
 
+  const loadMei = useCallback(async () => {
+    setMeiLoading(true);
+    try {
+      const sp = new URLSearchParams();
+      if (month) sp.set("month", month);
+      sp.set("employmentType", "MEI");
+      const res = await fetch(`/api/admin/gerencia/notas-mensais?${sp}`, { cache: "no-store" });
+      const json = (await res.json()) as ApiResponse<{ invoices: MeiInvoice[] }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao carregar notas MEI.");
+        return;
+      }
+      setMeiInvoices(json.data.invoices);
+    } catch {
+      toast.push("error", "Falha ao carregar notas MEI.");
+    } finally {
+      setMeiLoading(false);
+    }
+  }, [month, toast]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (tab === "notas-mei") void loadMei();
+  }, [tab, loadMei]);
 
   const categoriesForForm = useMemo(
     () => categories.filter((c) => c.isActive && c.kind === form.kind),
@@ -156,10 +226,7 @@ export default function FinanceiroPage() {
   );
 
   const categoriesForFilter = useMemo(
-    () =>
-      categories.filter(
-        (c) => c.isActive && (!kindFilter || c.kind === kindFilter),
-      ),
+    () => categories.filter((c) => c.isActive && (!kindFilter || c.kind === kindFilter)),
     [categories, kindFilter],
   );
 
@@ -167,14 +234,22 @@ export default function FinanceiroPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function clearSuggestion() {
+    setSuggestion(null);
+    setSuggestionWarnings([]);
+    setSuggestionSource(null);
+  }
+
   function openCreate(kind: FinancialEntryKind = "SAIDA") {
     setEditing(null);
     setForm({ ...emptyForm(), kind });
+    clearSuggestion();
     setFormOpen(true);
   }
 
   function openEdit(entry: FinancialEntryView) {
     setEditing(entry);
+    clearSuggestion();
     setForm({
       kind: entry.kind,
       description: entry.description,
@@ -193,6 +268,81 @@ export default function FinanceiroPage() {
       attachmentFileName: entry.attachmentFileName ?? "",
     });
     setFormOpen(true);
+  }
+
+  function openFromMeiInvoice(inv: MeiInvoice) {
+    const nome = inv.employee?.name ?? "colaborador";
+    const competencia = formatReferenceMonth(inv.referenceMonth);
+    setEditing(null);
+    clearSuggestion();
+    setForm({
+      ...emptyForm(),
+      kind: "SAIDA",
+      description: `Nota MEI — ${nome} — ${competencia}`,
+      amount: inv.amountCents != null ? (inv.amountCents / 100).toFixed(2).replace(".", ",") : "",
+      entryDate: new Date().toISOString().slice(0, 10),
+      responsibleName: nome,
+      supplier: nome,
+      notes: inv.notes ?? "",
+      attachmentUrl: inv.pdfUrl ?? "",
+      attachmentPublicId: inv.pdfPublicId ?? "",
+      attachmentFileName: inv.pdfUrl ? `nota-mei-${competencia.replace("/", "-")}.pdf` : "",
+    });
+    setTab("fluxo");
+    setFormOpen(true);
+    toast.push("success", "Formulário preenchido a partir da nota MEI. Revise e salve no fluxo.");
+  }
+
+  async function readInvoice(attachmentUrl: string, attachmentFileName: string) {
+    setReadingInvoice(true);
+    clearSuggestion();
+    try {
+      const res = await fetch("/api/admin/gerencia/financeiro/ler-nota", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attachmentUrl, attachmentFileName }),
+      });
+      const json = (await res.json()) as ApiResponse<{
+        suggestion: InvoiceSuggestion;
+        source: string;
+        warnings: string[];
+      }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Não foi possível ler a nota.");
+        return;
+      }
+      setSuggestionWarnings(json.data.warnings ?? []);
+      setSuggestionSource(json.data.source);
+      if (suggestionHasAny(json.data.suggestion)) {
+        setSuggestion(json.data.suggestion);
+        toast.push("success", "Sugestões da nota prontas — revise e aplique se quiser.");
+      } else {
+        toast.push("error", "Nenhum dado extraído da nota. Preencha manualmente.");
+      }
+    } catch {
+      toast.push("error", "Falha ao ler a nota.");
+    } finally {
+      setReadingInvoice(false);
+    }
+  }
+
+  function applySuggestion(overwrite: boolean) {
+    if (!suggestion) return;
+    setForm((prev) => {
+      const next = { ...prev };
+      const take = (current: string, value?: string) => {
+        if (!value) return current;
+        if (overwrite || !current.trim()) return value;
+        return current;
+      };
+      next.amount = take(prev.amount, suggestion.amount);
+      next.supplier = take(prev.supplier, suggestion.supplier);
+      next.description = take(prev.description, suggestion.description);
+      next.invoiceNumber = take(prev.invoiceNumber, suggestion.invoiceNumber);
+      next.entryDate = take(prev.entryDate, suggestion.entryDate);
+      return next;
+    });
+    toast.push("success", overwrite ? "Campos atualizados com as sugestões." : "Campos vazios preenchidos.");
   }
 
   async function uploadAttachment(file: File) {
@@ -214,13 +364,15 @@ export default function FinanceiroPage() {
         toast.push("error", cloud.errorMessage ?? "Falha no upload.");
         return;
       }
+      const fileName = cloud.originalFilename ?? file.name;
       setForm((prev) => ({
         ...prev,
         attachmentUrl: cloud.url!,
         attachmentPublicId: cloud.publicId,
-        attachmentFileName: cloud.originalFilename ?? file.name,
+        attachmentFileName: fileName,
       }));
       toast.push("success", "Anexo enviado.");
+      void readInvoice(cloud.url!, fileName);
     } catch {
       toast.push("error", "Falha ao anexar arquivo.");
     } finally {
@@ -273,6 +425,7 @@ export default function FinanceiroPage() {
       }
       toast.push("success", editing ? "Lançamento atualizado." : "Lançamento registrado.");
       setFormOpen(false);
+      clearSuggestion();
       void load();
     } catch {
       toast.push("error", "Falha ao salvar lançamento.");
@@ -387,143 +540,329 @@ export default function FinanceiroPage() {
     w.document.close();
   }
 
+  function tabBtn(id: TabId, label: string) {
+    const active = tab === id;
+    return (
+      <button
+        type="button"
+        onClick={() => setTab(id)}
+        className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+          active
+            ? "bg-[var(--igh-primary)] text-white"
+            : "bg-[var(--card-bg)] text-[var(--text-muted)] hover:text-[var(--text)]"
+        }`}
+      >
+        {label}
+      </button>
+    );
+  }
+
   return (
     <PanelPageStack>
       <DashboardHero
         eyebrow="Gerência · Financeiro"
         title="Entradas e saídas"
-        description="Registre notas com descrição, valor e responsável. Filtre por mês, categoria e polo."
+        description="Fluxo de caixa com leitura de NF no anexo, e visão das notas MEI dos colaboradores."
         rightSlot={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setCatOpen(true)}>
               Categorias
             </Button>
-            <Button variant="secondary" onClick={exportXlsx} disabled={entries.length === 0}>
-              Excel
-            </Button>
-            <Button variant="secondary" onClick={exportPdf} disabled={entries.length === 0}>
-              PDF
-            </Button>
-            <Button onClick={() => openCreate("SAIDA")}>
-              <Plus className="mr-1.5 h-4 w-4" aria-hidden />
-              Novo lançamento
-            </Button>
+            {tab === "fluxo" ? (
+              <>
+                <Button variant="secondary" onClick={exportXlsx} disabled={entries.length === 0}>
+                  Excel
+                </Button>
+                <Button variant="secondary" onClick={exportPdf} disabled={entries.length === 0}>
+                  PDF
+                </Button>
+                <Button onClick={() => openCreate("SAIDA")}>
+                  <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+                  Novo lançamento
+                </Button>
+              </>
+            ) : (
+              <Button variant="secondary" onClick={() => void loadMei()} disabled={meiLoading}>
+                {meiLoading ? "Atualizando…" : "Atualizar"}
+              </Button>
+            )}
           </div>
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label="Entradas" value={formatCentsBRL(totals.entradasCents)} icon={ArrowUpCircle} accent="emerald" />
-        <StatTile label="Saídas" value={formatCentsBRL(totals.saidasCents)} icon={ArrowDownCircle} accent="rose" />
-        <StatTile label="Saldo" value={formatCentsBRL(totals.saldoCents)} icon={Scale} accent="sky" />
-      </div>
+      <div className="flex flex-wrap gap-2">{tabBtn("fluxo", "Fluxo")}{tabBtn("notas-mei", "Notas MEI")}</div>
 
-      <SectionCard title="Filtros" variant="elevated">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="block text-sm">
-            <span className="text-[var(--text-muted)]">Mês</span>
-            <Input className="mt-1" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-          </label>
-          <label className="block text-sm">
-            <span className="text-[var(--text-muted)]">Tipo</span>
-            <select className={`mt-1 ${selectClass}`} value={kindFilter} onChange={(e) => setKindFilter(e.target.value as "" | FinancialEntryKind)}>
-              <option value="">Todos</option>
-              {FINANCIAL_ENTRY_KINDS.map((k) => (
-                <option key={k} value={k}>{FINANCIAL_ENTRY_KIND_LABEL[k]}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="text-[var(--text-muted)]">Categoria</span>
-            <select className={`mt-1 ${selectClass}`} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-              <option value="">Todas</option>
-              {categoriesForFilter.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="text-[var(--text-muted)]">Polo</span>
-            <select className={`mt-1 ${selectClass}`} value={poloFilter} onChange={(e) => setPoloFilter(e.target.value)}>
-              <option value="">Todos</option>
-              {polos.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="text-[var(--text-muted)]">Busca</span>
-            <div className="relative mt-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden />
-              <Input className="pl-9" placeholder="Descrição, nota, fornecedor…" value={q} onChange={(e) => setQ(e.target.value)} />
+      {tab === "fluxo" ? (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatTile
+              label="Entradas"
+              value={formatCentsBRL(totals.entradasCents)}
+              icon={ArrowUpCircle}
+              accent="emerald"
+            />
+            <StatTile
+              label="Saídas"
+              value={formatCentsBRL(totals.saidasCents)}
+              icon={ArrowDownCircle}
+              accent="rose"
+            />
+            <StatTile label="Saldo" value={formatCentsBRL(totals.saldoCents)} icon={Scale} accent="sky" />
+          </div>
+
+          <SectionCard title="Filtros" variant="elevated">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <label className="block text-sm">
+                <span className="text-[var(--text-muted)]">Mês</span>
+                <Input className="mt-1" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-[var(--text-muted)]">Tipo</span>
+                <select
+                  className={`mt-1 ${selectClass}`}
+                  value={kindFilter}
+                  onChange={(e) => setKindFilter(e.target.value as "" | FinancialEntryKind)}
+                >
+                  <option value="">Todos</option>
+                  {FINANCIAL_ENTRY_KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {FINANCIAL_ENTRY_KIND_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-[var(--text-muted)]">Categoria</span>
+                <select
+                  className={`mt-1 ${selectClass}`}
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                >
+                  <option value="">Todas</option>
+                  {categoriesForFilter.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-[var(--text-muted)]">Polo</span>
+                <select
+                  className={`mt-1 ${selectClass}`}
+                  value={poloFilter}
+                  onChange={(e) => setPoloFilter(e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {polos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-[var(--text-muted)]">Busca</span>
+                <div className="relative mt-1">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]"
+                    aria-hidden
+                  />
+                  <Input
+                    className="pl-9"
+                    placeholder="Descrição, nota, fornecedor…"
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                  />
+                </div>
+              </label>
             </div>
-          </label>
-        </div>
-      </SectionCard>
+          </SectionCard>
 
-      <SectionCard title="Lançamentos" description={`${entries.length} registro(s) no filtro atual.`} variant="elevated">
-        {loading ? (
-          <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
-        ) : entries.length === 0 ? (
-          <p className="rounded-md border border-dashed border-[var(--card-border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-            Nenhum lançamento neste período.
-          </p>
-        ) : (
-          <Table>
-            <thead>
-              <tr>
-                <Th>Data</Th>
-                <Th>Tipo</Th>
-                <Th>Descrição</Th>
-                <Th>Valor</Th>
-                <Th>Categoria</Th>
-                <Th>Responsável</Th>
-                <Th>Anexo</Th>
-                <Th>Ações</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((e) => (
-                <tr key={e.id}>
-                  <Td className="whitespace-nowrap">{formatEntryDate(e.entryDate)}</Td>
-                  <Td>
-                    <Badge tone={e.kind === "ENTRADA" ? "green" : "red"}>
-                      {FINANCIAL_ENTRY_KIND_LABEL[e.kind]}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    <div className="font-medium">{e.description}</div>
-                    {e.invoiceNumber ? (
-                      <div className="text-xs text-[var(--text-muted)]">Nota {e.invoiceNumber}</div>
-                    ) : null}
-                  </Td>
-                  <Td className="whitespace-nowrap font-medium">{formatCentsBRL(e.amountCents)}</Td>
-                  <Td>{e.category?.name ?? "—"}</Td>
-                  <Td>{responsibleLabel(e)}</Td>
-                  <Td>
-                    {e.attachmentUrl ? (
-                      <a href={e.attachmentUrl} target="_blank" rel="noreferrer" className="text-sm text-[var(--igh-primary)] hover:underline">
-                        Abrir
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </Td>
-                  <Td>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button size="sm" variant="secondary" onClick={() => openEdit(e)}>Editar</Button>
-                      <Button size="sm" variant="danger" onClick={() => void archiveEntry(e)}>Arquivar</Button>
-                    </div>
-                  </Td>
+          <SectionCard
+            title="Lançamentos"
+            description={`${entries.length} registro(s) no filtro atual.`}
+            variant="elevated"
+          >
+            {loading ? (
+              <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
+            ) : entries.length === 0 ? (
+              <p className="rounded-md border border-dashed border-[var(--card-border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+                Nenhum lançamento neste período.
+              </p>
+            ) : (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Data</Th>
+                    <Th>Tipo</Th>
+                    <Th>Descrição</Th>
+                    <Th>Valor</Th>
+                    <Th>Categoria</Th>
+                    <Th>Responsável</Th>
+                    <Th>Anexo</Th>
+                    <Th>Ações</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e) => (
+                    <tr key={e.id}>
+                      <Td className="whitespace-nowrap">{formatEntryDate(e.entryDate)}</Td>
+                      <Td>
+                        <Badge tone={e.kind === "ENTRADA" ? "green" : "red"}>
+                          {FINANCIAL_ENTRY_KIND_LABEL[e.kind]}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <div className="font-medium">{e.description}</div>
+                        {e.invoiceNumber ? (
+                          <div className="text-xs text-[var(--text-muted)]">Nota {e.invoiceNumber}</div>
+                        ) : null}
+                      </Td>
+                      <Td className="whitespace-nowrap font-medium">{formatCentsBRL(e.amountCents)}</Td>
+                      <Td>{e.category?.name ?? "—"}</Td>
+                      <Td>{responsibleLabel(e)}</Td>
+                      <Td>
+                        {e.attachmentUrl ? (
+                          <a
+                            href={e.attachmentUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm text-[var(--igh-primary)] hover:underline"
+                          >
+                            Abrir
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </Td>
+                      <Td>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button size="sm" variant="secondary" onClick={() => openEdit(e)}>
+                            Editar
+                          </Button>
+                          <Button size="sm" variant="danger" onClick={() => void archiveEntry(e)}>
+                            Arquivar
+                          </Button>
+                        </div>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </SectionCard>
+        </>
+      ) : (
+        <SectionCard
+          title="Notas MEI"
+          description="Notas mensais de colaboradores MEI. Use “Lançar no fluxo” para criar um lançamento de saída."
+          variant="elevated"
+        >
+          <div className="mb-3 max-w-xs">
+            <label className="block text-sm">
+              <span className="text-[var(--text-muted)]">Mês de competência</span>
+              <Input className="mt-1" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+            </label>
+          </div>
+          {meiLoading ? (
+            <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
+          ) : meiInvoices.length === 0 ? (
+            <p className="rounded-md border border-dashed border-[var(--card-border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+              Nenhuma nota MEI neste mês. Cadastre em Contratos → Notas mensais.
+            </p>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Colaborador</Th>
+                  <Th>Competência</Th>
+                  <Th>Valor</Th>
+                  <Th>Status</Th>
+                  <Th>PDF</Th>
+                  <Th>Ações</Th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-      </SectionCard>
+              </thead>
+              <tbody>
+                {meiInvoices.map((inv) => (
+                  <tr key={inv.id}>
+                    <Td className="font-medium">{inv.employee?.name ?? "—"}</Td>
+                    <Td>{formatReferenceMonth(inv.referenceMonth)}</Td>
+                    <Td>{formatCentsBRL(inv.amountCents)}</Td>
+                    <Td>
+                      <Badge tone={inv.status === "ENTREGUE" ? "green" : "amber"}>
+                        {INVOICE_STATUS_LABEL[inv.status] ?? inv.status}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      {inv.pdfUrl ? (
+                        <a
+                          href={inv.pdfUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm text-[var(--igh-primary)] hover:underline"
+                        >
+                          Abrir
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </Td>
+                    <Td>
+                      <Button size="sm" variant="secondary" onClick={() => openFromMeiInvoice(inv)}>
+                        Lançar no fluxo
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </SectionCard>
+      )}
 
-      <Modal open={formOpen} onClose={() => setFormOpen(false)} title={editing ? "Editar lançamento" : "Novo lançamento"} size="large">
+      <Modal
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false);
+          clearSuggestion();
+        }}
+        title={editing ? "Editar lançamento" : "Novo lançamento"}
+        size="large"
+      >
         <div className="space-y-4">
+          {suggestionHasAny(suggestion) ? (
+            <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-3 text-sm">
+              <div className="font-medium">Sugestões da nota — revise antes de salvar</div>
+              {suggestionSource ? (
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">Fonte: {suggestionSource}</p>
+              ) : null}
+              <ul className="mt-2 space-y-0.5 text-[var(--text-muted)]">
+                {suggestion?.amount ? <li>Valor: R$ {suggestion.amount}</li> : null}
+                {suggestion?.supplier ? <li>Fornecedor: {suggestion.supplier}</li> : null}
+                {suggestion?.invoiceNumber ? <li>Nº: {suggestion.invoiceNumber}</li> : null}
+                {suggestion?.entryDate ? <li>Data: {suggestion.entryDate}</li> : null}
+                {suggestion?.description ? <li>Descrição: {suggestion.description}</li> : null}
+              </ul>
+              {suggestionWarnings.length > 0 ? (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                  {suggestionWarnings.join(" ")}
+                </p>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => applySuggestion(false)}>
+                  Aplicar nos vazios
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => applySuggestion(true)}>
+                  Sobrescrever campos
+                </Button>
+                <Button size="sm" variant="ghost" onClick={clearSuggestion}>
+                  Ignorar
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Tipo</span>
@@ -536,68 +875,122 @@ export default function FinanceiroPage() {
                 }}
               >
                 {FINANCIAL_ENTRY_KINDS.map((k) => (
-                  <option key={k} value={k}>{FINANCIAL_ENTRY_KIND_LABEL[k]}</option>
+                  <option key={k} value={k}>
+                    {FINANCIAL_ENTRY_KIND_LABEL[k]}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Data</span>
-              <Input className="mt-1" type="date" value={form.entryDate} onChange={(e) => setField("entryDate", e.target.value)} />
+              <Input
+                className="mt-1"
+                type="date"
+                value={form.entryDate}
+                onChange={(e) => setField("entryDate", e.target.value)}
+              />
             </label>
             <label className="block text-sm sm:col-span-2">
               <span className="text-[var(--text-muted)]">Descrição *</span>
-              <Input className="mt-1" value={form.description} onChange={(e) => setField("description", e.target.value)} />
+              <Input
+                className="mt-1"
+                value={form.description}
+                onChange={(e) => setField("description", e.target.value)}
+              />
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Valor (R$) *</span>
-              <Input className="mt-1" inputMode="decimal" value={form.amount} onChange={(e) => setField("amount", e.target.value)} placeholder="0,00" />
+              <Input
+                className="mt-1"
+                inputMode="decimal"
+                value={form.amount}
+                onChange={(e) => setField("amount", e.target.value)}
+                placeholder="0,00"
+              />
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Categoria</span>
-              <select className={`mt-1 ${selectClass}`} value={form.categoryId} onChange={(e) => setField("categoryId", e.target.value)}>
+              <select
+                className={`mt-1 ${selectClass}`}
+                value={form.categoryId}
+                onChange={(e) => setField("categoryId", e.target.value)}
+              >
                 <option value="">Sem categoria</option>
                 {categoriesForForm.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Forma de pagamento</span>
-              <select className={`mt-1 ${selectClass}`} value={form.paymentMethod} onChange={(e) => setField("paymentMethod", e.target.value as FinancialPaymentMethod)}>
+              <select
+                className={`mt-1 ${selectClass}`}
+                value={form.paymentMethod}
+                onChange={(e) => setField("paymentMethod", e.target.value as FinancialPaymentMethod)}
+              >
                 {FINANCIAL_PAYMENT_METHODS.map((m) => (
-                  <option key={m} value={m}>{FINANCIAL_PAYMENT_METHOD_LABEL[m]}</option>
+                  <option key={m} value={m}>
+                    {FINANCIAL_PAYMENT_METHOD_LABEL[m]}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Polo</span>
-              <select className={`mt-1 ${selectClass}`} value={form.poloId} onChange={(e) => setField("poloId", e.target.value)}>
+              <select
+                className={`mt-1 ${selectClass}`}
+                value={form.poloId}
+                onChange={(e) => setField("poloId", e.target.value)}
+              >
                 <option value="">Sem polo</option>
                 {polos.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Responsável (usuário)</span>
-              <select className={`mt-1 ${selectClass}`} value={form.responsibleUserId} onChange={(e) => setField("responsibleUserId", e.target.value)}>
+              <select
+                className={`mt-1 ${selectClass}`}
+                value={form.responsibleUserId}
+                onChange={(e) => setField("responsibleUserId", e.target.value)}
+              >
                 <option value="">Nome livre abaixo</option>
                 {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Responsável (nome livre)</span>
-              <Input className="mt-1" value={form.responsibleName} onChange={(e) => setField("responsibleName", e.target.value)} placeholder="Se não tiver conta no sistema" />
+              <Input
+                className="mt-1"
+                value={form.responsibleName}
+                onChange={(e) => setField("responsibleName", e.target.value)}
+                placeholder="Se não tiver conta no sistema"
+              />
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Nº da nota</span>
-              <Input className="mt-1" value={form.invoiceNumber} onChange={(e) => setField("invoiceNumber", e.target.value)} />
+              <Input
+                className="mt-1"
+                value={form.invoiceNumber}
+                onChange={(e) => setField("invoiceNumber", e.target.value)}
+              />
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Fornecedor / origem</span>
-              <Input className="mt-1" value={form.supplier} onChange={(e) => setField("supplier", e.target.value)} />
+              <Input
+                className="mt-1"
+                value={form.supplier}
+                onChange={(e) => setField("supplier", e.target.value)}
+              />
             </label>
             <label className="block text-sm sm:col-span-2">
               <span className="text-[var(--text-muted)]">Observações</span>
@@ -610,28 +1003,40 @@ export default function FinanceiroPage() {
           </div>
 
           <div className="space-y-2">
-            {/*
-              TODO (leitura de NF): ao anexar PDF/imagem da nota, extrair o que for possível
-              (valor, estabelecimento/fornecedor, descrição, nº, data) e pré-preencher o formulário.
-              Sempre exigir revisão e confirmação explícita do usuário antes de salvar.
-            */}
-            <p className="text-sm text-[var(--text-muted)]">Anexo da nota (PDF ou imagem)</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              Anexo da nota (PDF ou imagem) — após o envio, o sistema tenta ler valor, fornecedor, nº e
+              data.
+            </p>
             {form.attachmentUrl ? (
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <a href={form.attachmentUrl} target="_blank" rel="noreferrer" className="text-[var(--igh-primary)] hover:underline">
+                <a
+                  href={form.attachmentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[var(--igh-primary)] hover:underline"
+                >
                   {form.attachmentFileName || "Arquivo anexado"}
                 </a>
                 <Button
                   size="sm"
+                  variant="secondary"
+                  disabled={readingInvoice}
+                  onClick={() => void readInvoice(form.attachmentUrl, form.attachmentFileName)}
+                >
+                  {readingInvoice ? "Lendo…" : "Ler nota de novo"}
+                </Button>
+                <Button
+                  size="sm"
                   variant="ghost"
-                  onClick={() =>
+                  onClick={() => {
                     setForm((prev) => ({
                       ...prev,
                       attachmentUrl: "",
                       attachmentPublicId: "",
                       attachmentFileName: "",
-                    }))
-                  }
+                    }));
+                    clearSuggestion();
+                  }}
                 >
                   Remover
                 </Button>
@@ -640,7 +1045,7 @@ export default function FinanceiroPage() {
               <input
                 type="file"
                 accept=".pdf,image/jpeg,image/png,image/webp"
-                disabled={uploading}
+                disabled={uploading || readingInvoice}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   e.target.value = "";
@@ -649,11 +1054,24 @@ export default function FinanceiroPage() {
               />
             )}
             {uploading ? <p className="text-sm text-[var(--text-muted)]">Enviando anexo…</p> : null}
+            {readingInvoice ? <p className="text-sm text-[var(--text-muted)]">Lendo nota…</p> : null}
+            {!suggestionHasAny(suggestion) && suggestionWarnings.length > 0 ? (
+              <p className="text-xs text-amber-700 dark:text-amber-400">{suggestionWarnings.join(" ")}</p>
+            ) : null}
           </div>
 
           <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-4">
-            <Button variant="secondary" onClick={() => setFormOpen(false)} disabled={saving}>Cancelar</Button>
-            <Button onClick={() => void saveEntry()} disabled={saving || uploading}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setFormOpen(false);
+                clearSuggestion();
+              }}
+              disabled={saving}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={() => void saveEntry()} disabled={saving || uploading || readingInvoice}>
               {saving ? "Salvando…" : "Salvar"}
             </Button>
           </div>
@@ -669,9 +1087,15 @@ export default function FinanceiroPage() {
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Tipo</span>
-              <select className={`mt-1 ${selectClass}`} value={catKind} onChange={(e) => setCatKind(e.target.value as FinancialEntryKind)}>
+              <select
+                className={`mt-1 ${selectClass}`}
+                value={catKind}
+                onChange={(e) => setCatKind(e.target.value as FinancialEntryKind)}
+              >
                 {FINANCIAL_ENTRY_KINDS.map((k) => (
-                  <option key={k} value={k}>{FINANCIAL_ENTRY_KIND_LABEL[k]}</option>
+                  <option key={k} value={k}>
+                    {FINANCIAL_ENTRY_KIND_LABEL[k]}
+                  </option>
                 ))}
               </select>
             </label>

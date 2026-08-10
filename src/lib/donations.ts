@@ -6,6 +6,10 @@ import {
   renderDocumentTemplateHtml,
 } from "@/lib/admin/document-template-vars";
 import { uploadGerenciaPdfBytes } from "@/lib/admin/gerencia-pdf-upload";
+import {
+  donorInstitutionVariableMap,
+  getOrCreateDonorInstitutionSettings,
+} from "@/lib/donor-institution";
 import { expandDonationKitItems } from "@/lib/donation-kits";
 import { applyInventoryMovement } from "@/lib/inventory";
 import { prisma } from "@/lib/prisma";
@@ -208,6 +212,7 @@ export async function confirmDonationSideEffects(opts: {
 
     if (template) {
       templateId = template.id;
+      const donor = await getOrCreateDonorInstitutionSettings(opts.actorId);
       const vars = buildDonationVariableMap({
         donataria: donation.donataria,
         donatedAt: donation.donatedAt,
@@ -218,6 +223,7 @@ export async function confirmDonationSideEffects(opts: {
         placeDateText: donation.placeDateText,
         termNumber,
         items: donation.items,
+        donorInstitution: donorInstitutionVariableMap(donor),
       });
       renderedHtml = renderDocumentTemplateHtml(template.contentRich, vars);
       const bytes = await renderDocumentHtmlToPdfBytes(renderedHtml, template.title);

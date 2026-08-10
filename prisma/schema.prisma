@@ -114,6 +114,9 @@ model User {
   donationsCreated                   Donation[]                 @relation("DonationCreatedBy")
   equipmentCatalogCreated            EquipmentCatalogItem[]     @relation("EquipmentCatalogCreatedBy")
   technicalVisitsCreated             TechnicalVisit[]           @relation("TechnicalVisitCreatedBy")
+  donorInstitutionUpdated            DonorInstitutionSettings[] @relation("DonorInstitutionUpdatedBy")
+  annualGoalsCreated                 AnnualGoal[]               @relation("AnnualGoalCreatedBy")
+  paymentAgreementsCreated           PaymentAgreement[]         @relation("PaymentAgreementCreatedBy")
   /// * Turmas criadas por este usuário (admin/master).
   classGroupsCreated                 ClassGroup[]               @relation("ClassGroupCreatedBy")
   /// * Cursos criados por este usuário (admin/master).
@@ -1280,6 +1283,8 @@ model Employee {
   notes              String?
   /// * Polo de lotação (vigia, limpeza, coordenação...).
   poloId             String?
+  /// * Coluna do quadro de convênios de pagamento.
+  paymentAgreementId String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   createdByUserId    String?
@@ -1287,6 +1292,7 @@ model Employee {
   deletedByUserId    String?
   user               User?              @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
   polo               Polo?              @relation(fields: [poloId], references: [id], onDelete: SetNull)
+  paymentAgreement   PaymentAgreement?  @relation(fields: [paymentAgreementId], references: [id], onDelete: SetNull)
   createdByUser      User?              @relation("EmployeeCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   deletedByUser      User?              @relation("EmployeeDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
   documents          EmployeeDocument[]
@@ -1296,6 +1302,7 @@ model Employee {
   @@index([deletedAt, status])
   @@index([position])
   @@index([poloId])
+  @@index([paymentAgreementId])
 }
 
 /// * Anexo da ficha do colaborador: documentos pessoais, contrato, distrato e nota mensal.
@@ -1679,6 +1686,57 @@ model TechnicalVisitChecklistItem {
 
   @@index([visitId, sortOrder])
   @@unique([visitId, key])
+}
+
+/// * Dados da instituição doadora usados nos termos de doação (singleton).
+model DonorInstitutionSettings {
+  id                   String   @id @default(uuid())
+  name                 String?
+  document             String?
+  email                String?
+  address              String?
+  city                 String?
+  state                String?
+  cep                  String?
+  phone                String?
+  representativeName   String?
+  representativeRole   String?
+  representativeCpf    String?
+  updatedAt            DateTime @updatedAt
+  updatedByUserId      String?
+  updatedByUser        User?    @relation("DonorInstitutionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+}
+
+/// * Meta anual de doação de computadores e formação de pessoas.
+model AnnualGoal {
+  id                 String   @id @default(uuid())
+  year               Int      @unique
+  computersTarget   Int      @default(0)
+  peopleTarget       Int      @default(0)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  createdByUserId    String?
+  createdByUser      User?    @relation("AnnualGoalCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([year])
+}
+
+/// * Coluna do quadro de convênios de pagamento (Kanban de colaboradores).
+model PaymentAgreement {
+  id              String     @id @default(uuid())
+  name            String
+  sortOrder       Int        @default(0)
+  isActive        Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  createdByUserId String?
+  deletedAt       DateTime?
+  createdByUser   User?      @relation("PaymentAgreementCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  employees       Employee[]
+
+  @@unique([name])
+  @@index([deletedAt, isActive, sortOrder])
 }
 
 model SiteSettings {

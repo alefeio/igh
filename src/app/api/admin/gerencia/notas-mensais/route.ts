@@ -18,7 +18,14 @@ function serializeInvoice(row: {
   pdfPublicId: string | null;
   createdAt: Date;
   updatedAt: Date;
-  employee?: { id: string; name: string; cpf: string; position: string; positionLabel: string | null };
+  employee?: {
+    id: string;
+    name: string;
+    cpf: string;
+    position: string;
+    positionLabel: string | null;
+    employmentType?: string;
+  };
 }) {
   return {
     ...row,
@@ -41,6 +48,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const month = searchParams.get("month"); // YYYY-MM
   const employeeId = searchParams.get("employeeId");
+  const employmentTypeRaw = searchParams.get("employmentType");
+  const employmentTypes = ["MEI", "CLT", "PRESTADOR", "VOLUNTARIO", "ESTAGIO"] as const;
+  const employmentType =
+    employmentTypeRaw && (employmentTypes as readonly string[]).includes(employmentTypeRaw)
+      ? (employmentTypeRaw as (typeof employmentTypes)[number])
+      : undefined;
 
   let referenceMonth: Date | undefined;
   if (month && /^\d{4}-\d{2}$/.test(month)) {
@@ -53,11 +66,19 @@ export async function GET(request: Request) {
       deletedAt: null,
       ...(referenceMonth ? { referenceMonth } : {}),
       ...(employeeId ? { employeeId } : {}),
+      ...(employmentType ? { employee: { employmentType } } : {}),
     },
     orderBy: [{ referenceMonth: "desc" }, { createdAt: "desc" }],
     include: {
       employee: {
-        select: { id: true, name: true, cpf: true, position: true, positionLabel: true },
+        select: {
+          id: true,
+          name: true,
+          cpf: true,
+          position: true,
+          positionLabel: true,
+          employmentType: true,
+        },
       },
     },
   });

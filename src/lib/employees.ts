@@ -1,3 +1,13 @@
+export type {
+  BankAccountType,
+  EmployeeDocumentType,
+  EmployeePosition,
+  EmployeeStatus,
+  EmploymentType,
+  PixKeyType,
+  UniformSize,
+} from "@/generated/prisma/client";
+
 import type {
   BankAccountType,
   EmployeeDocumentType,
