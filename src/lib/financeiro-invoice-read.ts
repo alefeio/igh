@@ -100,10 +100,13 @@ async function tryExtractPdfText(buffer: Buffer): Promise<{ text: string; error?
   }
 
   try {
+    // Import order matters: worker/canvas polyfills DOMMatrix before pdfjs loads.
+    const { CanvasFactory } = await import("pdf-parse/worker");
     const { PDFParse } = await import("pdf-parse");
+
     // Cópia independente: alguns loaders transferem o ArrayBuffer ao worker.
     const data = Uint8Array.from(buffer);
-    const parser = new PDFParse({ data });
+    const parser = new PDFParse({ data, CanvasFactory });
     try {
       const result = await parser.getText();
       const text = (result.text || "").replace(/\u0000/g, "").trim();

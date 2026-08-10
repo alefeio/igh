@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
   /** Menos trabalho e disco no build; o default já é false, deixamos explícito. */
   productionBrowserSourceMaps: false,
   /** Pacotes nativos/CJS usados só no servidor (leitura de NF). */
-  serverExternalPackages: ["pdf-parse", "jsqr", "jpeg-js", "pngjs"],
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas", "jsqr", "jpeg-js", "pngjs"],
   /**
    * Inclui template PDF e fontes no bundle serverless (certificado de conclusão).
    * @see https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats
