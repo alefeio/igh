@@ -1,11 +1,11 @@
 /**
- * Leitura de anexos de nota para pré-preenchimento do formulário financeiro.
+ * Leitura de anexos de nota/conta para pré-preenchimento do formulário financeiro.
  *
- * Pipeline: QR NFC-e → texto PDF → Vision (OpenAI) se OPENAI_API_KEY estiver definida.
+ * Pipeline: QR NFC-e → texto PDF → Vision (OpenAI) em imagens se OPENAI_API_KEY existir.
  * Nunca persiste lançamento sozinho — só devolve sugestões para o usuário revisar.
  *
  * Env opcional:
- * - OPENAI_API_KEY — habilita leitura por visão em fotos
+ * - OPENAI_API_KEY — leitura por visão em fotos
  * - OPENAI_BASE_URL — default https://api.openai.com/v1
  * - OPENAI_VISION_MODEL — default gpt-4o-mini
  */
@@ -43,11 +43,16 @@ function isHttpsUrl(url: string) {
   }
 }
 
-function guessMime(fileName: string | undefined, contentType: string | null): string {
+function looksLikePdf(buffer: Buffer) {
+  if (buffer.byteLength < 5) return false;
+  return buffer.subarray(0, 5).toString("utf8") === "%PDF-";
+}
+
+function guessMime(fileName: string | undefined, contentType: string | null, buffer: Buffer): string {
+  if (looksLikePdf(buffer) || fileName?.toLowerCase().endsWith(".pdf")) return "application/pdf";
   const ct = (contentType || "").split(";")[0].trim().toLowerCase();
   if (ct && ct !== "application/octet-stream") return ct;
   const name = (fileName || "").toLowerCase();
-  if (name.endsWith(".pdf")) return "application/pdf";
   if (name.endsWith(".png")) return "image/png";
   if (name.endsWith(".webp")) return "image/webp";
   if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
@@ -89,18 +94,27 @@ async function tryReadQrFromImage(buffer: Buffer, mime: string): Promise<Invoice
   return parseQrPayload(code.data);
 }
 
-async function tryExtractPdfText(buffer: Buffer): Promise<string> {
+async function tryExtractPdfText(buffer: Buffer): Promise<{ text: string; error?: string }> {
+  if (!looksLikePdf(buffer)) {
+    return { text: "", error: "Arquivo baixado não parece um PDF válido." };
+  }
+
   try {
     const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    // Cópia independente: alguns loaders transferem o ArrayBuffer ao worker.
+    const data = Uint8Array.from(buffer);
+    const parser = new PDFParse({ data });
     try {
       const result = await parser.getText();
-      return result.text || "";
+      const text = (result.text || "").replace(/\u0000/g, "").trim();
+      return { text };
     } finally {
       await parser.destroy().catch(() => undefined);
     }
-  } catch {
-    return "";
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "erro desconhecido";
+    console.error("[financeiro-invoice-read] pdf-parse failed:", msg);
+    return { text: "", error: `Falha ao extrair texto do PDF (${msg.slice(0, 120)}).` };
   }
 }
 
@@ -129,14 +143,14 @@ async function tryVisionSuggestion(
       {
         role: "system",
         content:
-          "Você extrai dados de notas fiscais brasileiras (NF-e, NFC-e, NFS-e, recibos). Responda só JSON com chaves opcionais: amount (string no formato brasileiro 1.234,56 sem R$), supplier, description, invoiceNumber, entryDate (YYYY-MM-DD). Não invente valores; omita o que não estiver legível.",
+          "Você extrai dados de notas fiscais e contas de consumo brasileiras (água, luz, NF-e, NFC-e, NFS-e, recibos). Responda só JSON com chaves opcionais: amount (string brasileira 1.234,56 sem R$), supplier, description, invoiceNumber, entryDate (YYYY-MM-DD). Prefira o valor TOTAL A PAGAR / valor da fatura. Não invente valores; omita o que não estiver legível.",
       },
       {
         role: "user",
         content: [
           {
             type: "text",
-            text: "Extraia valor, fornecedor/estabelecimento, descrição curta, número da nota e data de emissão.",
+            text: "Extraia valor total, fornecedor/concessionária, descrição curta, número da fatura/nota e data de vencimento ou emissão.",
           },
           { type: "image_url", image_url: { url: dataUrl } },
         ],
@@ -207,8 +221,9 @@ export async function readInvoiceAttachment(opts: {
   }
 
   const res = await fetch(opts.attachmentUrl, {
-    headers: { Accept: "image/*,application/pdf,*/*" },
+    headers: { Accept: "application/pdf,image/*,*/*" },
     cache: "no-store",
+    redirect: "follow",
   });
   if (!res.ok) {
     return {
@@ -226,11 +241,11 @@ export async function readInvoiceAttachment(opts: {
     return { suggestion: {}, source: "partial", warnings: ["Anexo muito grande para leitura automática."] };
   }
 
-  const mime = guessMime(opts.attachmentFileName ?? undefined, res.headers.get("content-type"));
+  const mime = guessMime(opts.attachmentFileName ?? undefined, res.headers.get("content-type"), buffer);
   let suggestion: InvoiceSuggestion = {};
   let source: InvoiceReadResult["source"] = "partial";
 
-  const isPdf = mime === "application/pdf" || opts.attachmentFileName?.toLowerCase().endsWith(".pdf");
+  const isPdf = mime === "application/pdf";
   const isImage = mime.startsWith("image/");
 
   if (isImage) {
@@ -242,13 +257,18 @@ export async function readInvoiceAttachment(opts: {
   }
 
   if (isPdf) {
-    const text = await tryExtractPdfText(buffer);
-    if (text.trim()) {
-      suggestion = mergeSuggestion(suggestion, extractFieldsFromText(text));
-      if (suggestionFilledCount(suggestion) > 0 && source !== "qr") source = "pdf";
-      else if (suggestionFilledCount(suggestion) > 0) source = "partial";
+    const extracted = await tryExtractPdfText(buffer);
+    if (extracted.text.trim()) {
+      suggestion = mergeSuggestion(suggestion, extractFieldsFromText(extracted.text));
+      if (suggestionFilledCount(suggestion) > 0) {
+        source = source === "qr" ? "partial" : "pdf";
+      } else {
+        warnings.push(
+          "Texto do PDF lido, mas não foi possível identificar valor/fornecedor automaticamente. Revise e preencha.",
+        );
+      }
     } else {
-      warnings.push("PDF sem texto embutido legível.");
+      warnings.push(extracted.error || "PDF sem texto embutido legível.");
     }
   }
 
@@ -262,13 +282,11 @@ export async function readInvoiceAttachment(opts: {
           source = source === "qr" || source === "pdf" ? "partial" : "vision";
         }
       }
-    } else if (isPdf) {
+    } else if (isPdf && suggestionFilledCount(suggestion) === 0) {
       warnings.push(
-        process.env.OPENAI_API_KEY
-          ? "PDF sem texto suficiente: envie uma imagem da nota para leitura por visão."
-          : "Não foi possível ler o PDF automaticamente. Anexe uma imagem da nota ou configure OPENAI_API_KEY.",
+        "Se o PDF for só imagem (escaneado), anexe um JPG/PNG da conta ou configure OPENAI_API_KEY para leitura por visão.",
       );
-    } else {
+    } else if (!isImage && !isPdf) {
       warnings.push("Formato de anexo não suportado para leitura automática.");
     }
   }
