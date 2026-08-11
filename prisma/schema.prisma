@@ -1437,15 +1437,19 @@ model FinancialCategory {
 
 /// * Lançamento financeiro (entrada ou saída) com anexo opcional da nota.
 model FinancialEntry {
-  id                   String                 @id @default(uuid())
+  id                   String                   @id @default(uuid())
   kind                 FinancialEntryKind
   description          String
   /// * Valor em centavos.
   amountCents          Int
-  /// * Data do lançamento / da nota.
-  entryDate            DateTime               @db.Date
+  /// * Data de vencimento da conta / fatura.
+  entryDate            DateTime                 @db.Date
+  /// * Em aberto (a vencer) | Pago | Pendente (vencida sem pagamento).
+  paymentStatus        FinancialPaymentStatus   @default(EM_ABERTO)
+  /// * Quando o usuário marcou como pago.
+  paidAt               DateTime?
   categoryId           String?
-  paymentMethod        FinancialPaymentMethod @default(PIX)
+  paymentMethod        FinancialPaymentMethod   @default(PIX)
   poloId               String?
   /// * Responsável com conta no sistema (quando houver).
   responsibleUserId    String?
@@ -1457,18 +1461,19 @@ model FinancialEntry {
   attachmentUrl        String?
   attachmentPublicId   String?
   attachmentFileName   String?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
   createdByUserId      String?
   deletedAt            DateTime?
-  category             FinancialCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  polo                 Polo?                  @relation(fields: [poloId], references: [id], onDelete: SetNull)
-  responsibleUser      User?                  @relation("FinancialEntryResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
-  createdByUser        User?                  @relation("FinancialEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  category             FinancialCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  polo                 Polo?                    @relation(fields: [poloId], references: [id], onDelete: SetNull)
+  responsibleUser      User?                    @relation("FinancialEntryResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  createdByUser        User?                    @relation("FinancialEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   donations            Donation[]
 
   @@index([deletedAt, entryDate])
   @@index([kind, entryDate])
+  @@index([paymentStatus, entryDate])
   @@index([categoryId])
   @@index([poloId])
 }
@@ -2415,6 +2420,8 @@ enum UserNotificationKind {
   BIRTHDAY
   /// * Aluno promovido da lista de espera (cadastro de reserva) para a turma.
   WAITLIST_ENROLLMENT
+  /// * Conta financeira vencendo / vence hoje / passou a pendente.
+  FINANCIAL_DUE_REMINDER
 }
 
 /// * Termos de uso, política de privacidade ou política de cookies (LGPD / ePrivacy).
@@ -2627,6 +2634,13 @@ enum EmployeeMonthlyInvoiceStatus {
 enum FinancialEntryKind {
   ENTRADA
   SAIDA
+}
+
+/// * Ciclo de pagamento da conta (AP): aberto → pago; se vencer sem pagamento → pendente.
+enum FinancialPaymentStatus {
+  EM_ABERTO
+  PAGO
+  PENDENTE
 }
 
 enum FinancialPaymentMethod {

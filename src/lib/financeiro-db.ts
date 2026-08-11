@@ -2,7 +2,9 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import type { FinancialEntryView } from "@/lib/financeiro";
+import { computeDueUrgency, FINANCIAL_DUE_SOON_DAYS } from "@/lib/financeiro-payment-shared";
 import { prisma } from "@/lib/prisma";
+import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
 import type { FinancialListQuery } from "@/lib/validators/financeiro";
 
 export const financialEntryInclude = {
@@ -15,12 +17,16 @@ export const financialEntryInclude = {
 type EntryRow = Prisma.FinancialEntryGetPayload<{ include: typeof financialEntryInclude }>;
 
 export function serializeFinancialEntry(row: EntryRow): FinancialEntryView {
+  const entryDate = row.entryDate.toISOString().slice(0, 10);
   return {
     id: row.id,
     kind: row.kind,
     description: row.description,
     amountCents: row.amountCents,
-    entryDate: row.entryDate.toISOString().slice(0, 10),
+    entryDate,
+    paymentStatus: row.paymentStatus,
+    paidAt: row.paidAt ? row.paidAt.toISOString() : null,
+    dueUrgency: computeDueUrgency(row.paymentStatus, entryDate),
     categoryId: row.categoryId,
     paymentMethod: row.paymentMethod,
     poloId: row.poloId,
@@ -46,6 +52,7 @@ export function financialEntryWhere(query: FinancialListQuery): Prisma.Financial
   if (query.kind) and.push({ kind: query.kind as "ENTRADA" | "SAIDA" });
   if (query.categoryId) and.push({ categoryId: query.categoryId });
   if (query.poloId) and.push({ poloId: query.poloId });
+  if (query.paymentStatus) and.push({ paymentStatus: query.paymentStatus });
   if (query.dateFrom || query.dateTo) {
     and.push({
       entryDate: {
@@ -54,6 +61,37 @@ export function financialEntryWhere(query: FinancialListQuery): Prisma.Financial
       },
     });
   }
+
+  if (query.dueAlert) {
+    const today = getBrazilTodayDateOnly();
+    const soonEnd = new Date(today);
+    soonEnd.setUTCDate(soonEnd.getUTCDate() + FINANCIAL_DUE_SOON_DAYS);
+
+    if (query.dueAlert === "today") {
+      and.push({
+        paymentStatus: { in: ["EM_ABERTO", "PENDENTE"] },
+        entryDate: today,
+      });
+    } else if (query.dueAlert === "soon") {
+      and.push({
+        paymentStatus: "EM_ABERTO",
+        entryDate: { gt: today, lte: soonEnd },
+      });
+    } else if (query.dueAlert === "overdue") {
+      and.push({
+        paymentStatus: "PENDENTE",
+        entryDate: { lt: today },
+      });
+    } else if (query.dueAlert === "attention") {
+      and.push({
+        OR: [
+          { paymentStatus: "EM_ABERTO", entryDate: { gte: today, lte: soonEnd } },
+          { paymentStatus: "PENDENTE" },
+        ],
+      });
+    }
+  }
+
   if (query.q) {
     and.push({
       OR: [
@@ -86,4 +124,38 @@ export async function sumFinancialTotals(where: Prisma.FinancialEntryWhereInput)
     saidasCents,
     saldoCents: entradasCents - saidasCents,
   };
+}
+
+export async function summarizePaymentAlerts() {
+  const today = getBrazilTodayDateOnly();
+  const soonEnd = new Date(today);
+  soonEnd.setUTCDate(soonEnd.getUTCDate() + FINANCIAL_DUE_SOON_DAYS);
+
+  const base = { deletedAt: null as null };
+
+  const [dueSoonCount, dueTodayCount, overdueCount] = await Promise.all([
+    prisma.financialEntry.count({
+      where: {
+        ...base,
+        paymentStatus: "EM_ABERTO",
+        entryDate: { gt: today, lte: soonEnd },
+      },
+    }),
+    prisma.financialEntry.count({
+      where: {
+        ...base,
+        paymentStatus: { in: ["EM_ABERTO", "PENDENTE"] },
+        entryDate: today,
+      },
+    }),
+    prisma.financialEntry.count({
+      where: {
+        ...base,
+        paymentStatus: "PENDENTE",
+        entryDate: { lt: today },
+      },
+    }),
+  ]);
+
+  return { dueSoonCount, dueTodayCount, overdueCount, dueSoonDays: FINANCIAL_DUE_SOON_DAYS };
 }

@@ -6,7 +6,9 @@ import {
   financialEntryWhere,
   serializeFinancialEntry,
   sumFinancialTotals,
+  summarizePaymentAlerts,
 } from "@/lib/financeiro-db";
+import { resolveInitialPaymentStatus, syncFinancialPaymentLifecycle } from "@/lib/financeiro-payment";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import {
@@ -23,10 +25,15 @@ export async function GET(request: Request) {
     throw e;
   }
 
+  // Ao abrir a listagem: em aberto vencido → pendente + notificações do dia.
+  await syncFinancialPaymentLifecycle().catch((err) => {
+    console.error("[financeiro] sync lifecycle failed:", err);
+  });
+
   const query = parseFinancialListQuery(new URL(request.url).searchParams);
   const where = financialEntryWhere(query);
 
-  const [entries, totals, count] = await Promise.all([
+  const [entries, totals, count, alerts] = await Promise.all([
     prisma.financialEntry.findMany({
       where,
       orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
@@ -35,12 +42,14 @@ export async function GET(request: Request) {
     }),
     sumFinancialTotals(where),
     prisma.financialEntry.count({ where }),
+    summarizePaymentAlerts(),
   ]);
 
   return jsonOk({
     entries: entries.map(serializeFinancialEntry),
     totals,
     count,
+    alerts,
     filters: query,
   });
 }
@@ -74,12 +83,19 @@ export async function POST(request: Request) {
     }
   }
 
+  const initial = resolveInitialPaymentStatus({
+    dueDate: data.entryDate,
+    alreadyPaid: data.alreadyPaid ?? (data.paymentStatus === "PAGO" ? true : data.paymentStatus === "PENDENTE" ? false : null),
+  });
+
   const entry = await prisma.financialEntry.create({
     data: {
       kind: data.kind,
       description: data.description,
       amountCents: data.amount,
       entryDate: data.entryDate,
+      paymentStatus: initial.paymentStatus,
+      paidAt: initial.paidAt,
       categoryId: data.categoryId ?? null,
       paymentMethod: data.paymentMethod,
       poloId: data.poloId ?? null,
@@ -100,7 +116,12 @@ export async function POST(request: Request) {
     entityType: "FinancialEntry",
     entityId: entry.id,
     action: "CREATE",
-    diff: { kind: entry.kind, amountCents: entry.amountCents, description: entry.description },
+    diff: {
+      kind: entry.kind,
+      amountCents: entry.amountCents,
+      description: entry.description,
+      paymentStatus: entry.paymentStatus,
+    },
     performedByUserId: actor.id,
   });
 

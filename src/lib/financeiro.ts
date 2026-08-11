@@ -1,8 +1,13 @@
 import type {
   FinancialEntryKind,
   FinancialPaymentMethod,
+  FinancialPaymentStatus,
 } from "@/generated/prisma/client";
 import { formatCentsBRL } from "@/lib/employees";
+import {
+  computeDueUrgency,
+  type FinancialDueUrgency,
+} from "@/lib/financeiro-payment-shared";
 
 export const FINANCIAL_ENTRY_KINDS: readonly FinancialEntryKind[] = ["ENTRADA", "SAIDA"] as const;
 
@@ -31,12 +36,29 @@ export const FINANCIAL_PAYMENT_METHOD_LABEL: Record<FinancialPaymentMethod, stri
   OUTRO: "Outro",
 };
 
+export const FINANCIAL_PAYMENT_STATUSES: readonly FinancialPaymentStatus[] = [
+  "EM_ABERTO",
+  "PAGO",
+  "PENDENTE",
+] as const;
+
+export const FINANCIAL_PAYMENT_STATUS_LABEL: Record<FinancialPaymentStatus, string> = {
+  EM_ABERTO: "Em aberto",
+  PAGO: "Pago",
+  PENDENTE: "Pendente",
+};
+
 export type FinancialEntryView = {
   id: string;
   kind: FinancialEntryKind;
   description: string;
   amountCents: number;
+  /** Data de vencimento (YYYY-MM-DD). */
   entryDate: string;
+  paymentStatus: FinancialPaymentStatus;
+  paidAt: string | null;
+  /** Urgência derivada do vencimento + status (não persistida). */
+  dueUrgency: FinancialDueUrgency;
   categoryId: string | null;
   paymentMethod: FinancialPaymentMethod;
   poloId: string | null;
@@ -79,4 +101,16 @@ export function formatEntryDate(isoDate: string): string {
   return `${d}/${m}/${y}`;
 }
 
-export { formatCentsBRL };
+export function paymentStatusBadgeTone(
+  status: FinancialPaymentStatus,
+  urgency: FinancialDueUrgency,
+): "zinc" | "green" | "red" | "amber" | "blue" {
+  if (status === "PAGO") return "green";
+  if (status === "PENDENTE" || urgency === "overdue") return "red";
+  if (urgency === "due_today") return "amber";
+  if (urgency === "due_soon") return "blue";
+  return "zinc";
+}
+
+export { computeDueUrgency, formatCentsBRL };
+export type { FinancialDueUrgency };

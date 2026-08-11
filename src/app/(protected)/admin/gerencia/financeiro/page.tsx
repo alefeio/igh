@@ -25,16 +25,30 @@ import {
   FINANCIAL_ENTRY_KINDS,
   FINANCIAL_PAYMENT_METHOD_LABEL,
   FINANCIAL_PAYMENT_METHODS,
+  FINANCIAL_PAYMENT_STATUS_LABEL,
+  FINANCIAL_PAYMENT_STATUSES,
   formatEntryDate,
+  paymentStatusBadgeTone,
   responsibleLabel,
   type FinancialCategoryView,
   type FinancialEntryView,
 } from "@/lib/financeiro";
-import type { FinancialEntryKind, FinancialPaymentMethod } from "@/generated/prisma/client";
+import { brazilTodayIsoDate, isPastDueDate } from "@/lib/financeiro-payment-shared";
+import type {
+  FinancialEntryKind,
+  FinancialPaymentMethod,
+  FinancialPaymentStatus,
+} from "@/generated/prisma/client";
 
 type PoloOption = { id: string; name: string };
 type UserOption = { id: string; name: string; email: string };
 type Totals = { entradasCents: number; saidasCents: number; saldoCents: number };
+type PaymentAlerts = {
+  dueSoonCount: number;
+  dueTodayCount: number;
+  overdueCount: number;
+  dueSoonDays: number;
+};
 
 type TabId = "fluxo" | "notas-mei" | "prestacao";
 
@@ -68,6 +82,9 @@ type EntryForm = {
   description: string;
   amount: string;
   entryDate: string;
+  /** Só para conta com vencimento já passado no cadastro novo. */
+  alreadyPaid: boolean;
+  paymentStatus: FinancialPaymentStatus;
   categoryId: string;
   paymentMethod: FinancialPaymentMethod;
   poloId: string;
@@ -92,7 +109,9 @@ function emptyForm(): EntryForm {
     kind: "SAIDA",
     description: "",
     amount: "",
-    entryDate: new Date().toISOString().slice(0, 10),
+    entryDate: brazilTodayIsoDate(),
+    alreadyPaid: false,
+    paymentStatus: "EM_ABERTO",
     categoryId: "",
     paymentMethod: "PIX",
     poloId: "",
@@ -121,12 +140,22 @@ export default function FinanceiroPage() {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<FinancialEntryView[]>([]);
   const [totals, setTotals] = useState<Totals>({ entradasCents: 0, saidasCents: 0, saldoCents: 0 });
+  const [alerts, setAlerts] = useState<PaymentAlerts>({
+    dueSoonCount: 0,
+    dueTodayCount: 0,
+    overdueCount: 0,
+    dueSoonDays: 7,
+  });
   const [categories, setCategories] = useState<FinancialCategoryView[]>([]);
   const [polos, setPolos] = useState<PoloOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
 
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [kindFilter, setKindFilter] = useState<"" | FinancialEntryKind>("");
+  const [statusFilter, setStatusFilter] = useState<"" | FinancialPaymentStatus>("");
+  const [dueAlertFilter, setDueAlertFilter] = useState<"" | "today" | "soon" | "overdue" | "attention">(
+    "",
+  );
   const [categoryFilter, setCategoryFilter] = useState("");
   const [poloFilter, setPoloFilter] = useState("");
   const [q, setQ] = useState("");
@@ -153,11 +182,13 @@ export default function FinanceiroPage() {
     const sp = new URLSearchParams();
     if (month) sp.set("month", month);
     if (kindFilter) sp.set("kind", kindFilter);
+    if (statusFilter) sp.set("paymentStatus", statusFilter);
+    if (dueAlertFilter) sp.set("dueAlert", dueAlertFilter);
     if (categoryFilter) sp.set("categoryId", categoryFilter);
     if (poloFilter) sp.set("poloId", poloFilter);
     if (q.trim()) sp.set("q", q.trim());
     return sp.toString();
-  }, [month, kindFilter, categoryFilter, poloFilter, q]);
+  }, [month, kindFilter, statusFilter, dueAlertFilter, categoryFilter, poloFilter, q]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,6 +201,7 @@ export default function FinanceiroPage() {
       const eJson = (await eRes.json()) as ApiResponse<{
         entries: FinancialEntryView[];
         totals: Totals;
+        alerts?: PaymentAlerts;
       }>;
       const cJson = (await cRes.json()) as ApiResponse<{ categories: FinancialCategoryView[] }>;
       const oJson = (await oRes.json()) as ApiResponse<{ users: UserOption[]; polos: PoloOption[] }>;
@@ -180,6 +212,7 @@ export default function FinanceiroPage() {
       }
       setEntries(eJson.data.entries);
       setTotals(eJson.data.totals);
+      if (eJson.data.alerts) setAlerts(eJson.data.alerts);
       if (cRes.ok && cJson.ok) setCategories(cJson.data.categories);
       if (oRes.ok && oJson.ok) {
         setUsers(oJson.data.users);
@@ -255,6 +288,8 @@ export default function FinanceiroPage() {
       description: entry.description,
       amount: (entry.amountCents / 100).toFixed(2).replace(".", ","),
       entryDate: entry.entryDate,
+      alreadyPaid: entry.paymentStatus === "PAGO",
+      paymentStatus: entry.paymentStatus,
       categoryId: entry.categoryId ?? "",
       paymentMethod: entry.paymentMethod,
       poloId: entry.poloId ?? "",
@@ -391,23 +426,44 @@ export default function FinanceiroPage() {
     }
     setSaving(true);
     try {
-      const body = {
-        kind: form.kind,
-        description: form.description,
-        amount: form.amount,
-        entryDate: form.entryDate,
-        categoryId: form.categoryId || null,
-        paymentMethod: form.paymentMethod,
-        poloId: form.poloId || null,
-        responsibleUserId: form.responsibleUserId || null,
-        responsibleName: form.responsibleName,
-        invoiceNumber: form.invoiceNumber,
-        supplier: form.supplier,
-        notes: form.notes,
-        attachmentUrl: form.attachmentUrl || null,
-        attachmentPublicId: form.attachmentPublicId || null,
-        attachmentFileName: form.attachmentFileName || null,
-      };
+      const pastDue = isPastDueDate(form.entryDate);
+      const body = editing
+        ? {
+            kind: form.kind,
+            description: form.description,
+            amount: form.amount,
+            entryDate: form.entryDate,
+            paymentStatus: form.paymentStatus,
+            categoryId: form.categoryId || null,
+            paymentMethod: form.paymentMethod,
+            poloId: form.poloId || null,
+            responsibleUserId: form.responsibleUserId || null,
+            responsibleName: form.responsibleName,
+            invoiceNumber: form.invoiceNumber,
+            supplier: form.supplier,
+            notes: form.notes,
+            attachmentUrl: form.attachmentUrl || null,
+            attachmentPublicId: form.attachmentPublicId || null,
+            attachmentFileName: form.attachmentFileName || null,
+          }
+        : {
+            kind: form.kind,
+            description: form.description,
+            amount: form.amount,
+            entryDate: form.entryDate,
+            alreadyPaid: pastDue ? form.alreadyPaid : null,
+            categoryId: form.categoryId || null,
+            paymentMethod: form.paymentMethod,
+            poloId: form.poloId || null,
+            responsibleUserId: form.responsibleUserId || null,
+            responsibleName: form.responsibleName,
+            invoiceNumber: form.invoiceNumber,
+            supplier: form.supplier,
+            notes: form.notes,
+            attachmentUrl: form.attachmentUrl || null,
+            attachmentPublicId: form.attachmentPublicId || null,
+            attachmentFileName: form.attachmentFileName || null,
+          };
       const res = await fetch(
         editing
           ? `/api/admin/gerencia/financeiro/lancamentos/${editing.id}`
@@ -432,6 +488,21 @@ export default function FinanceiroPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function markAsPaid(entry: FinancialEntryView) {
+    const res = await fetch(`/api/admin/gerencia/financeiro/lancamentos/${entry.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentStatus: "PAGO" }),
+    });
+    const json = (await res.json()) as ApiResponse<{ entry: FinancialEntryView }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao marcar como pago.");
+      return;
+    }
+    toast.push("success", "Conta marcada como paga.");
+    void load();
   }
 
   async function archiveEntry(entry: FinancialEntryView) {
@@ -478,7 +549,8 @@ export default function FinanceiroPage() {
 
   function exportXlsx() {
     const rows = entries.map((e) => ({
-      Data: formatEntryDate(e.entryDate),
+      "Data de vencimento": formatEntryDate(e.entryDate),
+      Status: FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus],
       Tipo: FINANCIAL_ENTRY_KIND_LABEL[e.kind],
       Descrição: e.description,
       Valor: e.amountCents / 100,
@@ -507,6 +579,7 @@ export default function FinanceiroPage() {
         (e) =>
           `<tr>
             <td>${formatEntryDate(e.entryDate)}</td>
+            <td>${FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus]}</td>
             <td>${FINANCIAL_ENTRY_KIND_LABEL[e.kind]}</td>
             <td>${e.description}</td>
             <td style="text-align:right">${formatCentsBRL(e.amountCents)}</td>
@@ -528,7 +601,7 @@ export default function FinanceiroPage() {
       <h1>Relatório financeiro</h1>
       <div class="meta">Competência: ${month || "todas"} · ${entries.length} lançamento(s)</div>
       <table><thead><tr>
-        <th>Data</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Responsável</th>
+        <th>Data de vencimento</th><th>Status</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Responsável</th>
       </tr></thead><tbody>${rowsHtml}</tbody></table>
       <div class="totais">
         Entradas: <strong>${formatCentsBRL(totals.entradasCents)}</strong> ·
@@ -545,6 +618,7 @@ export default function FinanceiroPage() {
       "#": idx + 1,
       Descrição: e.description,
       Data: formatEntryDate(e.entryDate),
+      Status: FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus],
       Valor: e.amountCents / 100,
       "Forma de pagamento": FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod],
       "Destino / observação": e.notes ?? "",
@@ -579,7 +653,7 @@ export default function FinanceiroPage() {
       <DashboardHero
         eyebrow="Gerência · Financeiro"
         title="Entradas e saídas"
-        description="Fluxo de caixa com leitura de NF no anexo, e visão das notas MEI dos colaboradores."
+        description="Fluxo de caixa com vencimento, status de pagamento e leitura de NF no anexo."
         rightSlot={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setCatOpen(true)}>
@@ -619,6 +693,86 @@ export default function FinanceiroPage() {
         {tabBtn("notas-mei", "Notas MEI")}
       </div>
 
+      {(alerts.dueTodayCount > 0 || alerts.dueSoonCount > 0 || alerts.overdueCount > 0) &&
+      (tab === "fluxo" || tab === "prestacao") ? (
+        <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+          <p className="font-medium">Atenção às contas</p>
+          <ul className="list-inside list-disc space-y-1 text-[var(--text)] dark:text-amber-50">
+            {alerts.dueTodayCount > 0 ? (
+              <li>
+                <strong>{alerts.dueTodayCount}</strong> conta(s) vencem <strong>hoje</strong> — marque como
+                paga após o pagamento; amanhã passará automaticamente para Pendente.
+              </li>
+            ) : null}
+            {alerts.dueSoonCount > 0 ? (
+              <li>
+                <strong>{alerts.dueSoonCount}</strong> conta(s) vencem nos próximos{" "}
+                <strong>{alerts.dueSoonDays} dias</strong>.
+              </li>
+            ) : null}
+            {alerts.overdueCount > 0 ? (
+              <li>
+                <strong>{alerts.overdueCount}</strong> conta(s) <strong>pendente(s)</strong> (vencimento
+                já passou sem pagamento).
+              </li>
+            ) : null}
+          </ul>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {alerts.dueTodayCount > 0 ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setStatusFilter("");
+                  setMonth("");
+                  setDueAlertFilter("today");
+                }}
+              >
+                Ver as de hoje
+              </Button>
+            ) : null}
+            {alerts.dueSoonCount > 0 ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setStatusFilter("");
+                  setMonth("");
+                  setDueAlertFilter("soon");
+                }}
+              >
+                Ver a vencer
+              </Button>
+            ) : null}
+            {alerts.overdueCount > 0 ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setDueAlertFilter("");
+                  setStatusFilter("PENDENTE");
+                }}
+              >
+                Ver pendentes
+              </Button>
+            ) : null}
+            {dueAlertFilter || statusFilter === "PENDENTE" ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setDueAlertFilter("");
+                  setStatusFilter("");
+                  setMonth(brazilTodayIsoDate().slice(0, 7));
+                }}
+              >
+                Limpar alerta
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {tab === "fluxo" || tab === "prestacao" ? (
         <>
           {tab === "prestacao" ? (
@@ -655,9 +809,9 @@ export default function FinanceiroPage() {
           )}
 
           <SectionCard title="Filtros" variant="elevated">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
               <label className="block text-sm">
-                <span className="text-[var(--text-muted)]">Mês</span>
+                <span className="text-[var(--text-muted)]">Mês (vencimento)</span>
                 <Input className="mt-1" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
               </label>
               {tab === "fluxo" ? (
@@ -673,6 +827,24 @@ export default function FinanceiroPage() {
                       {FINANCIAL_ENTRY_KINDS.map((k) => (
                         <option key={k} value={k}>
                           {FINANCIAL_ENTRY_KIND_LABEL[k]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-[var(--text-muted)]">Status pagamento</span>
+                    <select
+                      className={`mt-1 ${selectClass}`}
+                      value={statusFilter}
+                      onChange={(e) => {
+                        setDueAlertFilter("");
+                        setStatusFilter(e.target.value as "" | FinancialPaymentStatus);
+                      }}
+                    >
+                      <option value="">Todos</option>
+                      {FINANCIAL_PAYMENT_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {FINANCIAL_PAYMENT_STATUS_LABEL[s]}
                         </option>
                       ))}
                     </select>
@@ -747,7 +919,8 @@ export default function FinanceiroPage() {
                 <thead>
                   <tr>
                     <Th>Descrição</Th>
-                    <Th>Data</Th>
+                    <Th>Vencimento</Th>
+                    <Th>Status</Th>
                     <Th>Valor</Th>
                     <Th>Forma de pagamento</Th>
                     <Th>Destino / observação</Th>
@@ -760,14 +933,28 @@ export default function FinanceiroPage() {
                     <tr key={e.id}>
                       <Td className="font-medium">{e.description}</Td>
                       <Td className="whitespace-nowrap">{formatEntryDate(e.entryDate)}</Td>
+                      <Td>
+                        <Badge tone={paymentStatusBadgeTone(e.paymentStatus, e.dueUrgency)}>
+                          {FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus]}
+                          {e.dueUrgency === "due_today" && e.paymentStatus !== "PAGO" ? " · hoje" : ""}
+                          {e.dueUrgency === "due_soon" && e.paymentStatus === "EM_ABERTO" ? " · a vencer" : ""}
+                        </Badge>
+                      </Td>
                       <Td className="whitespace-nowrap font-medium">{formatCentsBRL(e.amountCents)}</Td>
                       <Td>{FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod]}</Td>
                       <Td className="max-w-[220px] text-sm text-[var(--text-muted)]">{e.notes ?? "—"}</Td>
                       <Td>{responsibleLabel(e)}</Td>
                       <Td>
-                        <Button size="sm" variant="secondary" onClick={() => openEdit(e)}>
-                          Editar
-                        </Button>
+                        <div className="flex flex-wrap gap-1.5">
+                          {e.paymentStatus !== "PAGO" ? (
+                            <Button size="sm" onClick={() => void markAsPaid(e)}>
+                              Marcar pago
+                            </Button>
+                          ) : null}
+                          <Button size="sm" variant="secondary" onClick={() => openEdit(e)}>
+                            Editar
+                          </Button>
+                        </div>
                       </Td>
                     </tr>
                   ))}
@@ -777,7 +964,8 @@ export default function FinanceiroPage() {
               <Table>
                 <thead>
                   <tr>
-                    <Th>Data</Th>
+                    <Th>Vencimento</Th>
+                    <Th>Status</Th>
                     <Th>Tipo</Th>
                     <Th>Descrição</Th>
                     <Th>Valor</Th>
@@ -791,6 +979,13 @@ export default function FinanceiroPage() {
                   {entries.map((e) => (
                     <tr key={e.id}>
                       <Td className="whitespace-nowrap">{formatEntryDate(e.entryDate)}</Td>
+                      <Td>
+                        <Badge tone={paymentStatusBadgeTone(e.paymentStatus, e.dueUrgency)}>
+                          {FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus]}
+                          {e.dueUrgency === "due_today" && e.paymentStatus !== "PAGO" ? " · hoje" : ""}
+                          {e.dueUrgency === "due_soon" && e.paymentStatus === "EM_ABERTO" ? " · a vencer" : ""}
+                        </Badge>
+                      </Td>
                       <Td>
                         <Badge tone={e.kind === "ENTRADA" ? "green" : "red"}>
                           {FINANCIAL_ENTRY_KIND_LABEL[e.kind]}
@@ -821,6 +1016,11 @@ export default function FinanceiroPage() {
                       </Td>
                       <Td>
                         <div className="flex flex-wrap gap-1.5">
+                          {e.paymentStatus !== "PAGO" ? (
+                            <Button size="sm" onClick={() => void markAsPaid(e)}>
+                              Marcar pago
+                            </Button>
+                          ) : null}
                           <Button size="sm" variant="secondary" onClick={() => openEdit(e)}>
                             Editar
                           </Button>
@@ -924,7 +1124,7 @@ export default function FinanceiroPage() {
                 {suggestion?.amount ? <li>Valor: R$ {suggestion.amount}</li> : null}
                 {suggestion?.supplier ? <li>Fornecedor: {suggestion.supplier}</li> : null}
                 {suggestion?.invoiceNumber ? <li>Nº: {suggestion.invoiceNumber}</li> : null}
-                {suggestion?.entryDate ? <li>Data: {suggestion.entryDate}</li> : null}
+                {suggestion?.entryDate ? <li>Vencimento: {suggestion.entryDate}</li> : null}
                 {suggestion?.description ? <li>Descrição: {suggestion.description}</li> : null}
               </ul>
               {suggestionWarnings.length > 0 ? (
@@ -965,7 +1165,7 @@ export default function FinanceiroPage() {
               </select>
             </label>
             <label className="block text-sm">
-              <span className="text-[var(--text-muted)]">Data</span>
+              <span className="text-[var(--text-muted)]">Data de vencimento</span>
               <Input
                 className="mt-1"
                 type="date"
@@ -973,6 +1173,42 @@ export default function FinanceiroPage() {
                 onChange={(e) => setField("entryDate", e.target.value)}
               />
             </label>
+            {!editing && isPastDueDate(form.entryDate) ? (
+              <label className="block text-sm sm:col-span-2">
+                <span className="text-[var(--text-muted)]">Esta conta já foi paga?</span>
+                <select
+                  className={`mt-1 ${selectClass}`}
+                  value={form.alreadyPaid ? "sim" : "nao"}
+                  onChange={(e) => setField("alreadyPaid", e.target.value === "sim")}
+                >
+                  <option value="nao">Não — entrar como Pendente</option>
+                  <option value="sim">Sim — entrar como Pago</option>
+                </select>
+              </label>
+            ) : null}
+            {!editing && !isPastDueDate(form.entryDate) ? (
+              <p className="sm:col-span-2 text-xs text-[var(--text-muted)]">
+                Com vencimento hoje ou futuro, a conta entra como <strong>Em aberto</strong>. No dia do
+                vencimento você verá um alerta; se não marcar como paga, no dia seguinte passa a{" "}
+                <strong>Pendente</strong> automaticamente.
+              </p>
+            ) : null}
+            {editing ? (
+              <label className="block text-sm">
+                <span className="text-[var(--text-muted)]">Status do pagamento</span>
+                <select
+                  className={`mt-1 ${selectClass}`}
+                  value={form.paymentStatus}
+                  onChange={(e) => setField("paymentStatus", e.target.value as FinancialPaymentStatus)}
+                >
+                  {FINANCIAL_PAYMENT_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {FINANCIAL_PAYMENT_STATUS_LABEL[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="block text-sm sm:col-span-2">
               <span className="text-[var(--text-muted)]">Descrição *</span>
               <Input
@@ -1090,7 +1326,7 @@ export default function FinanceiroPage() {
           <div className="space-y-2">
             <p className="text-sm text-[var(--text-muted)]">
               Anexo da nota (PDF ou imagem) — após o envio, o sistema tenta ler valor, fornecedor, nº e
-              data.
+              data de vencimento.
             </p>
             {form.attachmentUrl ? (
               <div className="flex flex-wrap items-center gap-2 text-sm">

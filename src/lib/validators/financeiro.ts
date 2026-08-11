@@ -12,6 +12,7 @@ const paymentMethodEnum = z.enum([
   "CHEQUE",
   "OUTRO",
 ]);
+const paymentStatusEnum = z.enum(["EM_ABERTO", "PAGO", "PENDENTE"]);
 
 const optionalText = z
   .string()
@@ -70,7 +71,14 @@ export const createFinancialEntrySchema = z
     kind: kindEnum,
     description: z.string().trim().min(3, "Descrição é obrigatória"),
     amount: moneyCents,
+    /** Data de vencimento. */
     entryDate: requiredDate,
+    /**
+     * Quando o vencimento já passou: true = Pago, false = Pendente.
+     * Ignorado se o vencimento for hoje ou futuro (sempre Em aberto).
+     */
+    alreadyPaid: z.boolean().nullable().optional(),
+    paymentStatus: paymentStatusEnum.optional(),
     categoryId: z.string().uuid().nullable().optional(),
     paymentMethod: paymentMethodEnum.optional().default("PIX"),
     poloId: z.string().uuid().nullable().optional(),
@@ -103,6 +111,7 @@ export const updateFinancialEntrySchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida")
       .transform((v) => new Date(`${v}T00:00:00.000Z`))
       .optional(),
+    paymentStatus: paymentStatusEnum.optional(),
     categoryId: z.string().uuid().nullable().optional(),
     paymentMethod: paymentMethodEnum.optional(),
     poloId: z.string().uuid().nullable().optional(),
@@ -120,7 +129,6 @@ export const updateFinancialEntrySchema = z
       data.responsibleUserId === null &&
       (data.responsibleName === null || data.responsibleName === undefined)
     ) {
-      // só valida quando os dois campos vieram no patch esvaziando o responsável
       if ("responsibleUserId" in data && "responsibleName" in data) {
         ctx.addIssue({
           code: "custom",
@@ -140,6 +148,8 @@ export function parseFinancialListQuery(searchParams: URLSearchParams) {
   const q = searchParams.get("q")?.trim() || undefined;
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const paymentStatus = searchParams.get("paymentStatus");
+  const dueAlert = searchParams.get("dueAlert"); // soon | today | overdue | attention
 
   let dateFrom: Date | undefined;
   let dateTo: Date | undefined;
@@ -147,7 +157,7 @@ export function parseFinancialListQuery(searchParams: URLSearchParams) {
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [y, m] = month.split("-").map(Number);
     dateFrom = new Date(Date.UTC(y, m - 1, 1));
-    dateTo = new Date(Date.UTC(y, m, 0)); // último dia do mês
+    dateTo = new Date(Date.UTC(y, m, 0));
   }
   if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) {
     dateFrom = new Date(`${from}T00:00:00.000Z`);
@@ -164,6 +174,14 @@ export function parseFinancialListQuery(searchParams: URLSearchParams) {
     dateFrom,
     dateTo,
     month: month && /^\d{4}-\d{2}$/.test(month) ? month : undefined,
+    paymentStatus:
+      paymentStatus === "EM_ABERTO" || paymentStatus === "PAGO" || paymentStatus === "PENDENTE"
+        ? paymentStatus
+        : undefined,
+    dueAlert:
+      dueAlert === "soon" || dueAlert === "today" || dueAlert === "overdue" || dueAlert === "attention"
+        ? dueAlert
+        : undefined,
   };
 }
 

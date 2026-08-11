@@ -5,6 +5,7 @@ import {
   financialEntryInclude,
   serializeFinancialEntry,
 } from "@/lib/financeiro-db";
+import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { updateFinancialEntrySchema } from "@/lib/validators/financeiro";
@@ -42,7 +43,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const existing = await prisma.financialEntry.findFirst({
     where: { id, deletedAt: null },
-    select: { id: true, kind: true },
+    select: { id: true, kind: true, paymentStatus: true, paidAt: true },
   });
   if (!existing) return jsonErr("NOT_FOUND", "Lançamento não encontrado.", 404);
 
@@ -66,6 +67,15 @@ export async function PATCH(request: Request, ctx: Ctx) {
     }
   }
 
+  let paidAtUpdate: Date | null | undefined = undefined;
+  if (data.paymentStatus !== undefined) {
+    if (data.paymentStatus === "PAGO") {
+      paidAtUpdate = existing.paidAt ?? getBrazilTodayDateOnly();
+    } else {
+      paidAtUpdate = null;
+    }
+  }
+
   const entry = await prisma.financialEntry.update({
     where: { id },
     data: {
@@ -73,6 +83,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
       description: data.description,
       amountCents: data.amount === undefined ? undefined : data.amount ?? undefined,
       entryDate: data.entryDate,
+      paymentStatus: data.paymentStatus,
+      paidAt: paidAtUpdate,
       categoryId: data.categoryId === undefined ? undefined : data.categoryId,
       paymentMethod: data.paymentMethod,
       poloId: data.poloId === undefined ? undefined : data.poloId,
