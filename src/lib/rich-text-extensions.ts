@@ -24,9 +24,15 @@ export const ImageWithResize = Image.extend({
 
 const IMAGE_HTML_ATTRIBUTES = { class: "max-w-full h-auto rounded-md" };
 
-const IMAGE_RESIZE_OPTIONS = {
+const IMAGE_RESIZE_OPTIONS: {
+  enabled: boolean;
+  directions: Array<"bottom-right" | "bottom-left" | "top-right" | "top-left">;
+  minWidth: number;
+  minHeight: number;
+  alwaysPreserveAspectRatio: boolean;
+} = {
   enabled: true,
-  directions: ["bottom-right", "bottom-left", "top-right", "top-left"] as const,
+  directions: ["bottom-right", "bottom-left", "top-right", "top-left"],
   minWidth: 80,
   minHeight: 60,
   alwaysPreserveAspectRatio: true,
