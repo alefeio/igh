@@ -1706,18 +1706,49 @@ export default function ClassGroupsPage() {
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-medium">Tipo da turma</label>
-            <div className="mt-1">
-              <select
-                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
-                value={bulkIsExternal}
-                onChange={(e) => setBulkIsExternal(e.target.value as "" | "interna" | "externa")}
-              >
-                <option value="">Não alterar</option>
-                <option value="interna">Interna</option>
-                <option value="externa">Externa</option>
-              </select>
+          <div className="rounded-md border border-[var(--card-border)] px-3 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">Interna / Externa</p>
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                  Turmas externas não aparecem no site de inscrição.
+                </p>
+              </div>
+              <div className="inline-flex rounded-md border border-[var(--card-border)] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setBulkIsExternal("")}
+                  className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                    bulkIsExternal === ""
+                      ? "bg-[var(--igh-primary)] text-white"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                >
+                  Não alterar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkIsExternal("interna")}
+                  className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                    bulkIsExternal === "interna"
+                      ? "bg-[var(--igh-primary)] text-white"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                >
+                  Interna
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkIsExternal("externa")}
+                  className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                    bulkIsExternal === "externa"
+                      ? "bg-[var(--igh-primary)] text-white"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                >
+                  Externa
+                </button>
+              </div>
             </div>
           </div>
 
