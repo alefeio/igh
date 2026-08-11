@@ -91,6 +91,7 @@ function pickAmountFromText(cleaned: string): string | undefined {
 function pickInvoiceNumber(cleaned: string): string | undefined {
   const sameLine = [
     /Fatura\s*n[º°o.]?\s*[:\-]?\s*(\d{5,12})/i,
+    /N[UÚ]MERO\s+DA\s+NOTA\s+FISCAL\s*[:\-]?\s*(\d{1,12})/i,
     /N[º°o]\s*(?:da\s*)?(?:NF|NFS?-?E|NOTA(?:\s+FISCAL)?|FATURA)\s*[:\-]?\s*(\d{1,12})/i,
     /NF[-\s]?E?\s*(?:n[º°o.]?)?\s*[:\-]?\s*(\d{6,12})/i,
   ];
@@ -141,6 +142,8 @@ function pickInvoiceNumber(cleaned: string): string | undefined {
   return undefined;
 }
 
+const DATE_TOKEN = /(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})/;
+
 function pickEntryDate(cleaned: string): string | undefined {
   const lines = cleaned
     .split(/\r?\n/)
@@ -150,25 +153,31 @@ function pickEntryDate(cleaned: string): string | undefined {
   const findDateAfterLabel = (labelRe: RegExp): string | undefined => {
     const idx = lines.findIndex((l) => labelRe.test(l));
     if (idx < 0) return undefined;
-    const same = lines[idx].match(/(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})/);
+    const same = lines[idx].match(DATE_TOKEN);
     if (same) return brDateToIso(same[1], same[2], same[3]);
-    for (let i = idx + 1; i < Math.min(idx + 10, lines.length); i++) {
-      const m = lines[i].match(/^(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})$/);
-      if (m) return brDateToIso(m[1], m[2], m[3]);
+    for (let i = idx + 1; i < Math.min(idx + 12, lines.length); i++) {
+      const whole = lines[i].match(/^(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})$/);
+      if (whole) return brDateToIso(whole[1], whole[2], whole[3]);
+      // Conta de água: "15/09/2026 R$ 219,76"
+      const withAmount = lines[i].match(/^(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})\s+R\$/i);
+      if (withAmount) return brDateToIso(withAmount[1], withAmount[2], withAmount[3]);
     }
     return undefined;
   };
 
   return (
     findDateAfterLabel(/Data\s+de\s+Vencimento/i) ||
+    findDateAfterLabel(/\bVENCIMENTO\b/i) ||
     findDateAfterLabel(/Data\s+de\s+Emiss/i) ||
     (() => {
-      const labeled = cleaned.match(
-        /(?:DATA\s*(?:DE\s*)?(?:EMISS[AÃ]O|SA[IÍ]DA|VENCIMENTO)?\s*[:\-]?\s*)(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})/i,
+      const venc = cleaned.match(
+        /VENCIMENTO\s*[:\-]?\s*(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})/i,
       );
-      if (labeled) return brDateToIso(labeled[1], labeled[2], labeled[3]);
-      const any = cleaned.match(/\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})\b/);
-      if (any) return brDateToIso(any[1], any[2], any[3]);
+      if (venc) return brDateToIso(venc[1], venc[2], venc[3]);
+      const emissao = cleaned.match(
+        /DATA\s*(?:DE\s*)?(?:EMISS[AÃ]O|SA[IÍ]DA)\s*[:\-]?\s*(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})/i,
+      );
+      if (emissao) return brDateToIso(emissao[1], emissao[2], emissao[3]);
       return undefined;
     })()
   );

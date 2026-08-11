@@ -350,7 +350,23 @@ export default function FinanceiroPage() {
       setSuggestionSource(json.data.source);
       if (suggestionHasAny(json.data.suggestion)) {
         setSuggestion(json.data.suggestion);
-        toast.push("success", "Sugestões da nota prontas — revise e aplique se quiser.");
+        const today = brazilTodayIsoDate();
+        setForm((prev) => {
+          const take = (current: string, value?: string, treatTodayAsEmpty = false) => {
+            if (!value) return current;
+            if (!current.trim() || (treatTodayAsEmpty && current === today)) return value;
+            return current;
+          };
+          return {
+            ...prev,
+            amount: take(prev.amount, json.data.suggestion.amount),
+            supplier: take(prev.supplier, json.data.suggestion.supplier),
+            description: take(prev.description, json.data.suggestion.description),
+            invoiceNumber: take(prev.invoiceNumber, json.data.suggestion.invoiceNumber),
+            entryDate: take(prev.entryDate, json.data.suggestion.entryDate, true),
+          };
+        });
+        toast.push("success", "Sugestões da nota aplicadas — revise antes de salvar.");
       } else {
         toast.push("error", "Nenhum dado extraído da nota. Preencha manualmente.");
       }
@@ -365,16 +381,17 @@ export default function FinanceiroPage() {
     if (!suggestion) return;
     setForm((prev) => {
       const next = { ...prev };
-      const take = (current: string, value?: string) => {
+      const today = brazilTodayIsoDate();
+      const take = (current: string, value?: string, treatTodayAsEmpty = false) => {
         if (!value) return current;
-        if (overwrite || !current.trim()) return value;
+        if (overwrite || !current.trim() || (treatTodayAsEmpty && current === today)) return value;
         return current;
       };
       next.amount = take(prev.amount, suggestion.amount);
       next.supplier = take(prev.supplier, suggestion.supplier);
       next.description = take(prev.description, suggestion.description);
       next.invoiceNumber = take(prev.invoiceNumber, suggestion.invoiceNumber);
-      next.entryDate = take(prev.entryDate, suggestion.entryDate);
+      next.entryDate = take(prev.entryDate, suggestion.entryDate, true);
       return next;
     });
     toast.push("success", overwrite ? "Campos atualizados com as sugestões." : "Campos vazios preenchidos.");

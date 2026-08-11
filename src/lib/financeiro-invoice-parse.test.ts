@@ -55,4 +55,27 @@ HISTÓRICO DE CONSUMO 91,10
     expect(s.invoiceNumber).toBe("152837009");
     expect(s.supplier).toMatch(/AGUAS DO PARA/i);
   });
+
+  it("extrai vencimento de NFAg (Águas do Pará — layout VENCIMENTO)", () => {
+    const text = `
+DOCUMENTO AUXILIAR DE NOTA FISCAL DE ÁGUA E SANEAMENTO ELETRÔNICA
+REFERÊNCIA EMISSÃO TOTAL A PAGAR
+Nº DE FATURA IDENTIFICADOR VENCIMENTO
+R$ 219,76
+15/09/2026
+08/2026 10/08/2026
+06/07/2026
+REFERÊNCIA VENCIMENTO TOTAL (R$)
+15/09/2026 R$ 219,76	08/2026
+SUJEITO A CORTE A PARTIR DE 15/10/2026
+DATA: 05/08/2026, ÀS 17:14:47
+AGUAS DO PARA A SPE S.A.
+NÚMERO DA NOTA FISCAL: 27762
+TOTAL A PAGAR
+`;
+    const s = extractFieldsFromText(text);
+    expect(s.entryDate).toBe("2026-09-15");
+    expect(s.amount).toBe("219,76");
+    expect(s.invoiceNumber).toBe("27762");
+  });
 });
