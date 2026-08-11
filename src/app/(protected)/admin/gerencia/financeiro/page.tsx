@@ -1,7 +1,7 @@
 "use client";
 
 import * as XLSX from "xlsx";
-import { ArrowDownCircle, ArrowUpCircle, Plus, Scale, Search } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Download, Plus, Scale, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DashboardHero, PanelPageStack, SectionCard, StatTile } from "@/components/dashboard/DashboardUI";
@@ -127,6 +127,13 @@ function emptyForm(): EntryForm {
   };
 }
 
+function attachmentPreviewKind(fileName?: string | null, url?: string | null): "pdf" | "image" | "other" {
+  const s = `${fileName || ""} ${url || ""}`.toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|bmp)(\?|#|$)/.test(s) || s.includes("image/")) return "image";
+  if (/\.pdf(\?|#|$)/.test(s) || s.includes("application/pdf")) return "pdf";
+  return "other";
+}
+
 function suggestionHasAny(s: InvoiceSuggestion | null) {
   if (!s) return false;
   return Boolean(s.amount || s.supplier || s.description || s.invoiceNumber || s.entryDate);
@@ -174,6 +181,8 @@ export default function FinanceiroPage() {
 
   const [meiLoading, setMeiLoading] = useState(false);
   const [meiInvoices, setMeiInvoices] = useState<MeiInvoice[]>([]);
+
+  const [previewEntry, setPreviewEntry] = useState<FinancialEntryView | null>(null);
 
   const [catOpen, setCatOpen] = useState(false);
   const [catName, setCatName] = useState("");
@@ -1035,14 +1044,23 @@ export default function FinanceiroPage() {
                       <Td>{responsibleLabel(e)}</Td>
                       <Td>
                         {e.attachmentUrl ? (
-                          <a
-                            href={e.attachmentUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm text-[var(--igh-primary)] hover:underline"
-                          >
-                            Abrir
-                          </a>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="text-sm text-[var(--igh-primary)] hover:underline"
+                              onClick={() => setPreviewEntry(e)}
+                            >
+                              Abrir
+                            </button>
+                            <a
+                              href={`/api/admin/gerencia/financeiro/lancamentos/${e.id}/anexo?download=1`}
+                              className="inline-flex rounded p-1 text-[var(--text-muted)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)]"
+                              title="Baixar anexo"
+                              aria-label={`Baixar ${e.attachmentFileName || "anexo"}`}
+                            >
+                              <Download className="h-4 w-4" aria-hidden />
+                            </a>
+                          </div>
                         ) : (
                           "—"
                         )}
@@ -1136,6 +1154,29 @@ export default function FinanceiroPage() {
           )}
         </SectionCard>
       )}
+
+      <Modal
+        open={previewEntry != null}
+        title={previewEntry?.attachmentFileName || "Anexo"}
+        onClose={() => setPreviewEntry(null)}
+        size="large"
+      >
+        {previewEntry?.attachmentUrl ? (
+          attachmentPreviewKind(previewEntry.attachmentFileName, previewEntry.attachmentUrl) === "image" ? (
+            <img
+              src={`/api/admin/gerencia/financeiro/lancamentos/${previewEntry.id}/anexo`}
+              alt={previewEntry.attachmentFileName || "Anexo"}
+              className="mx-auto max-h-[75vh] w-auto max-w-full rounded-md"
+            />
+          ) : (
+            <iframe
+              title={previewEntry.attachmentFileName || "Anexo"}
+              src={`/api/admin/gerencia/financeiro/lancamentos/${previewEntry.id}/anexo`}
+              className="h-[75vh] w-full rounded-md border border-[var(--card-border)] bg-white"
+            />
+          )
+        ) : null}
+      </Modal>
 
       <Modal
         open={formOpen}
