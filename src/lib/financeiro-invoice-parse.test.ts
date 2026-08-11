@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { extractFieldsFromText, normalizeMoneyCapture } from "@/lib/financeiro-invoice-parse";
+import {
+  extractFieldsFromText,
+  matchCategoryName,
+  normalizeMoneyCapture,
+} from "@/lib/financeiro-invoice-parse";
 
 describe("normalizeMoneyCapture", () => {
   it("aceita formato BR e US", () => {
@@ -54,6 +58,7 @@ HISTÓRICO DE CONSUMO 91,10
     expect(s.entryDate).toBe("2026-08-10");
     expect(s.invoiceNumber).toBe("152837009");
     expect(s.supplier).toMatch(/AGUAS DO PARA/i);
+    expect(s.categoryName).toBe("Água");
   });
 
   it("extrai vencimento de NFAg (Águas do Pará — layout VENCIMENTO)", () => {
@@ -77,5 +82,20 @@ TOTAL A PAGAR
     expect(s.entryDate).toBe("2026-09-15");
     expect(s.amount).toBe("219,76");
     expect(s.invoiceNumber).toBe("27762");
+    expect(s.categoryName).toBe("Água");
+  });
+
+  it("reconhece conta de luz e casa categoria existente", () => {
+    const text = "EQUATORIAL PARÁ — ENERGIA ELÉTRICA\nTOTAL A PAGAR R$ 312,40\nVENCIMENTO 20/08/2026";
+    const s = extractFieldsFromText(text);
+    expect(s.categoryName).toBe("Energia");
+    const matched = matchCategoryName(
+      [
+        { id: "1", name: "Conta de luz" },
+        { id: "2", name: "Água" },
+      ],
+      s.categoryName!,
+    );
+    expect(matched?.id).toBe("1");
   });
 });

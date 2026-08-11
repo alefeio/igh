@@ -58,6 +58,7 @@ type InvoiceSuggestion = {
   description?: string;
   invoiceNumber?: string;
   entryDate?: string;
+  categoryName?: string;
 };
 
 type MeiInvoice = {
@@ -169,6 +170,7 @@ export default function FinanceiroPage() {
   const [suggestion, setSuggestion] = useState<InvoiceSuggestion | null>(null);
   const [suggestionWarnings, setSuggestionWarnings] = useState<string[]>([]);
   const [suggestionSource, setSuggestionSource] = useState<string | null>(null);
+  const [suggestionCategoryId, setSuggestionCategoryId] = useState<string | null>(null);
 
   const [meiLoading, setMeiLoading] = useState(false);
   const [meiInvoices, setMeiInvoices] = useState<MeiInvoice[]>([]);
@@ -271,6 +273,7 @@ export default function FinanceiroPage() {
     setSuggestion(null);
     setSuggestionWarnings([]);
     setSuggestionSource(null);
+    setSuggestionCategoryId(null);
   }
 
   function openCreate(kind: FinancialEntryKind = "SAIDA") {
@@ -341,6 +344,7 @@ export default function FinanceiroPage() {
         suggestion: InvoiceSuggestion;
         source: string;
         warnings: string[];
+        categoryId?: string | null;
       }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Não foi possível ler a nota.");
@@ -348,7 +352,8 @@ export default function FinanceiroPage() {
       }
       setSuggestionWarnings(json.data.warnings ?? []);
       setSuggestionSource(json.data.source);
-      if (suggestionHasAny(json.data.suggestion)) {
+      setSuggestionCategoryId(json.data.categoryId ?? null);
+      if (suggestionHasAny(json.data.suggestion) || json.data.categoryId) {
         setSuggestion(json.data.suggestion);
         const today = brazilTodayIsoDate();
         setForm((prev) => {
@@ -357,15 +362,22 @@ export default function FinanceiroPage() {
             if (!current.trim() || (treatTodayAsEmpty && current === today)) return value;
             return current;
           };
+          const categoryId =
+            !prev.categoryId && json.data.categoryId ? json.data.categoryId : prev.categoryId;
           return {
             ...prev,
+            kind: json.data.suggestion.categoryName ? "SAIDA" : prev.kind,
             amount: take(prev.amount, json.data.suggestion.amount),
             supplier: take(prev.supplier, json.data.suggestion.supplier),
             description: take(prev.description, json.data.suggestion.description),
             invoiceNumber: take(prev.invoiceNumber, json.data.suggestion.invoiceNumber),
             entryDate: take(prev.entryDate, json.data.suggestion.entryDate, true),
+            categoryId,
           };
         });
+        if (json.data.categoryId && !categories.some((c) => c.id === json.data.categoryId)) {
+          void load();
+        }
         toast.push("success", "Sugestões da nota aplicadas — revise antes de salvar.");
       } else {
         toast.push("error", "Nenhum dado extraído da nota. Preencha manualmente.");
@@ -392,6 +404,10 @@ export default function FinanceiroPage() {
       next.description = take(prev.description, suggestion.description);
       next.invoiceNumber = take(prev.invoiceNumber, suggestion.invoiceNumber);
       next.entryDate = take(prev.entryDate, suggestion.entryDate, true);
+      if ((overwrite || !prev.categoryId) && suggestionCategoryId) {
+        next.categoryId = suggestionCategoryId;
+      }
+      if (suggestion.categoryName) next.kind = "SAIDA";
       return next;
     });
     toast.push("success", overwrite ? "Campos atualizados com as sugestões." : "Campos vazios preenchidos.");
@@ -1142,6 +1158,7 @@ export default function FinanceiroPage() {
                 {suggestion?.supplier ? <li>Fornecedor: {suggestion.supplier}</li> : null}
                 {suggestion?.invoiceNumber ? <li>Nº: {suggestion.invoiceNumber}</li> : null}
                 {suggestion?.entryDate ? <li>Vencimento: {suggestion.entryDate}</li> : null}
+                {suggestion?.categoryName ? <li>Categoria: {suggestion.categoryName}</li> : null}
                 {suggestion?.description ? <li>Descrição: {suggestion.description}</li> : null}
               </ul>
               {suggestionWarnings.length > 0 ? (

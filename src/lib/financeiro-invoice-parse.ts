@@ -6,7 +6,107 @@ export type InvoiceSuggestion = {
   description?: string;
   invoiceNumber?: string;
   entryDate?: string;
+  /** Nome sugerido da categoria (ex.: Água, Energia). */
+  categoryName?: string;
 };
+
+export type KnownBillCategory = {
+  name: string;
+  aliases: string[];
+  patterns: RegExp[];
+};
+
+/** Faturas de consumo recorrentes — usadas para pré-preencher a categoria. */
+export const KNOWN_BILL_CATEGORIES: readonly KnownBillCategory[] = [
+  {
+    name: "Água",
+    aliases: ["agua", "aguas", "saneamento", "nfag", "cosanpa", "sabesp", "cedae", "cagepa", "compesa", "sanepar"],
+    patterns: [
+      /nota fiscal de [aá]gua/i,
+      /\b[aá]guas?\b/i,
+      /saneamento/i,
+      /nfag/i,
+    ],
+  },
+  {
+    name: "Energia",
+    aliases: ["energia", "luz", "eletric", "equatorial", "celpa", "cemig", "enel", "light", "cpfl", "coelba", "elektro"],
+    patterns: [
+      /conta\s+de\s+luz/i,
+      /energia\s+el[eé]trica/i,
+      /\bequatorial\b/i,
+      /\bcelpa\b/i,
+      /\bcemig\b/i,
+      /\benel\b/i,
+    ],
+  },
+  {
+    name: "Gás",
+    aliases: ["gas", "comgas", "naturgy", "copergas"],
+    patterns: [/\bg[aá]s\b/i, /comg[aá]s/i, /naturgy/i],
+  },
+  {
+    name: "Internet",
+    aliases: ["internet", "fibra", "banda larga", "wifi"],
+    patterns: [/\binternet\b/i, /\bfibra\b/i, /banda\s+larga/i],
+  },
+  {
+    name: "Telefone",
+    aliases: ["telefone", "telefonia", "celular"],
+    patterns: [/\btelefone\b/i, /telefonia/i],
+  },
+  {
+    name: "IPTU",
+    aliases: ["iptu", "imposto predial"],
+    patterns: [/\biptu\b/i],
+  },
+  {
+    name: "Condomínio",
+    aliases: ["condominio", "taxa condominial"],
+    patterns: [/condom[ií]nio/i],
+  },
+  {
+    name: "Aluguel",
+    aliases: ["aluguel", "locacao"],
+    patterns: [/\baluguel\b/i, /loca[cç][aã]o/i],
+  },
+];
+
+export function foldCategoryKey(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function guessKnownBillCategory(text: string): KnownBillCategory | undefined {
+  const haystack = `${text}`;
+  for (const cat of KNOWN_BILL_CATEGORIES) {
+    if (cat.patterns.some((re) => re.test(haystack))) return cat;
+  }
+  return undefined;
+}
+
+export function matchCategoryName(
+  existingNames: Array<{ id: string; name: string }>,
+  hintName: string,
+): { id: string; name: string } | undefined {
+  const known = KNOWN_BILL_CATEGORIES.find((c) => foldCategoryKey(c.name) === foldCategoryKey(hintName));
+  const keys = new Set(
+    [hintName, ...(known?.aliases ?? []), ...(known?.name ? [known.name] : [])].map(foldCategoryKey),
+  );
+  return existingNames.find((c) => {
+    const n = foldCategoryKey(c.name);
+    if (keys.has(n)) return true;
+    for (const k of keys) {
+      if (!k) continue;
+      if (n.includes(k) || k.includes(n)) return true;
+    }
+    return false;
+  });
+}
 
 export function mergeSuggestion(base: InvoiceSuggestion, extra: InvoiceSuggestion): InvoiceSuggestion {
   return {
@@ -15,6 +115,7 @@ export function mergeSuggestion(base: InvoiceSuggestion, extra: InvoiceSuggestio
     description: base.description || extra.description,
     invoiceNumber: base.invoiceNumber || extra.invoiceNumber,
     entryDate: base.entryDate || extra.entryDate,
+    categoryName: base.categoryName || extra.categoryName,
   };
 }
 
@@ -218,13 +319,16 @@ export function extractFieldsFromText(text: string): InvoiceSuggestion {
   suggestion.invoiceNumber = pickInvoiceNumber(cleaned);
   suggestion.supplier = pickSupplier(cleaned);
 
+  const known = guessKnownBillCategory(cleaned);
+  if (known) suggestion.categoryName = known.name;
+
   if (!suggestion.description) {
     const bits = [
-      suggestion.supplier
-        ? suggestion.supplier.startsWith("CNPJ")
+      known
+        ? `Conta de ${known.name.toLowerCase()}`
+        : suggestion.supplier
           ? `Conta — ${suggestion.supplier}`
-          : `Conta — ${suggestion.supplier}`
-        : null,
+          : null,
       suggestion.invoiceNumber ? `Doc ${suggestion.invoiceNumber}` : null,
     ].filter(Boolean);
     if (bits.length) suggestion.description = bits.join(" · ");

@@ -18,6 +18,7 @@ import { PNG } from "pngjs";
 import {
   extractFieldsFromText,
   formatAmountFromNumber,
+  guessKnownBillCategory,
   isCompleteEnough,
   mergeSuggestion,
   parseQrPayload,
@@ -146,7 +147,7 @@ async function tryVisionSuggestion(
       {
         role: "system",
         content:
-          "Você extrai dados de notas fiscais e contas de consumo brasileiras (água, luz, NF-e, NFC-e, NFS-e, recibos). Responda só JSON com chaves opcionais: amount (string brasileira 1.234,56 sem R$), supplier, description, invoiceNumber, entryDate (YYYY-MM-DD). Prefira o valor TOTAL A PAGAR / valor da fatura. Não invente valores; omita o que não estiver legível.",
+          "Você extrai dados de notas fiscais e contas de consumo brasileiras (água, luz, NF-e, NFC-e, NFS-e, recibos). Responda só JSON com chaves opcionais: amount (string brasileira 1.234,56 sem R$), supplier, description, invoiceNumber, entryDate (YYYY-MM-DD, vencimento), categoryName (Água, Energia, Gás, Internet, Telefone, IPTU, Condomínio ou Aluguel quando for conta de consumo). Prefira o valor TOTAL A PAGAR / valor da fatura. Não invente valores; omita o que não estiver legível.",
       },
       {
         role: "user",
@@ -200,6 +201,14 @@ async function tryVisionSuggestion(
     }
     if (typeof parsed.entryDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.entryDate)) {
       suggestion.entryDate = parsed.entryDate;
+    }
+    if (typeof parsed.categoryName === "string" && parsed.categoryName.trim()) {
+      suggestion.categoryName = parsed.categoryName.trim().slice(0, 40);
+    } else {
+      const guessed = guessKnownBillCategory(
+        [suggestion.supplier, suggestion.description].filter(Boolean).join(" "),
+      );
+      if (guessed) suggestion.categoryName = guessed.name;
     }
     return { suggestion };
   } catch (e) {
