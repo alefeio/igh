@@ -1,7 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import "katex/dist/katex.min.css";
 
 import { createRichTextExtensions, parseRichTextContent } from "@/lib/rich-text-extensions";
@@ -11,12 +11,13 @@ type RichTextViewerProps = {
   className?: string;
 };
 
-export function RichTextViewer({ content, className = "" }: RichTextViewerProps) {
+function RichTextViewerInner({ content, className = "" }: RichTextViewerProps) {
   const extensions = useMemo(() => createRichTextExtensions({ editable: false }), []);
+  const parsedContent = useMemo(() => parseRichTextContent(content) || "", [content]);
 
   const editor = useEditor({
     extensions,
-    content: parseRichTextContent(content) || "",
+    content: parsedContent,
     editable: false,
     immediatelyRender: false,
     editorProps: {
@@ -26,11 +27,6 @@ export function RichTextViewer({ content, className = "" }: RichTextViewerProps)
       },
     },
   });
-
-  useEffect(() => {
-    if (!editor) return;
-    editor.commands.setContent(parseRichTextContent(content) || "", { emitUpdate: false });
-  }, [content, editor]);
 
   if (!editor) {
     return (
@@ -45,4 +41,9 @@ export function RichTextViewer({ content, className = "" }: RichTextViewerProps)
       <EditorContent editor={editor} />
     </div>
   );
+}
+
+/** Remonta o editor quando o HTML muda — o setContent do TipTap reaproveita o <img> entre slides. */
+export function RichTextViewer({ content, className = "" }: RichTextViewerProps) {
+  return <RichTextViewerInner key={content} content={content} className={className} />;
 }

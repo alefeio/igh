@@ -31,6 +31,7 @@ export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActiv
   baseRole?: UserRole;
   hasStudentProfile?: boolean;
   hasTeacherProfile?: boolean;
+  hasEmployeeProfile?: boolean;
 };
 
 interface JwtPayload {
@@ -122,6 +123,7 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
         mustChangePassword: true,
         student: { select: { id: true } },
         teacher: { select: { id: true } },
+        employee: { select: { id: true, status: true, deletedAt: true } },
       },
     });
 
@@ -169,6 +171,8 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
       isAdminManager: user.isAdminManager ?? false,
       hasStudentProfile: !!user.student,
       hasTeacherProfile: !!user.teacher,
+      hasEmployeeProfile:
+        !!user.employee && !user.employee.deletedAt && user.employee.status !== "DESLIGADO",
     };
   } catch {
     return null;

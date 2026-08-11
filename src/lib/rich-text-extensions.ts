@@ -20,19 +20,17 @@ export const ImageWithResize = Image.extend({
       },
     };
   },
-}).configure({
-  HTMLAttributes: { class: "max-w-full h-auto rounded-md" },
-  resize:
-    typeof document !== "undefined"
-      ? {
-          enabled: true,
-          directions: ["bottom-right", "bottom-left", "top-right", "top-left"],
-          minWidth: 80,
-          minHeight: 60,
-          alwaysPreserveAspectRatio: true,
-        }
-      : undefined,
 });
+
+const IMAGE_HTML_ATTRIBUTES = { class: "max-w-full h-auto rounded-md" };
+
+const IMAGE_RESIZE_OPTIONS = {
+  enabled: true,
+  directions: ["bottom-right", "bottom-left", "top-right", "top-left"] as const,
+  minWidth: 80,
+  minHeight: 60,
+  alwaysPreserveAspectRatio: true,
+};
 
 const katexOptions = {
   throwOnError: false,
@@ -86,7 +84,12 @@ export function createRichTextExtensions(options?: {
         ? { class: "text-[var(--igh-primary)] underline" }
         : { target: "_blank", rel: "noopener noreferrer", class: "text-[var(--igh-primary)] underline" },
     }),
-    ImageWithResize,
+    ImageWithResize.configure({
+      HTMLAttributes: IMAGE_HTML_ATTRIBUTES,
+      // Node view de resize no viewer reaproveita o <img> ao trocar o HTML (slides).
+      resize:
+        editable && typeof document !== "undefined" ? IMAGE_RESIZE_OPTIONS : undefined,
+    }),
     TableKit,
     Mathematics.configure({
       katexOptions,

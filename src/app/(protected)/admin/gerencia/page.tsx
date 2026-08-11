@@ -10,6 +10,7 @@ import {
   FileText,
   FileWarning,
   Gift,
+  Inbox,
   Package,
   ScrollText,
   Settings2,
@@ -121,6 +122,13 @@ export default function GerenciaHomePage() {
               description: "Fichas, documentos e vínculos",
               icon: Users,
               accent: "from-emerald-600 to-teal-500",
+            },
+            {
+              href: "/admin/gerencia/portal",
+              label: "Portal (fila)",
+              description: "Notas e mensagens dos colaboradores",
+              icon: Inbox,
+              accent: "from-indigo-600 to-violet-500",
             },
             {
               href: "/admin/gerencia/contratos",

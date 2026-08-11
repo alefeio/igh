@@ -104,6 +104,8 @@ model User {
   documentTemplatesCreated           DocumentTemplate[]         @relation("DocumentTemplateCreatedBy")
   employeeContractsCreated           EmployeeContract[]         @relation("EmployeeContractCreatedBy")
   employeeMonthlyInvoicesCreated     EmployeeMonthlyInvoice[]   @relation("EmployeeMonthlyInvoiceCreatedBy")
+  employeeInvoiceSubmissionsReviewed EmployeeInvoiceSubmission[] @relation("EmployeeInvoiceReviewedBy")
+  employeePortalMessagesAuthored     EmployeePortalMessage[]     @relation("EmployeePortalMessageAuthor")
   financialCategoriesCreated         FinancialCategory[]        @relation("FinancialCategoryCreatedBy")
   financialEntriesCreated            FinancialEntry[]           @relation("FinancialEntryCreatedBy")
   financialEntriesResponsible        FinancialEntry[]           @relation("FinancialEntryResponsible")
@@ -1289,6 +1291,8 @@ model Employee {
   city               String?
   state              String?
   notes              String?
+  /// * Foto de perfil do colaborador (portal).
+  photoUrl           String?
   /// * Polo de lotação (vigia, limpeza, coordenação...).
   poloId             String?
   /// * Coluna do quadro de convênios de pagamento.
@@ -1306,6 +1310,8 @@ model Employee {
   documents          EmployeeDocument[]
   contracts          EmployeeContract[]
   monthlyInvoices    EmployeeMonthlyInvoice[]
+  invoiceSubmissions EmployeeInvoiceSubmission[]
+  portalThreads      EmployeePortalThread[]
   payrollLines       PayrollLine[]
   mealTicketLines    MealTicketLine[]
 
@@ -1413,10 +1419,71 @@ model EmployeeMonthlyInvoice {
   deletedAt       DateTime?
   employee        Employee                     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   createdByUser   User?                        @relation("EmployeeMonthlyInvoiceCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  invoiceSubmissions EmployeeInvoiceSubmission[]
 
   @@unique([employeeId, referenceMonth])
   @@index([referenceMonth, status])
   @@index([deletedAt])
+}
+
+/// * NF enviada pelo colaborador pelo portal (fila da gerência).
+model EmployeeInvoiceSubmission {
+  id               String                          @id @default(uuid())
+  employeeId       String
+  /// * Sempre o dia 1º do mês de competência.
+  referenceMonth   DateTime                        @db.Date
+  amountCents      Int?
+  description      String?
+  supplier         String?
+  invoiceNumber    String?
+  fileUrl          String
+  filePublicId     String?
+  fileName         String?
+  status           EmployeeInvoiceSubmissionStatus @default(PENDENTE)
+  reviewNotes      String?
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  financialEntryId String?
+  monthlyInvoiceId String?
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
+  employee         Employee                        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewedByUser   User?                           @relation("EmployeeInvoiceReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  financialEntry   FinancialEntry?                 @relation(fields: [financialEntryId], references: [id], onDelete: SetNull)
+  monthlyInvoice   EmployeeMonthlyInvoice?         @relation(fields: [monthlyInvoiceId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// * Conversa do colaborador com a gerência (canal interno, não pedagógico).
+model EmployeePortalThread {
+  id               String                     @id @default(uuid())
+  employeeId       String
+  subject          String
+  status           EmployeePortalThreadStatus @default(ABERTA)
+  unreadByManager  Boolean                    @default(true)
+  unreadByEmployee Boolean                    @default(false)
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  employee         Employee                   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  messages         EmployeePortalMessage[]
+
+  @@index([employeeId, updatedAt])
+  @@index([unreadByManager])
+}
+
+model EmployeePortalMessage {
+  id            String               @id @default(uuid())
+  threadId      String
+  authorUserId  String
+  isFromManager Boolean              @default(false)
+  content       String               @db.Text
+  createdAt     DateTime             @default(now())
+  thread        EmployeePortalThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author        User                 @relation("EmployeePortalMessageAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
 }
 
 /// * Categoria cadastrável de lançamentos financeiros (entrada ou saída).
@@ -1470,6 +1537,7 @@ model FinancialEntry {
   responsibleUser      User?                    @relation("FinancialEntryResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
   createdByUser        User?                    @relation("FinancialEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   donations            Donation[]
+  employeeInvoiceSubmissions EmployeeInvoiceSubmission[]
 
   @@index([deletedAt, entryDate])
   @@index([kind, entryDate])
@@ -2422,6 +2490,12 @@ enum UserNotificationKind {
   WAITLIST_ENROLLMENT
   /// * Conta financeira vencendo / vence hoje / passou a pendente.
   FINANCIAL_DUE_REMINDER
+  /// * Colaborador enviou NF pelo portal.
+  EMPLOYEE_INVOICE_SUBMITTED
+  /// * Gerência aprovou ou recusou a NF do colaborador.
+  EMPLOYEE_INVOICE_REVIEWED
+  /// * Nova mensagem no canal colaborador ↔ gerência.
+  EMPLOYEE_PORTAL_MESSAGE
 }
 
 /// * Termos de uso, política de privacidade ou política de cookies (LGPD / ePrivacy).
@@ -2629,6 +2703,17 @@ enum EmployeeMonthlyInvoiceStatus {
   PENDENTE
   ENTREGUE
   ATRASADA
+}
+
+enum EmployeeInvoiceSubmissionStatus {
+  PENDENTE
+  APROVADA
+  RECUSADA
+}
+
+enum EmployeePortalThreadStatus {
+  ABERTA
+  ENCERRADA
 }
 
 enum FinancialEntryKind {

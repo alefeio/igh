@@ -23,6 +23,8 @@ type Item = {
   /** Perfis que enxergam o item no menu. */
   roles: readonly PanelRole[];
   category: string;
+  /** Só aparece se a conta tiver ficha de colaborador vinculada. */
+  requiresEmployee?: boolean;
 };
 
 const ALL_ROLES = [
@@ -73,6 +75,29 @@ const ITEMS: Item[] = [
     category: "Início",
   },
   { href: "/coordenacao", label: "Coordenação", roles: STAFF_AND_TEACHER, category: "Início" },
+
+  /* —— Colaborador (portal) —— */
+  {
+    href: "/colaborador",
+    label: "Meu portal",
+    roles: ALL_ROLES,
+    category: "Colaborador",
+    requiresEmployee: true,
+  },
+  {
+    href: "/colaborador/notas",
+    label: "Enviar nota",
+    roles: ALL_ROLES,
+    category: "Colaborador",
+    requiresEmployee: true,
+  },
+  {
+    href: "/colaborador/mensagens",
+    label: "Falar com a gerência",
+    roles: ALL_ROLES,
+    category: "Colaborador",
+    requiresEmployee: true,
+  },
 
   /* —— Aluno —— */
   { href: "/minhas-turmas", label: "Minhas turmas", roles: ["STUDENT"], category: "Aluno" },
@@ -132,6 +157,12 @@ const ITEMS: Item[] = [
 
   /* —— Gerência —— */
   { href: "/admin/gerencia", label: "Central administrativa", roles: ADMIN_MANAGEMENT, category: "Gerência" },
+  {
+    href: "/admin/gerencia/portal",
+    label: "Portal (fila)",
+    roles: ADMIN_MANAGEMENT,
+    category: "Gerência",
+  },
   {
     href: "/admin/gerencia/colaboradores",
     label: "Colaboradores",
@@ -266,6 +297,7 @@ export function Sidebar({
     isSiteAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
+    hasEmployeeProfile?: boolean;
     availableRoles?: {
       canMaster: boolean;
       canGeneralAdmin?: boolean;
@@ -290,7 +322,11 @@ export function Sidebar({
   const pathname = usePathname();
   const resolvedLogoHeight = resolveLogoHeightPx(logoHeightPx);
 
-  const filteredItems = ITEMS.filter((i) => i.roles.includes(user.role));
+  const filteredItems = ITEMS.filter((i) => {
+    if (!i.roles.includes(user.role)) return false;
+    if (i.requiresEmployee && !user.hasEmployeeProfile) return false;
+    return true;
+  });
 
   const byCategory = filteredItems.reduce<Record<string, Item[]>>((acc, item) => {
     const cat = item.category;
@@ -300,6 +336,7 @@ export function Sidebar({
   }, {});
   const categoryOrder = [
     "Início",
+    "Colaborador",
     "Aluno",
     "Professor",
     "Pedagógico",

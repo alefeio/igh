@@ -28,6 +28,7 @@ export const COURSE_FORMATION_UPLOAD_SIGNATURE = "/api/courses/uploads/signature
 export const SITE_UPLOAD_SIGNATURE = "/api/admin/site/uploads/signature";
 export const TEACHER_UPLOAD_SIGNATURE = "/api/teacher/uploads/apimages-signature";
 export const GERENCIA_UPLOAD_SIGNATURE = "/api/admin/gerencia/uploads/signature";
+export const COLABORADOR_UPLOAD_SIGNATURE = "/api/me/colaborador/uploads/signature";
 
 /**
  * Cliente e servidor: upload para a API Apimages (https://apimg.com.br — OpenAPI /v1/upload).

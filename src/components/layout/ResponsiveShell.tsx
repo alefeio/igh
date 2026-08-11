@@ -26,6 +26,7 @@ export function ResponsiveShell({
     isSiteAdmin?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
+    hasEmployeeProfile?: boolean;
     /** Perfis disponíveis (calculado no servidor); quando presente, o select usa isso. */
     availableRoles?: {
       canMaster: boolean;

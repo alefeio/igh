@@ -1061,6 +1061,7 @@ export default function ProfessorApresentarAulaPage() {
                   }
                 >
                   <HighlightableContentViewer
+                    key={`${lessonId}-${contentPageIndex}`}
                     content={contentToShow}
                     passages={passagesForCurrentPage}
                     onSavePassage={handleSavePassage}

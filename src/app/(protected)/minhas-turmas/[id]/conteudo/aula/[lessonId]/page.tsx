@@ -1861,6 +1861,7 @@ export default function AulaConteudoPage() {
                     }}
                   >
                     <HighlightableContentViewer
+                      key={`${lessonId}-${contentPageIndex}`}
                       content={contentToShow}
                       passages={passagesForCurrentPage}
                       onSavePassage={handleSavePassageForPage}

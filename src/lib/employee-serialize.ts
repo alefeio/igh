@@ -41,6 +41,7 @@ export const employeeSelect = {
   city: true,
   state: true,
   notes: true,
+  photoUrl: true,
   poloId: true,
   createdAt: true,
   updatedAt: true,

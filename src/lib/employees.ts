@@ -74,6 +74,7 @@ export type EmployeeView = {
   city: string | null;
   state: string | null;
   notes: string | null;
+  photoUrl: string | null;
   poloId: string | null;
   polo: { id: string; name: string } | null;
   user: { id: string; name: string; email: string; role: string; isActive: boolean } | null;
