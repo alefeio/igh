@@ -47,19 +47,6 @@ export async function POST(request: Request) {
       if (matched) {
         categoryId = matched.id;
         result.suggestion.categoryName = matched.name;
-      } else {
-        try {
-          const created = await prisma.financialCategory.create({
-            data: { name: categoryName, kind: "SAIDA", isActive: true },
-          });
-          categoryId = created.id;
-        } catch {
-          const again = await prisma.financialCategory.findFirst({
-            where: { name: categoryName, kind: "SAIDA" },
-            select: { id: true, name: true },
-          });
-          categoryId = again?.id;
-        }
       }
     }
 

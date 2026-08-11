@@ -98,4 +98,18 @@ TOTAL A PAGAR
     );
     expect(matched?.id).toBe("1");
   });
+
+  it("cai em Despesas operacionais quando não há categoria específica", () => {
+    const matched = matchCategoryName(
+      [
+        { id: "op", name: "Despesas operacionais" },
+        { id: "mat", name: "Material / almoxarifado" },
+        { id: "mei", name: "Nota MEI / colaborador" },
+        { id: "out", name: "Outras saídas" },
+        { id: "srv", name: "Serviços" },
+      ],
+      "Água",
+    );
+    expect(matched?.id).toBe("op");
+  });
 });

@@ -13,6 +13,8 @@ export type InvoiceSuggestion = {
 export type KnownBillCategory = {
   name: string;
   aliases: string[];
+  /** Categorias já usadas no financeiro, se não houver uma específica. */
+  fallbackNames: string[];
   patterns: RegExp[];
 };
 
@@ -21,6 +23,7 @@ export const KNOWN_BILL_CATEGORIES: readonly KnownBillCategory[] = [
   {
     name: "Água",
     aliases: ["agua", "aguas", "saneamento", "nfag", "cosanpa", "sabesp", "cedae", "cagepa", "compesa", "sanepar"],
+    fallbackNames: ["Despesas operacionais"],
     patterns: [
       /nota fiscal de [aá]gua/i,
       /\b[aá]guas?\b/i,
@@ -31,6 +34,7 @@ export const KNOWN_BILL_CATEGORIES: readonly KnownBillCategory[] = [
   {
     name: "Energia",
     aliases: ["energia", "luz", "eletric", "equatorial", "celpa", "cemig", "enel", "light", "cpfl", "coelba", "elektro"],
+    fallbackNames: ["Despesas operacionais"],
     patterns: [
       /conta\s+de\s+luz/i,
       /energia\s+el[eé]trica/i,
@@ -43,31 +47,37 @@ export const KNOWN_BILL_CATEGORIES: readonly KnownBillCategory[] = [
   {
     name: "Gás",
     aliases: ["gas", "comgas", "naturgy", "copergas"],
+    fallbackNames: ["Despesas operacionais"],
     patterns: [/\bg[aá]s\b/i, /comg[aá]s/i, /naturgy/i],
   },
   {
     name: "Internet",
     aliases: ["internet", "fibra", "banda larga", "wifi"],
+    fallbackNames: ["Despesas operacionais", "Serviços"],
     patterns: [/\binternet\b/i, /\bfibra\b/i, /banda\s+larga/i],
   },
   {
     name: "Telefone",
     aliases: ["telefone", "telefonia", "celular"],
+    fallbackNames: ["Despesas operacionais", "Serviços"],
     patterns: [/\btelefone\b/i, /telefonia/i],
   },
   {
     name: "IPTU",
     aliases: ["iptu", "imposto predial"],
+    fallbackNames: ["Despesas operacionais"],
     patterns: [/\biptu\b/i],
   },
   {
     name: "Condomínio",
     aliases: ["condominio", "taxa condominial"],
+    fallbackNames: ["Despesas operacionais"],
     patterns: [/condom[ií]nio/i],
   },
   {
     name: "Aluguel",
     aliases: ["aluguel", "locacao"],
+    fallbackNames: ["Despesas operacionais"],
     patterns: [/\baluguel\b/i, /loca[cç][aã]o/i],
   },
 ];
@@ -89,23 +99,29 @@ export function guessKnownBillCategory(text: string): KnownBillCategory | undefi
   return undefined;
 }
 
+function findByKeys(
+  existingNames: Array<{ id: string; name: string }>,
+  keys: string[],
+): { id: string; name: string } | undefined {
+  const folded = keys.map(foldCategoryKey).filter(Boolean);
+  return existingNames.find((c) => {
+    const n = foldCategoryKey(c.name);
+    return folded.some((k) => n === k || n.includes(k) || k.includes(n));
+  });
+}
+
 export function matchCategoryName(
   existingNames: Array<{ id: string; name: string }>,
   hintName: string,
 ): { id: string; name: string } | undefined {
   const known = KNOWN_BILL_CATEGORIES.find((c) => foldCategoryKey(c.name) === foldCategoryKey(hintName));
-  const keys = new Set(
-    [hintName, ...(known?.aliases ?? []), ...(known?.name ? [known.name] : [])].map(foldCategoryKey),
-  );
-  return existingNames.find((c) => {
-    const n = foldCategoryKey(c.name);
-    if (keys.has(n)) return true;
-    for (const k of keys) {
-      if (!k) continue;
-      if (n.includes(k) || k.includes(n)) return true;
-    }
-    return false;
-  });
+  const specific = findByKeys(existingNames, [
+    hintName,
+    ...(known?.name ? [known.name] : []),
+    ...(known?.aliases ?? []),
+  ]);
+  if (specific) return specific;
+  return findByKeys(existingNames, known?.fallbackNames ?? []);
 }
 
 export function mergeSuggestion(base: InvoiceSuggestion, extra: InvoiceSuggestion): InvoiceSuggestion {

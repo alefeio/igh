@@ -1263,18 +1263,34 @@ export default function FinanceiroPage() {
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Categoria</span>
-              <select
-                className={`mt-1 ${selectClass}`}
-                value={form.categoryId}
-                onChange={(e) => setField("categoryId", e.target.value)}
-              >
-                <option value="">Sem categoria</option>
-                {categoriesForForm.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1 flex gap-2">
+                <select
+                  className={selectClass}
+                  value={form.categoryId}
+                  onChange={(e) => setField("categoryId", e.target.value)}
+                >
+                  <option value="">Sem categoria</option>
+                  {categoriesForForm.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setCatKind(form.kind);
+                    setCatOpen(true);
+                  }}
+                >
+                  Nova
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Ou use o botão Categorias no topo da página.
+              </p>
             </label>
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Forma de pagamento</span>
