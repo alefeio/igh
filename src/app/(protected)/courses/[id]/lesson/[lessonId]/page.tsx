@@ -21,6 +21,7 @@ import {
   readApiJson,
   TEACHER_UPLOAD_SIGNATURE,
 } from "@/lib/apimages-upload";
+import { parsePastedMultipleChoice } from "@/lib/parse-pasted-multiple-choice";
 
 type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[]; attachmentNames?: string[]; lastEditedAt?: string | null; lastEditedByUserName?: string | null };
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
@@ -947,10 +948,25 @@ export default function LessonEditPage() {
                 className="mt-1 w-full min-h-[60px] rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
                 value={exerciseForm.question}
                 onChange={(e) => setExerciseForm((f) => ({ ...f, question: e.target.value }))}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData("text/plain");
+                  const parsed = parsePastedMultipleChoice(pasted);
+                  if (!parsed) return;
+                  e.preventDefault();
+                  setExerciseForm((f) => ({
+                    ...f,
+                    question: parsed.question,
+                    options: parsed.options.map((text, i) => ({ text, isCorrect: i === 0 })),
+                  }));
+                  toast.push("success", "Pergunta e alternativas preenchidas.");
+                }}
                 placeholder="Ex.: Qual a principal vantagem de..."
                 required
                 rows={2}
               />
+              <p className="mt-1 text-sm text-[var(--text-muted)]">
+                Cole a pergunta e as alternativas (A, B, C…) de uma vez: o sistema separa automaticamente.
+              </p>
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--text-primary)]">Opções (marque a correta)</label>
