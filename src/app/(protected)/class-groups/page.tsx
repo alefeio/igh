@@ -218,6 +218,20 @@ export default function ClassGroupsPage() {
   const [downloadingSelected, setDownloadingSelected] = useState(false);
   const [certificatePagesMode, setCertificatePagesMode] = useState<CertificatePagesMode>("both");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [openBulk, setOpenBulk] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkCycleId, setBulkCycleId] = useState("");
+  const [bulkTeacherIds, setBulkTeacherIds] = useState<string[]>([]);
+  const [bulkDaysOfWeek, setBulkDaysOfWeek] = useState<string[]>([]);
+  const [bulkStartDate, setBulkStartDate] = useState("");
+  const [bulkTimeSlotId, setBulkTimeSlotId] = useState("");
+  const [bulkStartTime, setBulkStartTime] = useState("");
+  const [bulkEndTime, setBulkEndTime] = useState("");
+  const [bulkCapacity, setBulkCapacity] = useState("");
+  const [bulkStatus, setBulkStatus] = useState<"" | ClassGroup["status"]>("");
+  const [bulkIsExternal, setBulkIsExternal] = useState<"" | "interna" | "externa">("");
+  const [bulkPoloLocationId, setBulkPoloLocationId] = useState("__keep__");
+  const [bulkLocation, setBulkLocation] = useState("");
   const [actionsMenuId, setActionsMenuId] = useState<string | null>(null);
   const [actionsMenuPos, setActionsMenuPos] = useState<{
     top: number;
@@ -489,6 +503,110 @@ export default function ClassGroupsPage() {
       if (presetQuaSex && day === "TER") return ["TER", "QUI"];
       return [...prev, day];
     });
+  }
+
+  function resetBulkForm() {
+    setBulkCycleId("");
+    setBulkTeacherIds([]);
+    setBulkDaysOfWeek([]);
+    setBulkStartDate("");
+    setBulkTimeSlotId("");
+    setBulkStartTime("");
+    setBulkEndTime("");
+    setBulkCapacity("");
+    setBulkStatus("");
+    setBulkIsExternal("");
+    setBulkPoloLocationId("__keep__");
+    setBulkLocation("");
+  }
+
+  function openBulkEdit() {
+    resetBulkForm();
+    setOpenBulk(true);
+  }
+
+  function toggleBulkTeacher(id: string) {
+    setBulkTeacherIds((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
+    );
+  }
+
+  function toggleBulkDay(day: string) {
+    setBulkDaysOfWeek((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
+    );
+  }
+
+  async function saveBulk() {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || bulkSaving) return;
+
+    const patch: Record<string, unknown> = {};
+    if (bulkCycleId) patch.cycleId = bulkCycleId;
+    if (bulkTeacherIds.length > 0) patch.teacherIds = bulkTeacherIds;
+    if (bulkDaysOfWeek.length > 0) patch.daysOfWeek = bulkDaysOfWeek;
+    if (bulkStartDate) patch.startDate = bulkStartDate;
+    if (bulkStartTime) patch.startTime = bulkStartTime;
+    if (bulkEndTime) patch.endTime = bulkEndTime;
+    if (bulkCapacity.trim()) {
+      const n = Number(bulkCapacity.replace(",", "."));
+      if (!Number.isInteger(n) || n <= 0) {
+        toast.push("error", "Capacidade deve ser um número inteiro positivo.");
+        return;
+      }
+      patch.capacity = n;
+    }
+    if (bulkStatus) patch.status = bulkStatus;
+    if (bulkIsExternal === "interna") patch.isExternal = false;
+    if (bulkIsExternal === "externa") patch.isExternal = true;
+    if (bulkPoloLocationId !== "__keep__") {
+      patch.poloLocationId = bulkPoloLocationId || null;
+    }
+    if (bulkLocation.trim()) patch.location = bulkLocation.trim();
+
+    if (Object.keys(patch).length === 0) {
+      toast.push("error", "Preencha ao menos um campo para aplicar nas turmas selecionadas.");
+      return;
+    }
+
+    setBulkSaving(true);
+    try {
+      const res = await fetch("/api/class-groups/bulk", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids, patch }),
+      });
+      const json = await parseJsonSafe<{
+        updatedCount: number;
+        regeneratedCount: number;
+        errorCount: number;
+        errors: Array<{ id: string; message: string }>;
+      }>(res);
+      if (!res.ok || !json?.ok) {
+        toast.push("error", apiErrorMessage(json, "Falha ao atualizar turmas."));
+        return;
+      }
+      const { updatedCount, regeneratedCount, errorCount, errors } = json.data;
+      const regenNote =
+        regeneratedCount > 0 ? ` Aulas regeneradas em ${regeneratedCount} turma(s).` : "";
+      if (errorCount === 0) {
+        toast.push("success", `${updatedCount} turma(s) atualizada(s).${regenNote}`);
+      } else if (updatedCount === 0) {
+        toast.push("error", errors[0]?.message ?? "Nenhuma turma foi atualizada.");
+      } else {
+        toast.push(
+          "error",
+          `${updatedCount} atualizada(s), ${errorCount} com erro.${regenNote} ${errors[0]?.message ?? ""}`.trim(),
+        );
+      }
+      setOpenBulk(false);
+      resetBulkForm();
+      await loadAll();
+    } catch {
+      toast.push("error", "Falha ao atualizar turmas.");
+    } finally {
+      setBulkSaving(false);
+    }
   }
 
   async function inactivateClassGroup(cg: ClassGroup) {
@@ -973,6 +1091,17 @@ export default function ClassGroupsPage() {
                 value={certificatePagesMode}
                 onChange={setCertificatePagesMode}
               />
+              {canMutate ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={selectedIds.size === 0}
+                  onClick={openBulkEdit}
+                >
+                  Editar selecionadas ({selectedIds.size})
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="secondary"
@@ -1387,6 +1516,262 @@ export default function ClassGroupsPage() {
             </Button>
             <Button type="submit" disabled={cycleSaving}>
               {cycleSaving ? "Salvando" : "Salvar"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={openBulk}
+        title={`Editar ${selectedIds.size} turma${selectedIds.size === 1 ? "" : "s"} selecionada${selectedIds.size === 1 ? "" : "s"}`}
+        onClose={() => {
+          if (bulkSaving) return;
+          setOpenBulk(false);
+          resetBulkForm();
+        }}
+      >
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void saveBulk();
+          }}
+        >
+          <p className="text-sm text-[var(--text-muted)]">
+            Preencha só o que quiser alterar. Campos em branco permanecem como estão em cada turma.
+            Alterar dias, data ou horário regenera as aulas automaticamente.
+          </p>
+
+          <div>
+            <label className="text-sm font-medium">Ciclo</label>
+            <div className="mt-1">
+              <select
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                value={bulkCycleId}
+                onChange={(e) => setBulkCycleId(e.target.value)}
+              >
+                <option value="">Não alterar</option>
+                {cycles.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {`Ciclo ${c.cycle} / ${c.year}`}
+                    {c.isVisibleForEnrollments ? "" : " (oculto)"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Professor(es)</label>
+            <div className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-md border border-[var(--card-border)] p-3">
+              {teachers.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">Nenhum professor cadastrado.</p>
+              ) : (
+                teachers.map((t) => (
+                  <label
+                    key={t.id}
+                    className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-primary)]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={bulkTeacherIds.includes(t.id)}
+                      onChange={() => toggleBulkTeacher(t.id)}
+                      className="h-4 w-4 rounded border-[var(--card-border)] text-[var(--igh-primary)] focus:ring-[var(--igh-primary)]"
+                    />
+                    {t.name}
+                  </label>
+                ))
+              )}
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Deixe todos desmarcados para não alterar. Se marcar algum, substitui os professores das turmas.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Dias da semana</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => toggleBulkDay(d)}
+                  className={`rounded-md border px-2 py-1 text-xs font-medium ${
+                    bulkDaysOfWeek.includes(d)
+                      ? "border-[var(--igh-primary)] bg-[var(--igh-primary)] text-white"
+                      : "border-[var(--card-border)] bg-white text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Deixe vazio para não alterar.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Data de início</label>
+            <div className="mt-1">
+              <Input type="date" value={bulkStartDate} onChange={(e) => setBulkStartDate(e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Horário predefinido</label>
+            <div className="mt-1">
+              <select
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                value={bulkTimeSlotId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setBulkTimeSlotId(id);
+                  if (id) {
+                    const slot = timeSlots.find((s) => s.id === id);
+                    if (slot) {
+                      setBulkStartTime(slot.startTime);
+                      setBulkEndTime(slot.endTime);
+                    }
+                  }
+                }}
+              >
+                <option value="">Não alterar / digitar manualmente</option>
+                {timeSlots.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name || `${s.startTime} - ${s.endTime}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Hora de início</label>
+              <div className="mt-1">
+                <Input
+                  type="time"
+                  value={bulkStartTime}
+                  onChange={(e) => {
+                    setBulkStartTime(e.target.value);
+                    setBulkTimeSlotId("");
+                  }}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Hora de fim</label>
+              <div className="mt-1">
+                <Input
+                  type="time"
+                  value={bulkEndTime}
+                  onChange={(e) => {
+                    setBulkEndTime(e.target.value);
+                    setBulkTimeSlotId("");
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Capacidade</label>
+              <div className="mt-1">
+                <Input
+                  value={bulkCapacity}
+                  onChange={(e) => setBulkCapacity(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="Não alterar"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Status</label>
+              <div className="mt-1">
+                <select
+                  className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                  value={bulkStatus}
+                  onChange={(e) => setBulkStatus(e.target.value as "" | ClassGroup["status"])}
+                >
+                  <option value="">Não alterar</option>
+                  <option value="PLANEJADA">PLANEJADA</option>
+                  <option value="ABERTA">ABERTA</option>
+                  <option value="EM_ANDAMENTO">EM_ANDAMENTO</option>
+                  <option value="ENCERRADA">ENCERRADA</option>
+                  <option value="CANCELADA">CANCELADA</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Tipo da turma</label>
+            <div className="mt-1">
+              <select
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                value={bulkIsExternal}
+                onChange={(e) => setBulkIsExternal(e.target.value as "" | "interna" | "externa")}
+              >
+                <option value="">Não alterar</option>
+                <option value="interna">Interna</option>
+                <option value="externa">Externa</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Polo / Local</label>
+            <div className="mt-1">
+              <select
+                className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
+                value={bulkPoloLocationId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setBulkPoloLocationId(id);
+                  if (id && id !== "__keep__") {
+                    const opt = poloLocationOptions.find((o) => o.id === id);
+                    if (opt) setBulkLocation(opt.name);
+                  }
+                }}
+              >
+                <option value="__keep__">Não alterar</option>
+                <option value="">Sem vínculo a polo</option>
+                {poloLocationOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Local/Sala</label>
+            <div className="mt-1">
+              <Input
+                value={bulkLocation}
+                onChange={(e) => setBulkLocation(e.target.value)}
+                placeholder="Não alterar"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setOpenBulk(false);
+                resetBulkForm();
+              }}
+              disabled={bulkSaving}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={bulkSaving || selectedIds.size === 0}>
+              {bulkSaving ? "Aplicando…" : `Aplicar em ${selectedIds.size} turma(s)`}
             </Button>
           </div>
         </form>

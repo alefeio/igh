@@ -14,6 +14,18 @@ const paymentMethodEnum = z.enum([
 ]);
 const paymentStatusEnum = z.enum(["EM_ABERTO", "PAGO", "PENDENTE"]);
 
+const listKinds = ["ENTRADA", "SAIDA"] as const;
+const listPaymentStatuses = ["EM_ABERTO", "PAGO", "PENDENTE"] as const;
+const listDueAlerts = ["soon", "today", "overdue", "attention"] as const;
+
+type FinancialListKind = (typeof listKinds)[number];
+type FinancialListPaymentStatus = (typeof listPaymentStatuses)[number];
+type FinancialListDueAlert = (typeof listDueAlerts)[number];
+
+function parseAllowed<T extends string>(value: string | null, allowed: readonly T[]): T | undefined {
+  return value != null && (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
+}
+
 const optionalText = z
   .string()
   .trim()
@@ -140,7 +152,19 @@ export const updateFinancialEntrySchema = z
   });
 
 /** Filtros de listagem / exportação. */
-export function parseFinancialListQuery(searchParams: URLSearchParams) {
+export type FinancialListQuery = {
+  kind: FinancialListKind | undefined;
+  categoryId: string | undefined;
+  poloId: string | undefined;
+  q: string | undefined;
+  dateFrom: Date | undefined;
+  dateTo: Date | undefined;
+  month: string | undefined;
+  paymentStatus: FinancialListPaymentStatus | undefined;
+  dueAlert: FinancialListDueAlert | undefined;
+};
+
+export function parseFinancialListQuery(searchParams: URLSearchParams): FinancialListQuery {
   const kind = searchParams.get("kind");
   const categoryId = searchParams.get("categoryId");
   const poloId = searchParams.get("poloId");
@@ -167,25 +191,17 @@ export function parseFinancialListQuery(searchParams: URLSearchParams) {
   }
 
   return {
-    kind: kind === "ENTRADA" || kind === "SAIDA" ? kind : undefined,
+    kind: parseAllowed(kind, listKinds),
     categoryId: categoryId || undefined,
     poloId: poloId || undefined,
     q,
     dateFrom,
     dateTo,
     month: month && /^\d{4}-\d{2}$/.test(month) ? month : undefined,
-    paymentStatus:
-      paymentStatus === "EM_ABERTO" || paymentStatus === "PAGO" || paymentStatus === "PENDENTE"
-        ? paymentStatus
-        : undefined,
-    dueAlert:
-      dueAlert === "soon" || dueAlert === "today" || dueAlert === "overdue" || dueAlert === "attention"
-        ? dueAlert
-        : undefined,
+    paymentStatus: parseAllowed(paymentStatus, listPaymentStatuses),
+    dueAlert: parseAllowed(dueAlert, listDueAlerts),
   };
 }
-
-export type FinancialListQuery = ReturnType<typeof parseFinancialListQuery>;
 
 /** Mantém só dígitos se o cliente enviar CPF no fornecedor por engano — não usado hoje. */
 export function normalizeOptionalDigits(value: string | null | undefined, max: number) {

@@ -51,3 +51,11 @@ export const updateClassGroupSchema = z
     capacity: z.number().int().positive().optional(),
   })
   .partial();
+
+export const bulkUpdateClassGroupsSchema = z.object({
+  ids: z.array(appUuid).min(1, "Selecione ao menos uma turma").max(100, "Máximo de 100 turmas por vez"),
+  patch: updateClassGroupSchema.refine(
+    (p) => Object.values(p).some((v) => v !== undefined),
+    "Informe ao menos um campo para alterar.",
+  ),
+});

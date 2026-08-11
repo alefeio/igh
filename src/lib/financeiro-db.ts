@@ -49,7 +49,7 @@ export function serializeFinancialEntry(row: EntryRow): FinancialEntryView {
 
 export function financialEntryWhere(query: FinancialListQuery): Prisma.FinancialEntryWhereInput {
   const and: Prisma.FinancialEntryWhereInput[] = [{ deletedAt: null }];
-  if (query.kind) and.push({ kind: query.kind as "ENTRADA" | "SAIDA" });
+  if (query.kind) and.push({ kind: query.kind });
   if (query.categoryId) and.push({ categoryId: query.categoryId });
   if (query.poloId) and.push({ poloId: query.poloId });
   if (query.paymentStatus) and.push({ paymentStatus: query.paymentStatus });
