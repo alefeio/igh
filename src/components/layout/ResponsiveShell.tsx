@@ -24,6 +24,8 @@ export function ResponsiveShell({
     baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
+    isAdminManager?: boolean;
+    isPoloCoordinator?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     hasEmployeeProfile?: boolean;

@@ -80,6 +80,7 @@ export async function POST(request: Request) {
     mustChangePassword: full.mustChangePassword ?? false,
     isAdmin: full.isAdmin ?? false,
     isSiteAdmin: full.isSiteAdmin ?? false,
+    isAdminManager: full.isAdminManager ?? false,
   };
 
   if (role === "MASTER") {

@@ -60,7 +60,7 @@ const STAFF_ACCESS_OPTIONS: { value: ManagedAccessRole; label: string; hint: str
   {
     value: "ADMIN_MANAGER",
     label: "Gerência Administrativa",
-    hint: "Colaboradores, contratos, patrimônio, doações e financeiro",
+    hint: "Acesso completo ao menu Gerência: colaboradores, contratos, patrimônio, doações e financeiro",
   },
   {
     value: "SITE_ADMIN",

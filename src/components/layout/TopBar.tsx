@@ -40,6 +40,8 @@ export function TopBar({
     baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
+    isAdminManager?: boolean;
+    isPoloCoordinator?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     availableRoles?: {
@@ -180,8 +182,10 @@ export function TopBar({
   const canTeacher = r?.canTeacher ?? (user.hasTeacherProfile === true);
   const canAdmin = r?.canAdmin ?? (user.isAdmin === true || user.baseRole === "ADMIN");
   const canSiteAdmin = r?.canSiteAdmin ?? (user.isSiteAdmin === true || user.baseRole === "SITE_ADMIN");
-  const canPoloCoordinator = r?.canPoloCoordinator ?? (user.baseRole === "POLO_COORDINATOR");
-  const canAdminManager = r?.canAdminManager ?? (user.baseRole === "ADMIN_MANAGER");
+  const canPoloCoordinator =
+    r?.canPoloCoordinator ?? (user.isPoloCoordinator === true || user.baseRole === "POLO_COORDINATOR");
+  const canAdminManager =
+    r?.canAdminManager ?? (user.isAdminManager === true || user.baseRole === "ADMIN_MANAGER");
 
   const roleLabels: Record<string, string> = {
     MASTER: "Administrador Master",

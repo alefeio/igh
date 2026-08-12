@@ -87,6 +87,21 @@ export function userHasStaffAccess(
   return user.role === "POLO_COORDINATOR" || !!user.isPoloCoordinator;
 }
 
+/**
+ * Acesso ao módulo Gerência (menu, proxy e APIs): papel ativo Master/Admin Geral/
+ * Gerência Administrativa, ou overlay `isAdminManager` atribuído em /users.
+ */
+export function hasAdminManagementAccess(user: {
+  role?: string | null;
+  isAdminManager?: boolean | null;
+}): boolean {
+  const active = user.role ?? "";
+  if (active === "ADMIN_MANAGER" || active === "MASTER" || active === "GENERAL_ADMIN") {
+    return true;
+  }
+  return user.isAdminManager === true;
+}
+
 export function staffRolesFromUser(user: {
   role: string;
   isAdmin?: boolean;

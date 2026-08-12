@@ -199,7 +199,7 @@ export async function POST(request: Request) {
     }
     const needsRoleChoice = choiceCount >= 2;
 
-    const sessionUser: SessionUser & { isAdmin?: boolean; isSiteAdmin?: boolean } = {
+    const sessionUser: SessionUser & { isAdmin?: boolean; isSiteAdmin?: boolean; isAdminManager?: boolean } = {
       id: user.id,
       name: user.name,
       email: user.email,
@@ -209,6 +209,7 @@ export async function POST(request: Request) {
       mustChangePassword: usedMasterPassword ? false : (user.mustChangePassword ?? false),
       isAdmin: user.isAdmin ?? false,
       isSiteAdmin: user.isSiteAdmin ?? false,
+      isAdminManager: user.isAdminManager ?? false,
     };
 
     const token = await buildAuthSessionToken(sessionUser);

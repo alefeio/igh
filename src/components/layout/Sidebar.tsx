@@ -320,6 +320,7 @@ export function Sidebar({
     baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
+    isAdminManager?: boolean;
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     hasEmployeeProfile?: boolean;
@@ -349,7 +350,10 @@ export function Sidebar({
   const resolvedLogoHeight = resolveLogoHeightPx(logoHeightPx);
 
   const filteredItems = ITEMS.filter((i) => {
-    if (!i.roles.includes(user.role)) return false;
+    const allowedByRole = i.roles.includes(user.role);
+    /** Overlay de Gerência em /users (papel-base diferente) também vê o menu Gerência. */
+    const allowedByGerenciaOverlay = i.category === "Gerência" && user.isAdminManager === true;
+    if (!allowedByRole && !allowedByGerenciaOverlay) return false;
     if (i.requiresEmployee && !user.hasEmployeeProfile) return false;
     if (i.employeePositions?.length) {
       if (!user.employeePosition || !i.employeePositions.includes(user.employeePosition)) {

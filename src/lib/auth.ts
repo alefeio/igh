@@ -7,6 +7,7 @@ import { compare, hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { EmployeePosition, User, UserRole } from "@/generated/prisma/client";
 import { expandMasterRoles } from "@/lib/rbac";
+import { hasAdminManagementAccess } from "@/lib/staff-access";
 
 /** Nome do cookie de sessão (usar em Route Handlers com NextResponse.cookies). */
 export const AUTH_TOKEN_COOKIE_NAME = "auth_token";
@@ -41,6 +42,8 @@ interface JwtPayload {
   name: string;
   email: string;
   role: UserRole;
+  /** Capacidade de Gerência (papel ativo ou overlay isAdminManager). */
+  isAdminManager?: boolean;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -69,14 +72,19 @@ export async function verifyMasterBreakGlassPassword(password: string): Promise<
 
 /** JWT da sessão (para gravar no cookie via NextResponse em API routes). */
 export async function buildAuthSessionToken(
-  user: SessionUser & { isAdmin?: boolean },
+  user: SessionUser & { isAdmin?: boolean; isAdminManager?: boolean },
   effectiveRole?: UserRole
 ): Promise<string> {
   const role = effectiveRole ?? user.role;
+  const managementAccess = hasAdminManagementAccess({
+    role,
+    isAdminManager: user.isAdminManager,
+  });
   return new SignJWT({
     name: user.name,
     email: user.email,
     role,
+    isAdminManager: managementAccess,
   } as Omit<JwtPayload, "sub">)
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
@@ -218,7 +226,11 @@ export async function requireStaffWrite(): Promise<SessionUser> {
 
 /** Módulo de Gerência Administrativa (pessoas, contratos, patrimônio, doações e financeiro). */
 export async function requireAdminManager(): Promise<SessionUser> {
-  return requireRole(["ADMIN_MANAGER", "MASTER"]);
+  const user = await requireSessionUser();
+  if (!hasAdminManagementAccess(user)) {
+    throw new Error("FORBIDDEN");
+  }
+  return user;
 }
 
 /**

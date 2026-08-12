@@ -20,10 +20,12 @@ export async function proxy(request: NextRequest) {
   }
 
   let role: string | undefined;
+  let isAdminManagerClaim = false;
   try {
     const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me");
     const { payload } = await jwtVerify(token, secret);
     role = typeof payload.role === "string" ? payload.role : undefined;
+    isAdminManagerClaim = payload.isAdminManager === true;
   } catch {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname + (request.nextUrl.search || ""));
@@ -145,7 +147,9 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname.startsWith("/admin/gerencia")) {
-    if (!ADMIN_MANAGEMENT.includes(role ?? "")) {
+    const canAccessGerencia =
+      ADMIN_MANAGEMENT.includes(role ?? "") || isAdminManagerClaim;
+    if (!canAccessGerencia) {
       return NextResponse.redirect(dashboardUrl);
     }
   }

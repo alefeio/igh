@@ -11,6 +11,8 @@ export type SessionUser = {
   mustChangePassword?: boolean;
   isAdmin?: boolean;
   isSiteAdmin?: boolean;
+  isAdminManager?: boolean;
+  isPoloCoordinator?: boolean;
   /** True se o usuário possui perfil de aluno (Student) ativo. */
   hasStudentProfile?: boolean;
   /** True se o usuário possui perfil de professor (Teacher) ativo. */
