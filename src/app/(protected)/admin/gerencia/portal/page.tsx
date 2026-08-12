@@ -1,6 +1,6 @@
 "use client";
 
-import { Inbox, MessageSquare } from "lucide-react";
+import { Inbox, MessageSquare, Sparkles, Truck } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 
-type TabId = "notas" | "mensagens";
+type TabId = "notas" | "mensagens" | "limpeza" | "motorista";
 
 type Submission = {
   id: string;
@@ -55,6 +55,41 @@ type ThreadDetail = {
   }>;
 };
 
+type CleaningReport = {
+  id: string;
+  employeeName: string;
+  employeePosition: string;
+  notes: string | null;
+  status: "PENDENTE" | "VISTO";
+  reviewNotes: string | null;
+  createdAt: string;
+  lines: Array<{
+    id: string;
+    itemName: string;
+    kind: "DISPONIVEL" | "FALTANDO";
+    quantity: number;
+  }>;
+};
+
+type DriverLog = {
+  id: string;
+  employeeName: string;
+  employeePosition: string;
+  kind: "QUILOMETRAGEM" | "NOTA_SERVICO" | "OCORRENCIA";
+  occurredAt: string;
+  odometerKm: number | null;
+  description: string;
+  amountLabel: string | null;
+  amountCents: number | null;
+  supplier: string | null;
+  fileUrl: string | null;
+  fileName: string | null;
+  status: "PENDENTE" | "VISTO";
+  reviewNotes: string | null;
+  financialEntryId: string | null;
+  createdAt: string;
+};
+
 const STATUS_TONE: Record<Submission["status"], "amber" | "green" | "red"> = {
   PENDENTE: "amber",
   APROVADA: "green",
@@ -67,17 +102,36 @@ const STATUS_LABEL: Record<Submission["status"], string> = {
   RECUSADA: "Recusada",
 };
 
+const DRIVER_KIND_LABEL: Record<DriverLog["kind"], string> = {
+  QUILOMETRAGEM: "Quilometragem",
+  NOTA_SERVICO: "Nota de serviço",
+  OCORRENCIA: "Ocorrência",
+};
+
+function parseTab(raw: string | null): TabId {
+  if (raw === "mensagens" || raw === "limpeza" || raw === "motorista") return raw;
+  return "notas";
+}
+
 function GerenciaPortalPageInner() {
   const toast = useToast();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") === "mensagens" ? "mensagens" : "notas";
+  const initialTab = parseTab(searchParams.get("tab"));
   const initialThread = searchParams.get("thread");
 
   const [tab, setTab] = useState<TabId>(initialTab);
-  const [summary, setSummary] = useState({ pendingInvoices: 0, unreadThreads: 0, openThreads: 0 });
+  const [summary, setSummary] = useState({
+    pendingInvoices: 0,
+    unreadThreads: 0,
+    openThreads: 0,
+    pendingCleaning: 0,
+    pendingDriver: 0,
+  });
   const [statusFilter, setStatusFilter] = useState<"PENDENTE" | "TODAS">("PENDENTE");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [threads, setThreads] = useState<ThreadItem[]>([]);
+  const [cleaningReports, setCleaningReports] = useState<CleaningReport[]>([]);
+  const [driverLogs, setDriverLogs] = useState<DriverLog[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(initialThread);
   const [thread, setThread] = useState<ThreadDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +166,28 @@ function GerenciaPortalPageInner() {
     setThreads(json.data.threads);
   }, [toast]);
 
+  const loadCleaning = useCallback(async () => {
+    const q = statusFilter === "PENDENTE" ? "?status=PENDENTE" : "";
+    const res = await fetch(`/api/admin/gerencia/portal/limpeza${q}`, { cache: "no-store" });
+    const json = (await res.json()) as ApiResponse<{ reports: CleaningReport[] }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao carregar relatos de limpeza.");
+      return;
+    }
+    setCleaningReports(json.data.reports);
+  }, [statusFilter, toast]);
+
+  const loadDriver = useCallback(async () => {
+    const q = statusFilter === "PENDENTE" ? "?status=PENDENTE" : "";
+    const res = await fetch(`/api/admin/gerencia/portal/motorista${q}`, { cache: "no-store" });
+    const json = (await res.json()) as ApiResponse<{ logs: DriverLog[] }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao carregar registros do motorista.");
+      return;
+    }
+    setDriverLogs(json.data.logs);
+  }, [statusFilter, toast]);
+
   const loadThread = useCallback(
     async (id: string) => {
       const res = await fetch(`/api/admin/gerencia/portal/mensagens/${id}`, { cache: "no-store" });
@@ -129,10 +205,18 @@ function GerenciaPortalPageInner() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadSummary(), tab === "notas" ? loadNotas() : loadThreads()])
+    const loadTab =
+      tab === "notas"
+        ? loadNotas()
+        : tab === "mensagens"
+          ? loadThreads()
+          : tab === "limpeza"
+            ? loadCleaning()
+            : loadDriver();
+    Promise.all([loadSummary(), loadTab])
       .catch(() => toast.push("error", "Falha ao carregar a fila."))
       .finally(() => setLoading(false));
-  }, [loadNotas, loadSummary, loadThreads, tab, toast]);
+  }, [loadCleaning, loadDriver, loadNotas, loadSummary, loadThreads, tab, toast]);
 
   useEffect(() => {
     if (tab === "mensagens" && activeThreadId) void loadThread(activeThreadId);
@@ -165,6 +249,58 @@ function GerenciaPortalPageInner() {
       void loadSummary();
     } catch {
       toast.push("error", "Falha ao revisar.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function reviewCleaning(id: string) {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/admin/gerencia/portal/limpeza/${id}/revisar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewNotes: reviewNotes[id] || null }),
+      });
+      const json = (await res.json()) as ApiResponse<{ report: CleaningReport }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao marcar como visto.");
+        return;
+      }
+      toast.push("success", "Relato marcado como visto.");
+      void loadCleaning();
+      void loadSummary();
+    } catch {
+      toast.push("error", "Falha ao marcar como visto.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function reviewDriver(id: string, createFinancialEntry: boolean) {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/admin/gerencia/portal/motorista/${id}/revisar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reviewNotes: reviewNotes[id] || null,
+          createFinancialEntry,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ log: DriverLog }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao marcar como visto.");
+        return;
+      }
+      toast.push(
+        "success",
+        createFinancialEntry ? "Registro visto e lançado no financeiro." : "Registro marcado como visto.",
+      );
+      void loadDriver();
+      void loadSummary();
+    } catch {
+      toast.push("error", "Falha ao marcar como visto.");
     } finally {
       setBusyId(null);
     }
@@ -215,16 +351,17 @@ function GerenciaPortalPageInner() {
       <DashboardHero
         eyebrow="Gerência"
         title="Portal do colaborador"
-        description="Fila de notas fiscais e mensagens enviadas pelos colaboradores."
+        description="Fila de notas, mensagens, limpeza e registros do motorista."
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Notas pendentes" value={summary.pendingInvoices} icon={Inbox} accent="amber" />
         <StatTile label="Mensagens não lidas" value={summary.unreadThreads} icon={MessageSquare} />
-        <StatTile label="Conversas abertas" value={summary.openThreads} icon={MessageSquare} accent="emerald" />
+        <StatTile label="Limpeza pendente" value={summary.pendingCleaning} icon={Sparkles} accent="amber" />
+        <StatTile label="Motorista pendente" value={summary.pendingDriver} icon={Truck} accent="amber" />
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button type="button" variant={tab === "notas" ? "primary" : "secondary"} onClick={() => setTab("notas")}>
           Notas {summary.pendingInvoices > 0 ? `(${summary.pendingInvoices})` : ""}
         </Button>
@@ -234,6 +371,20 @@ function GerenciaPortalPageInner() {
           onClick={() => setTab("mensagens")}
         >
           Mensagens {summary.unreadThreads > 0 ? `(${summary.unreadThreads})` : ""}
+        </Button>
+        <Button
+          type="button"
+          variant={tab === "limpeza" ? "primary" : "secondary"}
+          onClick={() => setTab("limpeza")}
+        >
+          Limpeza {summary.pendingCleaning > 0 ? `(${summary.pendingCleaning})` : ""}
+        </Button>
+        <Button
+          type="button"
+          variant={tab === "motorista" ? "primary" : "secondary"}
+          onClick={() => setTab("motorista")}
+        >
+          Motorista {summary.pendingDriver > 0 ? `(${summary.pendingDriver})` : ""}
         </Button>
       </div>
 
@@ -350,7 +501,9 @@ function GerenciaPortalPageInner() {
             </Table>
           )}
         </SectionCard>
-      ) : (
+      ) : null}
+
+      {tab === "mensagens" ? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <SectionCard title="Conversas" variant="elevated">
             {loading ? (
@@ -424,7 +577,215 @@ function GerenciaPortalPageInner() {
             )}
           </SectionCard>
         </div>
-      )}
+      ) : null}
+
+      {tab === "limpeza" ? (
+        <SectionCard title="Relatos de limpeza" variant="elevated">
+          <div className="mb-3 flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={statusFilter === "PENDENTE" ? "primary" : "secondary"}
+              onClick={() => setStatusFilter("PENDENTE")}
+            >
+              Pendentes
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={statusFilter === "TODAS" ? "primary" : "secondary"}
+              onClick={() => setStatusFilter("TODAS")}
+            >
+              Todas
+            </Button>
+          </div>
+          {loading ? (
+            <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
+          ) : cleaningReports.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Nenhum relato nesta fila.</p>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Colaborador</Th>
+                  <Th>Itens</Th>
+                  <Th>Status</Th>
+                  <Th>Ação</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {cleaningReports.map((r) => (
+                  <tr key={r.id}>
+                    <Td>
+                      <div className="font-medium">{r.employeeName}</div>
+                      <div className="text-xs text-[var(--text-muted)]">{r.employeePosition}</div>
+                      <div className="text-xs text-[var(--text-muted)]">
+                        {new Date(r.createdAt).toLocaleString("pt-BR")}
+                      </div>
+                    </Td>
+                    <Td>
+                      <ul className="space-y-1 text-sm">
+                        {r.lines.map((line) => (
+                          <li key={line.id}>
+                            {line.itemName} · {line.quantity} ·{" "}
+                            {line.kind === "FALTANDO" ? "faltando" : "disponível"}
+                          </li>
+                        ))}
+                      </ul>
+                      {r.notes ? <p className="mt-1 text-xs text-[var(--text-muted)]">{r.notes}</p> : null}
+                    </Td>
+                    <Td>
+                      <Badge tone={r.status === "PENDENTE" ? "amber" : "green"}>
+                        {r.status === "PENDENTE" ? "Pendente" : "Visto"}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      {r.status === "PENDENTE" ? (
+                        <div className="flex min-w-[200px] flex-col gap-2">
+                          <textarea
+                            className="w-full rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-2 py-1 text-xs"
+                            rows={2}
+                            placeholder="Observação (opcional)"
+                            value={reviewNotes[r.id] ?? ""}
+                            onChange={(e) => setReviewNotes((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={busyId === r.id}
+                            onClick={() => void reviewCleaning(r.id)}
+                          >
+                            Marcar visto
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-[var(--text-muted)]">{r.reviewNotes || "—"}</span>
+                      )}
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </SectionCard>
+      ) : null}
+
+      {tab === "motorista" ? (
+        <SectionCard title="Registros do motorista" variant="elevated">
+          <div className="mb-3 flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={statusFilter === "PENDENTE" ? "primary" : "secondary"}
+              onClick={() => setStatusFilter("PENDENTE")}
+            >
+              Pendentes
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={statusFilter === "TODAS" ? "primary" : "secondary"}
+              onClick={() => setStatusFilter("TODAS")}
+            >
+              Todas
+            </Button>
+          </div>
+          {loading ? (
+            <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
+          ) : driverLogs.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Nenhum registro nesta fila.</p>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Colaborador</Th>
+                  <Th>Tipo</Th>
+                  <Th>Detalhes</Th>
+                  <Th>Status</Th>
+                  <Th>Ação</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {driverLogs.map((log) => (
+                  <tr key={log.id}>
+                    <Td>
+                      <div className="font-medium">{log.employeeName}</div>
+                      <div className="text-xs text-[var(--text-muted)]">{log.employeePosition}</div>
+                      <div className="text-xs text-[var(--text-muted)]">
+                        {log.occurredAt.split("-").reverse().join("/")}
+                      </div>
+                    </Td>
+                    <Td>{DRIVER_KIND_LABEL[log.kind]}</Td>
+                    <Td>
+                      <div className="text-sm">{log.description}</div>
+                      {log.odometerKm != null ? (
+                        <div className="text-xs text-[var(--text-muted)]">{log.odometerKm} km</div>
+                      ) : null}
+                      {log.amountLabel ? (
+                        <div className="text-xs text-[var(--text-muted)]">{log.amountLabel}</div>
+                      ) : null}
+                      {log.fileUrl ? (
+                        <a
+                          href={log.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-[var(--igh-primary)] underline"
+                        >
+                          {log.fileName || "Arquivo"}
+                        </a>
+                      ) : null}
+                    </Td>
+                    <Td>
+                      <Badge tone={log.status === "PENDENTE" ? "amber" : "green"}>
+                        {log.status === "PENDENTE" ? "Pendente" : "Visto"}
+                      </Badge>
+                      {log.financialEntryId ? (
+                        <div className="mt-1 text-xs text-[var(--text-muted)]">Lançado no financeiro</div>
+                      ) : null}
+                    </Td>
+                    <Td>
+                      {log.status === "PENDENTE" ? (
+                        <div className="flex min-w-[220px] flex-col gap-2">
+                          <textarea
+                            className="w-full rounded border border-[var(--card-border)] bg-[var(--igh-surface)] px-2 py-1 text-xs"
+                            rows={2}
+                            placeholder="Observação (opcional)"
+                            value={reviewNotes[log.id] ?? ""}
+                            onChange={(e) => setReviewNotes((prev) => ({ ...prev, [log.id]: e.target.value }))}
+                          />
+                          <div className="flex flex-wrap gap-1">
+                            {log.kind === "NOTA_SERVICO" && (log.amountCents ?? 0) > 0 ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={busyId === log.id}
+                                onClick={() => void reviewDriver(log.id, true)}
+                              >
+                                Aprovar e lançar
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              disabled={busyId === log.id}
+                              onClick={() => void reviewDriver(log.id, false)}
+                            >
+                              Marcar visto
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-[var(--text-muted)]">{log.reviewNotes || "—"}</span>
+                      )}
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </SectionCard>
+      ) : null}
     </PanelPageStack>
   );
 }

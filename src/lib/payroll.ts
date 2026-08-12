@@ -99,6 +99,7 @@ export function serializePayrollLine(line: PayrollLine) {
     observation: line.observation,
     paymentStatus: line.paymentStatus,
     paidAt: line.paidAt?.toISOString() ?? null,
+    financialEntryId: line.financialEntryId,
     sortOrder: line.sortOrder,
   };
 }

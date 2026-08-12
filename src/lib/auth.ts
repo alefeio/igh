@@ -5,7 +5,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { compare, hash } from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
-import type { User, UserRole } from "@/generated/prisma/client";
+import type { EmployeePosition, User, UserRole } from "@/generated/prisma/client";
 import { expandMasterRoles } from "@/lib/rbac";
 
 /** Nome do cookie de sessão (usar em Route Handlers com NextResponse.cookies). */
@@ -32,6 +32,8 @@ export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActiv
   hasStudentProfile?: boolean;
   hasTeacherProfile?: boolean;
   hasEmployeeProfile?: boolean;
+  /** Cargo da ficha de colaborador ativa (quando houver). */
+  employeePosition?: EmployeePosition | null;
 };
 
 interface JwtPayload {
@@ -123,7 +125,7 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
         mustChangePassword: true,
         student: { select: { id: true } },
         teacher: { select: { id: true } },
-        employee: { select: { id: true, status: true, deletedAt: true } },
+        employee: { select: { id: true, status: true, deletedAt: true, position: true } },
       },
     });
 
@@ -173,6 +175,10 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
       hasTeacherProfile: !!user.teacher,
       hasEmployeeProfile:
         !!user.employee && !user.employee.deletedAt && user.employee.status !== "DESLIGADO",
+      employeePosition:
+        user.employee && !user.employee.deletedAt && user.employee.status !== "DESLIGADO"
+          ? user.employee.position
+          : null,
     };
   } catch {
     return null;

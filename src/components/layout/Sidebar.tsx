@@ -25,6 +25,8 @@ type Item = {
   category: string;
   /** Só aparece se a conta tiver ficha de colaborador vinculada. */
   requiresEmployee?: boolean;
+  /** Se definido, só aparece para esses cargos de colaborador. */
+  employeePositions?: readonly string[];
 };
 
 const ALL_ROLES = [
@@ -97,6 +99,22 @@ const ITEMS: Item[] = [
     roles: ALL_ROLES,
     category: "Colaborador",
     requiresEmployee: true,
+  },
+  {
+    href: "/colaborador/limpeza",
+    label: "Limpeza",
+    roles: ALL_ROLES,
+    category: "Colaborador",
+    requiresEmployee: true,
+    employeePositions: ["LIMPEZA"],
+  },
+  {
+    href: "/colaborador/motorista",
+    label: "Motorista",
+    roles: ALL_ROLES,
+    category: "Colaborador",
+    requiresEmployee: true,
+    employeePositions: ["MOTORISTA"],
   },
 
   /* —— Aluno —— */
@@ -298,6 +316,7 @@ export function Sidebar({
     hasStudentProfile?: boolean;
     hasTeacherProfile?: boolean;
     hasEmployeeProfile?: boolean;
+    employeePosition?: string | null;
     availableRoles?: {
       canMaster: boolean;
       canGeneralAdmin?: boolean;
@@ -325,6 +344,11 @@ export function Sidebar({
   const filteredItems = ITEMS.filter((i) => {
     if (!i.roles.includes(user.role)) return false;
     if (i.requiresEmployee && !user.hasEmployeeProfile) return false;
+    if (i.employeePositions?.length) {
+      if (!user.employeePosition || !i.employeePositions.includes(user.employeePosition)) {
+        return false;
+      }
+    }
     return true;
   });
 

@@ -106,6 +106,8 @@ model User {
   employeeMonthlyInvoicesCreated     EmployeeMonthlyInvoice[]   @relation("EmployeeMonthlyInvoiceCreatedBy")
   employeeInvoiceSubmissionsReviewed EmployeeInvoiceSubmission[] @relation("EmployeeInvoiceReviewedBy")
   employeePortalMessagesAuthored     EmployeePortalMessage[]     @relation("EmployeePortalMessageAuthor")
+  cleaningReportsReviewed            EmployeeCleaningReport[]    @relation("CleaningReportReviewedBy")
+  driverLogsReviewed                 EmployeeDriverLog[]         @relation("DriverLogReviewedBy")
   financialCategoriesCreated         FinancialCategory[]        @relation("FinancialCategoryCreatedBy")
   financialEntriesCreated            FinancialEntry[]           @relation("FinancialEntryCreatedBy")
   financialEntriesResponsible        FinancialEntry[]           @relation("FinancialEntryResponsible")
@@ -1312,6 +1314,8 @@ model Employee {
   monthlyInvoices    EmployeeMonthlyInvoice[]
   invoiceSubmissions EmployeeInvoiceSubmission[]
   portalThreads      EmployeePortalThread[]
+  cleaningReports    EmployeeCleaningReport[]
+  driverLogs         EmployeeDriverLog[]
   payrollLines       PayrollLine[]
   mealTicketLines    MealTicketLine[]
 
@@ -1486,6 +1490,70 @@ model EmployeePortalMessage {
   @@index([threadId, createdAt])
 }
 
+/// * Relato de material (limpeza): disponível no local ou faltando.
+model EmployeeCleaningReport {
+  id               String                        @id @default(uuid())
+  employeeId       String
+  notes            String?
+  status           EmployeePortalReviewStatus    @default(PENDENTE)
+  reviewNotes      String?
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+  employee         Employee                      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewedByUser   User?                         @relation("CleaningReportReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  lines            EmployeeCleaningReportLine[]
+
+  @@index([employeeId, createdAt])
+  @@index([status, createdAt])
+}
+
+model EmployeeCleaningReportLine {
+  id              String                    @id @default(uuid())
+  reportId        String
+  inventoryItemId String?
+  itemName        String
+  kind            CleaningMaterialKind
+  quantity        Int                       @default(1)
+  notes           String?
+  report          EmployeeCleaningReport    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  inventoryItem   InventoryItem?            @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
+  @@index([reportId])
+  @@index([inventoryItemId])
+}
+
+/// * Registro do motorista: km, nota de serviço ou ocorrência.
+model EmployeeDriverLog {
+  id               String                     @id @default(uuid())
+  employeeId       String
+  kind             DriverLogKind
+  occurredAt       DateTime                   @db.Date
+  odometerKm       Int?
+  description      String
+  amountCents      Int?
+  supplier         String?
+  invoiceNumber    String?
+  fileUrl          String?
+  filePublicId     String?
+  fileName         String?
+  status           EmployeePortalReviewStatus @default(PENDENTE)
+  reviewNotes      String?
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  financialEntryId String?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  employee         Employee                   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewedByUser   User?                      @relation("DriverLogReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  financialEntry   FinancialEntry?            @relation(fields: [financialEntryId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, createdAt])
+  @@index([kind, createdAt])
+  @@index([status, createdAt])
+}
+
 /// * Categoria cadastrável de lançamentos financeiros (entrada ou saída).
 model FinancialCategory {
   id              String              @id @default(uuid())
@@ -1538,6 +1606,8 @@ model FinancialEntry {
   createdByUser        User?                    @relation("FinancialEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   donations            Donation[]
   employeeInvoiceSubmissions EmployeeInvoiceSubmission[]
+  driverLogs           EmployeeDriverLog[]
+  payrollLines         PayrollLine[]
 
   @@index([deletedAt, entryDate])
   @@index([kind, entryDate])
@@ -1579,6 +1649,7 @@ model InventoryItem {
   createdByUser   User?               @relation("InventoryItemCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   movements       InventoryMovement[]
   donationItems   DonationItem[]
+  cleaningReportLines EmployeeCleaningReportLine[]
 
   @@unique([code])
   @@index([deletedAt, isActive])
@@ -1861,11 +1932,14 @@ model PayrollLine {
   observation           String?
   paymentStatus         PayrollPaymentStatus  @default(PENDENTE)
   paidAt                DateTime?
+  /// * Lançamento financeiro gerado ao marcar como pago.
+  financialEntryId      String?
   sortOrder             Int                   @default(0)
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
   payrollMonth          PayrollMonth          @relation(fields: [payrollMonthId], references: [id], onDelete: Cascade)
   employee              Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  financialEntry        FinancialEntry?       @relation(fields: [financialEntryId], references: [id], onDelete: SetNull)
 
   @@unique([payrollMonthId, employeeId])
   @@index([payrollMonthId, paymentStatus])
@@ -2496,6 +2570,10 @@ enum UserNotificationKind {
   EMPLOYEE_INVOICE_REVIEWED
   /// * Nova mensagem no canal colaborador ↔ gerência.
   EMPLOYEE_PORTAL_MESSAGE
+  /// * Relato de material (limpeza) no portal.
+  EMPLOYEE_CLEANING_REPORT
+  /// * Registro do motorista no portal.
+  EMPLOYEE_DRIVER_LOG
 }
 
 /// * Termos de uso, política de privacidade ou política de cookies (LGPD / ePrivacy).
@@ -2714,6 +2792,22 @@ enum EmployeeInvoiceSubmissionStatus {
 enum EmployeePortalThreadStatus {
   ABERTA
   ENCERRADA
+}
+
+enum EmployeePortalReviewStatus {
+  PENDENTE
+  VISTO
+}
+
+enum CleaningMaterialKind {
+  DISPONIVEL
+  FALTANDO
+}
+
+enum DriverLogKind {
+  QUILOMETRAGEM
+  NOTA_SERVICO
+  OCORRENCIA
 }
 
 enum FinancialEntryKind {

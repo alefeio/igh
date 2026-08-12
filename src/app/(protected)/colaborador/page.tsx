@@ -1,7 +1,7 @@
 "use client";
 
-import { FileText, MessageSquare, UserCircle } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { FileText, MessageSquare, Sparkles, Truck, UserCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   DashboardHero,
@@ -60,6 +60,44 @@ export default function ColaboradorPortalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const quickActions = useMemo(() => {
+    const items = [
+      {
+        href: "/colaborador/notas",
+        label: "Enviar nota",
+        description: "Anexe a NF do mês; a leitura preenche valor e dados",
+        icon: FileText,
+        accent: "from-emerald-600 to-teal-500",
+      },
+      {
+        href: "/colaborador/mensagens",
+        label: "Falar com a gerência",
+        description: "Canal interno, separado da coordenação pedagógica",
+        icon: MessageSquare,
+        accent: "from-sky-600 to-blue-500",
+      },
+    ];
+    if (data?.employee.position === "LIMPEZA") {
+      items.push({
+        href: "/colaborador/limpeza",
+        label: "Limpeza",
+        description: "Relate materiais disponíveis ou faltando",
+        icon: Sparkles,
+        accent: "from-cyan-600 to-teal-500",
+      });
+    }
+    if (data?.employee.position === "MOTORISTA") {
+      items.push({
+        href: "/colaborador/motorista",
+        label: "Motorista",
+        description: "Quilometragem, notas de serviço e ocorrências",
+        icon: Truck,
+        accent: "from-amber-600 to-orange-500",
+      });
+    }
+    return items;
+  }, [data?.employee.position]);
 
   async function uploadPhoto(file: File) {
     setUploading(true);
@@ -164,24 +202,7 @@ export default function ColaboradorPortalPage() {
       </SectionCard>
 
       <SectionCard title="Atalhos" variant="elevated">
-        <QuickActionGrid
-          items={[
-            {
-              href: "/colaborador/notas",
-              label: "Enviar nota",
-              description: "Anexe a NF do mês; a leitura preenche valor e dados",
-              icon: FileText,
-              accent: "from-emerald-600 to-teal-500",
-            },
-            {
-              href: "/colaborador/mensagens",
-              label: "Falar com a gerência",
-              description: "Canal interno, separado da coordenação pedagógica",
-              icon: MessageSquare,
-              accent: "from-sky-600 to-blue-500",
-            },
-          ]}
-        />
+        <QuickActionGrid items={quickActions} />
       </SectionCard>
     </PanelPageStack>
   );

@@ -1,8 +1,14 @@
 import "server-only";
 
 import type {
+  CleaningMaterialKind,
+  DriverLogKind,
+  EmployeeCleaningReport,
+  EmployeeCleaningReportLine,
+  EmployeeDriverLog,
   EmployeeInvoiceSubmission,
   EmployeePortalMessage,
+  EmployeePortalReviewStatus,
   EmployeePortalThread,
   EmployeePosition,
   EmployeeStatus,
@@ -47,6 +53,16 @@ export async function requireEmployeePortal(): Promise<{
   return { user, employee: { ...employee, userId: employee.userId } };
 }
 
+export async function requireEmployeePortalPosition(
+  ...positions: EmployeePosition[]
+): Promise<{ user: SessionUser; employee: EmployeePortalRecord }> {
+  const ctx = await requireEmployeePortal();
+  if (!positions.includes(ctx.employee.position)) {
+    throw new Error("FORBIDDEN");
+  }
+  return ctx;
+}
+
 export async function listAdminManagerUserIds(): Promise<string[]> {
   const users = await prisma.user.findMany({
     where: {
@@ -59,7 +75,11 @@ export async function listAdminManagerUserIds(): Promise<string[]> {
 }
 
 export async function notifyAdminManagers(input: {
-  kind: "EMPLOYEE_INVOICE_SUBMITTED" | "EMPLOYEE_PORTAL_MESSAGE";
+  kind:
+    | "EMPLOYEE_INVOICE_SUBMITTED"
+    | "EMPLOYEE_PORTAL_MESSAGE"
+    | "EMPLOYEE_CLEANING_REPORT"
+    | "EMPLOYEE_DRIVER_LOG";
   title: string;
   body: string;
   linkUrl: string;
@@ -235,8 +255,251 @@ export async function findMeiSaidaCategoryId(): Promise<string | null> {
   const matched =
     matchCategoryName(existing, "Nota MEI/colaborador") ??
     matchCategoryName(existing, "Nota MEI") ??
-    existing.find((c) => /mei|colaborador/i.test(c.name));
+    existing.find((c) => /mei|colaborador/i.test(c.name)) ??
+    matchCategoryName(existing, "Despesas operacionais") ??
+    existing[0];
   return matched?.id ?? null;
+}
+
+export async function findFolhaSaidaCategoryId(): Promise<string | null> {
+  const existing = await prisma.financialCategory.findMany({
+    where: { kind: "SAIDA", isActive: true },
+    select: { id: true, name: true },
+  });
+  const matched =
+    matchCategoryName(existing, "Folha") ??
+    matchCategoryName(existing, "Folha de pagamento") ??
+    matchCategoryName(existing, "Nota MEI/colaborador") ??
+    existing[0];
+  return matched?.id ?? null;
+}
+
+const cleaningReportInclude = {
+  employee: {
+    select: {
+      id: true,
+      name: true,
+      position: true,
+      positionLabel: true,
+      userId: true,
+    },
+  },
+  reviewedByUser: { select: { id: true, name: true } },
+  lines: {
+    orderBy: { itemName: "asc" as const },
+    include: {
+      inventoryItem: {
+        select: { id: true, name: true, unit: true, quantityOnHand: true },
+      },
+    },
+  },
+} as const;
+
+type CleaningReportRow = EmployeeCleaningReport & {
+  employee: {
+    id: string;
+    name: string;
+    position: EmployeePosition;
+    positionLabel: string | null;
+    userId: string | null;
+  };
+  reviewedByUser: { id: string; name: string } | null;
+  lines: Array<
+    EmployeeCleaningReportLine & {
+      inventoryItem: {
+        id: string;
+        name: string;
+        unit: string;
+        quantityOnHand: number;
+      } | null;
+    }
+  >;
+};
+
+export function serializeCleaningReport(row: CleaningReportRow) {
+  return {
+    id: row.id,
+    employeeId: row.employeeId,
+    employeeName: row.employee.name,
+    employeePosition: employeePositionText(row.employee),
+    notes: row.notes,
+    status: row.status as EmployeePortalReviewStatus,
+    reviewNotes: row.reviewNotes,
+    reviewedAt: row.reviewedAt?.toISOString() ?? null,
+    reviewedByName: row.reviewedByUser?.name ?? null,
+    createdAt: row.createdAt.toISOString(),
+    lines: row.lines.map((line) => ({
+      id: line.id,
+      inventoryItemId: line.inventoryItemId,
+      itemName: line.itemName,
+      kind: line.kind as CleaningMaterialKind,
+      quantity: line.quantity,
+      notes: line.notes,
+      inventoryItem: line.inventoryItem
+        ? {
+            id: line.inventoryItem.id,
+            name: line.inventoryItem.name,
+            unit: line.inventoryItem.unit,
+            quantityOnHand: line.inventoryItem.quantityOnHand,
+          }
+        : null,
+    })),
+  };
+}
+
+export { cleaningReportInclude };
+
+const driverLogInclude = {
+  employee: {
+    select: {
+      id: true,
+      name: true,
+      position: true,
+      positionLabel: true,
+      userId: true,
+    },
+  },
+  reviewedByUser: { select: { id: true, name: true } },
+} as const;
+
+type DriverLogRow = EmployeeDriverLog & {
+  employee: {
+    id: string;
+    name: string;
+    position: EmployeePosition;
+    positionLabel: string | null;
+    userId: string | null;
+  };
+  reviewedByUser: { id: string; name: string } | null;
+};
+
+export function serializeDriverLog(row: DriverLogRow) {
+  return {
+    id: row.id,
+    employeeId: row.employeeId,
+    employeeName: row.employee.name,
+    employeePosition: employeePositionText(row.employee),
+    kind: row.kind as DriverLogKind,
+    occurredAt: row.occurredAt.toISOString().slice(0, 10),
+    odometerKm: row.odometerKm,
+    description: row.description,
+    amountCents: row.amountCents,
+    amountLabel: row.amountCents != null ? formatCentsBRL(row.amountCents) : null,
+    supplier: row.supplier,
+    invoiceNumber: row.invoiceNumber,
+    fileUrl: row.fileUrl,
+    filePublicId: row.filePublicId,
+    fileName: row.fileName,
+    status: row.status as EmployeePortalReviewStatus,
+    reviewNotes: row.reviewNotes,
+    reviewedAt: row.reviewedAt?.toISOString() ?? null,
+    reviewedByName: row.reviewedByUser?.name ?? null,
+    financialEntryId: row.financialEntryId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export { driverLogInclude };
+
+export async function getCleaningReportOrThrow(id: string): Promise<CleaningReportRow> {
+  const row = await prisma.employeeCleaningReport.findUnique({
+    where: { id },
+    include: cleaningReportInclude,
+  });
+  if (!row) throw new Error("NOT_FOUND");
+  return row;
+}
+
+export async function getDriverLogOrThrow(id: string): Promise<DriverLogRow> {
+  const row = await prisma.employeeDriverLog.findUnique({
+    where: { id },
+    include: driverLogInclude,
+  });
+  if (!row) throw new Error("NOT_FOUND");
+  return row;
+}
+
+export async function markCleaningReportSeen(input: {
+  reportId: string;
+  actorId: string;
+  reviewNotes?: string | null;
+}): Promise<CleaningReportRow> {
+  const current = await getCleaningReportOrThrow(input.reportId);
+  if (current.status !== "PENDENTE") throw new Error("ALREADY_REVIEWED");
+  return prisma.employeeCleaningReport.update({
+    where: { id: current.id },
+    data: {
+      status: "VISTO",
+      reviewNotes: input.reviewNotes?.trim() || null,
+      reviewedAt: new Date(),
+      reviewedByUserId: input.actorId,
+    },
+    include: cleaningReportInclude,
+  });
+}
+
+export async function markDriverLogSeen(input: {
+  logId: string;
+  actorId: string;
+  reviewNotes?: string | null;
+  createFinancialEntry?: boolean;
+}): Promise<DriverLogRow> {
+  const current = await getDriverLogOrThrow(input.logId);
+  if (current.status !== "PENDENTE") throw new Error("ALREADY_REVIEWED");
+
+  const shouldCreateEntry =
+    Boolean(input.createFinancialEntry) &&
+    current.kind === "NOTA_SERVICO" &&
+    (current.amountCents ?? 0) > 0;
+
+  if (input.createFinancialEntry && current.kind === "NOTA_SERVICO" && !(current.amountCents && current.amountCents > 0)) {
+    throw new Error("AMOUNT_REQUIRED");
+  }
+
+  const categoryId = shouldCreateEntry ? await findMeiSaidaCategoryId() : null;
+
+  return prisma.$transaction(async (tx) => {
+    let financialEntryId: string | null = current.financialEntryId;
+    if (shouldCreateEntry && current.amountCents) {
+      const entry = await tx.financialEntry.create({
+        data: {
+          kind: "SAIDA",
+          description:
+            current.description.trim() ||
+            `Nota de serviço — ${current.employee.name}`,
+          amountCents: current.amountCents,
+          entryDate: current.occurredAt,
+          paymentStatus: "PAGO",
+          paidAt: new Date(),
+          categoryId,
+          paymentMethod: "PIX",
+          responsibleUserId: current.employee.userId,
+          responsibleName: current.employee.name,
+          invoiceNumber: current.invoiceNumber,
+          supplier: current.supplier,
+          notes: input.reviewNotes?.trim() || null,
+          attachmentUrl: current.fileUrl,
+          attachmentPublicId: current.filePublicId,
+          attachmentFileName: current.fileName,
+          createdByUserId: input.actorId,
+        },
+        select: { id: true },
+      });
+      financialEntryId = entry.id;
+    }
+
+    return tx.employeeDriverLog.update({
+      where: { id: current.id },
+      data: {
+        status: "VISTO",
+        reviewNotes: input.reviewNotes?.trim() || null,
+        reviewedAt: new Date(),
+        reviewedByUserId: input.actorId,
+        financialEntryId,
+      },
+      include: driverLogInclude,
+    });
+  });
 }
 
 export async function approveInvoiceSubmission(input: {

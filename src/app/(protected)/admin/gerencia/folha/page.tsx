@@ -30,6 +30,7 @@ type PayrollLine = {
   observation: string | null;
   paymentStatus: "PENDENTE" | "PAGO";
   paidAt: string | null;
+  financialEntryId?: string | null;
 };
 
 type Payroll = {
@@ -311,6 +312,9 @@ export default function FolhaPage() {
                   >
                     {l.paymentStatus === "PAGO" ? "Pago" : "Marcar pago"}
                   </Button>
+                  {l.financialEntryId ? (
+                    <div className="mt-1 text-xs text-[var(--text-muted)]">Lançado no financeiro</div>
+                  ) : null}
                 </Td>
               </tr>
             ))}

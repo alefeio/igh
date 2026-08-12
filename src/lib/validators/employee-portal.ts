@@ -62,3 +62,39 @@ export const reviewInvoiceSubmissionSchema = z.object({
   reviewNotes: optionalText,
   createFinancialEntry: z.boolean().optional().default(true),
 });
+
+const cleaningLineSchema = z.object({
+  inventoryItemId: z.string().uuid().nullable().optional(),
+  itemName: z.string().trim().min(1, "Informe o nome do item.").max(200),
+  kind: z.enum(["DISPONIVEL", "FALTANDO"]),
+  quantity: z.coerce.number().int().positive("Quantidade deve ser positiva.").max(1_000_000),
+  notes: optionalText,
+});
+
+export const createCleaningReportSchema = z.object({
+  notes: optionalText,
+  lines: z.array(cleaningLineSchema).min(1, "Inclua ao menos um item."),
+});
+
+export const createDriverLogSchema = z.object({
+  kind: z.enum(["QUILOMETRAGEM", "NOTA_SERVICO", "OCORRENCIA"]),
+  occurredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (use AAAA-MM-DD)"),
+  odometerKm: z
+    .preprocess(
+      (v) => (v === "" || v == null ? null : v),
+      z.coerce.number().int().nonnegative().nullable(),
+    )
+    .optional(),
+  description: z.string().trim().min(1, "Descreva o registro.").max(8000),
+  amount: optionalMoneyCents,
+  supplier: optionalText,
+  invoiceNumber: optionalText,
+  fileUrl: httpsUrl.nullable().optional(),
+  filePublicId: optionalText,
+  fileName: optionalText,
+});
+
+export const reviewPortalItemSchema = z.object({
+  reviewNotes: optionalText,
+  createFinancialEntry: z.boolean().optional().default(false),
+});

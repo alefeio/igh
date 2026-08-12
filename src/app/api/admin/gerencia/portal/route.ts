@@ -12,11 +12,20 @@ export async function GET() {
     throw e;
   }
 
-  const [pendingInvoices, unreadThreads, openThreads] = await Promise.all([
-    prisma.employeeInvoiceSubmission.count({ where: { status: "PENDENTE" } }),
-    prisma.employeePortalThread.count({ where: { unreadByManager: true } }),
-    prisma.employeePortalThread.count({ where: { status: "ABERTA" } }),
-  ]);
+  const [pendingInvoices, unreadThreads, openThreads, pendingCleaning, pendingDriver] =
+    await Promise.all([
+      prisma.employeeInvoiceSubmission.count({ where: { status: "PENDENTE" } }),
+      prisma.employeePortalThread.count({ where: { unreadByManager: true } }),
+      prisma.employeePortalThread.count({ where: { status: "ABERTA" } }),
+      prisma.employeeCleaningReport.count({ where: { status: "PENDENTE" } }),
+      prisma.employeeDriverLog.count({ where: { status: "PENDENTE" } }),
+    ]);
 
-  return jsonOk({ pendingInvoices, unreadThreads, openThreads });
+  return jsonOk({
+    pendingInvoices,
+    unreadThreads,
+    openThreads,
+    pendingCleaning,
+    pendingDriver,
+  });
 }

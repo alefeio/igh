@@ -17,6 +17,8 @@ export type SessionUser = {
   hasTeacherProfile?: boolean;
   /** True se o usuário tem ficha de colaborador ativa na Gerência. */
   hasEmployeeProfile?: boolean;
+  /** Cargo da ficha de colaborador ativa (quando houver). */
+  employeePosition?: string | null;
 };
 
 const UserContext = createContext<SessionUser | null>(null);
