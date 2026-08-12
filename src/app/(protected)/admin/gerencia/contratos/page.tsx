@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardHero, PanelPageStack, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -11,6 +11,13 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import {
+  apimagesUploadHeaders,
+  buildApimagesUploadFormData,
+  GERENCIA_UPLOAD_SIGNATURE,
+  parseApimagesUploadJson,
+  readApiJson,
+} from "@/lib/apimages-upload";
 import {
   employeePositionText,
   formatCentsBRL,
@@ -93,6 +100,9 @@ export default function ContratosPage() {
   const [invoiceMonth, setInvoiceMonth] = useState("");
   const [invoiceAmount, setInvoiceAmount] = useState("");
   const [invoiceSaving, setInvoiceSaving] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const signedFileRef = useRef<HTMLInputElement>(null);
+  const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,7 +118,9 @@ export default function ContratosPage() {
       const eJson = (await eRes.json()) as ApiResponse<{ employees: EmployeeView[] }>;
       const tJson = (await tRes.json()) as ApiResponse<{ templates: Template[] }>;
       if (cRes.ok && cJson.ok) setContracts(cJson.data.contracts);
+      else toast.push("error", !cJson.ok ? cJson.error.message : "Falha ao carregar contratos.");
       if (iRes.ok && iJson.ok) setInvoices(iJson.data.invoices);
+      else toast.push("error", !iJson.ok ? iJson.error.message : "Falha ao carregar notas mensais.");
       if (eRes.ok && eJson.ok) setEmployees(eJson.data.employees);
       if (tRes.ok && tJson.ok) setTemplates(tJson.data.templates.filter((t) => t.isActive));
     } catch {
@@ -235,6 +247,75 @@ export default function ContratosPage() {
     }
   }
 
+  function pickSignedPdf(contractId: string) {
+    setPendingUploadId(contractId);
+    signedFileRef.current?.click();
+  }
+
+  async function uploadSignedPdf(file: File, contractId: string) {
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast.push("error", "Envie um arquivo PDF.");
+      return;
+    }
+    setUploadingId(contractId);
+    try {
+      const signRes = await fetch(GERENCIA_UPLOAD_SIGNATURE, { method: "POST" });
+      const signJson = await readApiJson<{ uploadUrl: string; apiKey: string }>(signRes);
+      if (!signRes.ok || !signJson.ok) {
+        toast.push("error", !signJson.ok ? signJson.error.message : "Falha ao preparar upload.");
+        return;
+      }
+      const uploadRes = await fetch(signJson.data.uploadUrl, {
+        method: "POST",
+        headers: apimagesUploadHeaders(signJson.data.apiKey),
+        body: buildApimagesUploadFormData(file),
+      });
+      const cloud = parseApimagesUploadJson(await uploadRes.json());
+      if (!uploadRes.ok || !cloud.url) {
+        toast.push("error", cloud.errorMessage ?? "Falha no upload do PDF.");
+        return;
+      }
+      const res = await fetch(`/api/admin/gerencia/contratos/${contractId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signedPdfUrl: cloud.url,
+          signedPdfPublicId: cloud.publicId || null,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ contract: Contract }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao salvar PDF assinado.");
+        return;
+      }
+      setContracts((prev) =>
+        prev.map((c) =>
+          c.id === contractId
+            ? { ...c, signedPdfUrl: json.data.contract.signedPdfUrl }
+            : c,
+        ),
+      );
+      toast.push("success", "PDF assinado anexado.");
+    } catch {
+      toast.push("error", "Falha ao anexar PDF assinado.");
+    } finally {
+      setUploadingId(null);
+      setPendingUploadId(null);
+    }
+  }
+
+  async function archiveContract(c: Contract) {
+    if (!confirm(`Arquivar o documento de ${c.employee.name}?`)) return;
+    const res = await fetch(`/api/admin/gerencia/contratos/${c.id}`, { method: "DELETE" });
+    const json = (await res.json()) as ApiResponse<{ archived: boolean }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao arquivar.");
+      return;
+    }
+    toast.push("success", "Documento arquivado.");
+    void load();
+  }
+
   const tabBtn = (id: Tab, label: string) => (
     <button
       type="button"
@@ -254,7 +335,7 @@ export default function ContratosPage() {
       <DashboardHero
         eyebrow="Administração · Pessoas"
         title="Contratos"
-        description="Cadastre contratações, acompanhe funcionários e emita distratos no modelo oficial."
+        description="Emita contratações e distratos no modelo oficial e anexe o PDF assinado."
         rightSlot={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => openCreate("DISTRATO")}>
@@ -270,7 +351,7 @@ export default function ContratosPage() {
 
       <div className="flex flex-wrap gap-2">
         {tabBtn("contratacao", "Contratação")}
-        {tabBtn("distratos", "Funcionários e distratos")}
+        {tabBtn("distratos", "Distratos")}
         {tabBtn("notas", "Notas mensais")}
       </div>
 
@@ -308,6 +389,7 @@ export default function ContratosPage() {
                   <Th>Valor</Th>
                   <Th>Status</Th>
                   <Th>PDF</Th>
+                  <Th></Th>
                 </tr>
               </thead>
               <tbody>
@@ -326,18 +408,44 @@ export default function ContratosPage() {
                       </Badge>
                     </Td>
                     <Td>
-                      {c.pdfUrl ? (
-                        <a
-                          href={c.pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sm font-medium text-[var(--igh-primary)] hover:underline"
-                        >
-                          Abrir
-                        </a>
-                      ) : (
-                        "—"
-                      )}
+                      <div className="flex flex-col gap-1 text-sm">
+                        {c.pdfUrl ? (
+                          <a
+                            href={c.pdfUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-[var(--igh-primary)] hover:underline"
+                          >
+                            Gerado
+                          </a>
+                        ) : (
+                          <span className="text-[var(--text-muted)]">Sem gerado</span>
+                        )}
+                        {c.signedPdfUrl ? (
+                          <a
+                            href={c.signedPdfUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                          >
+                            Assinado
+                          </a>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={uploadingId === c.id}
+                            onClick={() => pickSignedPdf(c.id)}
+                          >
+                            {uploadingId === c.id ? "Enviando…" : "Anexar assinado"}
+                          </Button>
+                        )}
+                      </div>
+                    </Td>
+                    <Td>
+                      <Button size="sm" variant="ghost" onClick={() => void archiveContract(c)}>
+                        Arquivar
+                      </Button>
                     </Td>
                   </tr>
                 ))}
@@ -569,6 +677,19 @@ export default function ContratosPage() {
           </div>
         </div>
       </Modal>
+
+      <input
+        ref={signedFileRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          const id = pendingUploadId;
+          e.target.value = "";
+          if (file && id) void uploadSignedPdf(file, id);
+        }}
+      />
     </PanelPageStack>
   );
 }

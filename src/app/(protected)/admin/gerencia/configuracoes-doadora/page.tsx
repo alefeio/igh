@@ -118,9 +118,9 @@ export default function ConfiguracoesDoadoraPage() {
   return (
     <PanelPageStack>
       <DashboardHero
-        eyebrow="Gerência"
-        title="Configurações da Instituição (Doadora)"
-        description="Dados usados nos termos de doação (placeholders instituto.*)."
+        eyebrow="Gerência · Doações"
+        title="Configurações da instituição doadora"
+        description="Dados do instituto usados no PDF do termo de doação."
         rightSlot={
           <Button onClick={() => void save()} disabled={saving || loading}>
             {saving ? "Salvando…" : "Salvar"}

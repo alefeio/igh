@@ -579,7 +579,6 @@ export default function FinanceiroPage() {
         return;
       }
       toast.push("success", "Categoria criada.");
-      setCatOpen(false);
       setCatName("");
       void load();
     } catch {
@@ -587,6 +586,40 @@ export default function FinanceiroPage() {
     } finally {
       setCatSaving(false);
     }
+  }
+
+  async function toggleCategory(c: FinancialCategoryView) {
+    const res = await fetch(`/api/admin/gerencia/financeiro/categorias/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !c.isActive }),
+    });
+    const json = (await res.json()) as ApiResponse<{ category: FinancialCategoryView }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao atualizar categoria.");
+      return;
+    }
+    toast.push("success", json.data.category.isActive ? "Categoria ativada." : "Categoria desativada.");
+    void load();
+  }
+
+  async function removeCategory(c: FinancialCategoryView) {
+    if (!confirm(`Remover a categoria "${c.name}"? Se houver lançamentos, ela será só desativada.`)) {
+      return;
+    }
+    const res = await fetch(`/api/admin/gerencia/financeiro/categorias/${c.id}`, {
+      method: "DELETE",
+    });
+    const json = (await res.json()) as ApiResponse<{ deleted?: boolean; deactivated?: boolean }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao remover categoria.");
+      return;
+    }
+    toast.push(
+      "success",
+      json.data.deactivated ? "Categoria desativada (há lançamentos)." : "Categoria removida.",
+    );
+    void load();
   }
 
   function exportXlsx() {
@@ -730,8 +763,8 @@ export default function FinanceiroPage() {
       />
 
       <div className="flex flex-wrap gap-2">
-        {tabBtn("fluxo", "Fluxo")}
-        {tabBtn("prestacao", "Prestação")}
+        {tabBtn("fluxo", "Fluxo de caixa")}
+        {tabBtn("prestacao", "Prestação de contas")}
         {tabBtn("notas-mei", "Notas MEI")}
       </div>
 
@@ -1521,6 +1554,7 @@ export default function FinanceiroPage() {
                 <Th>Nome</Th>
                 <Th>Tipo</Th>
                 <Th>Status</Th>
+                <Th></Th>
               </tr>
             </thead>
             <tbody>
@@ -1530,6 +1564,16 @@ export default function FinanceiroPage() {
                   <Td>{FINANCIAL_ENTRY_KIND_LABEL[c.kind]}</Td>
                   <Td>
                     <Badge tone={c.isActive ? "green" : "zinc"}>{c.isActive ? "Ativa" : "Inativa"}</Badge>
+                  </Td>
+                  <Td>
+                    <div className="flex flex-wrap gap-1">
+                      <Button size="sm" variant="secondary" onClick={() => void toggleCategory(c)}>
+                        {c.isActive ? "Desativar" : "Ativar"}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => void removeCategory(c)}>
+                        Remover
+                      </Button>
+                    </div>
                   </Td>
                 </tr>
               ))}

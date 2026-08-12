@@ -191,7 +191,7 @@ export default function ColaboradoresPage() {
         <div className="mb-4 flex flex-wrap gap-2">
           {filterBtn("TODOS", "Todos", counts.todos)}
           {filterBtn("ATIVO", "Ativos", counts.ativos)}
-          {filterBtn("DESATIVADOS", "Desativados", counts.desativados)}
+          {filterBtn("DESATIVADOS", "Não ativos", counts.desativados)}
         </div>
 
         <div className="relative mb-4 max-w-md">

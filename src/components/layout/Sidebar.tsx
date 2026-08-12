@@ -249,13 +249,13 @@ const ITEMS: Item[] = [
   },
   {
     href: "/admin/gerencia/visitas",
-    label: "Checklist de visitas",
+    label: "Visitas técnicas",
     roles: ADMIN_MANAGEMENT,
     category: "Gerência",
   },
   {
     href: "/admin/gerencia/relatorio-beneficiados",
-    label: "Relatório Excel",
+    label: "Beneficiados (Excel)",
     roles: ADMIN_MANAGEMENT,
     category: "Gerência",
   },

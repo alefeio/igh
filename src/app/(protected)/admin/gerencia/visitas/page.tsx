@@ -110,6 +110,7 @@ export default function VisitasPage() {
   const [search, setSearch] = useState("");
 
   const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [viewing, setViewing] = useState<TechnicalVisitView | null>(null);
@@ -153,7 +154,45 @@ export default function VisitasPage() {
   }, [form.checklist]);
 
   function openCreate() {
+    setEditingId(null);
     setForm(emptyForm());
+    setFormOpen(true);
+  }
+
+  function openEdit(v: TechnicalVisitView) {
+    setEditingId(v.id);
+    setForm({
+      locationName: v.locationName,
+      municipality: v.municipality,
+      state: v.state,
+      address: v.address ?? "",
+      localContact: v.localContact ?? "",
+      visitedAt: v.visitedAt.slice(0, 10),
+      visitors: v.visitors ?? "",
+      metaStudents: v.metaStudents != null ? String(v.metaStudents) : "",
+      metaClassGroups: v.metaClassGroups != null ? String(v.metaClassGroups) : "",
+      metaStudentsPerClass: v.metaStudentsPerClass != null ? String(v.metaStudentsPerClass) : "",
+      classDuration: v.classDuration ?? "",
+      classesPerWeek: v.classesPerWeek ?? "",
+      classDays: v.classDays ?? "",
+      pedagogicalPlan: v.pedagogicalPlan ?? "",
+      structuralStandards: v.structuralStandards ?? DEFAULT_STRUCTURAL_STANDARDS,
+      finalClassification: v.finalClassification,
+      finalNotes: v.finalNotes ?? "",
+      donatariaId: v.donatariaId ?? "",
+      checklist:
+        v.checklistItems.length > 0
+          ? v.checklistItems.map((item, index) => ({
+              key: item.key,
+              label: item.label,
+              standard: item.standard,
+              status: item.status,
+              observation: item.observation ?? "",
+              sortOrder: item.sortOrder ?? index,
+            }))
+          : emptyChecklist(),
+    });
+    setViewing(null);
     setFormOpen(true);
   }
 
@@ -180,47 +219,52 @@ export default function VisitasPage() {
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/gerencia/visitas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          locationName: form.locationName.trim(),
-          municipality: form.municipality.trim(),
-          state: form.state.trim() || "PA",
-          address: form.address.trim() || null,
-          localContact: form.localContact.trim() || null,
-          visitedAt: form.visitedAt,
-          visitors: form.visitors.trim() || null,
-          metaStudents: form.metaStudents ? Number(form.metaStudents) : null,
-          metaClassGroups: form.metaClassGroups ? Number(form.metaClassGroups) : null,
-          metaStudentsPerClass: form.metaStudentsPerClass
-            ? Number(form.metaStudentsPerClass)
-            : null,
-          classDuration: form.classDuration.trim() || null,
-          classesPerWeek: form.classesPerWeek.trim() || null,
-          classDays: form.classDays.trim() || null,
-          pedagogicalPlan: form.pedagogicalPlan.trim() || null,
-          structuralStandards: form.structuralStandards.trim() || null,
-          finalClassification: form.finalClassification,
-          finalNotes: form.finalNotes.trim() || null,
-          donatariaId: form.donatariaId || null,
-          checklistItems: form.checklist.map((c) => ({
-            key: c.key,
-            label: c.label,
-            standard: c.standard,
-            status: c.status,
-            observation: c.observation.trim() || null,
-            sortOrder: c.sortOrder,
-          })),
-        }),
-      });
+      const payload = {
+        locationName: form.locationName.trim(),
+        municipality: form.municipality.trim(),
+        state: form.state.trim() || "PA",
+        address: form.address.trim() || null,
+        localContact: form.localContact.trim() || null,
+        visitedAt: form.visitedAt,
+        visitors: form.visitors.trim() || null,
+        metaStudents: form.metaStudents ? Number(form.metaStudents) : null,
+        metaClassGroups: form.metaClassGroups ? Number(form.metaClassGroups) : null,
+        metaStudentsPerClass: form.metaStudentsPerClass
+          ? Number(form.metaStudentsPerClass)
+          : null,
+        classDuration: form.classDuration.trim() || null,
+        classesPerWeek: form.classesPerWeek.trim() || null,
+        classDays: form.classDays.trim() || null,
+        pedagogicalPlan: form.pedagogicalPlan.trim() || null,
+        structuralStandards: form.structuralStandards.trim() || null,
+        finalClassification: form.finalClassification,
+        finalNotes: form.finalNotes.trim() || null,
+        donatariaId: form.donatariaId || null,
+        checklistItems: form.checklist.map((c) => ({
+          key: c.key,
+          label: c.label,
+          standard: c.standard,
+          status: c.status,
+          observation: c.observation.trim() || null,
+          sortOrder: c.sortOrder,
+        })),
+      };
+      const res = await fetch(
+        editingId ? `/api/admin/gerencia/visitas/${editingId}` : "/api/admin/gerencia/visitas",
+        {
+          method: editingId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const json = (await res.json()) as ApiResponse<{ visit: TechnicalVisitView }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao salvar visita.");
         return;
       }
-      toast.push("success", "Checklist salvo.");
+      toast.push("success", editingId ? "Visita atualizada." : "Checklist salvo.");
       setFormOpen(false);
+      setEditingId(null);
       void load();
     } catch {
       toast.push("error", "Falha ao salvar visita.");
@@ -250,8 +294,8 @@ export default function VisitasPage() {
   return (
     <PanelPageStack>
       <DashboardHero
-        eyebrow="Implantação de novos locais"
-        title="Checklist de visita técnica"
+        eyebrow="Gerência · Implantação"
+        title="Visitas técnicas"
         description="Registre a vistoria do laboratório, valide pendências e mantenha o histórico."
         rightSlot={
           <Button onClick={openCreate}>
@@ -334,6 +378,9 @@ export default function VisitasPage() {
                     <Button size="sm" variant="secondary" onClick={() => setViewing(v)}>
                       Ver
                     </Button>
+                    <Button size="sm" variant="secondary" onClick={() => openEdit(v)}>
+                      Editar
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => void archive(v)}>
                       Arquivar
                     </Button>
@@ -344,9 +391,15 @@ export default function VisitasPage() {
             {!loading && visits.length === 0 ? (
               <tr>
                 <Td colSpan={5}>
-                  <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-                    Nenhuma visita registrada ainda.
-                  </p>
+                  <div className="flex flex-col items-center gap-3 py-8">
+                    <p className="text-center text-sm text-[var(--text-muted)]">
+                      Nenhuma visita registrada ainda.
+                    </p>
+                    <Button onClick={openCreate}>
+                      <Plus className="mr-1.5 h-4 w-4" />
+                      Registrar primeira visita
+                    </Button>
+                  </div>
                 </Td>
               </tr>
             ) : null}
@@ -356,8 +409,15 @@ export default function VisitasPage() {
 
       <Modal
         open={formOpen}
-        onClose={() => setFormOpen(false)}
-        title="Protocolo de implementação — Nova visita técnica"
+        onClose={() => {
+          setFormOpen(false);
+          setEditingId(null);
+        }}
+        title={
+          editingId
+            ? "Editar visita técnica"
+            : "Protocolo de implementação — Nova visita técnica"
+        }
       >
         <div className="grid max-h-[75vh] gap-4 overflow-y-auto pr-1">
           <section className="space-y-3">
@@ -499,7 +559,7 @@ export default function VisitasPage() {
 
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold">5. Checklist de implementação</h3>
+              <h3 className="text-sm font-semibold">4. Checklist de implementação</h3>
               <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
                 {okProgress}
               </span>
@@ -541,7 +601,7 @@ export default function VisitasPage() {
           </section>
 
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold">6. Classificação final</h3>
+            <h3 className="text-sm font-semibold">5. Classificação final</h3>
             <label className="block">
               <span className="mb-1 block text-sm">Resultado</span>
               <select
@@ -576,11 +636,17 @@ export default function VisitasPage() {
           </section>
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setFormOpen(false)}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setFormOpen(false);
+              setEditingId(null);
+            }}
+          >
             Cancelar
           </Button>
           <Button onClick={() => void save()} disabled={saving}>
-            {saving ? "Salvando…" : "Salvar checklist"}
+            {saving ? "Salvando…" : editingId ? "Salvar alterações" : "Salvar checklist"}
           </Button>
         </div>
       </Modal>
@@ -628,6 +694,11 @@ export default function VisitasPage() {
                 {viewing.finalNotes}
               </p>
             ) : null}
+            <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-3">
+              <Button variant="secondary" onClick={() => openEdit(viewing)}>
+                Editar
+              </Button>
+            </div>
           </div>
         ) : null}
       </Modal>

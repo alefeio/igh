@@ -151,9 +151,9 @@ export default function RelatorioBeneficiadosPage() {
   return (
     <PanelPageStack>
       <DashboardHero
-        eyebrow="Gerência"
-        title="Relatório Excel"
-        description="Relação de beneficiados no padrão da planilha de computadores."
+        eyebrow="Gerência · Doações"
+        title="Beneficiados com computadores"
+        description="Filtre os termos confirmados e exporte a relação no padrão da planilha institucional."
         rightSlot={
           <Button onClick={exportExcel} disabled={loading || rows.length === 0}>
             <Download className="mr-1.5 h-4 w-4" />
@@ -165,8 +165,12 @@ export default function RelatorioBeneficiadosPage() {
       <SectionCard title="Filtros" description="Monte a prévia antes de exportar." variant="elevated">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm">Título do relatório</span>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            <span className="mb-1 block text-sm">Cabeçalho no Excel</span>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Texto que aparece no topo da planilha"
+            />
           </label>
           <label className="block">
             <span className="mb-1 block text-sm">Pertence a</span>
@@ -255,7 +259,7 @@ export default function RelatorioBeneficiadosPage() {
       </div>
 
       <SectionCard
-        title="Prévia do Excel"
+        title="Prévia da relação"
         description={`${title} · ${rows.length} registro(s)`}
         variant="elevated"
       >

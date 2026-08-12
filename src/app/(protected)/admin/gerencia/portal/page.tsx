@@ -142,8 +142,12 @@ function GerenciaPortalPageInner() {
   const loadSummary = useCallback(async () => {
     const res = await fetch("/api/admin/gerencia/portal", { cache: "no-store" });
     const json = (await res.json()) as ApiResponse<typeof summary>;
-    if (res.ok && json.ok) setSummary(json.data);
-  }, []);
+    if (res.ok && json.ok) {
+      setSummary(json.data);
+      return;
+    }
+    toast.push("error", !json.ok ? json.error.message : "Falha ao carregar resumo do portal.");
+  }, [toast]);
 
   const loadNotas = useCallback(async () => {
     const q = statusFilter === "PENDENTE" ? "?status=PENDENTE" : "";
@@ -343,6 +347,7 @@ function GerenciaPortalPageInner() {
       return;
     }
     setThread(json.data.thread);
+    toast.push("success", status === "ENCERRADA" ? "Conversa encerrada." : "Conversa reaberta.");
     void loadThreads();
   }
 
@@ -351,7 +356,7 @@ function GerenciaPortalPageInner() {
       <DashboardHero
         eyebrow="Gerência"
         title="Portal do colaborador"
-        description="Fila de notas, mensagens, limpeza e registros do motorista."
+        description="Fila de notas fiscais, mensagens, limpeza e registros do motorista enviados pelos colaboradores."
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

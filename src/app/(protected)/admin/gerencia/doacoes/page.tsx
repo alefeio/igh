@@ -104,6 +104,7 @@ export default function DoacoesPage() {
   const [kindFilter, setKindFilter] = useState<"" | DonationKind>("");
 
   const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -190,7 +191,43 @@ export default function DoacoesPage() {
   }, [donations]);
 
   function openCreate() {
+    setEditingId(null);
     setForm(emptyForm());
+    setFormOpen(true);
+  }
+
+  function openEdit(d: DonationView) {
+    const kitLines = expandDonationKitItems(d.kitsCount, kitComponents);
+    const kitKeys = new Set(kitLines.map((i) => `${i.name.trim().toLowerCase()}|${i.quantity}`));
+    const extras = d.items
+      .filter((i) => !kitKeys.has(`${i.name.trim().toLowerCase()}|${i.quantity}`))
+      .map((i) => ({
+        inventoryItemId: i.inventoryItemId ?? "",
+        name: i.name,
+        quantity: String(i.quantity),
+        unit: i.unit || "UN",
+      }));
+
+    setEditingId(d.id);
+    setForm({
+      donatariaId: d.donatariaId,
+      kind: d.kind,
+      donatedAt: d.donatedAt.slice(0, 10),
+      description: d.description ?? "",
+      amount:
+        d.amountCents != null
+          ? (d.amountCents / 100).toFixed(2).replace(".", ",")
+          : "",
+      kitsCount: d.kitsCount,
+      belongsTo: d.belongsTo ?? "",
+      placeDateText: d.placeDateText ?? "",
+      templateId: d.templateId ?? "",
+      generatePdf: true,
+      confirmNow: false,
+      postInventory: true,
+      postFinancial: true,
+      extras,
+    });
     setFormOpen(true);
   }
 
@@ -224,33 +261,41 @@ export default function DoacoesPage() {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/gerencia/doacoes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          donatariaId: form.donatariaId,
-          kind: form.kind,
-          donatedAt: form.donatedAt,
-          description: form.description.trim() || null,
-          amount: form.kind === "BENS" ? null : form.amount,
-          kitsCount: showGoods ? form.kitsCount : 0,
-          belongsTo: form.belongsTo.trim() || null,
-          placeDateText: form.placeDateText.trim() || null,
-          templateId: form.templateId || null,
-          generatePdf: form.generatePdf,
-          confirmNow: form.confirmNow,
-          postInventory: form.postInventory,
-          postFinancial: form.postFinancial,
-          items: showGoods
-            ? previewItems.map((i) => ({
-                inventoryItemId: i.inventoryItemId,
-                name: i.name,
-                quantity: i.quantity,
-                unit: i.unit,
-              }))
-            : [],
-        }),
-      });
+      const payload = {
+        donatariaId: form.donatariaId,
+        kind: form.kind,
+        donatedAt: form.donatedAt,
+        description: form.description.trim() || null,
+        amount: form.kind === "BENS" ? null : form.amount,
+        kitsCount: showGoods ? form.kitsCount : 0,
+        belongsTo: form.belongsTo.trim() || null,
+        placeDateText: form.placeDateText.trim() || null,
+        templateId: form.templateId || null,
+        ...(editingId
+          ? {}
+          : {
+              generatePdf: form.generatePdf,
+              confirmNow: form.confirmNow,
+              postInventory: form.postInventory,
+              postFinancial: form.postFinancial,
+            }),
+        items: showGoods
+          ? previewItems.map((i) => ({
+              inventoryItemId: i.inventoryItemId,
+              name: i.name,
+              quantity: i.quantity,
+              unit: i.unit,
+            }))
+          : [],
+      };
+      const res = await fetch(
+        editingId ? `/api/admin/gerencia/doacoes/${editingId}` : "/api/admin/gerencia/doacoes",
+        {
+          method: editingId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const json = (await res.json()) as ApiResponse<{ donation: DonationView }>;
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao salvar doação.");
@@ -258,9 +303,14 @@ export default function DoacoesPage() {
       }
       toast.push(
         "success",
-        form.confirmNow ? "Doação confirmada." : "Doação salva como rascunho.",
+        editingId
+          ? "Rascunho atualizado."
+          : form.confirmNow
+            ? "Doação confirmada."
+            : "Doação salva como rascunho.",
       );
       setFormOpen(false);
+      setEditingId(null);
       void load();
     } catch {
       toast.push("error", "Falha ao salvar doação.");
@@ -315,7 +365,7 @@ export default function DoacoesPage() {
       <DashboardHero
         eyebrow="Gerência"
         title="Doações"
-        description="Termos de saída com kits, itens extras e PDF."
+        description="Crie o termo em rascunho, revise e confirme para baixar estoque, financeiro e PDF."
         rightSlot={
           <Button onClick={openCreate}>
             <Plus className="mr-1.5 h-4 w-4" />
@@ -437,6 +487,9 @@ export default function DoacoesPage() {
                     ) : null}
                     {d.status === "RASCUNHO" ? (
                       <>
+                        <Button size="sm" variant="secondary" onClick={() => openEdit(d)}>
+                          Editar
+                        </Button>
                         <Button
                           size="sm"
                           onClick={() => void confirmDonation(d.id)}
@@ -456,9 +509,15 @@ export default function DoacoesPage() {
             {!loading && filtered.length === 0 ? (
               <tr>
                 <Td colSpan={6}>
-                  <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-                    Nenhuma doação encontrada.
-                  </p>
+                  <div className="flex flex-col items-center gap-3 py-8">
+                    <p className="text-center text-sm text-[var(--text-muted)]">
+                      Nenhuma doação encontrada.
+                    </p>
+                    <Button onClick={openCreate}>
+                      <Plus className="mr-1.5 h-4 w-4" />
+                      Criar primeiro termo
+                    </Button>
+                  </div>
                 </Td>
               </tr>
             ) : null}
@@ -466,7 +525,14 @@ export default function DoacoesPage() {
         </Table>
       </SectionCard>
 
-      <Modal open={formOpen} onClose={() => setFormOpen(false)} title="Novo termo de doação">
+      <Modal
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingId(null);
+        }}
+        title={editingId ? "Editar rascunho de doação" : "Novo termo de doação"}
+      >
         <div className="grid max-h-[70vh] gap-3 overflow-y-auto sm:grid-cols-2">
           <label className="block sm:col-span-2">
             <span className="mb-1 block text-sm">Donatária</span>
@@ -683,45 +749,66 @@ export default function DoacoesPage() {
             </div>
           ) : null}
 
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={form.confirmNow}
-              onChange={(e) => setForm((f) => ({ ...f, confirmNow: e.target.checked }))}
-            />
-            Confirmar agora (baixa estoque / financeiro / PDF)
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.generatePdf}
-              onChange={(e) => setForm((f) => ({ ...f, generatePdf: e.target.checked }))}
-            />
-            Gerar PDF do termo
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.postInventory}
-              onChange={(e) => setForm((f) => ({ ...f, postInventory: e.target.checked }))}
-            />
-            Baixar estoque (itens com vínculo)
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.postFinancial}
-              onChange={(e) => setForm((f) => ({ ...f, postFinancial: e.target.checked }))}
-            />
-            Lançar no financeiro
-          </label>
+          {!editingId ? (
+            <>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={form.confirmNow}
+                  onChange={(e) => setForm((f) => ({ ...f, confirmNow: e.target.checked }))}
+                />
+                Confirmar agora (baixa estoque / financeiro / PDF)
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.generatePdf}
+                  onChange={(e) => setForm((f) => ({ ...f, generatePdf: e.target.checked }))}
+                />
+                Gerar PDF do termo
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.postInventory}
+                  onChange={(e) => setForm((f) => ({ ...f, postInventory: e.target.checked }))}
+                />
+                Baixar estoque (itens com vínculo)
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.postFinancial}
+                  onChange={(e) => setForm((f) => ({ ...f, postFinancial: e.target.checked }))}
+                />
+                Lançar no financeiro
+              </label>
+            </>
+          ) : (
+            <p className="text-sm text-[var(--text-muted)] sm:col-span-2">
+              Após salvar o rascunho, use <strong>Confirmar</strong> na lista para gerar PDF e
+              baixar estoque/financeiro.
+            </p>
+          )}
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setFormOpen(false)}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setFormOpen(false);
+              setEditingId(null);
+            }}
+          >
             Cancelar
           </Button>
           <Button onClick={() => void save()} disabled={saving}>
-            {saving ? "Salvando…" : form.confirmNow ? "Gerar termo" : "Salvar rascunho"}
+            {saving
+              ? "Salvando…"
+              : editingId
+                ? "Salvar rascunho"
+                : form.confirmNow
+                  ? "Gerar termo"
+                  : "Salvar rascunho"}
           </Button>
         </div>
       </Modal>

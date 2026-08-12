@@ -90,7 +90,7 @@ export default function FolhaPage() {
         return;
       }
       setPayroll(json.data.payroll);
-      if (json.data.payroll?.responsibleName) setResponsibleName(json.data.payroll.responsibleName);
+      setResponsibleName(json.data.payroll?.responsibleName ?? "");
     } catch {
       toast.push("error", "Falha ao carregar folha.");
     } finally {
@@ -98,12 +98,19 @@ export default function FolhaPage() {
     }
   }, [month, toast]);
 
-  const loadTickets = useCallback(async (payrollId: string) => {
-    const res = await fetch(`/api/admin/gerencia/folha/${payrollId}/tickets`, { cache: "no-store" });
-    const json = (await res.json()) as ApiResponse<{ mealTicket: MealTicket }>;
-    if (res.ok && json.ok) setMeal(json.data.mealTicket);
-    else setMeal(null);
-  }, []);
+  const loadTickets = useCallback(
+    async (payrollId: string) => {
+      const res = await fetch(`/api/admin/gerencia/folha/${payrollId}/tickets`, { cache: "no-store" });
+      const json = (await res.json()) as ApiResponse<{ mealTicket: MealTicket }>;
+      if (res.ok && json.ok) {
+        setMeal(json.data.mealTicket);
+        return;
+      }
+      setMeal(null);
+      toast.push("error", !json.ok ? json.error.message : "Falha ao carregar tickets.");
+    },
+    [toast],
+  );
 
   useEffect(() => {
     void loadPayroll();
@@ -149,6 +156,23 @@ export default function FolhaPage() {
     }
     setPayroll(json.data.payroll);
     toast.push("success", status === "FECHADA" ? "Folha fechada." : "Folha reaberta.");
+  }
+
+  async function saveResponsible() {
+    if (!payroll) return;
+    const res = await fetch(`/api/admin/gerencia/folha/${payroll.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ responsibleName: responsibleName.trim() || null }),
+    });
+    const json = (await res.json()) as ApiResponse<{ payroll: Payroll }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao salvar responsável.");
+      return;
+    }
+    setPayroll(json.data.payroll);
+    setResponsibleName(json.data.payroll.responsibleName ?? "");
+    toast.push("success", "Responsável salvo.");
   }
 
   async function patchLine(lineId: string, body: Record<string, unknown>) {
@@ -365,12 +389,19 @@ export default function FolhaPage() {
           </label>
           <label className="block text-sm sm:col-span-2">
             <span className="text-[var(--text-muted)]">Responsável</span>
-            <Input
-              className="mt-1"
-              value={responsibleName}
-              onChange={(e) => setResponsibleName(e.target.value)}
-              placeholder="Ex.: Auriane Santos"
-            />
+            <div className="mt-1 flex flex-wrap gap-2">
+              <Input
+                className="min-w-[200px] flex-1"
+                value={responsibleName}
+                onChange={(e) => setResponsibleName(e.target.value)}
+                placeholder="Ex.: Auriane Santos"
+              />
+              {payroll ? (
+                <Button variant="secondary" onClick={() => void saveResponsible()}>
+                  Salvar responsável
+                </Button>
+              ) : null}
+            </div>
           </label>
         </div>
       </SectionCard>
@@ -408,7 +439,9 @@ export default function FolhaPage() {
               </div>
               <div className="text-sm text-[var(--text-muted)]">
                 Status:{" "}
-                <Badge tone={payroll.status === "ABERTA" ? "green" : "zinc"}>{payroll.status}</Badge>
+                <Badge tone={payroll.status === "ABERTA" ? "green" : "zinc"}>
+                  {payroll.status === "ABERTA" ? "Aberta" : "Fechada"}
+                </Badge>
               </div>
               {renderLines("Colaboradores", payroll.staffLines)}
               {renderLines("Estagiários", payroll.internLines)}

@@ -123,16 +123,52 @@ export default function ConveniosPage() {
     const json = (await res.json()) as ApiResponse<{ employee: BoardEmployee }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao mover.");
-      return;
+      return false;
     }
     setEmployees((prev) => prev.map((e) => (e.id === employeeId ? json.data.employee : e)));
+    return true;
   }
 
   async function savePay(employeeId: string) {
     const emp = employees.find((e) => e.id === employeeId);
     if (!emp) return;
-    await moveEmployee(employeeId, emp.paymentAgreementId, true);
-    toast.push("success", "Valor atualizado.");
+    const ok = await moveEmployee(employeeId, emp.paymentAgreementId, true);
+    if (ok) toast.push("success", "Valor atualizado.");
+  }
+
+  async function renameColumn(col: Column) {
+    const name = window.prompt("Novo nome do convênio", col.name)?.trim();
+    if (!name || name === col.name) return;
+    const res = await fetch(`/api/admin/gerencia/convenios/${col.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const json = (await res.json()) as ApiResponse<{ column: Column }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao renomear.");
+      return;
+    }
+    toast.push("success", "Convênio renomeado.");
+    void load();
+  }
+
+  async function deleteColumn(col: Column) {
+    if (
+      !confirm(
+        `Excluir o convênio "${col.name}"? Os colaboradores voltam para a fila sem convênio.`,
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/admin/gerencia/convenios/${col.id}`, { method: "DELETE" });
+    const json = (await res.json()) as ApiResponse<{ archived: boolean }>;
+    if (!res.ok || !json.ok) {
+      toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
+      return;
+    }
+    toast.push("success", "Convênio removido.");
+    void load();
   }
 
   function onDrop(columnId: string | null) {
@@ -194,8 +230,30 @@ export default function ConveniosPage() {
                 onDrop={() => onDrop(col.id)}
               >
                 <div className="border-b border-[var(--card-border)] px-3 py-2">
-                  <div className="font-medium">{col.name}</div>
-                  <div className="text-xs text-[var(--text-muted)]">{list.length} pessoa(s)</div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium">{col.name}</div>
+                      <div className="text-xs text-[var(--text-muted)]">{list.length} pessoa(s)</div>
+                    </div>
+                    {col.id ? (
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void renameColumn(columns.find((c) => c.id === col.id)!)}
+                        >
+                          Renomear
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void deleteColumn(columns.find((c) => c.id === col.id)!)}
+                        >
+                          Excluir
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="max-h-[70vh] space-y-2 overflow-y-auto p-2">
                   {list.map((emp) => (

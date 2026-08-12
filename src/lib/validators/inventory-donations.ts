@@ -138,3 +138,42 @@ export const confirmDonationSchema = z.object({
   templateId: z.string().uuid().nullable().optional(),
   generatePdf: z.boolean().optional().default(true),
 });
+
+/** Atualização de doação ainda em rascunho (sem confirmar). */
+export const updateDonationDraftSchema = z
+  .object({
+    donatariaId: z.string().uuid("Donatária inválida").optional(),
+    kind: z.enum(["BENS", "DINHEIRO", "MISTO"]).optional(),
+    donatedAt: requiredDate.optional(),
+    description: optionalText,
+    amount: optionalMoneyCents,
+    kitsCount: z.number().int().min(0).optional(),
+    belongsTo: optionalText,
+    placeDateText: optionalText,
+    templateId: z.string().uuid().nullable().optional(),
+    items: z.array(donationItemSchema).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.kind == null) return;
+    const kitsCount = data.kitsCount ?? 0;
+    const items = data.items ?? [];
+    const hasGoods = kitsCount > 0 || items.length > 0;
+    if ((data.kind === "BENS" || data.kind === "MISTO") && data.items !== undefined && !hasGoods) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["items"],
+        message: "Informe kits ou ao menos um item para doação de bens.",
+      });
+    }
+    if (
+      (data.kind === "DINHEIRO" || data.kind === "MISTO") &&
+      data.amount !== undefined &&
+      (data.amount == null || data.amount <= 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["amount"],
+        message: "Informe o valor da doação em dinheiro.",
+      });
+    }
+  });
