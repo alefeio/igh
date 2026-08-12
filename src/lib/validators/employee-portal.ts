@@ -28,6 +28,29 @@ const httpsUrl = z
 
 export const updateEmployeePortalProfileSchema = z.object({
   photoUrl: httpsUrl.nullable().optional(),
+  email: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .optional()
+    .refine((v) => v == null || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "E-mail inválido"),
+  phone: optionalText,
+  cep: optionalText,
+  street: optionalText,
+  number: optionalText,
+  complement: optionalText,
+  neighborhood: optionalText,
+  city: optionalText,
+  state: optionalText,
+  bankName: optionalText,
+  bankAgency: optionalText,
+  bankAccount: optionalText,
+  bankAccountType: z.enum(["CORRENTE", "POUPANCA", "PAGAMENTO"]).nullable().optional(),
+  pixKeyType: z.enum(["CPF", "CNPJ", "EMAIL", "TELEFONE", "ALEATORIA"]).nullable().optional(),
+  pixKey: optionalText,
+  meiCnpj: optionalText,
+  meiCompanyName: optionalText,
 });
 
 export const createInvoiceSubmissionSchema = z.object({
@@ -41,6 +64,14 @@ export const createInvoiceSubmissionSchema = z.object({
   fileUrl: httpsUrl,
   filePublicId: optionalText,
   fileName: optionalText,
+});
+
+export const adminCreateInvoiceSubmissionSchema = createInvoiceSubmissionSchema.extend({
+  employeeId: z.string().uuid("Colaborador inválido"),
+  /** Quando true, registra e já aprova (gerência anexou a NF recebida). */
+  autoApprove: z.boolean().optional().default(false),
+  createFinancialEntry: z.boolean().optional().default(true),
+  reviewNotes: optionalText,
 });
 
 export const readInvoiceSchema = z.object({

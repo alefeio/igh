@@ -12,13 +12,14 @@ export async function GET() {
     throw e;
   }
 
-  const [pendingInvoices, unreadThreads, openThreads, pendingCleaning, pendingDriver] =
+  const [pendingInvoices, unreadThreads, openThreads, pendingCleaning, pendingDriver, overdueMonthly] =
     await Promise.all([
       prisma.employeeInvoiceSubmission.count({ where: { status: "PENDENTE" } }),
       prisma.employeePortalThread.count({ where: { unreadByManager: true } }),
       prisma.employeePortalThread.count({ where: { status: "ABERTA" } }),
       prisma.employeeCleaningReport.count({ where: { status: "PENDENTE" } }),
       prisma.employeeDriverLog.count({ where: { status: "PENDENTE" } }),
+      prisma.employeeMonthlyInvoice.count({ where: { deletedAt: null, status: "ATRASADA" } }),
     ]);
 
   return jsonOk({
@@ -27,5 +28,6 @@ export async function GET() {
     openThreads,
     pendingCleaning,
     pendingDriver,
+    overdueMonthly,
   });
 }

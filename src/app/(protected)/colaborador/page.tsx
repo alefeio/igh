@@ -11,6 +11,7 @@ import {
   StatTile,
 } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
 import {
@@ -20,6 +21,17 @@ import {
   parseApimagesUploadJson,
   readApiJson,
 } from "@/lib/apimages-upload";
+
+type InvoiceDue = {
+  required: boolean;
+  referenceMonth: string;
+  referenceMonthLabel: string;
+  dueDateIso: string;
+  phase: "OK" | "SOON" | "TODAY" | "OVERDUE" | "NOT_REQUIRED";
+  hasSubmission: boolean;
+  delivered: boolean;
+  message: string | null;
+};
 
 type PortalMe = {
   employee: {
@@ -32,6 +44,7 @@ type PortalMe = {
   };
   pendingInvoices: number;
   unreadMessages: number;
+  invoiceDue: InvoiceDue;
 };
 
 export default function ColaboradorPortalPage() {
@@ -66,9 +79,16 @@ export default function ColaboradorPortalPage() {
       {
         href: "/colaborador/notas",
         label: "Enviar nota",
-        description: "Anexe a NF do mês; a leitura preenche valor e dados",
+        description: "Anexe a NF do mês até o fim do mês",
         icon: FileText,
         accent: "from-emerald-600 to-teal-500",
+      },
+      {
+        href: "/colaborador/dados",
+        label: "Meus dados",
+        description: "Foto, contato, endereço e PIX/MEI",
+        icon: UserCircle,
+        accent: "from-slate-600 to-zinc-500",
       },
       {
         href: "/colaborador/mensagens",
@@ -137,13 +157,53 @@ export default function ColaboradorPortalPage() {
     }
   }
 
+  const due = data?.invoiceDue;
+  const dueTone =
+    due?.phase === "OVERDUE" || due?.phase === "TODAY"
+      ? "red"
+      : due?.phase === "SOON"
+        ? "amber"
+        : "green";
+
   return (
     <PanelPageStack>
       <DashboardHero
         eyebrow="Portal do colaborador"
         title={loading ? "Meu portal" : `Olá, ${data?.employee.name.split(" ")[0] ?? ""}`}
-        description="Envie sua nota fiscal, atualize a foto e fale com a gerência."
+        description="Gerencie seus dados, envie a nota fiscal do mês e fale com a gerência."
       />
+
+      {!loading && due?.required && due.message ? (
+        <SectionCard
+          title="Nota fiscal do mês"
+          description={`Competência ${due.referenceMonthLabel} · prazo até o fim do mês`}
+          variant="elevated"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <Badge tone={dueTone}>
+                {due.phase === "OVERDUE"
+                  ? "Pendente"
+                  : due.phase === "TODAY"
+                    ? "Vence hoje"
+                    : due.phase === "SOON"
+                      ? "Prazo próximo"
+                      : due.delivered
+                        ? "Entregue"
+                        : due.hasSubmission
+                          ? "Em análise"
+                          : "A enviar"}
+              </Badge>
+              <p className="text-sm text-[var(--text-muted)]">{due.message}</p>
+            </div>
+            {!due.delivered ? (
+              <Button onClick={() => (window.location.href = "/colaborador/notas")}>
+                {due.hasSubmission ? "Ver envios" : "Enviar NF"}
+              </Button>
+            ) : null}
+          </div>
+        </SectionCard>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatTile
@@ -163,6 +223,7 @@ export default function ColaboradorPortalPage() {
           label="Cargo"
           value={loading ? "—" : data?.employee.positionLabel ?? "—"}
           icon={UserCircle}
+          href="/colaborador/dados"
         />
       </div>
 
@@ -180,7 +241,13 @@ export default function ColaboradorPortalPage() {
             </div>
           )}
           <div>
-            <p className="text-sm text-[var(--text-muted)]">JPG, PNG ou WEBP. A gerência também verá esta foto.</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              JPG, PNG ou WEBP. A gerência também verá esta foto. Mais detalhes em{" "}
+              <a href="/colaborador/dados" className="font-medium text-[var(--igh-primary)] underline">
+                Meus dados
+              </a>
+              .
+            </p>
             <label className="mt-2 inline-block">
               <input
                 type="file"

@@ -373,10 +373,16 @@ export function EmployeeFormModal({ open, editing, users, polos, onClose, onSave
           </Field>
           {selectedUser ? (
             <p className="text-xs text-[var(--text-muted)]">
-              Vinculado a {selectedUser.name} ({selectedUser.role}). Dados já cadastrados na conta
-              foram preenchidos nos campos abaixo — revise antes de salvar.
+              Vinculado a {selectedUser.name} ({selectedUser.role}). A conta passa a ver o menu{" "}
+              <strong>Colaborador</strong> (dados, foto, NF e mensagens). Dados da conta foram
+              preenchidos abaixo — revise antes de salvar.
             </p>
-          ) : null}
+          ) : (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+              Sem vínculo com usuário, a pessoa <strong>não acessa o portal</strong>. Crie ou ative a
+              conta em Usuários e vincule aqui (ou selecione um usuário existente).
+            </p>
+          )}
         </section>
 
         <section className="space-y-3">

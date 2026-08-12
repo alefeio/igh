@@ -1,15 +1,25 @@
 "use client";
 
 import { Inbox, MessageSquare, Sparkles, Truck } from "lucide-react";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { DashboardHero, PanelPageStack, SectionCard, StatTile } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import {
+  GERENCIA_UPLOAD_SIGNATURE,
+  apimagesUploadHeaders,
+  buildApimagesUploadFormData,
+  parseApimagesUploadJson,
+  readApiJson,
+} from "@/lib/apimages-upload";
+import { employeePositionText, type EmployeeView } from "@/lib/employees";
 
 type TabId = "notas" | "mensagens" | "limpeza" | "motorista";
 
@@ -126,8 +136,26 @@ function GerenciaPortalPageInner() {
     openThreads: 0,
     pendingCleaning: 0,
     pendingDriver: 0,
+    overdueMonthly: 0,
   });
   const [statusFilter, setStatusFilter] = useState<"PENDENTE" | "TODAS">("PENDENTE");
+  const [employees, setEmployees] = useState<EmployeeView[]>([]);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [registerSaving, setRegisterSaving] = useState(false);
+  const [registerUploading, setRegisterUploading] = useState(false);
+  const [registerForm, setRegisterForm] = useState({
+    employeeId: "",
+    referenceMonth: new Date().toISOString().slice(0, 7),
+    amount: "",
+    description: "",
+    supplier: "",
+    invoiceNumber: "",
+    fileUrl: "",
+    filePublicId: "",
+    fileName: "",
+    autoApprove: true,
+  });
+  const registerFileRef = useRef<HTMLInputElement>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [cleaningReports, setCleaningReports] = useState<CleaningReport[]>([]);
@@ -152,13 +180,27 @@ function GerenciaPortalPageInner() {
   const loadNotas = useCallback(async () => {
     const q = statusFilter === "PENDENTE" ? "?status=PENDENTE" : "";
     const res = await fetch(`/api/admin/gerencia/portal/notas${q}`, { cache: "no-store" });
-    const json = (await res.json()) as ApiResponse<{ submissions: Submission[] }>;
+    const json = (await res.json()) as ApiResponse<{
+      submissions: Submission[];
+      overdueMonthly?: number;
+    }>;
     if (!res.ok || !json.ok) {
       toast.push("error", !json.ok ? json.error.message : "Falha ao carregar as notas.");
       return;
     }
     setSubmissions(json.data.submissions);
+    if (typeof json.data.overdueMonthly === "number") {
+      setSummary((prev) => ({ ...prev, overdueMonthly: json.data.overdueMonthly ?? prev.overdueMonthly }));
+    }
   }, [statusFilter, toast]);
+
+  const loadEmployees = useCallback(async () => {
+    const res = await fetch("/api/admin/gerencia/colaboradores", { cache: "no-store" });
+    const json = (await res.json()) as ApiResponse<{ employees: EmployeeView[] }>;
+    if (res.ok && json.ok) {
+      setEmployees(json.data.employees.filter((e) => e.status === "ATIVO"));
+    }
+  }, []);
 
   const loadThreads = useCallback(async () => {
     const res = await fetch("/api/admin/gerencia/portal/mensagens", { cache: "no-store" });
@@ -351,16 +393,132 @@ function GerenciaPortalPageInner() {
     void loadThreads();
   }
 
+  async function openRegisterNf() {
+    await loadEmployees();
+    const res = await fetch("/api/admin/gerencia/colaboradores", { cache: "no-store" });
+    const json = (await res.json()) as ApiResponse<{ employees: EmployeeView[] }>;
+    const list = res.ok && json.ok ? json.data.employees.filter((e) => e.status === "ATIVO") : [];
+    setEmployees(list);
+    setRegisterForm({
+      employeeId: list[0]?.id ?? "",
+      referenceMonth: new Date().toISOString().slice(0, 7),
+      amount: "",
+      description: "",
+      supplier: "",
+      invoiceNumber: "",
+      fileUrl: "",
+      filePublicId: "",
+      fileName: "",
+      autoApprove: true,
+    });
+    setRegisterOpen(true);
+  }
+
+  async function uploadRegisterFile(file: File) {
+    setRegisterUploading(true);
+    try {
+      const signRes = await fetch(GERENCIA_UPLOAD_SIGNATURE, { method: "POST" });
+      const signJson = await readApiJson<{ uploadUrl: string; apiKey: string }>(signRes);
+      if (!signRes.ok || !signJson.ok) {
+        toast.push("error", !signJson.ok ? signJson.error.message : "Falha ao preparar upload.");
+        return;
+      }
+      const uploadRes = await fetch(signJson.data.uploadUrl, {
+        method: "POST",
+        headers: apimagesUploadHeaders(signJson.data.apiKey),
+        body: buildApimagesUploadFormData(file),
+      });
+      const cloud = parseApimagesUploadJson(await uploadRes.json());
+      if (!uploadRes.ok || !cloud.url) {
+        toast.push("error", cloud.errorMessage ?? "Falha no upload.");
+        return;
+      }
+      setRegisterForm((prev) => ({
+        ...prev,
+        fileUrl: cloud.url!,
+        filePublicId: cloud.publicId,
+        fileName: cloud.originalFilename ?? file.name,
+      }));
+      toast.push("success", "Arquivo anexado.");
+    } catch {
+      toast.push("error", "Falha ao anexar arquivo.");
+    } finally {
+      setRegisterUploading(false);
+    }
+  }
+
+  async function submitRegisterNf() {
+    if (!registerForm.employeeId) {
+      toast.push("error", "Selecione o colaborador.");
+      return;
+    }
+    if (!registerForm.fileUrl) {
+      toast.push("error", "Anexe o arquivo da NF.");
+      return;
+    }
+    setRegisterSaving(true);
+    try {
+      const res = await fetch("/api/admin/gerencia/portal/notas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId: registerForm.employeeId,
+          referenceMonth: registerForm.referenceMonth,
+          amount: registerForm.amount || null,
+          description: registerForm.description || null,
+          supplier: registerForm.supplier || null,
+          invoiceNumber: registerForm.invoiceNumber || null,
+          fileUrl: registerForm.fileUrl,
+          filePublicId: registerForm.filePublicId || null,
+          fileName: registerForm.fileName || null,
+          autoApprove: registerForm.autoApprove,
+          createFinancialEntry: registerForm.autoApprove,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ submission: Submission }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao registrar a nota.");
+        return;
+      }
+      toast.push(
+        "success",
+        registerForm.autoApprove ? "NF registrada e aprovada." : "NF enviada para a fila.",
+      );
+      setRegisterOpen(false);
+      void loadNotas();
+      void loadSummary();
+    } catch {
+      toast.push("error", "Falha ao registrar a nota.");
+    } finally {
+      setRegisterSaving(false);
+    }
+  }
+
   return (
     <PanelPageStack>
       <DashboardHero
         eyebrow="Gerência"
         title="Portal do colaborador"
-        description="Fila de notas fiscais, mensagens, limpeza e registros do motorista enviados pelos colaboradores."
+        description="Fila de notas fiscais (prazo: fim do mês), mensagens, limpeza e motorista. A gerência também pode registrar NF."
+        rightSlot={
+          tab === "notas" ? (
+            <Button onClick={openRegisterNf}>Registrar NF</Button>
+          ) : null
+        }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {summary.overdueMonthly > 0 ? (
+        <SectionCard title="Alertas de prazo" variant="elevated">
+          <p className="text-sm text-[var(--text-muted)]">
+            <Badge tone="red">{summary.overdueMonthly}</Badge>{" "}
+            competência(s) com NF atrasada (mês anterior sem envio/aprovação).
+          </p>
+        </SectionCard>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile label="Notas pendentes" value={summary.pendingInvoices} icon={Inbox} accent="amber" />
+        <StatTile label="NFs atrasadas" value={summary.overdueMonthly} icon={Inbox} accent="rose" />
         <StatTile label="Mensagens não lidas" value={summary.unreadThreads} icon={MessageSquare} />
         <StatTile label="Limpeza pendente" value={summary.pendingCleaning} icon={Sparkles} accent="amber" />
         <StatTile label="Motorista pendente" value={summary.pendingDriver} icon={Truck} accent="amber" />
@@ -791,6 +949,120 @@ function GerenciaPortalPageInner() {
           )}
         </SectionCard>
       ) : null}
+
+      <Modal
+        open={registerOpen}
+        onClose={() => setRegisterOpen(false)}
+        title="Registrar nota fiscal"
+        size="large"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[var(--text-muted)]">
+            Use quando o colaborador entregou a NF fora do portal. O registro entra na mesma fila e
+            pode ser aprovado na hora.
+          </p>
+          <label className="block text-sm">
+            <span className="text-[var(--text-muted)]">Colaborador</span>
+            <select
+              className="mt-1 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2"
+              value={registerForm.employeeId}
+              onChange={(e) => setRegisterForm((f) => ({ ...f, employeeId: e.target.value }))}
+            >
+              <option value="">Selecione</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} · {employeePositionText(e)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="text-[var(--text-muted)]">Competência</span>
+              <Input
+                className="mt-1"
+                type="month"
+                value={registerForm.referenceMonth}
+                onChange={(e) => setRegisterForm((f) => ({ ...f, referenceMonth: e.target.value }))}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-[var(--text-muted)]">Valor (R$)</span>
+              <Input
+                className="mt-1"
+                inputMode="decimal"
+                value={registerForm.amount}
+                onChange={(e) => setRegisterForm((f) => ({ ...f, amount: e.target.value }))}
+                placeholder="0,00"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-[var(--text-muted)]">Fornecedor / MEI</span>
+              <Input
+                className="mt-1"
+                value={registerForm.supplier}
+                onChange={(e) => setRegisterForm((f) => ({ ...f, supplier: e.target.value }))}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-[var(--text-muted)]">Nº da nota</span>
+              <Input
+                className="mt-1"
+                value={registerForm.invoiceNumber}
+                onChange={(e) => setRegisterForm((f) => ({ ...f, invoiceNumber: e.target.value }))}
+              />
+            </label>
+            <label className="block text-sm sm:col-span-2">
+              <span className="text-[var(--text-muted)]">Descrição</span>
+              <Input
+                className="mt-1"
+                value={registerForm.description}
+                onChange={(e) => setRegisterForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={registerUploading}
+              onClick={() => registerFileRef.current?.click()}
+            >
+              {registerUploading ? "Enviando…" : registerForm.fileUrl ? "Trocar arquivo" : "Anexar PDF/imagem"}
+            </Button>
+            {registerForm.fileName ? (
+              <span className="text-sm text-[var(--text-muted)]">{registerForm.fileName}</span>
+            ) : null}
+            <input
+              ref={registerFileRef}
+              type="file"
+              accept="application/pdf,image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void uploadRegisterFile(file);
+              }}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={registerForm.autoApprove}
+              onChange={(e) => setRegisterForm((f) => ({ ...f, autoApprove: e.target.checked }))}
+            />
+            Aprovar agora (marca como entregue e pode lançar no financeiro)
+          </label>
+          <div className="flex justify-end gap-2 border-t border-[var(--card-border)] pt-4">
+            <Button variant="secondary" onClick={() => setRegisterOpen(false)} disabled={registerSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void submitRegisterNf()} disabled={registerSaving || registerUploading}>
+              {registerSaving ? "Salvando…" : "Registrar"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </PanelPageStack>
   );
 }

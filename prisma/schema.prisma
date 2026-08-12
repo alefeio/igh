@@ -2568,6 +2568,8 @@ enum UserNotificationKind {
   EMPLOYEE_INVOICE_SUBMITTED
   /// * Gerência aprovou ou recusou a NF do colaborador.
   EMPLOYEE_INVOICE_REVIEWED
+  /// * Prazo da NF mensal: vencendo, vence hoje ou pendente/atrasada.
+  EMPLOYEE_INVOICE_DUE_REMINDER
   /// * Nova mensagem no canal colaborador ↔ gerência.
   EMPLOYEE_PORTAL_MESSAGE
   /// * Relato de material (limpeza) no portal.

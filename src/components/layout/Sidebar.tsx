@@ -87,6 +87,13 @@ const ITEMS: Item[] = [
     requiresEmployee: true,
   },
   {
+    href: "/colaborador/dados",
+    label: "Meus dados",
+    roles: ALL_ROLES,
+    category: "Colaborador",
+    requiresEmployee: true,
+  },
+  {
     href: "/colaborador/notas",
     label: "Enviar nota",
     roles: ALL_ROLES,

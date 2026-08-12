@@ -201,7 +201,7 @@ export default function ColaboradorNotasPage() {
       <DashboardHero
         eyebrow="Portal do colaborador"
         title="Enviar nota"
-        description="Anexe a NF do mês. O sistema tenta ler valor e dados; você confirma antes de enviar."
+        description="Toda NF do mês (MEI/prestador) deve ser enviada até o último dia do mês. A gerência também pode registrar por você."
       />
 
       <SectionCard title="Nova nota" variant="elevated">
