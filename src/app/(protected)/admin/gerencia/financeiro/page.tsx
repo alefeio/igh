@@ -1,8 +1,8 @@
 "use client";
 
 import * as XLSX from "xlsx";
-import { ArrowDownCircle, ArrowUpCircle, Download, Plus, Scale, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowDownCircle, ArrowUpCircle, Download, Plus, Scale, Search, Upload } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardHero, PanelPageStack, SectionCard, StatTile } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -190,6 +190,8 @@ export default function FinanceiroPage() {
   const [catName, setCatName] = useState("");
   const [catKind, setCatKind] = useState<FinancialEntryKind>("SAIDA");
   const [catSaving, setCatSaving] = useState(false);
+  const [importingSheet, setImportingSheet] = useState(false);
+  const importSheetInputRef = useRef<HTMLInputElement>(null);
 
   const queryString = useMemo(() => {
     const sp = new URLSearchParams();
@@ -713,6 +715,37 @@ export default function FinanceiroPage() {
     XLSX.writeFile(wb, `prestacao_contas_${month || "periodo"}.xlsx`);
   }
 
+  async function importPrestacaoSheet(file: File) {
+    setImportingSheet(true);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      const res = await fetch("/api/admin/gerencia/financeiro/importar-prestacao", {
+        method: "POST",
+        body,
+      });
+      const json = (await res.json()) as ApiResponse<{
+        created: number;
+        skippedInvalid: Array<{ rowNumber: number; reason: string }>;
+        skippedDuplicates: Array<{ description: string }>;
+      }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao importar a planilha.");
+        return;
+      }
+      const { created, skippedInvalid, skippedDuplicates } = json.data;
+      const parts = [`${created} saída(s) cadastrada(s)`];
+      if (skippedDuplicates.length) parts.push(`${skippedDuplicates.length} duplicada(s) ignorada(s)`);
+      if (skippedInvalid.length) parts.push(`${skippedInvalid.length} linha(s) inválida(s)`);
+      toast.push(created > 0 ? "success" : "error", parts.join(" · "));
+      if (created > 0) void load();
+    } catch {
+      toast.push("error", "Falha ao importar a planilha.");
+    } finally {
+      setImportingSheet(false);
+    }
+  }
+
   function tabBtn(id: TabId, label: string) {
     const active = tab === id;
     return (
@@ -743,6 +776,28 @@ export default function FinanceiroPage() {
             </Button>
             {tab === "fluxo" || tab === "prestacao" ? (
               <>
+                <input
+                  ref={importSheetInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  className="sr-only"
+                  tabIndex={-1}
+                  disabled={importingSheet}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) void importPrestacaoSheet(file);
+                  }}
+                />
+                <Button
+                  variant="secondary"
+                  disabled={importingSheet}
+                  onClick={() => importSheetInputRef.current?.click()}
+                  title="Importa a planilha de Prestação de Contas como saídas"
+                >
+                  <Upload className="mr-1.5 h-4 w-4" aria-hidden />
+                  {importingSheet ? "Importando…" : "Importar planilha"}
+                </Button>
                 <Button
                   variant="secondary"
                   onClick={tab === "prestacao" ? exportPrestacao : exportXlsx}

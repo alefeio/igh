@@ -1,5 +1,6 @@
 "use client";
 
+import { Download, Eye } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DashboardHero, PanelPageStack, SectionCard } from "@/components/dashboard/DashboardUI";
@@ -7,6 +8,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 import {
@@ -16,6 +18,7 @@ import {
   parseApimagesUploadJson,
   readApiJson,
 } from "@/lib/apimages-upload";
+import { hostedRawUrlForDownload } from "@/lib/hosted-file-url";
 
 type Submission = {
   id: string;
@@ -63,6 +66,13 @@ function isAllowedInvoiceFile(file: File): boolean {
   );
 }
 
+function attachmentPreviewKind(fileName?: string | null, url?: string | null): "pdf" | "image" | "other" {
+  const hay = `${fileName ?? ""} ${url ?? ""}`.toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|bmp)(\?|$)/i.test(hay) || hay.includes("image/")) return "image";
+  if (/\.pdf(\?|$)/i.test(hay) || hay.includes("application/pdf")) return "pdf";
+  return "other";
+}
+
 export default function ColaboradorNotasPage() {
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,6 +82,7 @@ export default function ColaboradorNotasPage() {
   const [reading, setReading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [preview, setPreview] = useState<Submission | null>(null);
   const [form, setForm] = useState({
     referenceMonth: new Date().toISOString().slice(0, 7),
     amount: "",
@@ -363,14 +374,37 @@ export default function ColaboradorNotasPage() {
                     <Badge tone={STATUS_TONE[s.status]}>{STATUS_LABEL[s.status]}</Badge>
                   </Td>
                   <Td>
-                    <a
-                      href={s.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--igh-primary)] underline"
-                    >
-                      {s.fileName || "Abrir"}
-                    </a>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setPreview(s)}
+                        title="Visualizar arquivo"
+                      >
+                        <Eye className="mr-1 h-3.5 w-3.5" aria-hidden />
+                        Ver
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        title="Baixar arquivo"
+                        onClick={() => {
+                          const a = document.createElement("a");
+                          a.href = hostedRawUrlForDownload(s.fileUrl);
+                          a.download = s.fileName || "nota";
+                          a.target = "_blank";
+                          a.rel = "noreferrer";
+                          document.body.appendChild(a);
+                          a.click();
+                          a.remove();
+                        }}
+                      >
+                        <Download className="mr-1 h-3.5 w-3.5" aria-hidden />
+                        Baixar
+                      </Button>
+                    </div>
                   </Td>
                   <Td>{s.reviewNotes || "—"}</Td>
                 </tr>
@@ -379,6 +413,50 @@ export default function ColaboradorNotasPage() {
           </Table>
         )}
       </SectionCard>
+
+      <Modal
+        open={preview != null}
+        title={preview?.fileName || "Arquivo da nota"}
+        onClose={() => setPreview(null)}
+        size="large"
+      >
+        {preview?.fileUrl ? (
+          attachmentPreviewKind(preview.fileName, preview.fileUrl) === "image" ? (
+            <img
+              src={preview.fileUrl}
+              alt={preview.fileName || "Nota"}
+              className="mx-auto max-h-[75vh] w-auto max-w-full rounded-md"
+            />
+          ) : (
+            <iframe
+              title={preview.fileName || "Nota"}
+              src={preview.fileUrl}
+              className="h-[75vh] w-full rounded-md border border-[var(--card-border)] bg-white"
+            />
+          )
+        ) : null}
+        {preview?.fileUrl ? (
+          <div className="mt-3 flex justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                const a = document.createElement("a");
+                a.href = hostedRawUrlForDownload(preview.fileUrl);
+                a.download = preview.fileName || "nota";
+                a.target = "_blank";
+                a.rel = "noreferrer";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+              }}
+            >
+              <Download className="mr-1.5 h-4 w-4" aria-hidden />
+              Baixar arquivo
+            </Button>
+          </div>
+        ) : null}
+      </Modal>
     </PanelPageStack>
   );
 }
