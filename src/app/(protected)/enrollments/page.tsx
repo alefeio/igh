@@ -99,22 +99,43 @@ const DEFAULT_CLASS_GROUP_STATUS_FILTERS = [
   "EM_ANDAMENTO",
 ] as const;
 
+const CLASS_GROUP_SCOPE_OPTIONS = [
+  { value: "INTERNAL", label: "Interna" },
+  { value: "EXTERNAL", label: "Externa" },
+] as const;
+
+/** Padrão: só turmas internas; Externa é opcional. */
+const DEFAULT_CLASS_GROUP_SCOPE_FILTERS = ["INTERNAL"] as const;
+
 function haveSameValues(left: string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((value) => right.includes(value));
 }
 
-/**
- * Turma interna: entra se o status está no filtro.
- * Turma externa: entra somente se Encerrada estiver marcada (qualquer status operacional).
- */
 function classGroupMatchesStatusFilter(
-  cg: { status?: string | null; isExternal?: boolean },
+  cg: { status?: string | null },
   allowedStatuses: ReadonlySet<string>,
 ): boolean {
-  if (cg.isExternal) {
-    return allowedStatuses.has("ENCERRADA");
-  }
   return !!cg.status && allowedStatuses.has(cg.status);
+}
+
+function classGroupMatchesScopeFilter(
+  cg: { isExternal?: boolean },
+  allowedScopes: ReadonlySet<string>,
+): boolean {
+  if (allowedScopes.size === 0) return false;
+  const scope = cg.isExternal ? "EXTERNAL" : "INTERNAL";
+  return allowedScopes.has(scope);
+}
+
+function classGroupMatchesListFilters(
+  cg: { status?: string | null; isExternal?: boolean },
+  allowedStatuses: ReadonlySet<string>,
+  allowedScopes: ReadonlySet<string>,
+): boolean {
+  return (
+    classGroupMatchesStatusFilter(cg, allowedStatuses) &&
+    classGroupMatchesScopeFilter(cg, allowedScopes)
+  );
 }
 
 function CheckboxMultiSelect({
@@ -297,6 +318,9 @@ export default function EnrollmentsPage() {
   const [classGroupStatusFilter, setClassGroupStatusFilter] = useState<string[]>([
     ...DEFAULT_CLASS_GROUP_STATUS_FILTERS,
   ]);
+  const [classGroupScopeFilter, setClassGroupScopeFilter] = useState<string[]>([
+    ...DEFAULT_CLASS_GROUP_SCOPE_FILTERS,
+  ]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cycleFilterIds, setCycleFilterIds] = useState<string[]>([]);
@@ -313,7 +337,7 @@ export default function EnrollmentsPage() {
     });
   }, []);
 
-  const filtersStorageKey = `enrollments:filters:v1:${user.id}`;
+  const filtersStorageKey = `enrollments:filters:v2:${user.id}`;
 
   useEffect(() => {
     try {
@@ -325,6 +349,7 @@ export default function EnrollmentsPage() {
           preEnrollmentFilterState?: "" | "pre" | "confirmed";
           turmaFilterIds?: string[];
           classGroupStatusFilter?: string[];
+          classGroupScopeFilter?: string[];
           dateFrom?: string;
           dateTo?: string;
           cycleFilterIds?: string[];
@@ -340,6 +365,13 @@ export default function EnrollmentsPage() {
                 (VISIBLE_CLASS_GROUP_STATUS_FILTERS as readonly string[]).includes(status)
               )
             : [...DEFAULT_CLASS_GROUP_STATUS_FILTERS]
+        );
+        setClassGroupScopeFilter(
+          Array.isArray(saved.classGroupScopeFilter)
+            ? saved.classGroupScopeFilter.filter((scope) =>
+                (CLASS_GROUP_SCOPE_OPTIONS as readonly { value: string }[]).some((o) => o.value === scope)
+              )
+            : [...DEFAULT_CLASS_GROUP_SCOPE_FILTERS]
         );
         setDateFrom(saved.dateFrom ?? "");
         setDateTo(saved.dateTo ?? "");
@@ -369,6 +401,7 @@ export default function EnrollmentsPage() {
           preEnrollmentFilterState,
           turmaFilterIds,
           classGroupStatusFilter,
+          classGroupScopeFilter,
           dateFrom,
           dateTo,
           cycleFilterIds,
@@ -379,6 +412,7 @@ export default function EnrollmentsPage() {
       // Armazenamento pode estar indisponível em navegação privada.
     }
   }, [
+    classGroupScopeFilter,
     classGroupStatusFilter,
     cycleFilterIds,
     dateFrom,
@@ -559,7 +593,7 @@ export default function EnrollmentsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterIds, classGroupStatusFilter, dateFrom, dateTo, cycleFilterIds]);
+  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterIds, classGroupStatusFilter, classGroupScopeFilter, dateFrom, dateTo, cycleFilterIds]);
 
   /** Matrículas no intervalo de datas (quando informado); senão todas. Usado em dashboard, listagem e exportações. */
   const itemsForView = useMemo(() => {
@@ -576,8 +610,9 @@ export default function EnrollmentsPage() {
       list = [];
     }
 
-    if (classGroupStatusFilter.length > 0) {
+    if (classGroupStatusFilter.length > 0 && classGroupScopeFilter.length > 0) {
       const allowedStatuses = new Set(classGroupStatusFilter);
+      const allowedScopes = new Set(classGroupScopeFilter);
       const cgById = new Map(allClassGroups.map((cg) => [cg.id, cg] as const));
       list = list.filter((enrollment) => {
         const cg = cgById.get(enrollment.classGroup.id);
@@ -585,7 +620,7 @@ export default function EnrollmentsPage() {
           status: cg?.status ?? enrollment.classGroup.status,
           isExternal: cg?.isExternal ?? enrollment.classGroup.isExternal,
         };
-        return classGroupMatchesStatusFilter(meta, allowedStatuses);
+        return classGroupMatchesListFilters(meta, allowedStatuses, allowedScopes);
       });
     } else {
       list = [];
@@ -598,7 +633,7 @@ export default function EnrollmentsPage() {
       if (dateTo && d > dateTo) return false;
       return true;
     });
-  }, [items, allClassGroups, classGroupStatusFilter, dateFrom, dateTo, cycleFilterIds]);
+  }, [items, allClassGroups, classGroupStatusFilter, classGroupScopeFilter, dateFrom, dateTo, cycleFilterIds]);
 
   /** Fonte única dos filtros: alimenta cards, gráficos, vagas, professores e listagem. */
   const filteredItems = useMemo(() => {
@@ -637,6 +672,7 @@ export default function EnrollmentsPage() {
     const allowedCycles = new Set(cycleFilterIds);
     const allowedClassGroups = new Set(turmaFilterIds);
     const allowedClassGroupStatuses = new Set(classGroupStatusFilter);
+    const allowedClassGroupScopes = new Set(classGroupScopeFilter);
     const activeByClassGroup = new Map<string, number>();
     for (const enrollment of list) {
       if (enrollment.status !== "ACTIVE") continue;
@@ -649,7 +685,7 @@ export default function EnrollmentsPage() {
     for (const cg of allClassGroups) {
       const cid = cg.cycleId ?? cg.cycle?.id;
       if (!cid || !allowedCycles.has(cid)) continue;
-      if (!classGroupMatchesStatusFilter(cg, allowedClassGroupStatuses)) continue;
+      if (!classGroupMatchesListFilters(cg, allowedClassGroupStatuses, allowedClassGroupScopes)) continue;
       if (allowedClassGroups.size > 0 && !allowedClassGroups.has(cg.id)) continue;
       byClassGroup.set(cg.id, {
         classGroup: cg,
@@ -715,7 +751,7 @@ export default function EnrollmentsPage() {
       .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
 
     return { courses, teachers, total: list.length, totalCapacity };
-  }, [filteredItems, allClassGroups, classGroupStatusFilter, cycleFilterIds, turmaFilterIds]);
+  }, [filteredItems, allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds, turmaFilterIds]);
 
   /** Mantém todos os professores ativos no gráfico, inclusive os que ficaram com zero no recorte. */
   const teachersToDisplay = useMemo(() => {
@@ -751,10 +787,11 @@ export default function EnrollmentsPage() {
     const opts: { id: string; label: string }[] = [];
     const allowedCycles = new Set(cycleFilterIds);
     const allowedStatuses = new Set(classGroupStatusFilter);
+    const allowedScopes = new Set(classGroupScopeFilter);
     for (const cg of allClassGroups) {
       const cycleId = cg.cycleId ?? cg.cycle?.id;
       if (!cycleId || !allowedCycles.has(cycleId)) continue;
-      if (!classGroupMatchesStatusFilter(cg, allowedStatuses)) continue;
+      if (!classGroupMatchesListFilters(cg, allowedStatuses, allowedScopes)) continue;
       const start = formatDateOnly(cg.startDate);
       const line = formatClassGroupTurmaLine({
         course: { name: cg.course.name },
@@ -765,11 +802,11 @@ export default function EnrollmentsPage() {
       });
       opts.push({
         id: cg.id,
-        label: `${line} · início ${start}`,
+        label: `${line}${cg.isExternal ? " · Externa" : ""} · início ${start}`,
       });
     }
     return opts.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
-  }, [allClassGroups, classGroupStatusFilter, cycleFilterIds]);
+  }, [allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds]);
 
   useEffect(() => {
     if (loading) return;
@@ -1196,6 +1233,7 @@ export default function EnrollmentsPage() {
                 preEnrollmentFilterState ||
                 turmaFilterIds.length > 0 ||
                 !haveSameValues(classGroupStatusFilter, DEFAULT_CLASS_GROUP_STATUS_FILTERS) ||
+                !haveSameValues(classGroupScopeFilter, DEFAULT_CLASS_GROUP_SCOPE_FILTERS) ||
                 dateFrom ||
                 dateTo ||
                 cycleFilterIds.some((id) => !visibleCycleIds.includes(id)) ||
@@ -1210,6 +1248,7 @@ export default function EnrollmentsPage() {
                     setPreEnrollmentFilterState("");
                     setTurmaFilterIds([]);
                     setClassGroupStatusFilter([...DEFAULT_CLASS_GROUP_STATUS_FILTERS]);
+                    setClassGroupScopeFilter([...DEFAULT_CLASS_GROUP_SCOPE_FILTERS]);
                     setDateFrom("");
                     setDateTo("");
                     setCycleFilterIds(visibleCycleIds);
@@ -1338,6 +1377,38 @@ export default function EnrollmentsPage() {
                     />
                   </div>
                 )}
+                <div className="min-w-[min(100%,220px)] max-w-full">
+                  <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                    Tipo de turma
+                  </span>
+                  <div className="flex min-h-[44px] flex-wrap items-center gap-3 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+                    {CLASS_GROUP_SCOPE_OPTIONS.map((option) => {
+                      const checked = classGroupScopeFilter.includes(option.value);
+                      return (
+                        <label
+                          key={option.value}
+                          className="flex items-center gap-2 text-sm text-[var(--text-secondary)]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+                              setClassGroupScopeFilter((previous) =>
+                                event.target.checked
+                                  ? previous.includes(option.value)
+                                    ? previous
+                                    : [...previous, option.value]
+                                  : previous.filter((scope) => scope !== option.value)
+                              );
+                            }}
+                            className="h-4 w-4 accent-[var(--igh-primary)]"
+                          />
+                          {option.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="min-w-[min(100%,390px)] max-w-full">
                   <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
                     Status das turmas

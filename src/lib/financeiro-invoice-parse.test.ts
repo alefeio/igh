@@ -112,4 +112,51 @@ TOTAL A PAGAR
     );
     expect(matched?.id).toBe("op");
   });
+
+  it("extrai DANFS-e (NFS-e) sem confundir rótulo Telefone nem EMITENTE DA NFS-e", () => {
+    const text = `
+DANFSe v1.0
+Documento Auxiliar da NFS-e
+Prefeitura Municipal de Belém
+Chave de Acesso da NFS-e
+15014022264798644000150000000000000826081516444402
+Número da NFS-e
+8
+Competência da NFS-e
+01/08/2026
+Data e Hora da emissão da NFS-e
+03/08/2026 08:57:45
+EMITENTE DA NFS-e
+Prestador do Serviço
+CNPJ / CPF / NIF
+64.798.644/0001-50
+Telefone
+-
+Nome / Nome Empresarial
+64.798.644 ALEXANDRE THIAGO FEIO PENHA
+TOMADOR DO SERVIÇO CNPJ / CPF / NIF
+08.633.366/0001-00
+Nome / Nome Empresarial
+INSTITUTO GUSTAVO HESSEL
+Descrição do Serviço
+Serviço prestado de educador social no período de 01 de Julho de 2026 à 31 de Julho de 2026, tendo como dados bancários conta pessoal juridica.
+Nubank - 0260 / Agência: 0001 / Conta: 117011346-5 / chavepix: 64.798.644/0001-50.
+TRIBUTAÇÃO MUNICIPAL
+Valor do Serviço
+R$ 3.750,00
+VALOR TOTAL DA NFS-E
+Valor Líquido da NFS-e
+R$ 3.750,00
+`;
+    const s = extractFieldsFromText(text);
+    expect(s.amount).toBe("3.750,00");
+    expect(s.invoiceNumber).toBe("8");
+    expect(s.supplier).toMatch(/ALEXANDRE THIAGO FEIO PENHA/i);
+    expect(s.supplier).not.toMatch(/DA NFS/i);
+    expect(s.description).toMatch(/educador social/i);
+    expect(s.description).not.toMatch(/Conta de telefone/i);
+    expect(s.categoryName).toBeUndefined();
+    // Competência do serviço (julho), não só a data de emissão/competência formal (agosto)
+    expect(s.entryDate?.slice(0, 7)).toBe("2026-07");
+  });
 });

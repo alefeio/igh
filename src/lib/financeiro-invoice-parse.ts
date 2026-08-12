@@ -60,7 +60,8 @@ export const KNOWN_BILL_CATEGORIES: readonly KnownBillCategory[] = [
     name: "Telefone",
     aliases: ["telefone", "telefonia", "celular"],
     fallbackNames: ["Despesas operacionais", "Serviços"],
-    patterns: [/\btelefone\b/i, /telefonia/i],
+    // Evita falso positivo no rótulo "Telefone" de formulários (ex.: DANFS-e).
+    patterns: [/conta\s+de\s+telefone/i, /fatura\s+(?:de\s+)?telefonia/i, /\btelefonia\b/i, /conta\s+de\s+celular/i],
   },
   {
     name: "IPTU",
@@ -91,12 +92,174 @@ export function foldCategoryKey(value: string): string {
     .trim();
 }
 
+export function looksLikeNfseDocument(text: string): boolean {
+  return /DANFS-?e|Documento\s+Auxiliar\s+da\s+NFS-?e|\bNFS-?e\b/i.test(text);
+}
+
 export function guessKnownBillCategory(text: string): KnownBillCategory | undefined {
+  // NFS-e de serviço (MEI/prestador) não é conta de consumo.
+  if (looksLikeNfseDocument(text)) return undefined;
   const haystack = `${text}`;
   for (const cat of KNOWN_BILL_CATEGORIES) {
     if (cat.patterns.some((re) => re.test(haystack))) return cat;
   }
   return undefined;
+}
+
+const PT_MONTHS: Record<string, string> = {
+  janeiro: "01",
+  fevereiro: "02",
+  marco: "03",
+  março: "03",
+  abril: "04",
+  maio: "05",
+  junho: "06",
+  julho: "07",
+  agosto: "08",
+  setembro: "09",
+  outubro: "10",
+  novembro: "11",
+  dezembro: "12",
+};
+
+/** Lê valor na mesma linha ou nas próximas (layouts DANFS-e / colunas). */
+function valueAfterLabel(cleaned: string, labelRe: RegExp, maxLookahead = 6): string | undefined {
+  const lines = cleaned
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!labelRe.test(line)) continue;
+    const same = line.replace(labelRe, "").replace(/^[:\-\s]+/, "").trim();
+    if (same && same !== "-" && same.length >= 1) return same;
+    for (let j = i + 1; j < Math.min(i + 1 + maxLookahead, lines.length); j++) {
+      const next = lines[j];
+      if (!next || next === "-") continue;
+      // Próximo rótulo tipográfico (Title Case / termina sem valor)
+      if (/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÀ-ú /]{2,60}$/i.test(next) && !/^\d/.test(next) && !/^R\$/i.test(next)) {
+        // Ainda pode ser o valor se for nome próprio longo; só pula rótulos curtos conhecidos
+        if (
+          /^(CNPJ|CPF|CEP|E-mail|Endere[cç]o|Munic[ií]pio|Telefone|Inscri[cç][aã]o|Nome|C[oó]digo|Local|Pa[ií]s|S[eé]rie|N[uú]mero|Data|Compet[eê]ncia|Descri[cç][aã]o|Valor|Emitente|Prestador|Tomador)/i.test(
+            next,
+          )
+        ) {
+          break;
+        }
+      }
+      return next;
+    }
+  }
+  return undefined;
+}
+
+function parsePtLongDate(day: string, monthName: string, year: string): string | undefined {
+  const mm = PT_MONTHS[monthName.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()] ?? PT_MONTHS[monthName.toLowerCase()];
+  if (!mm) return undefined;
+  return brDateToIso(day.padStart(2, "0"), mm, year);
+}
+
+/**
+ * Extrai campos de DANFS-e (NFS-e nacional / municipal).
+ * Preferência: período do serviço na descrição → competência oficial → emissão.
+ */
+export function extractNfseFields(text: string): InvoiceSuggestion | null {
+  if (!looksLikeNfseDocument(text)) return null;
+  const cleaned = text.replace(/\u00a0/g, " ").replace(/\t/g, " ");
+  const suggestion: InvoiceSuggestion = {};
+
+  const numRaw =
+    valueAfterLabel(cleaned, /^N[uú]mero\s+da\s+NFS-?e\b/i) ||
+    cleaned.match(/N[uú]mero\s+da\s+NFS-?e\s*[:\-]?\s*(\d{1,12})/i)?.[1];
+  if (numRaw) {
+    const digits = numRaw.replace(/\D/g, "");
+    if (digits) suggestion.invoiceNumber = digits.replace(/^0+(?=\d)/, "") || digits;
+  }
+
+  // Chave de acesso 44 dígitos — nº da NFS-e costuma estar nas posições usadas no DANFS-e
+  if (!suggestion.invoiceNumber) {
+    const key = cleaned.match(/\b(\d{44})\b/)?.[1];
+    if (key) {
+      // Em várias chaves NFS-e o número aparece zerado à esquerda antes do ano/mês
+      const embedded = key.slice(24, 33).replace(/^0+/, "");
+      if (embedded) suggestion.invoiceNumber = embedded;
+    }
+  }
+
+  const prestadorBlock = cleaned.match(
+    /EMITENTE\s+DA\s+NFS-?e[\s\S]{0,80}?Prestador\s+do\s+Servi[cç]o([\s\S]{0,900}?)(?:TOMADOR\s+DO\s+SERVI[CÇ]O|INTERMEDI[AÁ]RIO)/i,
+  );
+  const prestadorText = prestadorBlock?.[1] ?? cleaned;
+  const nomeEmpresarial =
+    valueAfterLabel(prestadorText, /^Nome\s*\/\s*Nome\s+Empresarial\b/i) ||
+    valueAfterLabel(prestadorText, /^Nome\s+Empresarial\b/i) ||
+    valueAfterLabel(prestadorText, /^Nome\b/i);
+  if (nomeEmpresarial && !/^TOMADOR|^INTERMEDI/i.test(nomeEmpresarial)) {
+    // Remove CNPJ colado no início do nome (ex.: "64.798.644 ALEXANDRE…")
+    suggestion.supplier = nomeEmpresarial
+      .replace(/^\d{2}\.?\d{3}\.?\d{3}\s+/, "")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+      .slice(0, 120);
+  }
+
+  const servicoDesc =
+    valueAfterLabel(cleaned, /^Descri[cç][aã]o\s+do\s+Servi[cç]o\b/i, 12) ||
+    cleaned.match(/Descri[cç][aã]o\s+do\s+Servi[cç]o\s*[:\-]?\s*([^\n\r]{10,500})/i)?.[1];
+  if (servicoDesc && servicoDesc.length >= 10) {
+    // Junta linhas seguintes da descrição até o próximo bloco em maiúsculas
+    const lines = cleaned.split(/\r?\n/).map((l) => l.trim());
+    const start = lines.findIndex((l) => /^Descri[cç][aã]o\s+do\s+Servi[cç]o\b/i.test(l));
+    if (start >= 0) {
+      const parts: string[] = [];
+      for (let i = start + 1; i < lines.length; i++) {
+        const l = lines[i];
+        if (!l || l === "-") continue;
+        if (/^(TRIBUTA|VALOR\s+TOTAL|TOTAIS|INFORMA|SERVI[CÇ]O\s+PRESTADO|C[oó]digo\s+de\s+Tributa)/i.test(l)) break;
+        if (/^[A-ZÁÉÍÓÚ][A-ZÁÉÍÓÚÂÊÔÃÕÇ /]{8,}$/.test(l) && parts.length > 0) break;
+        parts.push(l);
+        if (parts.join(" ").length > 280) break;
+      }
+      if (parts.length) suggestion.description = parts.join(" ").replace(/\s{2,}/g, " ").trim().slice(0, 280);
+    }
+    if (!suggestion.description) {
+      suggestion.description = servicoDesc.replace(/\s{2,}/g, " ").trim().slice(0, 280);
+    }
+  }
+
+  // Competência: período na descrição do serviço (mês efetivo do trabalho) tem prioridade.
+  const period = cleaned.match(
+    /per[ií]odo\s+de\s+(\d{1,2})\s+de\s+([A-Za-zçÇáéíóúãõâêôÁÉÍÓÚÃÕÂÊÔ]+)\s+de\s+(\d{4})\s+(?:[àa]|ate|até)\s+(\d{1,2})\s+de\s+([A-Za-zçÇáéíóúãõâêôÁÉÍÓÚÃÕÂÊÔ]+)\s+de\s+(\d{4})/i,
+  );
+  if (period) {
+    const end = parsePtLongDate(period[4], period[5], period[6]);
+    const start = parsePtLongDate(period[1], period[2], period[3]);
+    suggestion.entryDate = end || start;
+  }
+  if (!suggestion.entryDate) {
+    const comp =
+      valueAfterLabel(cleaned, /^Compet[eê]ncia\s+da\s+NFS-?e\b/i) ||
+      cleaned.match(/Compet[eê]ncia\s+da\s+NFS-?e\s*[:\-]?\s*(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})/i);
+    if (typeof comp === "string") {
+      const m = comp.match(DATE_TOKEN);
+      if (m) suggestion.entryDate = brDateToIso(m[1], m[2], m[3]);
+    } else if (comp) {
+      suggestion.entryDate = brDateToIso(comp[1], comp[2], comp[3]);
+    }
+  }
+
+  const liquido =
+    cleaned.match(/Valor\s+L[ií]quido\s+da\s+NFS-?e\s*[:\-]?\s*R?\$?\s*(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2})/i)?.[1] ||
+    valueAfterLabel(cleaned, /^Valor\s+L[ií]quido\s+da\s+NFS-?e\b/i);
+  const valorServico =
+    cleaned.match(/Valor\s+do\s+Servi[cç]o\s*[:\-]?\s*R?\$?\s*(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2})/i)?.[1] ||
+    valueAfterLabel(cleaned, /^Valor\s+do\s+Servi[cç]o\b/i);
+  const amountRaw = (liquido || valorServico || "").replace(/^R\$\s*/i, "").trim();
+  if (amountRaw) {
+    suggestion.amount = normalizeMoneyCapture(amountRaw.match(MONEY_TOKEN)?.[0] || amountRaw);
+  }
+
+  return suggestion;
 }
 
 function findByKeys(
@@ -209,12 +372,25 @@ function pickInvoiceNumber(cleaned: string): string | undefined {
   const sameLine = [
     /Fatura\s*n[º°o.]?\s*[:\-]?\s*(\d{5,12})/i,
     /N[UÚ]MERO\s+DA\s+NOTA\s+FISCAL\s*[:\-]?\s*(\d{1,12})/i,
+    /N[UÚ]mero\s+da\s+NFS-?e\s*[:\-]?\s*(\d{1,12})/i,
     /N[º°o]\s*(?:da\s*)?(?:NF|NFS?-?E|NOTA(?:\s+FISCAL)?|FATURA)\s*[:\-]?\s*(\d{1,12})/i,
     /NF[-\s]?E?\s*(?:n[º°o.]?)?\s*[:\-]?\s*(\d{6,12})/i,
   ];
   for (const re of sameLine) {
     const m = cleaned.match(re);
     if (m?.[1]) return m[1];
+  }
+
+  // DANFS-e: "Número da NFS-e" em uma linha e o dígito na seguinte
+  const nfseLines = cleaned
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  for (let i = 0; i < nfseLines.length - 1; i++) {
+    if (/^N[uú]mero\s+da\s+NFS-?e\b/i.test(nfseLines[i])) {
+      const digits = nfseLines[i + 1].replace(/\D/g, "");
+      if (digits.length >= 1 && digits.length <= 12) return digits.replace(/^0+(?=\d)/, "") || digits;
+    }
   }
 
   // Contas de água: coluna de rótulos seguida da coluna de valores
@@ -301,10 +477,18 @@ function pickEntryDate(cleaned: string): string | undefined {
 }
 
 function pickSupplier(cleaned: string): string | undefined {
+  // Evita capturar "DA NFS-e" a partir de "EMITENTE DA NFS-e".
   const razao = cleaned.match(
-    /(?:RAZ[AÃ]O\s+SOCIAL|NOME\s+(?:EMPRESARIAL|FANTASIA)|EMITENTE|PRESTADOR|FORNECEDOR)\s*[:\-]?\s*([^\n\r|]{3,80})/i,
+    /(?:RAZ[AÃ]O\s+SOCIAL|NOME\s+(?:EMPRESARIAL|FANTASIA)|NOME\s*\/\s*NOME\s+EMPRESARIAL|FORNECEDOR)\s*[:\-]?\s*([^\n\r|]{3,80})/i,
   );
-  if (razao?.[1]) return razao[1].replace(/\s{2,}/g, " ").trim().slice(0, 120);
+  if (razao?.[1]) {
+    const name = razao[1]
+      .replace(/^\d{2}\.?\d{3}\.?\d{3}\s+/, "")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+      .slice(0, 120);
+    if (name && !/^DA\s+NFS/i.test(name)) return name;
+  }
 
   const utility = cleaned.match(
     /\b((?:AGUAS?|ÁGUAS?|COMPANHIA|CIA\.?|SANEAMENTO|ENERGIA|ELETR[OI]CA|TELEF[OÔ]NICA|CLARO|VIVO|TIM|OI)[^\n\r|]{0,60}(?:S\.?\s*A\.?|SPE|LTDA)?)/i,
@@ -327,6 +511,15 @@ function pickSupplier(cleaned: string): string | undefined {
 }
 
 export function extractFieldsFromText(text: string): InvoiceSuggestion {
+  const nfse = extractNfseFields(text);
+  if (nfse && (nfse.amount || nfse.invoiceNumber || nfse.supplier || nfse.description)) {
+    // Completa lacunas com heurísticas genéricas (valor etc.), sem sobrescrever NFS-e.
+    return mergeSuggestion(nfse, extractFieldsFromTextGeneric(text));
+  }
+  return extractFieldsFromTextGeneric(text);
+}
+
+function extractFieldsFromTextGeneric(text: string): InvoiceSuggestion {
   const suggestion: InvoiceSuggestion = {};
   const cleaned = text.replace(/\u00a0/g, " ").replace(/\t/g, " ");
 
