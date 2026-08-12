@@ -34,7 +34,24 @@ import type {
   UniformSize,
 } from "@/generated/prisma/client";
 
-export type LinkableUser = { id: string; name: string; email: string; role: string };
+export type LinkableUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  phone?: string | null;
+  birthDate?: string | null;
+  cpf?: string | null;
+  rg?: string | null;
+  emailAlt?: string | null;
+  cep?: string | null;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+};
 export type PoloOption = { id: string; name: string };
 
 type FormState = {
@@ -257,12 +274,36 @@ export function EmployeeFormModal({ open, editing, users, polos, onClose, onSave
   }
 
   function onUserLink(userId: string) {
+    if (!userId) {
+      set("userId", "");
+      return;
+    }
     const user = users.find((u) => u.id === userId);
+    if (!user) {
+      set("userId", userId);
+      return;
+    }
+
+    const phoneDigits = (user.phone ?? "").replace(/\D/g, "").slice(0, 11);
+    const cpfDigits = (user.cpf ?? "").replace(/\D/g, "");
+    const email = user.email?.trim() || user.emailAlt?.trim() || "";
+
     setForm((prev) => ({
       ...prev,
       userId,
-      name: prev.name.trim() ? prev.name : (user?.name ?? prev.name),
-      email: prev.email.trim() ? prev.email : (user?.email ?? prev.email),
+      name: user.name?.trim() || prev.name,
+      email: email || prev.email,
+      phone: phoneDigits || prev.phone,
+      birthDate: user.birthDate?.trim() || prev.birthDate,
+      cpf: cpfDigits.length === 11 ? formatCpf(cpfDigits) : prev.cpf,
+      rg: user.rg?.trim() || prev.rg,
+      cep: user.cep?.trim() || prev.cep,
+      street: user.street?.trim() || prev.street,
+      number: user.number?.trim() || prev.number,
+      complement: user.complement?.trim() || prev.complement,
+      neighborhood: user.neighborhood?.trim() || prev.neighborhood,
+      city: user.city?.trim() || prev.city,
+      state: user.state?.trim() || prev.state,
     }));
   }
 
@@ -332,7 +373,8 @@ export function EmployeeFormModal({ open, editing, users, polos, onClose, onSave
           </Field>
           {selectedUser ? (
             <p className="text-xs text-[var(--text-muted)]">
-              Vinculado a {selectedUser.name} ({selectedUser.role}).
+              Vinculado a {selectedUser.name} ({selectedUser.role}). Dados já cadastrados na conta
+              foram preenchidos nos campos abaixo — revise antes de salvar.
             </p>
           ) : null}
         </section>
