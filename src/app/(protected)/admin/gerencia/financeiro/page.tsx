@@ -159,6 +159,8 @@ export default function FinanceiroPage() {
   const [users, setUsers] = useState<UserOption[]>([]);
 
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [kindFilter, setKindFilter] = useState<"" | FinancialEntryKind>("");
   const [statusFilter, setStatusFilter] = useState<"" | FinancialPaymentStatus>("");
   const [dueAlertFilter, setDueAlertFilter] = useState<"" | "today" | "soon" | "overdue" | "attention">(
@@ -191,7 +193,12 @@ export default function FinanceiroPage() {
 
   const queryString = useMemo(() => {
     const sp = new URLSearchParams();
-    if (month) sp.set("month", month);
+    if (dateFrom || dateTo) {
+      if (dateFrom) sp.set("from", dateFrom);
+      if (dateTo) sp.set("to", dateTo);
+    } else if (month) {
+      sp.set("month", month);
+    }
     if (kindFilter) sp.set("kind", kindFilter);
     if (statusFilter) sp.set("paymentStatus", statusFilter);
     if (dueAlertFilter) sp.set("dueAlert", dueAlertFilter);
@@ -199,7 +206,7 @@ export default function FinanceiroPage() {
     if (poloFilter) sp.set("poloId", poloFilter);
     if (q.trim()) sp.set("q", q.trim());
     return sp.toString();
-  }, [month, kindFilter, statusFilter, dueAlertFilter, categoryFilter, poloFilter, q]);
+  }, [month, dateFrom, dateTo, kindFilter, statusFilter, dueAlertFilter, categoryFilter, poloFilter, q]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -640,7 +647,7 @@ export default function FinanceiroPage() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Financeiro");
-    XLSX.writeFile(wb, `financeiro_${month || "periodo"}.xlsx`);
+    XLSX.writeFile(wb, `financeiro_${month || (dateFrom && dateTo ? `${dateFrom}_${dateTo}` : dateFrom || dateTo || "periodo")}.xlsx`);
   }
 
   function exportPdf() {
@@ -674,7 +681,7 @@ export default function FinanceiroPage() {
         .totais{margin-top:16px;font-size:13px}
       </style></head><body>
       <h1>Relatório financeiro</h1>
-      <div class="meta">Competência: ${month || "todas"} · ${entries.length} lançamento(s)</div>
+      <div class="meta">Período: ${month || (dateFrom || dateTo ? `${dateFrom || "…"} a ${dateTo || "…"}` : "todos")} · ${entries.length} lançamento(s)</div>
       <table><thead><tr>
         <th>Data de vencimento</th><th>Status</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Responsável</th>
       </tr></thead><tbody>${rowsHtml}</tbody></table>
@@ -887,7 +894,31 @@ export default function FinanceiroPage() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
               <label className="block text-sm">
                 <span className="text-[var(--text-muted)]">Mês (vencimento)</span>
-                <Input className="mt-1" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+                <Input
+                  className="mt-1"
+                  type="month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-[var(--text-muted)]">Data início</span>
+                <Input
+                  className="mt-1"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-[var(--text-muted)]">Data final</span>
+                <Input
+                  className="mt-1"
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
               </label>
               {tab === "fluxo" ? (
                 <>
@@ -972,6 +1003,12 @@ export default function FinanceiroPage() {
                 </div>
               </label>
             </div>
+            {(dateFrom || dateTo) ? (
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                Intervalo de datas em uso (vencimento). O filtro por mês fica em segundo plano enquanto houver
+                data início e/ou data final.
+              </p>
+            ) : null}
           </SectionCard>
 
           <SectionCard

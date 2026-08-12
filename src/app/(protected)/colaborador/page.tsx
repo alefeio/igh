@@ -1,7 +1,7 @@
 "use client";
 
 import { FileText, MessageSquare, Sparkles, Truck, UserCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   DashboardHero,
@@ -49,6 +49,7 @@ type PortalMe = {
 
 export default function ColaboradorPortalPage() {
   const toast = useToast();
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [data, setData] = useState<PortalMe | null>(null);
@@ -248,11 +249,13 @@ export default function ColaboradorPortalPage() {
               </a>
               .
             </p>
-            <label className="mt-2 inline-block">
+            <div className="mt-2">
               <input
+                ref={photoInputRef}
                 type="file"
                 accept="image/*"
-                className="hidden"
+                className="sr-only"
+                tabIndex={-1}
                 disabled={uploading || loading}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -260,10 +263,15 @@ export default function ColaboradorPortalPage() {
                   if (file) void uploadPhoto(file);
                 }}
               />
-              <Button type="button" variant="secondary" disabled={uploading || loading}>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={uploading || loading}
+                onClick={() => photoInputRef.current?.click()}
+              >
                 {uploading ? "Enviando…" : "Trocar foto"}
               </Button>
-            </label>
+            </div>
           </div>
         </div>
       </SectionCard>

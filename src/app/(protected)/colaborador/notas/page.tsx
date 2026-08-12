@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DashboardHero, PanelPageStack, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -50,12 +50,27 @@ const STATUS_TONE: Record<Submission["status"], "amber" | "green" | "red"> = {
   RECUSADA: "red",
 };
 
+function isAllowedInvoiceFile(file: File): boolean {
+  if (file.type === "application/pdf" || file.type.startsWith("image/")) return true;
+  const name = file.name.toLowerCase();
+  return (
+    name.endsWith(".pdf") ||
+    name.endsWith(".png") ||
+    name.endsWith(".jpg") ||
+    name.endsWith(".jpeg") ||
+    name.endsWith(".webp") ||
+    name.endsWith(".gif")
+  );
+}
+
 export default function ColaboradorNotasPage() {
   const toast = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [reading, setReading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [form, setForm] = useState({
     referenceMonth: new Date().toISOString().slice(0, 7),
@@ -117,6 +132,10 @@ export default function ColaboradorNotasPage() {
   }
 
   async function uploadFile(file: File) {
+    if (!isAllowedInvoiceFile(file)) {
+      toast.push("error", "Envie um PDF ou imagem (JPG, PNG, WEBP).");
+      return;
+    }
     setUploading(true);
     try {
       const signRes = await fetch(COLABORADOR_UPLOAD_SIGNATURE, { method: "POST" });
@@ -244,27 +263,75 @@ export default function ColaboradorNotasPage() {
             />
           </label>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <label>
-            <input
-              type="file"
-              accept="application/pdf,image/*"
-              className="hidden"
+
+        <div
+          className={`mt-4 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+            dragOver
+              ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/5"
+              : "border-[var(--card-border)] bg-[var(--igh-surface)]/40"
+          }`}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!uploading) setDragOver(true);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!uploading) setDragOver(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+            setDragOver(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragOver(false);
+            if (uploading) return;
+            const file = e.dataTransfer.files?.[0];
+            if (file) void uploadFile(file);
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,image/*"
+            className="sr-only"
+            tabIndex={-1}
+            disabled={uploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void uploadFile(file);
+            }}
+          />
+          <p className="text-sm font-medium text-[var(--text-primary)]">
+            {uploading
+              ? "Enviando arquivo…"
+              : form.fileName
+                ? form.fileName
+                : "Arraste o PDF ou a imagem e solte aqui"}
+          </p>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Ou escolha o arquivo pelo botão abaixo.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
               disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (file) void uploadFile(file);
-              }}
-            />
-            <Button type="button" variant="secondary" disabled={uploading}>
+              onClick={() => fileInputRef.current?.click()}
+            >
               {uploading ? "Enviando…" : form.fileUrl ? "Trocar arquivo" : "Anexar PDF ou imagem"}
             </Button>
-          </label>
-          {form.fileName ? (
-            <span className="text-sm text-[var(--text-muted)]">{form.fileName}</span>
-          ) : null}
-          {reading ? <span className="text-sm text-[var(--text-muted)]">Lendo a nota…</span> : null}
+            {reading ? <span className="text-sm text-[var(--text-muted)]">Lendo a nota…</span> : null}
+          </div>
+        </div>
+
+        <div className="mt-3 flex justify-end">
           <Button type="button" onClick={() => void submit()} disabled={saving || !form.fileUrl}>
             {saving ? "Enviando…" : "Enviar para a gerência"}
           </Button>
@@ -296,7 +363,12 @@ export default function ColaboradorNotasPage() {
                     <Badge tone={STATUS_TONE[s.status]}>{STATUS_LABEL[s.status]}</Badge>
                   </Td>
                   <Td>
-                    <a href={s.fileUrl} target="_blank" rel="noreferrer" className="text-[var(--igh-primary)] underline">
+                    <a
+                      href={s.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[var(--igh-primary)] underline"
+                    >
                       {s.fileName || "Abrir"}
                     </a>
                   </Td>

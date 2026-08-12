@@ -1,7 +1,7 @@
 "use client";
 
 import { UserCircle } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DashboardHero, PanelPageStack, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -92,6 +92,7 @@ function toForm(e: EmployeeProfile): FormState {
 
 export default function ColaboradorDadosPage() {
   const toast = useToast();
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -218,7 +219,7 @@ export default function ColaboradorDadosPage() {
       />
 
       <SectionCard title="Foto" variant="elevated">
-        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
           {employee?.photoUrl ? (
             <img
               src={employee.photoUrl}
@@ -230,11 +231,13 @@ export default function ColaboradorDadosPage() {
               <UserCircle className="h-10 w-10" />
             </div>
           )}
-          <label className="inline-block">
+          <div className="flex flex-col gap-2">
             <input
+              ref={photoInputRef}
               type="file"
               accept="image/*"
-              className="hidden"
+              className="sr-only"
+              tabIndex={-1}
               disabled={uploading || loading}
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -242,10 +245,15 @@ export default function ColaboradorDadosPage() {
                 if (file) void uploadPhoto(file);
               }}
             />
-            <Button type="button" variant="secondary" disabled={uploading || loading}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={uploading || loading}
+              onClick={() => photoInputRef.current?.click()}
+            >
               {uploading ? "Enviando…" : "Trocar foto"}
             </Button>
-          </label>
+          </div>
         </div>
       </SectionCard>
 
