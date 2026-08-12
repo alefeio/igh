@@ -30,7 +30,21 @@ export async function GET(
   });
   if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
 
-  const modules = await getModulesWithLessonsByCourseId(cg.courseId);
+  const [modules, sessions] = await Promise.all([
+    getModulesWithLessonsByCourseId(cg.courseId),
+    prisma.classSession.findMany({
+      where: { classGroupId, lessonId: { not: null } },
+      orderBy: { sessionDate: "asc" },
+      select: { lessonId: true, sessionDate: true },
+    }),
+  ]);
+
+  /** Data da sessão da turma associada a cada aula (YYYY-MM-DD). */
+  const sessionDateByLessonId = new Map<string, string>();
+  for (const s of sessions) {
+    if (!s.lessonId || sessionDateByLessonId.has(s.lessonId)) continue;
+    sessionDateByLessonId.set(s.lessonId, s.sessionDate.toISOString().slice(0, 10));
+  }
 
   return jsonOk({
     classGroup: {
@@ -41,7 +55,12 @@ export async function GET(
       id: m.id,
       title: m.title,
       order: m.order,
-      lessons: m.lessons.map((l) => ({ id: l.id, title: l.title, order: l.order })),
+      lessons: m.lessons.map((l) => ({
+        id: l.id,
+        title: l.title,
+        order: l.order,
+        sessionDate: sessionDateByLessonId.get(l.id) ?? null,
+      })),
     })),
   });
 }

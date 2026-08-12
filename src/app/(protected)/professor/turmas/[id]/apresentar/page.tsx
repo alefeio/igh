@@ -6,13 +6,14 @@ import { useParams } from "next/navigation";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import type { ApiResponse } from "@/lib/api-types";
+import { formatDateOnly } from "@/lib/format";
 import { ChevronRight } from "lucide-react";
 
 type ModuleRow = {
   id: string;
   title: string;
   order: number;
-  lessons: { id: string; title: string; order: number }[];
+  lessons: { id: string; title: string; order: number; sessionDate: string | null }[];
 };
 
 export default function ProfessorApresentarIndexPage() {
@@ -84,7 +85,14 @@ export default function ProfessorApresentarIndexPage() {
                         href={`/professor/turmas/${classGroupId}/apresentar/${les.id}`}
                         className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-[var(--text-primary)] transition hover:bg-[var(--igh-surface)]"
                       >
-                        <span>{les.title}</span>
+                        <span className="min-w-0">
+                          {les.sessionDate ? (
+                            <span className="mr-2 tabular-nums text-[var(--text-muted)]">
+                              {formatDateOnly(les.sessionDate)}
+                            </span>
+                          ) : null}
+                          {les.title}
+                        </span>
                         <ChevronRight className="h-4 w-4 shrink-0 text-[var(--text-muted)]" aria-hidden />
                       </Link>
                     </li>
