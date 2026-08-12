@@ -18,7 +18,6 @@ import {
   parseApimagesUploadJson,
   readApiJson,
 } from "@/lib/apimages-upload";
-import { hostedRawUrlForDownload } from "@/lib/hosted-file-url";
 
 type Submission = {
   id: string;
@@ -71,6 +70,11 @@ function attachmentPreviewKind(fileName?: string | null, url?: string | null): "
   if (/\.(png|jpe?g|gif|webp|bmp)(\?|$)/i.test(hay) || hay.includes("image/")) return "image";
   if (/\.pdf(\?|$)/i.test(hay) || hay.includes("application/pdf")) return "pdf";
   return "other";
+}
+
+function submissionFileUrl(id: string, download = false): string {
+  const base = `/api/me/colaborador/notas/${id}/arquivo`;
+  return download ? `${base}?download=1` : base;
 }
 
 export default function ColaboradorNotasPage() {
@@ -392,10 +396,8 @@ export default function ColaboradorNotasPage() {
                         title="Baixar arquivo"
                         onClick={() => {
                           const a = document.createElement("a");
-                          a.href = hostedRawUrlForDownload(s.fileUrl);
+                          a.href = submissionFileUrl(s.id, true);
                           a.download = s.fileName || "nota";
-                          a.target = "_blank";
-                          a.rel = "noreferrer";
                           document.body.appendChild(a);
                           a.click();
                           a.remove();
@@ -420,32 +422,30 @@ export default function ColaboradorNotasPage() {
         onClose={() => setPreview(null)}
         size="large"
       >
-        {preview?.fileUrl ? (
+        {preview ? (
           attachmentPreviewKind(preview.fileName, preview.fileUrl) === "image" ? (
             <img
-              src={preview.fileUrl}
+              src={submissionFileUrl(preview.id)}
               alt={preview.fileName || "Nota"}
               className="mx-auto max-h-[75vh] w-auto max-w-full rounded-md"
             />
           ) : (
             <iframe
               title={preview.fileName || "Nota"}
-              src={preview.fileUrl}
+              src={submissionFileUrl(preview.id)}
               className="h-[75vh] w-full rounded-md border border-[var(--card-border)] bg-white"
             />
           )
         ) : null}
-        {preview?.fileUrl ? (
+        {preview ? (
           <div className="mt-3 flex justify-end">
             <Button
               type="button"
               variant="secondary"
               onClick={() => {
                 const a = document.createElement("a");
-                a.href = hostedRawUrlForDownload(preview.fileUrl);
+                a.href = submissionFileUrl(preview.id, true);
                 a.download = preview.fileName || "nota";
-                a.target = "_blank";
-                a.rel = "noreferrer";
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
