@@ -16,7 +16,8 @@
     "seed": "prisma db seed",
     "seed:onboarding": "tsx prisma/seed-onboarding-all.ts",
     "seed:about": "tsx prisma/seed-about.ts",
-    "seed:legal": "tsx prisma/seed-legal.ts"
+    "seed:legal": "tsx prisma/seed-legal.ts",
+    "seed:modelos": "tsx prisma/seed-document-templates.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

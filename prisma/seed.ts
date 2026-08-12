@@ -9,22 +9,32 @@
  *   - $env:UPDATE_ONBOARDING_SEED="1"; npx prisma db seed   (PowerShell)
  *
  * Documentos legais (primeira versão): ver também `npm run seed:legal` ou o passo automático no seed abaixo.
+ * Modelos oficiais da Gerência: `npm run seed:modelos` (ou SEED_SCOPE=modelos / incluso em `all`).
  *
  * Executar: npm run seed (ou npx prisma db seed)
  */
 import "./load-env";
 import { prisma } from "../src/lib/prisma";
 import { applyCyclesV1Seed } from "./seeds/apply-cycles-v1";
+import { applyDocumentTemplatesV1Seed } from "./seeds/apply-document-templates-v1";
 import { applyEspacoMakerPageV1Seed } from "./seeds/apply-espaco-maker-page-v1";
 import { applyLegalDocumentsV1Seed } from "./seeds/apply-legal-documents-v1";
 import { ONBOARDING_GUIDES, ONBOARDING_ROLES_ORDER } from "./seeds/onboarding-guides";
 import { upsertAllOnboardingGuidesFromRepo } from "./seeds/upsert-onboarding-from-repo";
 
-type SeedScope = "all" | "cycles" | "legal" | "onboarding" | "espaco-maker";
+type SeedScope = "all" | "cycles" | "legal" | "onboarding" | "espaco-maker" | "modelos";
 
 function getSeedScope(): SeedScope {
   const raw = (process.env.SEED_SCOPE ?? "").trim().toLowerCase();
-  if (raw === "cycles" || raw === "legal" || raw === "onboarding" || raw === "espaco-maker") return raw;
+  if (
+    raw === "cycles" ||
+    raw === "legal" ||
+    raw === "onboarding" ||
+    raw === "espaco-maker" ||
+    raw === "modelos"
+  ) {
+    return raw;
+  }
   return "all";
 }
 
@@ -76,6 +86,7 @@ async function main() {
   if (scope === "all" || scope === "cycles") await applyCyclesV1Seed(prisma);
   if (scope === "all" || scope === "legal") await applyLegalDocumentsV1Seed(prisma);
   if (scope === "all" || scope === "espaco-maker") await applyEspacoMakerPageV1Seed(prisma);
+  if (scope === "all" || scope === "modelos") await applyDocumentTemplatesV1Seed(prisma);
   if (scope === "all" || scope === "onboarding") await seedOnboardingGuides();
 }
 
