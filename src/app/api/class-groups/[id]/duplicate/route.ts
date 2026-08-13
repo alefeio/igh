@@ -161,6 +161,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
         data: {
           courseId: source.courseId,
           teacherId: sourceTeacherIds[0]!,
+          // Sem cycleId a cópia caía no ciclo padrão (muitas vezes oculto) e sumia da listagem admin.
+          cycleId: source.cycleId,
           daysOfWeek: source.daysOfWeek,
           startDate: startDateValue,
           endDate,
@@ -168,7 +170,9 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
           endTime: source.endTime,
           capacity: source.capacity,
           status: "PLANEJADA",
+          isExternal: source.isExternal,
           location: chosenLocation,
+          poloLocationId: source.poloLocationId,
           createdByUserId: user.id,
         },
       });
@@ -215,15 +219,24 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     const full = await prisma.classGroup.findUnique({
       where: { id: created.id },
       include: {
+        cycle: true,
         course: true,
         teacher: true,
+        classGroupTeachers: { include: { teacher: { select: { id: true, name: true } } } },
+        poloLocation: {
+          select: {
+            id: true,
+            name: true,
+            polo: { select: { id: true, name: true } },
+          },
+        },
         sessions: { orderBy: { sessionDate: "asc" } },
         enrollments: { where: { status: "ACTIVE" }, select: { id: true } },
       },
     });
     if (!full) return jsonErr("INTERNAL_ERROR", "Turma criada mas não foi possível recarregar os dados.", 500);
 
-    const { enrollments, sessions, ...rest } = full;
+    const { enrollments, sessions, classGroupTeachers, ...rest } = full;
     let totalH = 0;
     try {
       for (const s of sessions) {
@@ -237,6 +250,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       {
         classGroup: {
           ...rest,
+          teacherIds: classGroupTeachers.map((row) => row.teacherId),
+          teachers: classGroupTeachers.map((row) => row.teacher),
           sessions,
           totalSessions: sessions.length,
           totalHours: Math.round(totalH * 100) / 100,

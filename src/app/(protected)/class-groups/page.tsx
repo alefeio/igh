@@ -18,10 +18,24 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import { DEFAULT_CYCLE_ID } from "@/lib/cycles";
 
 function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): string {
   if (json && !json.ok) return json.error.message;
   return fallback;
+}
+
+/** Local gerado por POST /duplicate (`nextCopyLocation`) — órfãs de cancelamento costumam ter esse padrão. */
+function looksLikeDuplicatedLocation(location: string | null | undefined): boolean {
+  const loc = (location ?? "").trim();
+  if (!loc) return false;
+  if (/\(cópia(?:\s+\d+)?\)$/i.test(loc) || /^cópia(?:\s+\d+)?$/i.test(loc)) return true;
+  // Aceita variantes sem acento / “cópia” em qualquer posição (dados antigos ou editados).
+  const norm = loc
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  return /\bcopi\w*/.test(norm) || /\(copia(?:\s+\d+)?\)/.test(norm);
 }
 
 type Course = { id: string; name: string; workloadHours: number | null };
@@ -72,6 +86,27 @@ type ClassGroup = {
   totalHours?: number;
   enrollmentsCount?: number;
 };
+
+/**
+ * Cópia “fantasma” típica do bug antigo (Cancelar não apagava):
+ * local com padrão de duplicata, ou PLANEJADA no ciclo padrão oculto.
+ */
+function isOrphanDuplicateCandidate(
+  cg: Pick<ClassGroup, "cycleId" | "location" | "status" | "cycle">,
+  opts?: { defaultCycleVisible?: boolean },
+): boolean {
+  if (looksLikeDuplicatedLocation(cg.location)) return true;
+  const cid = cg.cycleId ?? cg.cycle?.id;
+  // Só marca ciclo padrão oculto quando ainda PLANEJADA (rascunho não revisado).
+  if (
+    cid === DEFAULT_CYCLE_ID &&
+    opts?.defaultCycleVisible === false &&
+    cg.status === "PLANEJADA"
+  ) {
+    return true;
+  }
+  return false;
+}
 
 type ClassSession = {
   id: string;
@@ -183,6 +218,8 @@ export default function ClassGroupsPage() {
   const [statusFilters, setStatusFilters] = useState<ClassGroup["status"][]>([]);
   /** Quando false, lista só turmas dos ciclos marcados como visíveis p/ matrículas (ciclo atual). */
   const [includeOtherCycles, setIncludeOtherCycles] = useState(false);
+  /** Quando true, lista só cópias órfãs (local com “cópia” / PLANEJADA no ciclo padrão oculto). */
+  const [orphanCopiesOnly, setOrphanCopiesOnly] = useState(false);
   /** Quando true, lista só turmas inativas (status CANCELADA). */
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<ClassGroup | null>(null);
@@ -259,6 +296,8 @@ export default function ClassGroupsPage() {
   }, [locationSuggestions, location]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  /** Id da turma criada por Duplicar e ainda não confirmada com Salvar — Cancelar/fechar exclui. */
+  const [unsavedDuplicateId, setUnsavedDuplicateId] = useState<string | null>(null);
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === courseId),
@@ -301,6 +340,31 @@ export default function ClassGroupsPage() {
     setSelectedTimeSlotId("");
     setEditing(null);
     setSessions([]);
+    setUnsavedDuplicateId(null);
+  }
+
+  async function discardUnsavedDuplicateIfNeeded(id: string | null = unsavedDuplicateId) {
+    if (!id) return;
+    setUnsavedDuplicateId(null);
+    try {
+      const res = await fetch(`/api/class-groups/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const json = await parseJsonSafe<{ deleted: boolean }>(res);
+        toast.push("error", apiErrorMessage(json, "Não foi possível descartar a cópia da turma."));
+        return;
+      }
+      toast.push("success", "Cópia da turma descartada.");
+      await refreshClassGroupsList();
+    } catch {
+      toast.push("error", "Não foi possível descartar a cópia da turma.");
+    }
+  }
+
+  function closeClassGroupModal() {
+    const idToDiscard = unsavedDuplicateId;
+    setOpen(false);
+    resetForm();
+    void discardUnsavedDuplicateIfNeeded(idToDiscard);
   }
 
   function openCreate() {
@@ -483,6 +547,7 @@ export default function ClassGroupsPage() {
         return;
       }
       toast.push("success", isEditing ? "Turma atualizada." : "Turma criada.");
+      setUnsavedDuplicateId(null);
       setOpen(false);
       resetForm();
       await loadAll();
@@ -662,7 +727,8 @@ export default function ClassGroupsPage() {
         toast.push("error", apiErrorMessage(json, "Falha ao duplicar turma."));
         return;
       }
-      toast.push("success", "Turma duplicada.");
+      toast.push("success", "Turma duplicada. Salve para confirmar ou cancele para descartar.");
+      setUnsavedDuplicateId(json.data.classGroup.id);
       openEdit(json.data.classGroup);
       void refreshClassGroupsList();
     } finally {
@@ -777,20 +843,39 @@ export default function ClassGroupsPage() {
     [cycles],
   );
 
+  const defaultCycleVisible = useMemo(() => {
+    const dc = cycles.find((c) => c.id === DEFAULT_CYCLE_ID);
+    return dc?.isVisibleForEnrollments === true;
+  }, [cycles]);
+
+  const orphanOpts = useMemo(
+    () => ({ defaultCycleVisible }),
+    [defaultCycleVisible],
+  );
+
+  const orphanDuplicateCount = useMemo(
+    () => items.filter((cg) => isOrphanDuplicateCandidate(cg, orphanOpts)).length,
+    [items, orphanOpts],
+  );
+
   const visibleItems = useMemo(() => {
     let list = items;
-    if (!includeOtherCycles && currentCycleIds.length > 0) {
+    if (orphanCopiesOnly) {
+      list = list.filter((cg) => isOrphanDuplicateCandidate(cg, orphanOpts));
+    } else if (!includeOtherCycles && currentCycleIds.length > 0) {
       const allowed = new Set(currentCycleIds);
       list = list.filter((cg) => {
         const cid = cg.cycleId ?? cg.cycle?.id;
-        return !!cid && allowed.has(cid);
+        if (!!cid && allowed.has(cid)) return true;
+        // Órfãs de duplicação (ciclo oculto + padrão de cópia / PLANEJADA no default).
+        return isOrphanDuplicateCandidate(cg, orphanOpts);
       });
     }
     if (showInactive) {
       list = list.filter((cg) => cg.status === "CANCELADA");
     } else {
       list = list.filter((cg) => cg.status !== "CANCELADA");
-      if (statusFilters.length > 0) {
+      if (statusFilters.length > 0 && !orphanCopiesOnly) {
         list = list.filter((cg) => statusFilters.includes(cg.status));
       }
     }
@@ -801,6 +886,7 @@ export default function ClassGroupsPage() {
       list = list.filter((cg) => {
         const courseName = cg.course?.name ?? "";
         const courseMatch = normalizeForSearch(courseName).includes(qNorm);
+        const locationMatch = normalizeForSearch(cg.location ?? "").includes(qNorm);
         const startDateStr = cg.startDate ? String(cg.startDate).slice(0, 10) : "";
         const startDateBr = startDateStr ? startDateStr.split("-").reverse().join("/") : "";
         const dateMatch =
@@ -811,11 +897,20 @@ export default function ClassGroupsPage() {
         const timeMatch =
           (cg.startTime ?? "").toLowerCase().includes(q.toLowerCase()) ||
           (cg.endTime ?? "").toLowerCase().includes(q.toLowerCase());
-        return courseMatch || dateMatch || timeMatch;
+        return courseMatch || locationMatch || dateMatch || timeMatch;
       });
     }
     return list;
-  }, [items, statusFilters, searchQuery, includeOtherCycles, currentCycleIds, showInactive]);
+  }, [
+    items,
+    statusFilters,
+    searchQuery,
+    includeOtherCycles,
+    currentCycleIds,
+    showInactive,
+    orphanCopiesOnly,
+    orphanOpts,
+  ]);
 
   function toggleStatusFilter(status: ClassGroup["status"]) {
     setStatusFilters((prev) =>
@@ -847,7 +942,7 @@ export default function ClassGroupsPage() {
           <div className="min-w-0 flex-1 sm:max-w-xs">
             <Input
               type="text"
-              placeholder="Pesquisar por curso, data ou horário"
+              placeholder="Pesquisar por curso, local, data ou horário"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="theme-input w-full rounded-md border px-3 py-2 text-sm"
@@ -861,6 +956,22 @@ export default function ClassGroupsPage() {
               className="h-4 w-4 rounded border-[var(--card-border)]"
             />
             Incluir outros ciclos
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
+            <input
+              type="checkbox"
+              checked={orphanCopiesOnly}
+              onChange={(e) => {
+                const on = e.target.checked;
+                setOrphanCopiesOnly(on);
+                if (on) {
+                  setStatusFilters([]);
+                  setIncludeOtherCycles(true);
+                }
+              }}
+              className="h-4 w-4 rounded border-[var(--card-border)]"
+            />
+            Só cópias órfãs
           </label>
           <Button
             type="button"
@@ -882,11 +993,12 @@ export default function ClassGroupsPage() {
                   key={value}
                   type="button"
                   onClick={() => toggleStatusFilter(value)}
+                  disabled={orphanCopiesOnly}
                   className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                     statusFilters.includes(value)
                       ? "bg-[var(--igh-primary)] text-white"
                       : "bg-[var(--igh-surface)] text-[var(--igh-muted)] hover:bg-[var(--card-border)]"
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   {label}
                 </button>
@@ -898,14 +1010,47 @@ export default function ClassGroupsPage() {
             </p>
           )}
         </div>
-        {!includeOtherCycles && currentCycleIds.length > 0 && (
+        {orphanDuplicateCount > 0 && !orphanCopiesOnly ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-[var(--text-secondary)]">
+            <span>
+              {orphanDuplicateCount}{" "}
+              {orphanDuplicateCount === 1
+                ? "turma parece cópia órfã"
+                : "turmas parecem cópias órfãs"}{" "}
+              (local com “cópia” ou PLANEJADA no ciclo padrão oculto).
+            </span>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setOrphanCopiesOnly(true);
+                setStatusFilters([]);
+                setIncludeOtherCycles(true);
+                setShowInactive(false);
+              }}
+            >
+              Ver cópias órfãs
+            </Button>
+          </div>
+        ) : null}
+        {orphanCopiesOnly ? (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">
+            Filtro “Só cópias órfãs” ativo: turmas com local contendo “cópia” (qualquer ciclo) ou
+            PLANEJADA no ciclo padrão oculto. Use o menu ⋯ → Excluir para remover. Para cópias já
+            canceladas, clique em “Ver turmas inativas”. Desmarque o filtro para voltar à listagem
+            normal.
+          </p>
+        ) : null}
+        {!includeOtherCycles && !orphanCopiesOnly && currentCycleIds.length > 0 && (
           <p className="mt-2 text-xs text-[var(--text-muted)]">
             Exibindo ciclos visíveis para matrículas
             {cycles
               .filter((c) => c.isVisibleForEnrollments)
               .map((c) => ` ${c.cycle}/${c.year}`)
               .join(",")}
-            . Marque “Incluir outros ciclos” para ver o restante.
+            . Cópias órfãs também entram nesta lista. Marque “Incluir outros ciclos” ou “Só cópias
+            órfãs” para refinar.
           </p>
         )}
       </SectionCard>
@@ -1158,8 +1303,12 @@ export default function ClassGroupsPage() {
                 {visibleItems.map((cg) => {
                   const menuOpen = actionsMenuId === cg.id;
                   const locationLabel = formatLocation(cg);
+                  const isOrphanCopy = isOrphanDuplicateCandidate(cg, orphanOpts);
                   return (
-                    <tr key={cg.id}>
+                    <tr
+                      key={cg.id}
+                      className={isOrphanCopy ? "bg-amber-500/5" : undefined}
+                    >
                       <Td>
                         <input
                           type="checkbox"
@@ -1192,6 +1341,11 @@ export default function ClassGroupsPage() {
                           >
                             {cg.createdByUser.name}
                           </small>
+                        ) : null}
+                        {isOrphanCopy ? (
+                          <div className="mt-1">
+                            <Badge tone="amber">Cópia não revisada</Badge>
+                          </div>
                         ) : null}
                       </Td>
                       <Td
@@ -1811,7 +1965,7 @@ export default function ClassGroupsPage() {
       <Modal
         open={open}
         title={editing ? "Editar turma" : "Nova turma"}
-        onClose={() => { setOpen(false); resetForm(); }}
+        onClose={closeClassGroupModal}
       >
         <form className="flex flex-col gap-3" onSubmit={save}>
           <div>
@@ -2101,7 +2255,7 @@ export default function ClassGroupsPage() {
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => { setOpen(false); resetForm(); }}>
+            <Button type="button" variant="secondary" onClick={closeClassGroupModal}>
               Cancelar
             </Button>
             <Button type="submit" disabled={!canSubmit || saving}>
