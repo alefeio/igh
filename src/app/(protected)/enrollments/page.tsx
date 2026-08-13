@@ -47,6 +47,8 @@ type Cycle = { id: string; cycle: number; year: number; isVisibleForEnrollments:
 type ClassGroup = {
   id: string;
   cycleId?: string;
+  teacherId?: string;
+  teacherIds?: string[];
   startDate: string;
   daysOfWeek: string[];
   startTime: string;
@@ -254,6 +256,13 @@ export default function EnrollmentsPage() {
   const toast = useToast();
   const isMaster = isMasterOrGeneralAdmin(user);
   const isPoloCoordinator = user.role === "POLO_COORDINATOR";
+  const isTeacher = user.role === "TEACHER";
+  const canCreateEnrollment =
+    user.role === "ADMIN" ||
+    user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN" ||
+    user.role === "POLO_COORDINATOR" ||
+    user.role === "TEACHER";
   /** Só Master / Admin Geral: matricular em turma lotada e acessar Interno/Externo. */
   const canOverrideEnrollment = isMaster;
   const [loading, setLoading] = useState(true);
@@ -481,7 +490,8 @@ export default function EnrollmentsPage() {
   }, [visibleCycleIds, isPoloCoordinator, cycles]);
 
   const classGroupsForModal = useMemo(() => {
-    if (isPoloCoordinator) {
+    // Professor / coordenador de polo: API já escopa; não aplica filtro de ciclo visível.
+    if (isPoloCoordinator || isTeacher) {
       return allClassGroups;
     }
     if (modalCycleIds.length === 0) return [];
@@ -490,7 +500,7 @@ export default function EnrollmentsPage() {
       const cid = cg.cycle?.id ?? cg.cycleId;
       return !!cid && allowed.has(cid);
     });
-  }, [allClassGroups, modalCycleIds, isPoloCoordinator]);
+  }, [allClassGroups, modalCycleIds, isPoloCoordinator, isTeacher]);
 
   const getActiveEnrollmentCountInCycle = useCallback(
     (sid: string) => {
@@ -518,9 +528,9 @@ export default function EnrollmentsPage() {
       cg.status === "ABERTA" ||
       cg.status === "EM_ANDAMENTO";
     if (!permiteMatriculaPadrao) return false;
-    // Turmas externas: só Master / Admin Geral / Coordenador de polo.
+    // Externas: Master/Admin Geral/Coordenador; professor só vê as que leciona (API já filtra).
     if (cg.isExternal) {
-      return canOverrideEnrollment || isPoloCoordinator;
+      return canOverrideEnrollment || isPoloCoordinator || isTeacher;
     }
     return true;
   }
@@ -528,7 +538,7 @@ export default function EnrollmentsPage() {
   const filteredClassGroupsForModal = useMemo(
     () => classGroupsForModal.filter((cg) => isClassGroupSelectableForEnrollment(cg)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [classGroupsForModal, canOverrideEnrollment, isPoloCoordinator, user.role]
+    [classGroupsForModal, canOverrideEnrollment, isPoloCoordinator, isTeacher, user.role]
   );
 
   useEffect(() => {
@@ -1182,10 +1192,7 @@ export default function EnrollmentsPage() {
                 {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
               </Button>
             </div>
-            {(user.role === "ADMIN" ||
-              user.role === "MASTER" ||
-              user.role === "GENERAL_ADMIN" ||
-              user.role === "POLO_COORDINATOR") && (
+            {canCreateEnrollment && (
               <Button onClick={openCreate} className="w-full sm:w-auto">
                 Nova matrícula
               </Button>
@@ -2060,9 +2067,11 @@ export default function EnrollmentsPage() {
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-2">
             <label className="text-sm font-medium">Aluno</label>
-            <Button type="button" variant="secondary" onClick={() => setOpenNewStudent(true)}>
-              Cadastrar aluno
-            </Button>
+            {!isTeacher && (
+              <Button type="button" variant="secondary" onClick={() => setOpenNewStudent(true)}>
+                Cadastrar aluno
+              </Button>
+            )}
           </div>
           <div ref={studentComboboxRef} className="relative">
             <input

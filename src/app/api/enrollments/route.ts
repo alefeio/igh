@@ -16,6 +16,7 @@ import {
   poloCoordinatorOwnsClassGroup,
 } from "@/lib/polo-coordinator-scope";
 import { classGroupAllowsStaffEnrollment } from "@/lib/class-group-scope";
+import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 
 export async function GET() {
   const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
@@ -40,7 +41,7 @@ export async function GET() {
 
   const enrollments = await prisma.enrollment.findMany({
     where: isTeacher && teacherId
-      ? { classGroup: { teacherId } }
+      ? { classGroup: classGroupTeacherAccessWhere(teacherId) }
       : isPoloCoordinator
         ? poloEnrollmentWhere
         : undefined,
@@ -110,7 +111,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR", "TEACHER"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createEnrollmentSchema.safeParse(body);
@@ -126,6 +127,27 @@ export async function POST(request: Request) {
       return jsonErr(
         "FORBIDDEN",
         "Você só pode matricular alunos em turmas dos polos que coordena.",
+        403,
+      );
+    }
+  }
+
+  if (user.role === "TEACHER") {
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!teacher) {
+      return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
+    }
+    const owned = await prisma.classGroup.findFirst({
+      where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
+      select: { id: true },
+    });
+    if (!owned) {
+      return jsonErr(
+        "FORBIDDEN",
+        "Você só pode matricular alunos nas turmas em que leciona.",
         403,
       );
     }
@@ -149,14 +171,17 @@ export async function POST(request: Request) {
 
   const canOverrideEnrollmentRules =
     user.role === "MASTER" || user.role === "GENERAL_ADMIN";
+  // Professor: só chega aqui se já passou pelo ownership (turmas que leciona).
   const canEnrollExternal =
-    canOverrideEnrollmentRules || user.role === "POLO_COORDINATOR";
+    canOverrideEnrollmentRules ||
+    user.role === "POLO_COORDINATOR" ||
+    user.role === "TEACHER";
 
   if (!classGroupAllowsStaffEnrollment(classGroup, { canEnrollExternal })) {
     if (classGroup.isExternal && !canEnrollExternal) {
       return jsonErr(
         "FORBIDDEN",
-        "Apenas Master, Administrador Geral ou Coordenador de Polos podem matricular em turmas externas.",
+        "Você não tem permissão para matricular em turmas externas.",
         403,
       );
     }

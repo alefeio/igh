@@ -1,6 +1,7 @@
 /**
  * Escopo da turma (Interna / Externa), independente do status operacional.
- * Externa: fora do site de inscrição; matrícula só por perfis privilegiados.
+ * Externa: fora do site de inscrição; matrícula por staff privilegiado
+ * (Master / Admin Geral / Coordenador) ou professor da própria turma.
  */
 
 export const CLASS_GROUP_OPERATIONAL_ENROLLABLE = [
@@ -24,7 +25,11 @@ export function classGroupAllowsPublicEnrollment(cg: ClassGroupScopeFields): boo
   return (CLASS_GROUP_OPERATIONAL_ENROLLABLE as readonly string[]).includes(cg.status);
 }
 
-/** Matrícula pelo painel (staff). `canEnrollExternal` = Master / Admin Geral / Coordenador de polo. */
+/**
+ * Matrícula pelo painel (staff).
+ * `canEnrollExternal` = Master / Admin Geral / Coordenador de polo, ou professor
+ * já autorizado na turma (ownership verificado pelo caller).
+ */
 export function classGroupAllowsStaffEnrollment(
   cg: ClassGroupScopeFields,
   opts: { canEnrollExternal: boolean },

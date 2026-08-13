@@ -153,7 +153,7 @@ const ITEMS: Item[] = [
   {
     href: "/enrollments",
     label: "Matrículas",
-    roles: ["MASTER", "GENERAL_ADMIN", "ADMIN", "POLO_COORDINATOR"],
+    roles: ["MASTER", "GENERAL_ADMIN", "ADMIN", "POLO_COORDINATOR", "TEACHER"],
     category: "Pedagógico",
   },
   { href: "/horarios", label: "Quadro de horários", roles: STAFF, category: "Pedagógico" },

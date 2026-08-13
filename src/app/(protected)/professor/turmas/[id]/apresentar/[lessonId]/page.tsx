@@ -137,6 +137,7 @@ export default function ProfessorApresentarAulaPage() {
 
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [attachmentDisplayName, setAttachmentDisplayName] = useState("");
+  const [generatedPdfLoading, setGeneratedPdfLoading] = useState<"view" | "download" | null>(null);
 
   const [toolsOpen, setToolsOpen] = useState(false);
   const [courseNavOpen, setCourseNavOpen] = useState(false);
@@ -448,6 +449,53 @@ export default function ProfessorApresentarAulaPage() {
     [attachmentDisplayName, classGroupId, lessonId, toast]
   );
 
+  const hasGeneratedPdf =
+    !!(lesson?.summary?.trim()) || !!(lesson?.contentRich?.trim());
+
+  const handleGeneratedPdf = useCallback(
+    async (mode: "view" | "download") => {
+      if (!lesson) return;
+      setGeneratedPdfLoading(mode);
+      try {
+        const res = await fetch(
+          `/api/teacher/class-groups/${classGroupId}/presentation/${lessonId}/pdf`,
+          { credentials: "include" }
+        );
+        if (!res.ok) {
+          const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+          throw new Error(
+            json && "error" in json ? json.error.message : "Falha ao gerar PDF"
+          );
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const filename = `aula-${lesson.title.slice(0, 30).replace(/[^a-zA-Z0-9\u00C0-\u00FF\-]/g, "-")}.pdf`;
+        if (mode === "view") {
+          window.open(url, "_blank", "noopener,noreferrer");
+          // Revoga depois de um tempo para a nova aba conseguir carregar.
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        } else {
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+      } catch (err) {
+        toast.push(
+          "error",
+          err instanceof Error ? err.message : "Não foi possível gerar o PDF. Tente novamente."
+        );
+      } finally {
+        setGeneratedPdfLoading(null);
+      }
+    },
+    [classGroupId, lesson, lessonId, toast]
+  );
+
   const handleDownloadKit = useCallback(() => {
     if (!lesson) return;
     const opened: string[] = [];
@@ -618,6 +666,7 @@ export default function ProfessorApresentarAulaPage() {
   const hasKit =
     !!lesson?.pdfUrl?.trim() ||
     !!lesson?.summary?.trim() ||
+    !!lesson?.contentRich?.trim() ||
     (lesson?.attachmentUrls?.some((u) => u?.trim()) ?? false);
 
   const tutorialSteps: TutorialStep[] = useMemo(() => {
@@ -1271,12 +1320,37 @@ export default function ProfessorApresentarAulaPage() {
                     Material complementar
                   </h2>
                   <p className="mb-4 text-xs text-[var(--text-muted)]">
-                    PDF e arquivos de apoio desta aula.
+                    PDF gerado do conteúdo, PDF estático e arquivos de apoio desta aula.
                   </p>
-                  {!(lesson.pdfUrl?.trim() || lesson.attachmentUrls.some((u) => u?.trim())) ? (
+                  {!(
+                    hasGeneratedPdf ||
+                    lesson.pdfUrl?.trim() ||
+                    lesson.attachmentUrls.some((u) => u?.trim())
+                  ) ? (
                     <p className="text-sm text-[var(--text-muted)]">Nenhum material complementar nesta aula.</p>
                   ) : (
                     <div className="flex flex-col gap-3 text-sm">
+                      {hasGeneratedPdf && (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="font-medium text-[var(--text-primary)]">PDF da aula (gerado)</span>
+                          <button
+                            type="button"
+                            onClick={() => void handleGeneratedPdf("view")}
+                            disabled={generatedPdfLoading !== null}
+                            className="font-medium text-[var(--igh-primary)] hover:underline disabled:opacity-60"
+                          >
+                            {generatedPdfLoading === "view" ? "Gerando…" : "Ver"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleGeneratedPdf("download")}
+                            disabled={generatedPdfLoading !== null}
+                            className="text-[var(--text-secondary)] hover:underline disabled:opacity-60"
+                          >
+                            {generatedPdfLoading === "download" ? "Gerando…" : "Baixar"}
+                          </button>
+                        </div>
+                      )}
                       {lesson.pdfUrl?.trim() && (
                         <div className="flex flex-wrap items-center gap-3">
                           <a

@@ -68,8 +68,9 @@ export async function GET(request: Request) {
 
   let teacherStudentIds: string[] | null = null;
 
-  // Professor: apenas alunos matriculados em turmas que ele leciona
-  if (user.role === "TEACHER") {
+  // Professor: sem `q`, só alunos já matriculados nas turmas que leciona.
+  // Com `q`, busca global no sistema (necessário para o combobox de Nova matrícula).
+  if (user.role === "TEACHER" && q.length === 0) {
     const teacher = await prisma.teacher.findFirst({
       where: { userId: user.id, deletedAt: null },
       select: { id: true },
@@ -89,12 +90,7 @@ export async function GET(request: Request) {
   }
 
   if (q.length > 0) {
-    const searchOr = buildStudentSearchOr(q);
-    if (teacherStudentIds) {
-      where.AND = [{ id: { in: teacherStudentIds } }, { OR: searchOr }];
-    } else {
-      where.OR = searchOr;
-    }
+    where.OR = buildStudentSearchOr(q);
   } else if (teacherStudentIds) {
     where.id = { in: teacherStudentIds };
   }
