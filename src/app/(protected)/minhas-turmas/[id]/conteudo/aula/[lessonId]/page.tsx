@@ -212,8 +212,22 @@ export default function AulaConteudoPage() {
   const [exerciseResult, setExerciseResult] = useState<Record<string, { correct: boolean; correctOptionId: string | null }>>({});
   const [submittingExerciseId, setSubmittingExerciseId] = useState<string | null>(null);
   const [submittingAllExercises, setSubmittingAllExercises] = useState(false);
-  type LessonQuestionReply = { id: string; content: string; createdAt: string; enrollmentId: string; authorName: string };
-  type LessonTeacherReply = { id: string; content: string; createdAt: string; teacherName: string };
+  type LessonQuestionReply = {
+    id: string;
+    content: string;
+    createdAt: string;
+    updatedAt?: string;
+    enrollmentId: string;
+    authorName: string;
+  };
+  type LessonTeacherReply = {
+    id: string;
+    content: string;
+    createdAt: string;
+    updatedAt?: string;
+    teacherId?: string | null;
+    teacherName: string;
+  };
   type LessonQuestion = {
     id: string;
     content: string;
@@ -238,6 +252,10 @@ export default function AulaConteudoPage() {
   const [replyingToQuestionId, setReplyingToQuestionId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
   const [savingReplyQuestionId, setSavingReplyQuestionId] = useState<string | null>(null);
+  const [editingReplyId, setEditingReplyId] = useState<string | null>(null);
+  const [editReplyContent, setEditReplyContent] = useState("");
+  const [savingEditReplyId, setSavingEditReplyId] = useState<string | null>(null);
+  const [removingReplyId, setRemovingReplyId] = useState<string | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [courseNavOpen, setCourseNavOpen] = useState(false);
@@ -1516,6 +1534,90 @@ export default function AulaConteudoPage() {
     }
   };
 
+  const startEditReply = (r: LessonQuestionReply) => {
+    setEditingReplyId(r.id);
+    setEditReplyContent(r.content);
+  };
+
+  const cancelEditReply = () => {
+    setEditingReplyId(null);
+    setEditReplyContent("");
+  };
+
+  const handleSaveEditReply = async (questionId: string) => {
+    if (!editingReplyId) return;
+    const content = editReplyContent.trim();
+    if (!content) {
+      toast.push("error", "Digite sua resposta.");
+      return;
+    }
+    setSavingEditReplyId(editingReplyId);
+    try {
+      const res = await fetch(
+        `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/questions/${questionId}/replies/${editingReplyId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        }
+      );
+      const json = (await res.json()) as ApiResponse<LessonQuestionReply>;
+      if (res.ok && json?.ok) {
+        setQuestions((prev) =>
+          prev.map((q) =>
+            q.id === questionId
+              ? {
+                  ...q,
+                  replies: (q.replies ?? []).map((r) =>
+                    r.id === editingReplyId
+                      ? {
+                          ...r,
+                          content: json.data!.content,
+                          updatedAt: json.data!.updatedAt,
+                        }
+                      : r
+                  ),
+                }
+              : q
+          )
+        );
+        cancelEditReply();
+        toast.push("success", "Resposta atualizada.");
+      } else {
+        toast.push("error", json && "error" in json ? json.error.message : "Não foi possível atualizar.");
+      }
+    } finally {
+      setSavingEditReplyId(null);
+    }
+  };
+
+  const handleDeleteReply = async (questionId: string, replyId: string) => {
+    if (!confirm("Excluir esta resposta?")) return;
+    setRemovingReplyId(replyId);
+    try {
+      const res = await fetch(
+        `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/questions/${questionId}/replies/${replyId}`,
+        { method: "DELETE" }
+      );
+      const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+      if (res.ok && json?.ok) {
+        setQuestions((prev) =>
+          prev.map((q) =>
+            q.id === questionId
+              ? { ...q, replies: (q.replies ?? []).filter((r) => r.id !== replyId) }
+              : q
+          )
+        );
+        if (editingReplyId === replyId) cancelEditReply();
+        toast.push("success", "Resposta excluída.");
+      } else {
+        toast.push("error", json && "error" in json ? json.error.message : "Não foi possível excluir.");
+      }
+    } finally {
+      setRemovingReplyId(null);
+    }
+  };
+
   function formatNoteDate(iso: string) {
     return new Date(iso).toLocaleString("pt-BR", {
       day: "2-digit",
@@ -2562,10 +2664,68 @@ export default function AulaConteudoPage() {
                                 <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">Respostas de alunos ({(q.replies ?? []).length})</p>
                               )}
                               {(q.replies ?? []).map((r) => (
-                                <div key={r.id} className="mb-2 flex flex-wrap items-baseline gap-2 text-xs">
-                                  <span className="font-medium text-[var(--text-secondary)]">{r.authorName}</span>
-                                  <span className="text-[var(--text-muted)]">{formatNoteDate(r.createdAt)}</span>
-                                  <p className="w-full whitespace-pre-wrap text-[var(--text-primary)]">{r.content}</p>
+                                <div key={r.id} className="mb-2 flex flex-wrap items-start justify-between gap-2 text-xs">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-baseline gap-2">
+                                      <span className="font-medium text-[var(--text-secondary)]">{r.authorName}</span>
+                                      <span className="text-[var(--text-muted)]">{formatNoteDate(r.createdAt)}</span>
+                                      {r.updatedAt && r.updatedAt !== r.createdAt && (
+                                        <span className="italic text-[var(--text-muted)]">(editado)</span>
+                                      )}
+                                    </div>
+                                    {editingReplyId === r.id ? (
+                                      <div className="mt-1 space-y-2">
+                                        <textarea
+                                          value={editReplyContent}
+                                          onChange={(e) => setEditReplyContent(e.target.value)}
+                                          rows={2}
+                                          className="w-full rounded border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                                          placeholder="Editar resposta..."
+                                        />
+                                        <div className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => void handleSaveEditReply(q.id)}
+                                            disabled={savingEditReplyId === r.id || !editReplyContent.trim()}
+                                            className="rounded bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                                          >
+                                            {savingEditReplyId === r.id ? "Salvando..." : "Salvar"}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={cancelEditReply}
+                                            disabled={savingEditReplyId === r.id}
+                                            className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
+                                          >
+                                            Cancelar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="mt-1 w-full whitespace-pre-wrap text-[var(--text-primary)]">{r.content}</p>
+                                    )}
+                                  </div>
+                                  {editingReplyId !== r.id && r.enrollmentId === enrollmentId && (
+                                    <div className="flex shrink-0 gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditReply(r)}
+                                        className="rounded px-2 py-1 text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                                        title="Editar resposta"
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleDeleteReply(q.id, r.id)}
+                                        disabled={removingReplyId === r.id}
+                                        className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 focus-visible:outline focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-60"
+                                        title="Excluir resposta"
+                                      >
+                                        {removingReplyId === r.id ? "Excluindo..." : "Excluir"}
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                               {replyingToQuestionId === q.id ? (

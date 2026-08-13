@@ -100,6 +100,7 @@ export async function GET(
       id: string;
       content: string;
       createdAt: Date;
+      updatedAt: Date;
       enrollmentId: string;
       enrollment: { student: { name: string } };
     }>;
@@ -107,6 +108,8 @@ export async function GET(
       id: string;
       content: string;
       createdAt: Date;
+      updatedAt: Date;
+      teacherId: string | null;
       teacher: { name: string } | null;
       staffUser: { name: string } | null;
     }>;

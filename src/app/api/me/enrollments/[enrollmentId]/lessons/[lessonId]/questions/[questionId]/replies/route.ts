@@ -80,6 +80,7 @@ export async function POST(
     id: reply.id,
     content: reply.content,
     createdAt: reply.createdAt.toISOString(),
+    updatedAt: reply.updatedAt.toISOString(),
     enrollmentId: reply.enrollmentId,
     authorName: reply.enrollment.student.name,
   });

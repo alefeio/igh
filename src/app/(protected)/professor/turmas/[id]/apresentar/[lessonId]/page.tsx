@@ -74,6 +74,21 @@ type ExercisePayload = {
   options: { id: string; order: number; text: string; isCorrect: boolean }[];
 };
 
+type LessonQuestionReply = {
+  id: string;
+  content: string;
+  createdAt: string;
+  updatedAt?: string;
+  authorName: string;
+};
+type LessonTeacherReply = {
+  id: string;
+  content: string;
+  createdAt: string;
+  updatedAt?: string;
+  teacherId?: string | null;
+  teacherName: string;
+};
 type LessonQuestion = {
   id: string;
   content: string;
@@ -83,8 +98,8 @@ type LessonQuestion = {
   teacherAuthorId?: string | null;
   authorName: string;
   authorRole?: "TEACHER" | "STUDENT";
-  replies?: { id: string; content: string; createdAt: string; authorName: string }[];
-  teacherReplies: { id: string; content: string; createdAt: string; teacherName: string }[];
+  replies?: LessonQuestionReply[];
+  teacherReplies: LessonTeacherReply[];
 };
 
 const TEACHER_FORUM_UPLOAD = "/api/teacher/uploads/apimages-signature";
@@ -143,6 +158,11 @@ export default function ProfessorApresentarAulaPage() {
   const [replyContentByQuestionId, setReplyContentByQuestionId] = useState<Record<string, string>>({});
   const [replyImageUrlsByQuestionId, setReplyImageUrlsByQuestionId] = useState<Record<string, string[]>>({});
   const [replyingQuestionId, setReplyingQuestionId] = useState<string | null>(null);
+  const [editingTeacherReplyId, setEditingTeacherReplyId] = useState<string | null>(null);
+  const [editTeacherReplyContent, setEditTeacherReplyContent] = useState("");
+  const [editTeacherReplyImageUrls, setEditTeacherReplyImageUrls] = useState<string[]>([]);
+  const [savingEditTeacherReplyId, setSavingEditTeacherReplyId] = useState<string | null>(null);
+  const [removingTeacherReplyId, setRemovingTeacherReplyId] = useState<string | null>(null);
 
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [attachmentDisplayName, setAttachmentDisplayName] = useState("");
@@ -497,12 +517,7 @@ export default function ProfessorApresentarAulaPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content, imageUrls }),
         });
-        const json = (await res.json()) as ApiResponse<{
-          id: string;
-          content: string;
-          createdAt: string;
-          teacherName: string;
-        }>;
+        const json = (await res.json()) as ApiResponse<LessonTeacherReply>;
         if (!res.ok || !json.ok) {
           toast.push("error", !json.ok ? json.error.message : "Falha ao responder.");
           return;
@@ -519,6 +534,109 @@ export default function ProfessorApresentarAulaPage() {
       }
     },
     [classGroupId, replyContentByQuestionId, replyImageUrlsByQuestionId, toast]
+  );
+
+  const startEditTeacherReply = useCallback((r: LessonTeacherReply) => {
+    setEditingTeacherReplyId(r.id);
+    setEditTeacherReplyContent(r.content);
+    setEditTeacherReplyImageUrls([]);
+  }, []);
+
+  const cancelEditTeacherReply = useCallback(() => {
+    setEditingTeacherReplyId(null);
+    setEditTeacherReplyContent("");
+    setEditTeacherReplyImageUrls([]);
+  }, []);
+
+  const handleSaveEditTeacherReply = useCallback(
+    async (questionId: string) => {
+      if (!editingTeacherReplyId) return;
+      if (isForumPostEmpty(editTeacherReplyContent, editTeacherReplyImageUrls)) {
+        toast.push("error", "Digite a resposta ou mantenha ao menos uma foto.");
+        return;
+      }
+      setSavingEditTeacherReplyId(editingTeacherReplyId);
+      try {
+        const res = await fetch(
+          `/api/teacher/class-groups/${classGroupId}/lesson-questions/${questionId}/reply/${editingTeacherReplyId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: editTeacherReplyContent,
+              imageUrls: editTeacherReplyImageUrls,
+            }),
+          }
+        );
+        const json = (await res.json()) as ApiResponse<LessonTeacherReply>;
+        if (!res.ok || !json.ok) {
+          toast.push("error", !json.ok ? json.error.message : "Não foi possível atualizar.");
+          return;
+        }
+        setQuestions((prev) =>
+          prev.map((q) =>
+            q.id === questionId
+              ? {
+                  ...q,
+                  teacherReplies: (q.teacherReplies ?? []).map((r) =>
+                    r.id === editingTeacherReplyId
+                      ? {
+                          ...r,
+                          content: json.data.content,
+                          updatedAt: json.data.updatedAt,
+                          teacherId: json.data.teacherId ?? r.teacherId,
+                          teacherName: json.data.teacherName,
+                        }
+                      : r
+                  ),
+                }
+              : q
+          )
+        );
+        cancelEditTeacherReply();
+        toast.push("success", "Resposta atualizada.");
+      } finally {
+        setSavingEditTeacherReplyId(null);
+      }
+    },
+    [
+      cancelEditTeacherReply,
+      classGroupId,
+      editTeacherReplyContent,
+      editTeacherReplyImageUrls,
+      editingTeacherReplyId,
+      toast,
+    ]
+  );
+
+  const handleDeleteTeacherReply = useCallback(
+    async (questionId: string, replyId: string) => {
+      if (!confirm("Excluir esta resposta?")) return;
+      setRemovingTeacherReplyId(replyId);
+      try {
+        const res = await fetch(
+          `/api/teacher/class-groups/${classGroupId}/lesson-questions/${questionId}/reply/${replyId}`,
+          { method: "DELETE" }
+        );
+        const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+        if (!res.ok || !json.ok) {
+          toast.push("error", !json.ok ? json.error.message : "Não foi possível excluir.");
+          return;
+        }
+        setQuestions((prev) =>
+          prev.map((q) =>
+            q.id === questionId
+              ? { ...q, teacherReplies: (q.teacherReplies ?? []).filter((r) => r.id !== replyId) }
+              : q
+          )
+        );
+        if (editingTeacherReplyId === replyId) cancelEditTeacherReply();
+        toast.push("success", "Resposta excluída.");
+      } finally {
+        setRemovingTeacherReplyId(null);
+      }
+    },
+    [cancelEditTeacherReply, classGroupId, editingTeacherReplyId, toast]
   );
 
   const handleUploadAttachment = useCallback(
@@ -1802,18 +1920,75 @@ export default function ProfessorApresentarAulaPage() {
                           )}
                           {q.teacherReplies?.length > 0 && (
                             <div className="mt-3 space-y-3 border-l border-[var(--card-border)] pl-3">
-                              {q.teacherReplies.map((r) => (
-                                <div key={r.id}>
-                                  <p className="text-xs text-[var(--text-muted)]">
-                                    {r.teacherName} · {new Date(r.createdAt).toLocaleString("pt-BR")}
-                                  </p>
-                                  <ForumPostBody
-                                    content={r.content}
-                                    altPrefix={`Foto de ${r.teacherName}`}
-                                    className="mt-1"
-                                  />
+                              {q.teacherReplies.map((r) => {
+                                const isOwnReply =
+                                  !!viewerTeacherId &&
+                                  !!r.teacherId &&
+                                  r.teacherId === viewerTeacherId;
+                                return (
+                                <div key={r.id} className="flex flex-wrap items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs text-[var(--text-muted)]">
+                                      {r.teacherName} · {new Date(r.createdAt).toLocaleString("pt-BR")}
+                                      {r.updatedAt && r.updatedAt !== r.createdAt ? (
+                                        <span className="ml-1 italic font-normal">(editado)</span>
+                                      ) : null}
+                                    </p>
+                                    {editingTeacherReplyId === r.id ? (
+                                      <div className="mt-1 space-y-2">
+                                        <ForumPostComposer
+                                          content={editTeacherReplyContent}
+                                          onContentChange={setEditTeacherReplyContent}
+                                          imageUrls={editTeacherReplyImageUrls}
+                                          onImageUrlsChange={setEditTeacherReplyImageUrls}
+                                          onSubmit={() => void handleSaveEditTeacherReply(q.id)}
+                                          submitting={savingEditTeacherReplyId === r.id}
+                                          submitLabel="Salvar"
+                                          placeholder="Editar resposta…"
+                                          minEditorHeight="120px"
+                                          uploadSignaturePath={TEACHER_FORUM_UPLOAD}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={cancelEditTeacherReply}
+                                          disabled={savingEditTeacherReplyId === r.id}
+                                          className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
+                                        >
+                                          Cancelar
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <ForumPostBody
+                                        content={r.content}
+                                        altPrefix={`Foto de ${r.teacherName}`}
+                                        className="mt-1"
+                                      />
+                                    )}
+                                  </div>
+                                  {teacherControlsVisible &&
+                                    editingTeacherReplyId !== r.id &&
+                                    isOwnReply && (
+                                      <div className="flex shrink-0 gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => startEditTeacherReply(r)}
+                                          className="rounded px-2 py-1 text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)]"
+                                        >
+                                          Editar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => void handleDeleteTeacherReply(q.id, r.id)}
+                                          disabled={removingTeacherReplyId === r.id}
+                                          className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-60"
+                                        >
+                                          {removingTeacherReplyId === r.id ? "Excluindo…" : "Excluir"}
+                                        </button>
+                                      </div>
+                                    )}
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                           {teacherControlsVisible && (

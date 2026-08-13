@@ -63,7 +63,7 @@ export async function POST(
       teacherId: teacher.id,
       content,
     },
-    select: { id: true, content: true, createdAt: true },
+    select: { id: true, content: true, createdAt: true, updatedAt: true, teacherId: true },
   });
 
   await notifyParticipantsAfterTeacherForumReply(question.id, reply.id);
@@ -72,6 +72,8 @@ export async function POST(
     id: reply.id,
     content: reply.content,
     createdAt: reply.createdAt.toISOString(),
+    updatedAt: reply.updatedAt.toISOString(),
+    teacherId: reply.teacherId,
     teacherName: teacher.name,
   });
 }

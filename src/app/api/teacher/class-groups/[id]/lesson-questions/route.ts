@@ -100,12 +100,16 @@ export async function GET(
           id: r.id,
           content: r.content,
           createdAt: r.createdAt.toISOString(),
+          updatedAt: r.updatedAt.toISOString(),
+          enrollmentId: r.enrollmentId,
           authorName: r.enrollment.student.name,
         })),
         teacherReplies: q.teacherReplies.map((r) => ({
           id: r.id,
           content: r.content,
           createdAt: r.createdAt.toISOString(),
+          updatedAt: r.updatedAt.toISOString(),
+          teacherId: r.teacherId,
           teacherName: mapStaffOrTeacherReplyName(r),
         })),
       };

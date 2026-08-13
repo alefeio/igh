@@ -13,6 +13,7 @@ type QuestionWithRelations = {
     id: string;
     content: string;
     createdAt: Date;
+    updatedAt?: Date;
     enrollmentId: string;
     enrollment: { student: { name: string } };
   }>;
@@ -20,6 +21,8 @@ type QuestionWithRelations = {
     id: string;
     content: string;
     createdAt: Date;
+    updatedAt?: Date;
+    teacherId?: string | null;
     teacher: { name: string } | null;
     staffUser: { name: string } | null;
   }>;
@@ -39,6 +42,7 @@ export function serializeForumQuestion(q: QuestionWithRelations) {
       id: r.id,
       content: r.content,
       createdAt: r.createdAt.toISOString(),
+      updatedAt: (r.updatedAt ?? r.createdAt).toISOString(),
       enrollmentId: r.enrollmentId,
       authorName: r.enrollment.student.name,
     })),
@@ -46,6 +50,8 @@ export function serializeForumQuestion(q: QuestionWithRelations) {
       id: r.id,
       content: r.content,
       createdAt: r.createdAt.toISOString(),
+      updatedAt: (r.updatedAt ?? r.createdAt).toISOString(),
+      teacherId: r.teacherId ?? null,
       teacherName: mapStaffOrTeacherReplyName(r),
     })),
   };
