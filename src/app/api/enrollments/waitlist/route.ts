@@ -8,23 +8,41 @@ import {
   buildClassGroupWhereForPoloCoordinator,
   poloCoordinatorOwnsClassGroup,
 } from "@/lib/polo-coordinator-scope";
+import {
+  classGroupTeacherAccessWhere,
+  resolveTeacherIdForUser,
+  teacherOwnsClassGroup,
+} from "@/lib/class-group-teachers";
+import type { Prisma } from "@/generated/prisma/client";
 
 /** Lista reservas (WAITING por padrão). Query: classGroupId, status, all=1. */
 export async function GET(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR", "TEACHER"]);
   const url = new URL(request.url);
   const classGroupId = url.searchParams.get("classGroupId")?.trim() || null;
   const status = url.searchParams.get("status")?.trim() || "WAITING";
   const all = url.searchParams.get("all") === "1";
 
   const isPolo = user.role === "POLO_COORDINATOR";
-  const poloWhere = isPolo ? await buildClassGroupWhereForPoloCoordinator(user.id) : undefined;
+  const isTeacher = user.role === "TEACHER";
+
+  let classGroupScope: Prisma.EnrollmentWaitlistWhereInput | undefined;
+  if (isPolo) {
+    const poloWhere = await buildClassGroupWhereForPoloCoordinator(user.id);
+    classGroupScope = { classGroup: poloWhere };
+  } else if (isTeacher) {
+    const teacherId = await resolveTeacherIdForUser(user.id);
+    if (!teacherId) {
+      return jsonOk({ waitlist: [] });
+    }
+    classGroupScope = { classGroup: classGroupTeacherAccessWhere(teacherId) };
+  }
 
   const entries = await prisma.enrollmentWaitlist.findMany({
     where: {
       ...(all ? {} : { status }),
       ...(classGroupId ? { classGroupId } : {}),
-      ...(isPolo && poloWhere ? { classGroup: poloWhere } : {}),
+      ...(classGroupScope ?? {}),
     },
     orderBy: [{ createdAt: "asc" }],
     include: {
@@ -75,7 +93,7 @@ export async function GET(request: Request) {
 
 /** Cria cadastro de reserva (aluno já cadastrado; turma lotada). */
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR", "TEACHER"]);
   const body = await request.json().catch(() => null);
   const parsed = createWaitlistSchema.safeParse(body);
   if (!parsed.success) {
@@ -88,6 +106,17 @@ export async function POST(request: Request) {
     const ok = await poloCoordinatorOwnsClassGroup(user.id, classGroupId);
     if (!ok) {
       return jsonErr("FORBIDDEN", "Turma fora do escopo dos polos que você coordena.", 403);
+    }
+  }
+
+  if (user.role === "TEACHER") {
+    const teacherId = await resolveTeacherIdForUser(user.id);
+    if (!teacherId) {
+      return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
+    }
+    const ok = await teacherOwnsClassGroup(teacherId, classGroupId);
+    if (!ok) {
+      return jsonErr("FORBIDDEN", "Você só pode cadastrar lista de espera nas turmas em que leciona.", 403);
     }
   }
 

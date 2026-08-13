@@ -14,18 +14,42 @@ import {
 } from "@/lib/polo-coordinator-scope";
 import { tryPromoteWaitlistAfterSeatFreed } from "@/lib/enrollment-waitlist";
 import { classGroupAllowsStaffEnrollment } from "@/lib/class-group-scope";
+import {
+  resolveTeacherIdForUser,
+  teacherOwnsClassGroup,
+  teacherOwnsEnrollment,
+} from "@/lib/class-group-teachers";
+
+async function assertEnrollmentScope(
+  user: { id: string; role: string },
+  enrollmentId: string,
+): Promise<Response | null> {
+  if (user.role === "POLO_COORDINATOR") {
+    const owns = await poloCoordinatorOwnsEnrollment(user.id, enrollmentId);
+    if (!owns) return jsonErr("FORBIDDEN", "Matrícula fora do escopo dos seus polos.", 403);
+  }
+  if (user.role === "TEACHER") {
+    const teacherId = await resolveTeacherIdForUser(user.id);
+    if (!teacherId) {
+      return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
+    }
+    const owns = await teacherOwnsEnrollment(teacherId, enrollmentId);
+    if (!owns) {
+      return jsonErr("FORBIDDEN", "Matrícula fora do escopo das suas turmas.", 403);
+    }
+  }
+  return null;
+}
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR", "TEACHER"]);
   const { id } = await context.params;
 
-  if (user.role === "POLO_COORDINATOR") {
-    const owns = await poloCoordinatorOwnsEnrollment(user.id, id);
-    if (!owns) return jsonErr("FORBIDDEN", "Matrícula fora do escopo dos seus polos.", 403);
-  }
+  const scopeErr = await assertEnrollmentScope(user, id);
+  if (scopeErr) return scopeErr;
 
   const enrollment = await prisma.enrollment.findUnique({
     where: { id },
@@ -65,13 +89,11 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR", "TEACHER"]);
   const { id } = await context.params;
 
-  if (user.role === "POLO_COORDINATOR") {
-    const owns = await poloCoordinatorOwnsEnrollment(user.id, id);
-    if (!owns) return jsonErr("FORBIDDEN", "Matrícula fora do escopo dos seus polos.", 403);
-  }
+  const scopeErr = await assertEnrollmentScope(user, id);
+  if (scopeErr) return scopeErr;
 
   const existing = await prisma.enrollment.findUnique({
     where: { id },
@@ -151,6 +173,20 @@ export async function PATCH(
         );
       }
     }
+    if (user.role === "TEACHER") {
+      const teacherId = await resolveTeacherIdForUser(user.id);
+      if (!teacherId) {
+        return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
+      }
+      const ownsNew = await teacherOwnsClassGroup(teacherId, newClassGroupId);
+      if (!ownsNew) {
+        return jsonErr(
+          "FORBIDDEN",
+          "Você só pode mover matrículas para turmas em que leciona.",
+          403,
+        );
+      }
+    }
     const newClassGroup = await prisma.classGroup.findUnique({
       where: { id: newClassGroupId },
       include: { course: { select: { id: true, name: true } } },
@@ -160,13 +196,16 @@ export async function PATCH(
     }
     const canOverrideEnrollmentRules =
       user.role === "MASTER" || user.role === "GENERAL_ADMIN";
+    // Professor: só chega aqui se já passou pelo ownership (turmas que leciona).
     const canEnrollExternal =
-      canOverrideEnrollmentRules || user.role === "POLO_COORDINATOR";
+      canOverrideEnrollmentRules ||
+      user.role === "POLO_COORDINATOR" ||
+      user.role === "TEACHER";
     if (!classGroupAllowsStaffEnrollment(newClassGroup, { canEnrollExternal })) {
       if (newClassGroup.isExternal && !canEnrollExternal) {
         return jsonErr(
           "FORBIDDEN",
-          "Apenas Master, Administrador Geral ou Coordenador de Polos podem matricular em turmas externas.",
+          "Você não tem permissão para matricular em turmas externas.",
           403,
         );
       }
@@ -306,13 +345,11 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR", "TEACHER"]);
   const { id } = await context.params;
 
-  if (user.role === "POLO_COORDINATOR") {
-    const owns = await poloCoordinatorOwnsEnrollment(user.id, id);
-    if (!owns) return jsonErr("FORBIDDEN", "Matrícula fora do escopo dos seus polos.", 403);
-  }
+  const scopeErr = await assertEnrollmentScope(user, id);
+  if (scopeErr) return scopeErr;
 
   const enrollment = await prisma.enrollment.findUnique({
     where: { id },

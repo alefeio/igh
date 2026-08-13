@@ -9,6 +9,42 @@ export function classGroupTeacherAccessWhere(teacherId: string): Prisma.ClassGro
   };
 }
 
+/** Verifica se o professor (titular ou co-professor) tem acesso à turma. */
+export async function teacherOwnsClassGroup(
+  teacherId: string,
+  classGroupId: string,
+): Promise<boolean> {
+  const cg = await prisma.classGroup.findFirst({
+    where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacherId) },
+    select: { id: true },
+  });
+  return !!cg;
+}
+
+/** Verifica se a matrícula está em turma do professor (titular/co-professor). */
+export async function teacherOwnsEnrollment(
+  teacherId: string,
+  enrollmentId: string,
+): Promise<boolean> {
+  const row = await prisma.enrollment.findFirst({
+    where: {
+      id: enrollmentId,
+      classGroup: classGroupTeacherAccessWhere(teacherId),
+    },
+    select: { id: true },
+  });
+  return !!row;
+}
+
+/** Resolve o Teacher.id a partir do User.id (ou null se não houver perfil ativo). */
+export async function resolveTeacherIdForUser(userId: string): Promise<string | null> {
+  const teacher = await prisma.teacher.findFirst({
+    where: { userId, deletedAt: null },
+    select: { id: true },
+  });
+  return teacher?.id ?? null;
+}
+
 export async function syncClassGroupTeachers(
   classGroupId: string,
   teacherIds: string[],

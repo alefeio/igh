@@ -53,6 +53,7 @@ export function EnrollmentWaitlistPanel({
   reloadToken = 0,
   isMaster = false,
   canRemove = false,
+  canRegisterStudent = true,
   getActiveEnrollmentCountInCycle,
 }: {
   canManage: boolean;
@@ -63,6 +64,8 @@ export function EnrollmentWaitlistPanel({
   isMaster?: boolean;
   /** Somente Master (papel exato) pode remover reservas. */
   canRemove?: boolean;
+  /** Coordenador/admin podem cadastrar aluno novo; professor normalmente não. */
+  canRegisterStudent?: boolean;
   getActiveEnrollmentCountInCycle?: (studentId: string) => number;
 }) {
   const toast = useToast();
@@ -264,9 +267,11 @@ export function EnrollmentWaitlistPanel({
           </p>
           <div className="flex items-center justify-between gap-2">
             <label className="text-sm font-medium">Aluno</label>
-            <Button type="button" variant="secondary" onClick={() => setOpenNewStudent(true)}>
-              Cadastrar aluno
-            </Button>
+            {canRegisterStudent ? (
+              <Button type="button" variant="secondary" onClick={() => setOpenNewStudent(true)}>
+                Cadastrar aluno
+              </Button>
+            ) : null}
           </div>
           <div ref={studentComboboxRef} className="relative">
             <input

@@ -109,6 +109,9 @@ const CLASS_GROUP_SCOPE_OPTIONS = [
 /** Padrão: só turmas internas; Externa é opcional. */
 const DEFAULT_CLASS_GROUP_SCOPE_FILTERS = ["INTERNAL"] as const;
 
+/** Professor: por padrão vê internas e externas das turmas que leciona. */
+const TEACHER_DEFAULT_CLASS_GROUP_SCOPE_FILTERS = ["INTERNAL", "EXTERNAL"] as const;
+
 function haveSameValues(left: string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((value) => right.includes(value));
 }
@@ -263,6 +266,15 @@ export default function EnrollmentsPage() {
     user.role === "GENERAL_ADMIN" ||
     user.role === "POLO_COORDINATOR" ||
     user.role === "TEACHER";
+  /** Editar/cancelar matrícula (status/turma): admin, master, coordenador de polo e professor. */
+  const canEditEnrollment =
+    user.role === "ADMIN" ||
+    user.role === "MASTER" ||
+    user.role === "GENERAL_ADMIN" ||
+    user.role === "POLO_COORDINATOR" ||
+    user.role === "TEACHER";
+  /** Lista de espera: mesmos perfis que criam matrícula (exceto exclusão de reserva, só Master). */
+  const canManageWaitlist = canCreateEnrollment;
   /** Só Master / Admin Geral: matricular em turma lotada e acessar Interno/Externo. */
   const canOverrideEnrollment = isMaster;
   const [loading, setLoading] = useState(true);
@@ -327,9 +339,11 @@ export default function EnrollmentsPage() {
   const [classGroupStatusFilter, setClassGroupStatusFilter] = useState<string[]>([
     ...DEFAULT_CLASS_GROUP_STATUS_FILTERS,
   ]);
-  const [classGroupScopeFilter, setClassGroupScopeFilter] = useState<string[]>([
-    ...DEFAULT_CLASS_GROUP_SCOPE_FILTERS,
-  ]);
+  const [classGroupScopeFilter, setClassGroupScopeFilter] = useState<string[]>(() =>
+    user.role === "TEACHER"
+      ? [...TEACHER_DEFAULT_CLASS_GROUP_SCOPE_FILTERS]
+      : [...DEFAULT_CLASS_GROUP_SCOPE_FILTERS]
+  );
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cycleFilterIds, setCycleFilterIds] = useState<string[]>([]);
@@ -347,6 +361,9 @@ export default function EnrollmentsPage() {
   }, []);
 
   const filtersStorageKey = `enrollments:filters:v2:${user.id}`;
+  const defaultScopeFilters = isTeacher
+    ? TEACHER_DEFAULT_CLASS_GROUP_SCOPE_FILTERS
+    : DEFAULT_CLASS_GROUP_SCOPE_FILTERS;
 
   useEffect(() => {
     try {
@@ -380,7 +397,7 @@ export default function EnrollmentsPage() {
             ? saved.classGroupScopeFilter.filter((scope) =>
                 (CLASS_GROUP_SCOPE_OPTIONS as readonly { value: string }[]).some((o) => o.value === scope)
               )
-            : [...DEFAULT_CLASS_GROUP_SCOPE_FILTERS]
+            : [...defaultScopeFilters]
         );
         setDateFrom(saved.dateFrom ?? "");
         setDateTo(saved.dateTo ?? "");
@@ -397,7 +414,7 @@ export default function EnrollmentsPage() {
     } finally {
       setFiltersHydrated(true);
     }
-  }, [filtersStorageKey]);
+  }, [filtersStorageKey, defaultScopeFilters]);
 
   useEffect(() => {
     if (!filtersHydrated) return;
@@ -438,33 +455,61 @@ export default function EnrollmentsPage() {
   async function load() {
     setLoading(true);
     try {
+      // Professor: API de teachers é só MASTER/ADMIN; seção "Por professor" fica oculta.
       const [enrollmentsRes, teachersRes, cyclesRes, classGroupsRes] = await Promise.all([
         fetch("/api/enrollments", { cache: "no-store" }),
-        fetch("/api/teachers?status=active", { cache: "no-store" }),
+        isTeacher
+          ? Promise.resolve(null as Response | null)
+          : fetch("/api/teachers?status=active", { cache: "no-store" }),
         fetch("/api/cycles", { cache: "no-store" }),
         fetch("/api/class-groups", { cache: "no-store" }),
       ]);
       const enrollmentsJson = await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes);
-      const teachersJson = await parseJson<{ teachers: Teacher[] }>(teachersRes);
+      const teachersJson = teachersRes
+        ? await parseJson<{ teachers: Teacher[] }>(teachersRes)
+        : null;
       const cyclesJson = await parseJson<{ cycles: Cycle[] }>(cyclesRes);
       const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
       if (enrollmentsRes.ok && enrollmentsJson?.ok) setItems(enrollmentsJson.data.enrollments);
       else toast.push("error", "Falha ao carregar matrículas.");
+      const loadedClassGroups =
+        classGroupsRes.ok && classGroupsJson?.ok ? classGroupsJson.data.classGroups : [];
       if (classGroupsRes.ok && classGroupsJson?.ok) {
-        setAllClassGroups(classGroupsJson.data.classGroups);
+        setAllClassGroups(loadedClassGroups);
       } else {
         toast.push("error", "Falha ao carregar as turmas.");
       }
       setAllTeachers(
-        teachersRes.ok && teachersJson?.ok && Array.isArray(teachersJson.data.teachers)
+        !isTeacher &&
+          teachersRes?.ok &&
+          teachersJson?.ok &&
+          Array.isArray(teachersJson.data.teachers)
           ? teachersJson.data.teachers
           : []
       );
       const cyclesList = cyclesJson?.ok && Array.isArray(cyclesJson.data?.cycles) ? cyclesJson.data.cycles : [];
       setCycles(cyclesList);
       if (!cycleFilterInitializedRef.current) {
-        const defaults = cyclesList.filter((c) => c.isVisibleForEnrollments).map((c) => c.id);
-        setCycleFilterIds(defaults);
+        if (isTeacher) {
+          // Só ciclos das turmas que o professor leciona (internas e externas).
+          const cycleIdsFromTurmas = new Set<string>();
+          for (const cg of loadedClassGroups) {
+            const cid = cg.cycleId ?? cg.cycle?.id;
+            if (cid) cycleIdsFromTurmas.add(cid);
+          }
+          const teacherCycles = cyclesList.filter((c) => cycleIdsFromTurmas.has(c.id));
+          const visibleTeacherCycles = teacherCycles
+            .filter((c) => c.isVisibleForEnrollments)
+            .map((c) => c.id);
+          setCycleFilterIds(
+            visibleTeacherCycles.length > 0
+              ? visibleTeacherCycles
+              : teacherCycles.map((c) => c.id)
+          );
+        } else {
+          const defaults = cyclesList.filter((c) => c.isVisibleForEnrollments).map((c) => c.id);
+          setCycleFilterIds(defaults);
+        }
         cycleFilterInitializedRef.current = true;
       }
     } finally {
@@ -481,13 +526,41 @@ export default function EnrollmentsPage() {
     }
   }
 
-  const visibleCycleIds = useMemo(() => cycles.filter((c) => c.isVisibleForEnrollments).map((c) => c.id), [cycles]);
+  /** Ciclos exibidos nos filtros: professor só vê os das turmas que leciona. */
+  const filterCycles = useMemo(() => {
+    if (!isTeacher) return cycles;
+    const cycleIdsFromTurmas = new Set<string>();
+    for (const cg of allClassGroups) {
+      const cid = cg.cycleId ?? cg.cycle?.id;
+      if (cid) cycleIdsFromTurmas.add(cid);
+    }
+    for (const enrollment of items) {
+      const cid =
+        (enrollment.classGroup as { cycleId?: string }).cycleId ?? enrollment.classGroup.cycle?.id;
+      if (cid) cycleIdsFromTurmas.add(cid);
+    }
+    return cycles.filter((c) => cycleIdsFromTurmas.has(c.id));
+  }, [isTeacher, cycles, allClassGroups, items]);
+
+  const visibleCycleIds = useMemo(
+    () => filterCycles.filter((c) => c.isVisibleForEnrollments).map((c) => c.id),
+    [filterCycles]
+  );
+
+  /** Padrão ao limpar filtros: ciclos visíveis; professor fallback = todos os ciclos das suas turmas. */
+  const defaultCycleFilterIds = useMemo(() => {
+    if (visibleCycleIds.length > 0) return visibleCycleIds;
+    if (isTeacher) return filterCycles.map((c) => c.id);
+    return visibleCycleIds;
+  }, [visibleCycleIds, isTeacher, filterCycles]);
+
   const modalCycleIds = useMemo(() => {
-    // Coordenador de polo: todas as turmas do polo (API já escopa), em qualquer ciclo.
+    // Coordenador de polo / professor: API já escopa; qualquer ciclo das turmas acessíveis.
     if (isPoloCoordinator) return cycles.map((c) => c.id);
+    if (isTeacher) return filterCycles.map((c) => c.id);
     // Demais perfis: só ciclos visíveis para matrículas (sem ciclos anteriores).
     return visibleCycleIds;
-  }, [visibleCycleIds, isPoloCoordinator, cycles]);
+  }, [visibleCycleIds, isPoloCoordinator, isTeacher, cycles, filterCycles]);
 
   const classGroupsForModal = useMemo(() => {
     // Professor / coordenador de polo: API já escopa; não aplica filtro de ciclo visível.
@@ -826,6 +899,17 @@ export default function EnrollmentsPage() {
       return next.length === previous.length ? previous : next;
     });
   }, [loading, turmaOptions]);
+
+  /** Professor: remove ciclos salvos que não pertencem às turmas dele. */
+  useEffect(() => {
+    if (!isTeacher || loading || filterCycles.length === 0) return;
+    const available = new Set(filterCycles.map((c) => c.id));
+    setCycleFilterIds((previous) => {
+      const next = previous.filter((id) => available.has(id));
+      if (next.length === previous.length) return previous;
+      return next.length > 0 ? next : defaultCycleFilterIds;
+    });
+  }, [isTeacher, loading, filterCycles, defaultCycleFilterIds]);
 
   const totalFiltered = filteredItems.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
@@ -1202,17 +1286,13 @@ export default function EnrollmentsPage() {
       />
 
       <EnrollmentWaitlistPanel
-        canManage={
-          user.role === "ADMIN" ||
-          user.role === "MASTER" ||
-          user.role === "GENERAL_ADMIN" ||
-          user.role === "POLO_COORDINATOR"
-        }
+        canManage={canManageWaitlist}
         classGroups={filteredClassGroupsForModal}
         onNeedClassGroups={loadFormOptions}
         reloadToken={waitlistReloadToken}
         isMaster={isMaster}
         canRemove={isExactMaster(user)}
+        canRegisterStudent={!isTeacher}
         getActiveEnrollmentCountInCycle={getActiveEnrollmentCountInCycle}
       />
 
@@ -1240,11 +1320,11 @@ export default function EnrollmentsPage() {
                 preEnrollmentFilterState ||
                 turmaFilterIds.length > 0 ||
                 !haveSameValues(classGroupStatusFilter, DEFAULT_CLASS_GROUP_STATUS_FILTERS) ||
-                !haveSameValues(classGroupScopeFilter, DEFAULT_CLASS_GROUP_SCOPE_FILTERS) ||
+                !haveSameValues(classGroupScopeFilter, defaultScopeFilters) ||
                 dateFrom ||
                 dateTo ||
-                cycleFilterIds.some((id) => !visibleCycleIds.includes(id)) ||
-                visibleCycleIds.some((id) => !cycleFilterIds.includes(id))) && (
+                cycleFilterIds.some((id) => !defaultCycleFilterIds.includes(id)) ||
+                defaultCycleFilterIds.some((id) => !cycleFilterIds.includes(id))) && (
                 <Button
                   type="button"
                   variant="secondary"
@@ -1255,10 +1335,10 @@ export default function EnrollmentsPage() {
                     setPreEnrollmentFilterState("");
                     setTurmaFilterIds([]);
                     setClassGroupStatusFilter([...DEFAULT_CLASS_GROUP_STATUS_FILTERS]);
-                    setClassGroupScopeFilter([...DEFAULT_CLASS_GROUP_SCOPE_FILTERS]);
+                    setClassGroupScopeFilter([...defaultScopeFilters]);
                     setDateFrom("");
                     setDateTo("");
-                    setCycleFilterIds(visibleCycleIds);
+                    setCycleFilterIds(defaultCycleFilterIds);
                   }}
                 >
                   Limpar filtros
@@ -1337,13 +1417,13 @@ export default function EnrollmentsPage() {
                 />
               </div>
               <div className="flex w-full flex-wrap items-end gap-3">
-                {cycles.length > 0 && (
+                {filterCycles.length > 0 && (
                   <div className="min-w-[min(100%,480px)] max-w-full">
                     <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
                       Ciclos
                     </span>
                     <div className="flex min-h-[44px] flex-wrap items-center gap-3 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
-                      {cycles.map((cycle) => {
+                      {filterCycles.map((cycle) => {
                         const checked = cycleFilterIds.includes(cycle.id);
                         return (
                           <label key={cycle.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
@@ -1631,7 +1711,11 @@ export default function EnrollmentsPage() {
           <SectionCard
             id="enrollments-summary-heading"
             title="Vagas por curso e turma"
-            description="Total de vagas (azul) e vagas preenchidas (vermelho) em todas as turmas dos ciclos selecionados."
+            description={
+              isTeacher
+                ? "Total de vagas (azul) e vagas preenchidas (vermelho) nas turmas em que você leciona, nos ciclos selecionados."
+                : "Total de vagas (azul) e vagas preenchidas (vermelho) em todas as turmas dos ciclos selecionados."
+            }
             variant="elevated"
           >
             {dashboard.courses.length === 0 ? (
@@ -1744,6 +1828,7 @@ export default function EnrollmentsPage() {
             )}
           </SectionCard>
 
+          {!isTeacher && (
           <SectionCard
             id="enrollments-by-teacher-heading"
             title="Por professor"
@@ -1872,6 +1957,7 @@ export default function EnrollmentsPage() {
                 </>
               )}
           </SectionCard>
+          )}
 
           <section id="enrollments-list" className="card scroll-mt-4" aria-labelledby="enrollments-list-heading">
             <header className="card-header flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
@@ -1991,7 +2077,7 @@ export default function EnrollmentsPage() {
                         Confirmar
                       </Button>
                     )}
-                    {(isMaster || user.role === "ADMIN") && (
+                    {canEditEnrollment && (
                       <Button type="button" variant="secondary" onClick={() => openEdit(e)}>
                         Editar
                       </Button>
