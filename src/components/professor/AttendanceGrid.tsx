@@ -6,7 +6,6 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import type { ApiResponse } from "@/lib/api-types";
 import {
   attendancePercent,
-  nextAttendanceMark,
   type AttendanceMark,
 } from "@/lib/attendance-mark";
 
@@ -34,21 +33,26 @@ type AttendanceGridProps = {
   onEnrollmentChange?: () => void;
 };
 
-function cellClass(mark: AttendanceMark | null, saving: boolean): string {
+const MARK_OPTIONS: AttendanceMark[] = ["P", "F", "J"];
+
+function selectClass(mark: AttendanceMark | null, saving: boolean): string {
   const base =
-    "flex h-9 w-9 items-center justify-center rounded text-xs font-bold tabular-nums transition-colors cursor-pointer select-none";
+    "h-9 min-w-[3.5rem] w-full max-w-[4.75rem] rounded border px-1 text-center text-xs font-bold tabular-nums transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-1";
   if (saving) return `${base} opacity-60`;
-  if (mark === "P") return `${base} bg-emerald-200 text-emerald-900 hover:bg-emerald-300 dark:bg-emerald-900/50 dark:text-emerald-100`;
-  if (mark === "F") return `${base} bg-rose-200 text-rose-900 hover:bg-rose-300 dark:bg-rose-900/50 dark:text-rose-100`;
-  if (mark === "J") return `${base} bg-rose-100 text-rose-800 ring-1 ring-rose-300 hover:bg-rose-200 dark:bg-rose-950/40 dark:text-rose-200`;
-  return `${base} border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/50 text-[var(--text-muted)] hover:bg-[var(--igh-surface)]`;
+  if (mark === "P")
+    return `${base} border-emerald-300 bg-emerald-200 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-100`;
+  if (mark === "F")
+    return `${base} border-rose-300 bg-rose-200 text-rose-900 dark:border-rose-700 dark:bg-rose-900/50 dark:text-rose-100`;
+  if (mark === "J")
+    return `${base} border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200`;
+  return `${base} border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/50 text-[var(--text-muted)]`;
 }
 
 function markLabel(mark: AttendanceMark | null): string {
-  if (mark === "P") return "P";
-  if (mark === "F") return "F";
-  if (mark === "J") return "J";
-  return "—";
+  if (mark === "P") return "P (presente)";
+  if (mark === "F") return "F (falta)";
+  if (mark === "J") return "J (justificado)";
+  return "não marcado";
 }
 
 export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: AttendanceGridProps) {
@@ -102,24 +106,26 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
     };
   };
 
-  const handleCellClick = async (enrollmentId: string, sessionId: string) => {
+  const handleMarkChange = async (
+    enrollmentId: string,
+    sessionId: string,
+    next: AttendanceMark
+  ) => {
     const rowIdx = rowIndexByEnrollment.get(enrollmentId);
     if (rowIdx === undefined) return;
 
     const row = rows[rowIdx];
     const current = row.cells[sessionId] ?? null;
-    const next = nextAttendanceMark(current);
-    const key = `${enrollmentId}:${sessionId}`;
+    if (current === next) return;
 
+    const key = `${enrollmentId}:${sessionId}`;
     const prevRows = rows;
     const sessionIds = sessions.map((s) => s.id);
     const newCells = { ...row.cells, [sessionId]: next };
     const stats = recomputeRowStats(newCells, sessionIds);
 
     setRows((prev) =>
-      prev.map((r, i) =>
-        i === rowIdx ? { ...r, cells: newCells, ...stats } : r
-      )
+      prev.map((r, i) => (i === rowIdx ? { ...r, cells: newCells, ...stats } : r))
     );
     setSavingKey(key);
 
@@ -195,10 +201,10 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
         <p className="text-center text-sm font-semibold text-[var(--text-primary)]">{title}</p>
       )}
       <p className="text-xs text-[var(--text-muted)]">
-        Clique em cada célula para alternar: <span className="font-semibold text-emerald-700">P</span> (presente),{" "}
-        <span className="font-semibold text-rose-700">F</span> (falta),{" "}
-        <span className="font-semibold text-rose-600">J</span> (falta justificada). A frequência é calculada com base
-        nas aulas já lançadas.
+        Escolha em cada célula: <span className="font-semibold text-emerald-700">P</span> (presente),{" "}
+        <span className="font-semibold text-rose-700">F</span> (falta) ou{" "}
+        <span className="font-semibold text-rose-600">J</span> (justificado). Células vazias ficam sem
+        lançamento até você selecionar. A frequência é calculada com base nas aulas já lançadas.
       </p>
       <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
         <table className="min-w-full border-collapse text-sm">
@@ -236,7 +242,7 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
               {sessions.map((s) => (
                 <th
                   key={s.id}
-                  className="min-w-[2.75rem] px-1 py-1 text-center text-[10px] font-semibold text-[var(--text-muted)]"
+                  className="min-w-[3.5rem] px-1 py-1 text-center text-[10px] font-semibold text-[var(--text-muted)]"
                   scope="col"
                   title={s.lessonTitle ?? undefined}
                 >
@@ -251,7 +257,7 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
               {sessions.map((s) => (
                 <th
                   key={`${s.id}-date`}
-                  className="min-w-[2.75rem] px-1 py-1 text-center text-[10px] font-medium text-[var(--text-muted)]"
+                  className="min-w-[3.5rem] px-1 py-1 text-center text-[10px] font-medium text-[var(--text-muted)]"
                   scope="col"
                 >
                   {s.sessionDateLabel}
@@ -277,17 +283,32 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
                 {sessions.map((s) => {
                   const mark = row.cells[s.id] ?? null;
                   const key = `${row.enrollmentId}:${s.id}`;
+                  const saving = savingKey === key;
                   return (
                     <td key={s.id} className="px-1 py-1 text-center">
-                      <button
-                        type="button"
-                        onClick={() => void handleCellClick(row.enrollmentId, s.id)}
-                        className={cellClass(mark, savingKey === key)}
+                      <select
+                        value={mark ?? ""}
+                        disabled={saving}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value !== "P" && value !== "F" && value !== "J") return;
+                          void handleMarkChange(row.enrollmentId, s.id, value);
+                        }}
+                        className={selectClass(mark, saving)}
                         title={`${row.studentName} — ${s.sessionDateLabel}: ${markLabel(mark)}`}
-                        aria-label={`Frequência de ${row.studentName} em ${s.sessionDateLabel}: ${markLabel(mark)}`}
+                        aria-label={`Frequência de ${row.studentName} em ${s.sessionDateLabel}`}
                       >
-                        {mark ?? ""}
-                      </button>
+                        {mark == null && (
+                          <option value="" disabled>
+                            —
+                          </option>
+                        )}
+                        {MARK_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                   );
                 })}
