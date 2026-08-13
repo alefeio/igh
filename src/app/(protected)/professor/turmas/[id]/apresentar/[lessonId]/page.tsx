@@ -80,6 +80,7 @@ type LessonQuestion = {
   imageUrls?: string[];
   createdAt: string;
   updatedAt: string;
+  teacherAuthorId?: string | null;
   authorName: string;
   authorRole?: "TEACHER" | "STUDENT";
   replies?: { id: string; content: string; createdAt: string; authorName: string }[];
@@ -88,7 +89,7 @@ type LessonQuestion = {
 
 const TEACHER_FORUM_UPLOAD = "/api/teacher/uploads/apimages-signature";
 
-type TeacherNote = { id: string; content: string; createdAt: string };
+type TeacherNote = { id: string; content: string; createdAt: string; updatedAt?: string };
 
 type SectionKey = "trechos" | "material" | "anotacoes" | "duvidas" | "exercicios" | "resumo";
 
@@ -126,11 +127,19 @@ export default function ProfessorApresentarAulaPage() {
   const [savingPassage, setSavingPassage] = useState(false);
   const [notes, setNotes] = useState<TeacherNote[]>([]);
   const [noteContent, setNoteContent] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState("");
   const [questions, setQuestions] = useState<LessonQuestion[]>([]);
+  const [viewerTeacherId, setViewerTeacherId] = useState<string | null>(null);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [newTopicContent, setNewTopicContent] = useState("");
   const [newTopicImageUrls, setNewTopicImageUrls] = useState<string[]>([]);
   const [postingTopic, setPostingTopic] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editQuestionContent, setEditQuestionContent] = useState("");
+  const [editQuestionImageUrls, setEditQuestionImageUrls] = useState<string[]>([]);
+  const [savingEditQuestionId, setSavingEditQuestionId] = useState<string | null>(null);
+  const [removingQuestionId, setRemovingQuestionId] = useState<string | null>(null);
   const [replyContentByQuestionId, setReplyContentByQuestionId] = useState<Record<string, string>>({});
   const [replyImageUrlsByQuestionId, setReplyImageUrlsByQuestionId] = useState<Record<string, string[]>>({});
   const [replyingQuestionId, setReplyingQuestionId] = useState<string | null>(null);
@@ -227,11 +236,16 @@ export default function ProfessorApresentarAulaPage() {
     setLoadingQuestions(true);
     try {
       const res = await fetch(`/api/teacher/class-groups/${classGroupId}/lesson-questions?lessonId=${lessonId}`);
-      const json = (await res.json()) as ApiResponse<{ questions: LessonQuestion[] }>;
+      const json = (await res.json()) as ApiResponse<{
+        questions: LessonQuestion[];
+        viewerTeacherId?: string;
+      }>;
       if (!res.ok || !json.ok) {
         setQuestions([]);
+        setViewerTeacherId(null);
         return;
       }
+      setViewerTeacherId(json.data.viewerTeacherId ?? null);
       setQuestions(json.data.questions);
     } finally {
       setLoadingQuestions(false);
@@ -261,6 +275,9 @@ export default function ProfessorApresentarAulaPage() {
         return;
       }
       setQuestions((prev) => [...prev, json.data]);
+      if (json.data.teacherAuthorId) {
+        setViewerTeacherId((prev) => prev ?? json.data.teacherAuthorId ?? null);
+      }
       setNewTopicContent("");
       setNewTopicImageUrls([]);
       toast.push("success", "Publicação criada no fórum da aula.");
@@ -348,9 +365,125 @@ export default function ProfessorApresentarAulaPage() {
     const text = noteContent.trim();
     if (text.length < 1) return;
     const id = `n_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    setNotes((prev) => [{ id, content: text, createdAt: new Date().toISOString() }, ...prev]);
+    const now = new Date().toISOString();
+    setNotes((prev) => [{ id, content: text, createdAt: now, updatedAt: now }, ...prev]);
     setNoteContent("");
   }, [noteContent]);
+
+  const startEditNote = useCallback((note: TeacherNote) => {
+    setEditingNoteId(note.id);
+    setEditNoteContent(note.content);
+  }, []);
+
+  const cancelEditNote = useCallback(() => {
+    setEditingNoteId(null);
+    setEditNoteContent("");
+  }, []);
+
+  const handleSaveEditNote = useCallback(() => {
+    if (!editingNoteId) return;
+    const text = editNoteContent.trim();
+    if (text.length < 1) return;
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === editingNoteId ? { ...n, content: text, updatedAt: new Date().toISOString() } : n
+      )
+    );
+    cancelEditNote();
+  }, [cancelEditNote, editNoteContent, editingNoteId]);
+
+  const handleRemoveNote = useCallback(
+    (id: string) => {
+      if (!confirm("Excluir esta anotação?")) return;
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+      if (editingNoteId === id) cancelEditNote();
+    },
+    [cancelEditNote, editingNoteId]
+  );
+
+  const startEditQuestion = useCallback((q: LessonQuestion) => {
+    setEditingQuestionId(q.id);
+    setEditQuestionContent(q.content);
+    setEditQuestionImageUrls(q.imageUrls ?? []);
+  }, []);
+
+  const cancelEditQuestion = useCallback(() => {
+    setEditingQuestionId(null);
+    setEditQuestionContent("");
+    setEditQuestionImageUrls([]);
+  }, []);
+
+  const handleSaveEditQuestion = useCallback(async () => {
+    if (!editingQuestionId) return;
+    if (isForumPostEmpty(editQuestionContent, editQuestionImageUrls)) {
+      toast.push("error", "Digite o conteúdo ou mantenha ao menos uma foto.");
+      return;
+    }
+    setSavingEditQuestionId(editingQuestionId);
+    try {
+      const res = await fetch(
+        `/api/teacher/class-groups/${classGroupId}/lesson-questions/${editingQuestionId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: editQuestionContent, imageUrls: editQuestionImageUrls }),
+        }
+      );
+      const json = (await res.json()) as ApiResponse<LessonQuestion>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Não foi possível atualizar.");
+        return;
+      }
+      setQuestions((prev) =>
+        prev.map((q) =>
+          q.id === editingQuestionId
+            ? {
+                ...q,
+                content: json.data.content,
+                imageUrls: json.data.imageUrls ?? [],
+                updatedAt: json.data.updatedAt,
+                teacherAuthorId: json.data.teacherAuthorId ?? q.teacherAuthorId,
+              }
+            : q
+        )
+      );
+      cancelEditQuestion();
+      toast.push("success", "Publicação atualizada.");
+    } finally {
+      setSavingEditQuestionId(null);
+    }
+  }, [
+    cancelEditQuestion,
+    classGroupId,
+    editQuestionContent,
+    editQuestionImageUrls,
+    editingQuestionId,
+    toast,
+  ]);
+
+  const handleDeleteQuestion = useCallback(
+    async (questionId: string) => {
+      if (!confirm("Excluir esta publicação?")) return;
+      setRemovingQuestionId(questionId);
+      try {
+        const res = await fetch(
+          `/api/teacher/class-groups/${classGroupId}/lesson-questions/${questionId}`,
+          { method: "DELETE" }
+        );
+        const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
+        if (!res.ok || !json.ok) {
+          toast.push("error", !json.ok ? json.error.message : "Não foi possível excluir.");
+          return;
+        }
+        setQuestions((prev) => prev.filter((q) => q.id !== questionId));
+        if (editingQuestionId === questionId) cancelEditQuestion();
+        toast.push("success", "Publicação excluída.");
+      } finally {
+        setRemovingQuestionId(null);
+      }
+    },
+    [cancelEditQuestion, classGroupId, editingQuestionId, toast]
+  );
 
   const handleReply = useCallback(
     async (questionId: string) => {
@@ -1473,12 +1606,64 @@ export default function ProfessorApresentarAulaPage() {
                           key={n.id}
                           className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/20 p-3"
                         >
-                          <p className="text-xs text-[var(--text-muted)]">
-                            {new Date(n.createdAt).toLocaleString("pt-BR")}
-                          </p>
-                          <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--text-primary)]">
-                            {n.content}
-                          </p>
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs text-[var(--text-muted)]">
+                                {new Date(n.createdAt).toLocaleString("pt-BR")}
+                                {n.updatedAt && n.updatedAt !== n.createdAt ? (
+                                  <span className="ml-1 italic">(editado)</span>
+                                ) : null}
+                              </p>
+                              {editingNoteId === n.id ? (
+                                <div className="mt-2 space-y-2">
+                                  <textarea
+                                    value={editNoteContent}
+                                    onChange={(e) => setEditNoteContent(e.target.value)}
+                                    className="min-h-[90px] w-full rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm text-[var(--text-primary)]"
+                                  />
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={handleSaveEditNote}
+                                      disabled={editNoteContent.trim().length === 0}
+                                      className="rounded-md bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-95 disabled:opacity-60"
+                                    >
+                                      Salvar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={cancelEditNote}
+                                      className="rounded-md border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--text-primary)]">
+                                  {n.content}
+                                </p>
+                              )}
+                            </div>
+                            {!studentPreview && editingNoteId !== n.id && (
+                              <div className="flex shrink-0 gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditNote(n)}
+                                  className="rounded px-2 py-1 text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)]"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveNote(n.id)}
+                                  className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1522,22 +1707,80 @@ export default function ProfessorApresentarAulaPage() {
                     <p className="text-sm text-[var(--text-muted)]">Nenhuma dúvida nesta aula ainda.</p>
                   ) : (
                     <div className="space-y-4">
-                      {questions.map((q) => (
+                      {questions.map((q) => {
+                        const isOwnTopic =
+                          !!viewerTeacherId &&
+                          !!q.teacherAuthorId &&
+                          q.teacherAuthorId === viewerTeacherId;
+                        return (
                         <div
                           key={q.id}
                           className="rounded-xl border border-[var(--card-border)] bg-[var(--igh-surface)]/10 p-4"
                         >
-                          <p className="text-xs font-semibold text-[var(--text-muted)]">
-                            {q.authorName}
-                            {q.authorRole === "TEACHER" ? " · Professor" : ""} ·{" "}
-                            {new Date(q.createdAt).toLocaleString("pt-BR")}
-                          </p>
-                          <ForumPostBody
-                            content={q.content}
-                            imageUrls={q.imageUrls}
-                            altPrefix={`Foto de ${q.authorName}`}
-                            className="mt-2"
-                          />
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-[var(--text-muted)]">
+                                {q.authorName}
+                                {q.authorRole === "TEACHER" ? " · Professor" : ""} ·{" "}
+                                {new Date(q.createdAt).toLocaleString("pt-BR")}
+                                {q.updatedAt && q.updatedAt !== q.createdAt ? (
+                                  <span className="ml-1 italic font-normal">(editado)</span>
+                                ) : null}
+                              </p>
+                              {editingQuestionId === q.id ? (
+                                <div className="mt-2 space-y-2">
+                                  <ForumPostComposer
+                                    content={editQuestionContent}
+                                    onContentChange={setEditQuestionContent}
+                                    imageUrls={editQuestionImageUrls}
+                                    onImageUrlsChange={setEditQuestionImageUrls}
+                                    onSubmit={() => void handleSaveEditQuestion()}
+                                    submitting={savingEditQuestionId === q.id}
+                                    submitLabel="Salvar"
+                                    placeholder="Editar publicação…"
+                                    minEditorHeight="120px"
+                                    uploadSignaturePath={TEACHER_FORUM_UPLOAD}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={cancelEditQuestion}
+                                    disabled={savingEditQuestionId === q.id}
+                                    className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              ) : (
+                                <ForumPostBody
+                                  content={q.content}
+                                  imageUrls={q.imageUrls}
+                                  altPrefix={`Foto de ${q.authorName}`}
+                                  className="mt-2"
+                                />
+                              )}
+                            </div>
+                            {teacherControlsVisible &&
+                              editingQuestionId !== q.id &&
+                              isOwnTopic && (
+                                <div className="flex shrink-0 gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditQuestion(q)}
+                                    className="rounded px-2 py-1 text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)]"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleDeleteQuestion(q.id)}
+                                    disabled={removingQuestionId === q.id}
+                                    className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-60"
+                                  >
+                                    {removingQuestionId === q.id ? "Excluindo…" : "Excluir"}
+                                  </button>
+                                </div>
+                              )}
+                          </div>
                           {q.replies && q.replies.length > 0 && (
                             <div className="mt-3 space-y-3 border-l border-[var(--card-border)] pl-3">
                               <p className="text-xs font-semibold text-[var(--text-muted)]">
@@ -1594,7 +1837,8 @@ export default function ProfessorApresentarAulaPage() {
                             </div>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

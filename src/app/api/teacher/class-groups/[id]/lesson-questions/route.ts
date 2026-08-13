@@ -50,7 +50,9 @@ export async function GET(
   const ids = lessonIdFilter
     ? lessonIds.filter((l) => l.id === lessonIdFilter).map((l) => l.id)
     : lessonIds.map((l) => l.id);
-  if (ids.length === 0) return jsonOk({ questions: [], courseName: ctx.courseName });
+  if (ids.length === 0) {
+    return jsonOk({ questions: [], courseName: ctx.courseName, viewerTeacherId: ctx.teacher.id });
+  }
 
   const questions = await prisma.enrollmentLessonQuestion.findMany({
     where: { lessonId: { in: ids } },
@@ -79,6 +81,7 @@ export async function GET(
 
   return jsonOk({
     courseName: ctx.courseName,
+    viewerTeacherId: ctx.teacher.id,
     questions: questions.map((q) => {
       const les = lessonMeta.get(q.lessonId);
       return {
@@ -90,6 +93,7 @@ export async function GET(
         imageUrls: q.imageUrls ?? [],
         createdAt: q.createdAt.toISOString(),
         updatedAt: q.updatedAt.toISOString(),
+        teacherAuthorId: q.teacherAuthorId,
         authorName: q.teacherAuthor?.name ?? q.enrollment?.student.name ?? "Professor",
         authorRole: q.teacherAuthor ? "TEACHER" : "STUDENT",
         replies: q.replies.map((r) => ({
@@ -164,6 +168,7 @@ export async function POST(
     imageUrls: topic.imageUrls,
     createdAt: topic.createdAt.toISOString(),
     updatedAt: topic.updatedAt.toISOString(),
+    teacherAuthorId: ctx.teacher.id,
     authorName: ctx.teacher.name,
     authorRole: "TEACHER",
     replies: [],

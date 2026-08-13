@@ -189,6 +189,11 @@ export default function AulaConteudoPage() {
   const [noteContent, setNoteContent] = useState("");
   const [noteVideoMinute, setNoteVideoMinute] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState("");
+  const [editNoteVideoMinute, setEditNoteVideoMinute] = useState("");
+  const [savingEditNoteId, setSavingEditNoteId] = useState<string | null>(null);
+  const [removingNoteId, setRemovingNoteId] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [togglingFavorite, setTogglingFavorite] = useState(false);
   const [passages, setPassages] = useState<LessonPassage[]>([]);
@@ -1285,6 +1290,7 @@ export default function AulaConteudoPage() {
 
   const handleDeleteNote = async (noteId: string) => {
     if (!confirm("Excluir esta anotação?")) return;
+    setRemovingNoteId(noteId);
     try {
       const res = await fetch(
         `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/notes/${noteId}`,
@@ -1293,12 +1299,74 @@ export default function AulaConteudoPage() {
       const json = (await res.json()) as ApiResponse<{ deleted: boolean }>;
       if (res.ok && json?.ok) {
         setNotes((prev) => prev.filter((n) => n.id !== noteId));
+        if (editingNoteId === noteId) {
+          setEditingNoteId(null);
+          setEditNoteContent("");
+          setEditNoteVideoMinute("");
+        }
         toast.push("success", "Anotação excluída.");
       } else {
         toast.push("error", json && "error" in json ? json.error.message : "Não foi possível excluir.");
       }
     } catch {
       toast.push("error", "Não foi possível excluir a anotação.");
+    } finally {
+      setRemovingNoteId(null);
+    }
+  };
+
+  const startEditNote = (note: LessonNote) => {
+    setEditingNoteId(note.id);
+    setEditNoteContent(note.content);
+    setEditNoteVideoMinute(
+      note.videoTimestampLabel ??
+        (note.videoTimestampSecs != null
+          ? `${Math.floor(note.videoTimestampSecs / 60)
+              .toString()
+              .padStart(2, "0")}:${(note.videoTimestampSecs % 60).toString().padStart(2, "0")}`
+          : "")
+    );
+  };
+
+  const cancelEditNote = () => {
+    setEditingNoteId(null);
+    setEditNoteContent("");
+    setEditNoteVideoMinute("");
+  };
+
+  const handleSaveEditNote = async () => {
+    if (!editingNoteId) return;
+    const content = editNoteContent.trim();
+    if (!content) {
+      toast.push("error", "Digite a anotação.");
+      return;
+    }
+    const videoTimestampSecs = parseVideoMinuteToSeconds(editNoteVideoMinute);
+    setSavingEditNoteId(editingNoteId);
+    try {
+      const res = await fetch(
+        `/api/me/enrollments/${enrollmentId}/lessons/${lessonId}/notes/${editingNoteId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content,
+            videoTimestampSecs: editNoteVideoMinute.trim()
+              ? (videoTimestampSecs ?? null)
+              : null,
+          }),
+        }
+      );
+      const json = (await res.json()) as ApiResponse<LessonNote>;
+      if (res.ok && json?.ok) {
+        setNotes((prev) => prev.map((n) => (n.id === editingNoteId ? json.data : n)));
+        cancelEditNote();
+        toast.push("success", "Anotação atualizada.");
+      } else {
+        toast.push("error", json && "error" in json ? json.error.message : "Não foi possível atualizar.");
+      }
+    } finally {
+      setSavingEditNoteId(null);
     }
   };
 
@@ -2175,16 +2243,66 @@ export default function AulaConteudoPage() {
                                   <span className="font-medium text-[var(--igh-secondary)]">· Vídeo {note.videoTimestampLabel}</span>
                                 )}
                               </div>
-                              <p className="whitespace-pre-wrap text-[var(--text-primary)]">{note.content}</p>
+                              {editingNoteId === note.id ? (
+                                <div className="space-y-2">
+                                  <textarea
+                                    value={editNoteContent}
+                                    onChange={(e) => setEditNoteContent(e.target.value)}
+                                    rows={3}
+                                    className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                                  />
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <label className="text-xs text-[var(--text-muted)]">Minuto do vídeo (opcional):</label>
+                                    <input
+                                      type="text"
+                                      value={editNoteVideoMinute}
+                                      onChange={(e) => setEditNoteVideoMinute(e.target.value)}
+                                      placeholder="ex: 12:34 ou 5"
+                                      className="w-24 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--igh-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--igh-primary)]"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleSaveEditNote()}
+                                      disabled={savingEditNoteId === note.id || !editNoteContent.trim()}
+                                      className="rounded-lg bg-[var(--igh-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                                    >
+                                      {savingEditNoteId === note.id ? "Salvando..." : "Salvar"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={cancelEditNote}
+                                      disabled={savingEditNoteId === note.id}
+                                      className="rounded border border-[var(--card-border)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] disabled:opacity-60"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="whitespace-pre-wrap text-[var(--text-primary)]">{note.content}</p>
+                              )}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteNote(note.id)}
-                              className="shrink-0 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 focus-visible:outline focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-                              title="Excluir anotação"
-                            >
-                              Excluir
-                            </button>
+                            {editingNoteId !== note.id && (
+                              <div className="flex shrink-0 gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => startEditNote(note)}
+                                  className="rounded px-2 py-1 text-xs font-medium text-[var(--igh-primary)] hover:bg-[var(--igh-surface)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                                  title="Editar anotação"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteNote(note.id)}
+                                  disabled={removingNoteId === note.id}
+                                  className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950 focus-visible:outline focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:opacity-60"
+                                  title="Excluir anotação"
+                                >
+                                  {removingNoteId === note.id ? "Excluindo..." : "Excluir"}
+                                </button>
+                              </div>
+                            )}
                           </li>
                         ))}
                       </ul>
