@@ -33,19 +33,45 @@ type AttendanceGridProps = {
   onEnrollmentChange?: () => void;
 };
 
-const MARK_OPTIONS: AttendanceMark[] = ["P", "F", "J"];
+const MARK_BUTTONS: { mark: AttendanceMark; label: string }[] = [
+  { mark: "P", label: "Presença" },
+  { mark: "J", label: "Justificado" },
+  { mark: "F", label: "Falta" },
+];
 
-function selectClass(mark: AttendanceMark | null, saving: boolean): string {
-  const base =
-    "h-9 min-w-[3.5rem] w-full max-w-[4.75rem] rounded border px-1 text-center text-xs font-bold tabular-nums transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-1";
-  if (saving) return `${base} opacity-60`;
-  if (mark === "P")
-    return `${base} border-emerald-300 bg-emerald-200 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-100`;
-  if (mark === "F")
-    return `${base} border-rose-300 bg-rose-200 text-rose-900 dark:border-rose-700 dark:bg-rose-900/50 dark:text-rose-100`;
-  if (mark === "J")
-    return `${base} border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200`;
-  return `${base} border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/50 text-[var(--text-muted)]`;
+function markButtonClass(
+  option: AttendanceMark,
+  selected: AttendanceMark | null,
+  position: "first" | "middle" | "last"
+): string {
+  const rounded =
+    position === "first"
+      ? "rounded-l-md rounded-r-none"
+      : position === "last"
+        ? "rounded-r-md rounded-l-none"
+        : "rounded-none";
+  const base = `inline-flex h-7 w-6 shrink-0 items-center justify-center border text-[11px] font-bold leading-none transition-all focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-1 disabled:cursor-wait ${rounded}`;
+
+  const isSelected = selected === option;
+  const hasSelection = selected != null;
+
+  if (option === "P") {
+    if (isSelected) {
+      return `${base} z-[1] border-emerald-600 bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-600 dark:border-emerald-400 dark:bg-emerald-500 dark:text-emerald-950`;
+    }
+    return `${base} border-emerald-400/70 bg-emerald-100 text-emerald-800 ${hasSelection ? "opacity-40" : "opacity-80"} hover:opacity-100 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200`;
+  }
+  if (option === "J") {
+    if (isSelected) {
+      return `${base} z-[1] -ml-px border-amber-600 bg-amber-400 text-amber-950 shadow-sm ring-1 ring-amber-600 dark:border-amber-300 dark:bg-amber-400 dark:text-amber-950`;
+    }
+    return `${base} -ml-px border-amber-400/70 bg-amber-100 text-amber-900 ${hasSelection ? "opacity-40" : "opacity-80"} hover:opacity-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200`;
+  }
+  // F
+  if (isSelected) {
+    return `${base} z-[1] -ml-px border-rose-600 bg-rose-500 text-white shadow-sm ring-1 ring-rose-600 dark:border-rose-400 dark:bg-rose-500 dark:text-rose-950`;
+  }
+  return `${base} -ml-px border-rose-400/70 bg-rose-100 text-rose-800 ${hasSelection ? "opacity-40" : "opacity-80"} hover:opacity-100 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-200`;
 }
 
 function markLabel(mark: AttendanceMark | null): string {
@@ -53,6 +79,12 @@ function markLabel(mark: AttendanceMark | null): string {
   if (mark === "F") return "F (falta)";
   if (mark === "J") return "J (justificado)";
   return "não marcado";
+}
+
+function markPosition(index: number, total: number): "first" | "middle" | "last" {
+  if (index === 0) return "first";
+  if (index === total - 1) return "last";
+  return "middle";
 }
 
 export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: AttendanceGridProps) {
@@ -201,10 +233,11 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
         <p className="text-center text-sm font-semibold text-[var(--text-primary)]">{title}</p>
       )}
       <p className="text-xs text-[var(--text-muted)]">
-        Escolha em cada célula: <span className="font-semibold text-emerald-700">P</span> (presente),{" "}
-        <span className="font-semibold text-rose-700">F</span> (falta) ou{" "}
-        <span className="font-semibold text-rose-600">J</span> (justificado). Células vazias ficam sem
-        lançamento até você selecionar. A frequência é calculada com base nas aulas já lançadas.
+        Em cada célula, clique direto no status:{" "}
+        <span className="font-semibold text-emerald-700">P</span> (presente),{" "}
+        <span className="font-semibold text-amber-700">J</span> (justificado) ou{" "}
+        <span className="font-semibold text-rose-700">F</span> (falta). Células sem destaque ainda
+        não foram lançadas. A frequência é calculada com base nas aulas já lançadas.
       </p>
       <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
         <table className="min-w-full border-collapse text-sm">
@@ -242,7 +275,7 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
               {sessions.map((s) => (
                 <th
                   key={s.id}
-                  className="min-w-[3.5rem] px-1 py-1 text-center text-[10px] font-semibold text-[var(--text-muted)]"
+                  className="min-w-[4.75rem] px-1 py-1 text-center text-[10px] font-semibold text-[var(--text-muted)]"
                   scope="col"
                   title={s.lessonTitle ?? undefined}
                 >
@@ -257,7 +290,7 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
               {sessions.map((s) => (
                 <th
                   key={`${s.id}-date`}
-                  className="min-w-[3.5rem] px-1 py-1 text-center text-[10px] font-medium text-[var(--text-muted)]"
+                  className="min-w-[4.75rem] px-1 py-1 text-center text-[10px] font-medium text-[var(--text-muted)]"
                   scope="col"
                 >
                   {s.sessionDateLabel}
@@ -285,30 +318,37 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
                   const key = `${row.enrollmentId}:${s.id}`;
                   const saving = savingKey === key;
                   return (
-                    <td key={s.id} className="px-1 py-1 text-center">
-                      <select
-                        value={mark ?? ""}
-                        disabled={saving}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value !== "P" && value !== "F" && value !== "J") return;
-                          void handleMarkChange(row.enrollmentId, s.id, value);
-                        }}
-                        className={selectClass(mark, saving)}
+                    <td key={s.id} className="px-0.5 py-1 text-center">
+                      <div
+                        className={`inline-flex items-stretch ${saving ? "pointer-events-none opacity-60" : ""}`}
+                        role="group"
                         title={`${row.studentName} — ${s.sessionDateLabel}: ${markLabel(mark)}`}
                         aria-label={`Frequência de ${row.studentName} em ${s.sessionDateLabel}`}
                       >
-                        {mark == null && (
-                          <option value="" disabled>
-                            —
-                          </option>
-                        )}
-                        {MARK_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
+                        {MARK_BUTTONS.map((btn, btnIndex) => {
+                          const selected = mark === btn.mark;
+                          return (
+                            <button
+                              key={btn.mark}
+                              type="button"
+                              disabled={saving}
+                              aria-pressed={selected}
+                              aria-label={`${btn.label} (${btn.mark})`}
+                              title={btn.label}
+                              onClick={() => {
+                                void handleMarkChange(row.enrollmentId, s.id, btn.mark);
+                              }}
+                              className={markButtonClass(
+                                btn.mark,
+                                mark,
+                                markPosition(btnIndex, MARK_BUTTONS.length)
+                              )}
+                            >
+                              {btn.mark}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </td>
                   );
                 })}
