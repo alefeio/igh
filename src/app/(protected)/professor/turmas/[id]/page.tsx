@@ -10,6 +10,7 @@ import { AttendanceGrid } from "@/components/professor/AttendanceGrid";
 import { ForumPostBody } from "@/components/forum/ForumPostBody";
 import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import type { ApiResponse } from "@/lib/api-types";
 import { isForumPostEmpty } from "@/lib/forum-question-content";
 import { buildStudentsVcfFile, classGroupVcfFileName, studentVcfContactLabel } from "@/lib/student-vcf";
@@ -187,6 +188,26 @@ function whatsappGroupInviteChatUrl(
   return `https://wa.me/${full}?text=${encodeURIComponent(text)}`;
 }
 
+const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Ativa",
+  SUSPENDED: "Suspensa",
+  CANCELLED: "Cancelada",
+  COMPLETED: "Concluída",
+};
+
+function enrollmentStatusBadgeClass(status: string | undefined): string {
+  switch (status) {
+    case "SUSPENDED":
+      return "bg-amber-500/15 text-amber-900 dark:text-amber-200";
+    case "COMPLETED":
+      return "bg-sky-500/15 text-sky-900 dark:text-sky-200";
+    case "CANCELLED":
+      return "bg-rose-500/15 text-rose-900 dark:text-rose-200";
+    default:
+      return "bg-emerald-500/15 text-emerald-900 dark:text-emerald-200";
+  }
+}
+
 export default function ProfessorTurmaDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -200,6 +221,13 @@ export default function ProfessorTurmaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
   const [togglingCertificateId, setTogglingCertificateId] = useState<string | null>(null);
+  const [updatingEnrollmentId, setUpdatingEnrollmentId] = useState<string | null>(null);
+  const [enrollmentStatusConfirm, setEnrollmentStatusConfirm] = useState<{
+    enrollment: Enrollment;
+    nextStatus: "ACTIVE" | "SUSPENDED" | "CANCELLED";
+    title: string;
+    message: string;
+  } | null>(null);
   const [exportingVcf, setExportingVcf] = useState(false);
   const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
 
@@ -347,6 +375,56 @@ export default function ProfessorTurmaDetailPage() {
       toast.push("error", "Falha de rede ao enviar os e-mails.");
     } finally {
       setSendingWelcomeEmails(false);
+    }
+  }
+
+  function requestEnrollmentStatusChange(
+    enrollment: Enrollment,
+    nextStatus: "ACTIVE" | "SUSPENDED" | "CANCELLED",
+    title: string,
+    message: string,
+  ) {
+    if (updatingEnrollmentId) return;
+    setEnrollmentStatusConfirm({ enrollment, nextStatus, title, message });
+  }
+
+  async function confirmEnrollmentStatusChange() {
+    if (!enrollmentStatusConfirm || updatingEnrollmentId) return;
+    const { enrollment, nextStatus } = enrollmentStatusConfirm;
+    setEnrollmentStatusConfirm(null);
+
+    setUpdatingEnrollmentId(enrollment.id);
+    try {
+      const res = await fetch(`/api/enrollments/${enrollment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const json = (await res.json()) as ApiResponse<unknown>;
+      if (!res.ok || !json?.ok) {
+        const msg =
+          json && "error" in json
+            ? ((json.error as { message?: string }).message ?? "Não foi possível alterar a matrícula.")
+            : "Não foi possível alterar a matrícula.";
+        toast.push("error", msg);
+        return;
+      }
+
+      if (nextStatus === "CANCELLED") {
+        setEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
+        toast.push("success", `Matrícula de ${enrollment.studentName} cancelada.`);
+      } else {
+        setEnrollments((prev) =>
+          prev.map((e) => (e.id === enrollment.id ? { ...e, status: nextStatus } : e)),
+        );
+        const label = ENROLLMENT_STATUS_LABELS[nextStatus] ?? nextStatus;
+        toast.push("success", `Matrícula de ${enrollment.studentName} atualizada para ${label.toLowerCase()}.`);
+      }
+      void loadClassGroup();
+    } catch {
+      toast.push("error", "Erro ao alterar a matrícula.");
+    } finally {
+      setUpdatingEnrollmentId(null);
     }
   }
 
@@ -790,9 +868,11 @@ export default function ProfessorTurmaDetailPage() {
                             Sem e-mail
                           </span>
                         )}
-                        {e.status === "SUSPENDED" && (
-                          <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-200">
-                            Suspensa
+                        {e.status && (
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${enrollmentStatusBadgeClass(e.status)}`}
+                          >
+                            {ENROLLMENT_STATUS_LABELS[e.status] ?? e.status}
                           </span>
                         )}
                       </div>
@@ -890,6 +970,63 @@ export default function ProfessorTurmaDetailPage() {
                         {e.certificateEligible ? "Sim" : "Não"}
                       </span>
                     </label>
+                    {(e.status === "ACTIVE" || e.status === "SUSPENDED") && (
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {e.status === "ACTIVE" && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={updatingEnrollmentId === e.id}
+                            onClick={() =>
+                              requestEnrollmentStatusChange(
+                                e,
+                                "SUSPENDED",
+                                "Suspender matrícula",
+                                `Suspender a matrícula de ${e.studentName}? O aluno permanecerá na turma, mas com matrícula suspensa.`,
+                              )
+                            }
+                          >
+                            Suspender
+                          </Button>
+                        )}
+                        {e.status === "SUSPENDED" && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={updatingEnrollmentId === e.id}
+                            onClick={() =>
+                              requestEnrollmentStatusChange(
+                                e,
+                                "ACTIVE",
+                                "Reativar matrícula",
+                                `Reativar a matrícula de ${e.studentName}?`,
+                              )
+                            }
+                          >
+                            Reativar
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={updatingEnrollmentId === e.id}
+                          onClick={() =>
+                            requestEnrollmentStatusChange(
+                              e,
+                              "CANCELLED",
+                              "Cancelar matrícula",
+                              `Cancelar a matrícula de ${e.studentName}? Se houver aluno na lista de espera, a vaga poderá ser preenchida automaticamente.`,
+                            )
+                          }
+                          className="text-rose-700 hover:text-rose-800 dark:text-rose-300"
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </li>
                 );
@@ -1119,6 +1256,32 @@ export default function ProfessorTurmaDetailPage() {
           />
         </section>
       )}
+
+      <Modal
+        open={enrollmentStatusConfirm != null}
+        title={enrollmentStatusConfirm?.title ?? "Confirmar alteração"}
+        size="small"
+        onClose={() => setEnrollmentStatusConfirm(null)}
+      >
+        <p className="text-sm text-[var(--text-secondary)]">{enrollmentStatusConfirm?.message}</p>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={() => setEnrollmentStatusConfirm(null)}>
+            Voltar
+          </Button>
+          <Button
+            type="button"
+            disabled={updatingEnrollmentId != null}
+            onClick={() => void confirmEnrollmentStatusChange()}
+            className={
+              enrollmentStatusConfirm?.nextStatus === "CANCELLED"
+                ? "bg-rose-600 hover:bg-rose-700 text-white"
+                : undefined
+            }
+          >
+            Confirmar
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

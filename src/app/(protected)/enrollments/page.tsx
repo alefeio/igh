@@ -1292,7 +1292,6 @@ export default function EnrollmentsPage() {
         reloadToken={waitlistReloadToken}
         isMaster={isMaster}
         canRemove={isExactMaster(user)}
-        canRegisterStudent={!isTeacher}
         getActiveEnrollmentCountInCycle={getActiveEnrollmentCountInCycle}
       />
 
@@ -2153,11 +2152,9 @@ export default function EnrollmentsPage() {
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-2">
             <label className="text-sm font-medium">Aluno</label>
-            {!isTeacher && (
-              <Button type="button" variant="secondary" onClick={() => setOpenNewStudent(true)}>
-                Cadastrar aluno
-              </Button>
-            )}
+            <Button type="button" variant="secondary" onClick={() => setOpenNewStudent(true)}>
+              Cadastrar aluno
+            </Button>
           </div>
           <div ref={studentComboboxRef} className="relative">
             <input

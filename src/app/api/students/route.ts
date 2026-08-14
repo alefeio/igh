@@ -121,7 +121,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR", "TEACHER"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createStudentSchema.safeParse(body);

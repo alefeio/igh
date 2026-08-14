@@ -14,13 +14,32 @@ export function isUnjustifiedAbsence(row: {
   return (row.absenceJustification ?? "").trim().length === 0;
 }
 
-/** Faltas consecutivas sem justificativa, da aula mais recente para trás (só sessões com frequência lançada). */
+/**
+ * Conta faltas consecutivas sem justificativa entre sessões já lançadas,
+ * da mais recente para trás. Sessões liberadas sem lançamento são ignoradas
+ * (não interrompem a sequência — evita zerar o streak quando há aulas futuras).
+ */
+export function countConsecutiveUnjustifiedAbsenceStreak(
+  sessionsNewestFirst: { id: string }[],
+  attendanceBySessionId: Map<string, { present: boolean; absenceJustification: string | null }>,
+): number {
+  let streak = 0;
+  for (const session of sessionsNewestFirst) {
+    const row = attendanceBySessionId.get(session.id);
+    if (!row) continue;
+    if (isUnjustifiedAbsence(row)) streak += 1;
+    else break;
+  }
+  return streak;
+}
+
+/** Faltas consecutivas sem justificativa, da aula mais recente para trás (sessões liberadas). */
 export async function getConsecutiveUnjustifiedAbsenceStreak(
   enrollmentId: string,
   classGroupId: string
 ): Promise<number> {
   const sessions = await prisma.classSession.findMany({
-    where: { classGroupId, status: { not: "CANCELED" } },
+    where: { classGroupId, status: "LIBERADA" },
     orderBy: [{ sessionDate: "desc" }, { startTime: "desc" }],
     select: { id: true },
   });
@@ -33,14 +52,7 @@ export async function getConsecutiveUnjustifiedAbsenceStreak(
   });
   const bySession = new Map(attendances.map((a) => [a.classSessionId, a]));
 
-  let streak = 0;
-  for (const session of sessions) {
-    const row = bySession.get(session.id);
-    if (!row) break;
-    if (isUnjustifiedAbsence(row)) streak += 1;
-    else break;
-  }
-  return streak;
+  return countConsecutiveUnjustifiedAbsenceStreak(sessions, bySession);
 }
 
 type AttendancePatchRow = {
