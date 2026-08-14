@@ -125,6 +125,7 @@ export async function POST(request: Request) {
             responsibleName: row.responsibleName,
             notes: row.notes,
             createdByUserId: actor.id,
+            expenseNature: "VARIAVEL",
           },
         });
       }),

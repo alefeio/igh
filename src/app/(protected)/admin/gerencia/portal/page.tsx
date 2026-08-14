@@ -37,6 +37,8 @@ type Submission = {
   status: "PENDENTE" | "APROVADA" | "RECUSADA";
   reviewNotes: string | null;
   financialEntryId: string | null;
+  bankMismatch?: boolean;
+  bankMismatchDetails?: string | null;
   createdAt: string;
 };
 
@@ -117,6 +119,16 @@ const DRIVER_KIND_LABEL: Record<DriverLog["kind"], string> = {
   NOTA_SERVICO: "Nota de serviço",
   OCORRENCIA: "Ocorrência",
 };
+
+function parseBankMismatchDetails(raw: string | null): { mismatches?: string[] } | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { mismatches?: string[] };
+    return parsed;
+  } catch {
+    return { mismatches: [raw] };
+  }
+}
 
 function parseTab(raw: string | null): TabId {
   if (raw === "mensagens" || raw === "limpeza" || raw === "motorista") return raw;
@@ -592,13 +604,29 @@ function GerenciaPortalPageInner() {
                 </tr>
               </thead>
               <tbody>
-                {submissions.map((s) => (
-                  <tr key={s.id}>
+                {submissions.map((s) => {
+                  const mismatch = parseBankMismatchDetails(
+                    s.bankMismatch ? (s.bankMismatchDetails ?? null) : null,
+                  );
+                  return (
+                  <tr key={s.id} className={s.bankMismatch ? "bg-amber-50/80 dark:bg-amber-950/25" : undefined}>
                     <Td>
                       <div className="font-medium">{s.employeeName}</div>
                       <div className="text-xs text-[var(--text-muted)]">{s.employeePosition}</div>
                       {s.supplier ? (
                         <div className="text-xs text-[var(--text-muted)]">{s.supplier}</div>
+                      ) : null}
+                      {s.bankMismatch ? (
+                        <div className="mt-1.5 space-y-1">
+                          <Badge tone="amber">Divergência bancária</Badge>
+                          {mismatch?.mismatches?.length ? (
+                            <ul className="list-inside list-disc text-xs text-amber-900 dark:text-amber-100">
+                              {mismatch.mismatches.slice(0, 4).map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </div>
                       ) : null}
                     </Td>
                     <Td>{s.referenceMonthLabel}</Td>
@@ -659,7 +687,8 @@ function GerenciaPortalPageInner() {
                       )}
                     </Td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </Table>
           )}

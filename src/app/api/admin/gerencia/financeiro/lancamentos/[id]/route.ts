@@ -5,6 +5,7 @@ import {
   financialEntryInclude,
   serializeFinancialEntry,
 } from "@/lib/financeiro-db";
+import { resolveSaidaExpenseNature } from "@/lib/financeiro";
 import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
@@ -43,7 +44,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const existing = await prisma.financialEntry.findFirst({
     where: { id, deletedAt: null },
-    select: { id: true, kind: true, paymentStatus: true, paidAt: true },
+    select: { id: true, kind: true, paymentStatus: true, paidAt: true, expenseNature: true },
   });
   if (!existing) return jsonErr("NOT_FOUND", "Lançamento não encontrado.", 404);
 
@@ -76,6 +77,15 @@ export async function PATCH(request: Request, ctx: Ctx) {
     }
   }
 
+  let expenseNatureUpdate: ReturnType<typeof resolveSaidaExpenseNature> | undefined;
+  if (nextKind === "ENTRADA") {
+    expenseNatureUpdate = null;
+  } else if (data.expenseNature !== undefined) {
+    expenseNatureUpdate = resolveSaidaExpenseNature("SAIDA", data.expenseNature);
+  } else if (data.kind === "SAIDA" && existing.expenseNature == null) {
+    expenseNatureUpdate = "VARIAVEL";
+  }
+
   const entry = await prisma.financialEntry.update({
     where: { id },
     data: {
@@ -96,6 +106,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
       attachmentUrl: data.attachmentUrl === undefined ? undefined : data.attachmentUrl,
       attachmentPublicId: data.attachmentPublicId === undefined ? undefined : data.attachmentPublicId,
       attachmentFileName: data.attachmentFileName === undefined ? undefined : data.attachmentFileName,
+      expenseNature: expenseNatureUpdate,
     },
     include: financialEntryInclude,
   });

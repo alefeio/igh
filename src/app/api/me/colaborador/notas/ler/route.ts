@@ -1,12 +1,13 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
-import { requireEmployeePortal } from "@/lib/employee-portal";
+import { getEmployeeBankCheck, requireEmployeePortal } from "@/lib/employee-portal";
 import { readInvoiceAttachment } from "@/lib/financeiro-invoice-read";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { readInvoiceSchema } from "@/lib/validators/employee-portal";
 
 export async function POST(request: Request) {
+  let ctx;
   try {
-    await requireEmployeePortal();
+    ctx = await requireEmployeePortal();
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;
@@ -24,7 +25,8 @@ export async function POST(request: Request) {
       attachmentUrl: parsed.data.attachmentUrl,
       attachmentFileName: parsed.data.attachmentFileName,
     });
-    return jsonOk(result);
+    const bankCheck = await getEmployeeBankCheck(ctx.employee.id, result.suggestion);
+    return jsonOk({ ...result, bankCheck });
   } catch (e) {
     console.error("[colaborador/notas/ler]", e);
     return jsonErr("READ_FAILED", "Falha ao ler a nota. Preencha o formulário manualmente.", 500);

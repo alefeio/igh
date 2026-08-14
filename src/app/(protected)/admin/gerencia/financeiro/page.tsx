@@ -1,7 +1,7 @@
 "use client";
 
 import * as XLSX from "xlsx";
-import { ArrowDownCircle, ArrowUpCircle, Download, Plus, Scale, Search, Upload } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Download, Pin, Plus, Repeat, Scale, Search, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardHero, PanelPageStack, SectionCard, StatTile } from "@/components/dashboard/DashboardUI";
@@ -21,8 +21,11 @@ import {
 } from "@/lib/apimages-upload";
 import { formatCentsBRL, formatReferenceMonth } from "@/lib/employees";
 import {
+  displayExpenseNature,
   FINANCIAL_ENTRY_KIND_LABEL,
   FINANCIAL_ENTRY_KINDS,
+  FINANCIAL_EXPENSE_NATURE_LABEL,
+  FINANCIAL_EXPENSE_NATURES,
   FINANCIAL_PAYMENT_METHOD_LABEL,
   FINANCIAL_PAYMENT_METHODS,
   FINANCIAL_PAYMENT_STATUS_LABEL,
@@ -36,18 +39,41 @@ import {
 import { brazilTodayIsoDate, isPastDueDate } from "@/lib/financeiro-payment-shared";
 import type {
   FinancialEntryKind,
+  FinancialExpenseNature,
   FinancialPaymentMethod,
   FinancialPaymentStatus,
 } from "@/generated/prisma/client";
 
 type PoloOption = { id: string; name: string };
 type UserOption = { id: string; name: string; email: string };
-type Totals = { entradasCents: number; saidasCents: number; saldoCents: number };
+type Totals = {
+  entradasCents: number;
+  saidasCents: number;
+  saidasFixasCents?: number;
+  saidasVariaveisCents?: number;
+  saldoCents: number;
+};
 type PaymentAlerts = {
   dueSoonCount: number;
   dueTodayCount: number;
   overdueCount: number;
   dueSoonDays: number;
+};
+type FixedExpenseAlert = {
+  description: string;
+  categoryName: string | null;
+  expectedAmountCents: number | null;
+  lastEntryDate: string;
+  missingForMonth: string;
+};
+type FixedExpenseForecast = {
+  currentExpectedCents: number;
+  nextExpectedCents: number;
+};
+type FixedExpenseMeta = {
+  targetMonth: string;
+  currentMonth: string;
+  nextMonth: string;
 };
 
 type TabId = "fluxo" | "notas-mei" | "prestacao";
@@ -97,6 +123,7 @@ type EntryForm = {
   attachmentUrl: string;
   attachmentPublicId: string;
   attachmentFileName: string;
+  expenseNature: FinancialExpenseNature | "";
 };
 
 const INVOICE_STATUS_LABEL: Record<string, string> = {
@@ -124,6 +151,7 @@ function emptyForm(): EntryForm {
     attachmentUrl: "",
     attachmentPublicId: "",
     attachmentFileName: "",
+    expenseNature: "VARIAVEL",
   };
 }
 
@@ -147,12 +175,28 @@ export default function FinanceiroPage() {
   const [tab, setTab] = useState<TabId>("fluxo");
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<FinancialEntryView[]>([]);
-  const [totals, setTotals] = useState<Totals>({ entradasCents: 0, saidasCents: 0, saldoCents: 0 });
+  const [totals, setTotals] = useState<Totals>({
+    entradasCents: 0,
+    saidasCents: 0,
+    saidasFixasCents: 0,
+    saidasVariaveisCents: 0,
+    saldoCents: 0,
+  });
   const [alerts, setAlerts] = useState<PaymentAlerts>({
     dueSoonCount: 0,
     dueTodayCount: 0,
     overdueCount: 0,
     dueSoonDays: 7,
+  });
+  const [fixedExpenseAlerts, setFixedExpenseAlerts] = useState<FixedExpenseAlert[]>([]);
+  const [fixedExpenseForecast, setFixedExpenseForecast] = useState<FixedExpenseForecast>({
+    currentExpectedCents: 0,
+    nextExpectedCents: 0,
+  });
+  const [fixedExpenseMeta, setFixedExpenseMeta] = useState<FixedExpenseMeta>({
+    targetMonth: "",
+    currentMonth: "",
+    nextMonth: "",
   });
   const [categories, setCategories] = useState<FinancialCategoryView[]>([]);
   const [polos, setPolos] = useState<PoloOption[]>([]);
@@ -168,6 +212,7 @@ export default function FinanceiroPage() {
   );
   const [categoryFilter, setCategoryFilter] = useState("");
   const [poloFilter, setPoloFilter] = useState("");
+  const [expenseNatureFilter, setExpenseNatureFilter] = useState<"" | FinancialExpenseNature | "NONE">("");
   const [q, setQ] = useState("");
 
   const [formOpen, setFormOpen] = useState(false);
@@ -206,9 +251,21 @@ export default function FinanceiroPage() {
     if (dueAlertFilter) sp.set("dueAlert", dueAlertFilter);
     if (categoryFilter) sp.set("categoryId", categoryFilter);
     if (poloFilter) sp.set("poloId", poloFilter);
+    if (expenseNatureFilter) sp.set("expenseNature", expenseNatureFilter);
     if (q.trim()) sp.set("q", q.trim());
     return sp.toString();
-  }, [month, dateFrom, dateTo, kindFilter, statusFilter, dueAlertFilter, categoryFilter, poloFilter, q]);
+  }, [
+    month,
+    dateFrom,
+    dateTo,
+    kindFilter,
+    statusFilter,
+    dueAlertFilter,
+    categoryFilter,
+    poloFilter,
+    expenseNatureFilter,
+    q,
+  ]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -222,6 +279,9 @@ export default function FinanceiroPage() {
         entries: FinancialEntryView[];
         totals: Totals;
         alerts?: PaymentAlerts;
+        fixedExpenseAlerts?: FixedExpenseAlert[];
+        fixedExpenseForecast?: FixedExpenseForecast;
+        fixedExpenseMeta?: FixedExpenseMeta;
       }>;
       const cJson = (await cRes.json()) as ApiResponse<{ categories: FinancialCategoryView[] }>;
       const oJson = (await oRes.json()) as ApiResponse<{ users: UserOption[]; polos: PoloOption[] }>;
@@ -233,6 +293,9 @@ export default function FinanceiroPage() {
       setEntries(eJson.data.entries);
       setTotals(eJson.data.totals);
       if (eJson.data.alerts) setAlerts(eJson.data.alerts);
+      setFixedExpenseAlerts(eJson.data.fixedExpenseAlerts ?? []);
+      if (eJson.data.fixedExpenseForecast) setFixedExpenseForecast(eJson.data.fixedExpenseForecast);
+      if (eJson.data.fixedExpenseMeta) setFixedExpenseMeta(eJson.data.fixedExpenseMeta);
       if (cRes.ok && cJson.ok) setCategories(cJson.data.categories);
       if (oRes.ok && oJson.ok) {
         setUsers(oJson.data.users);
@@ -296,7 +359,11 @@ export default function FinanceiroPage() {
 
   function openCreate(kind: FinancialEntryKind = "SAIDA") {
     setEditing(null);
-    setForm({ ...emptyForm(), kind });
+    setForm({
+      ...emptyForm(),
+      kind,
+      expenseNature: kind === "SAIDA" ? "VARIAVEL" : "",
+    });
     clearSuggestion();
     setFormOpen(true);
   }
@@ -322,6 +389,7 @@ export default function FinanceiroPage() {
       attachmentUrl: entry.attachmentUrl ?? "",
       attachmentPublicId: entry.attachmentPublicId ?? "",
       attachmentFileName: entry.attachmentFileName ?? "",
+      expenseNature: entry.kind === "SAIDA" ? (entry.expenseNature ?? "VARIAVEL") : "",
     });
     setFormOpen(true);
   }
@@ -496,6 +564,7 @@ export default function FinanceiroPage() {
             attachmentUrl: form.attachmentUrl || null,
             attachmentPublicId: form.attachmentPublicId || null,
             attachmentFileName: form.attachmentFileName || null,
+            expenseNature: form.kind === "SAIDA" ? form.expenseNature || "VARIAVEL" : null,
           }
         : {
             kind: form.kind,
@@ -514,6 +583,7 @@ export default function FinanceiroPage() {
             attachmentUrl: form.attachmentUrl || null,
             attachmentPublicId: form.attachmentPublicId || null,
             attachmentFileName: form.attachmentFileName || null,
+            expenseNature: form.kind === "SAIDA" ? form.expenseNature || "VARIAVEL" : null,
           };
       const res = await fetch(
         editing
@@ -639,6 +709,7 @@ export default function FinanceiroPage() {
       Descrição: e.description,
       Valor: e.amountCents / 100,
       Categoria: e.category?.name ?? "",
+      Natureza: displayExpenseNature(e.kind, e.expenseNature),
       Pagamento: FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod],
       Polo: e.polo?.name ?? "",
       Responsável: responsibleLabel(e),
@@ -665,6 +736,7 @@ export default function FinanceiroPage() {
             <td>${formatEntryDate(e.entryDate)}</td>
             <td>${FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus]}</td>
             <td>${FINANCIAL_ENTRY_KIND_LABEL[e.kind]}</td>
+            <td>${displayExpenseNature(e.kind, e.expenseNature)}</td>
             <td>${e.description}</td>
             <td style="text-align:right">${formatCentsBRL(e.amountCents)}</td>
             <td>${e.category?.name ?? "—"}</td>
@@ -685,11 +757,14 @@ export default function FinanceiroPage() {
       <h1>Relatório financeiro</h1>
       <div class="meta">Período: ${month || (dateFrom || dateTo ? `${dateFrom || "…"} a ${dateTo || "…"}` : "todos")} · ${entries.length} lançamento(s)</div>
       <table><thead><tr>
-        <th>Data de vencimento</th><th>Status</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Responsável</th>
+        <th>Data de vencimento</th><th>Status</th><th>Tipo</th><th>Natureza</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Responsável</th>
       </tr></thead><tbody>${rowsHtml}</tbody></table>
       <div class="totais">
         Entradas: <strong>${formatCentsBRL(totals.entradasCents)}</strong> ·
-        Saídas: <strong>${formatCentsBRL(totals.saidasCents)}</strong> ·
+        Saídas: <strong>${formatCentsBRL(totals.saidasCents)}</strong>
+        ${totals.saidasFixasCents != null ? ` · Fixas: <strong>${formatCentsBRL(totals.saidasFixasCents)}</strong>` : ""}
+        ${totals.saidasVariaveisCents != null ? ` · Variáveis: <strong>${formatCentsBRL(totals.saidasVariaveisCents)}</strong>` : ""}
+         ·
         Saldo: <strong>${formatCentsBRL(totals.saldoCents)}</strong>
       </div>
       <script>window.onload=()=>window.print()</script>
@@ -708,6 +783,7 @@ export default function FinanceiroPage() {
       "Destino / observação": e.notes ?? "",
       Responsável: responsibleLabel(e),
       Tipo: FINANCIAL_ENTRY_KIND_LABEL[e.kind],
+      Natureza: displayExpenseNature(e.kind, e.expenseNature),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -910,6 +986,48 @@ export default function FinanceiroPage() {
         </div>
       ) : null}
 
+      {(tab === "fluxo" || tab === "prestacao") &&
+      (fixedExpenseAlerts.length > 0 ||
+        fixedExpenseForecast.currentExpectedCents > 0 ||
+        fixedExpenseForecast.nextExpectedCents > 0) ? (
+        <div className="space-y-2 rounded-md border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
+          <p className="font-medium">Despesas fixas previstas</p>
+          {fixedExpenseMeta.currentMonth ? (
+            <p className="text-[var(--text)] dark:text-sky-50">
+              Previsão {formatReferenceMonth(`${fixedExpenseMeta.currentMonth}-01`)}:{" "}
+              <strong>{formatCentsBRL(fixedExpenseForecast.currentExpectedCents)}</strong>
+              {" · "}
+              {formatReferenceMonth(`${fixedExpenseMeta.nextMonth}-01`)}:{" "}
+              <strong>{formatCentsBRL(fixedExpenseForecast.nextExpectedCents)}</strong>
+            </p>
+          ) : null}
+          {fixedExpenseAlerts.length > 0 ? (
+            <>
+              <p className="font-medium text-amber-900 dark:text-amber-100">
+                Sem lançamento em {formatReferenceMonth(`${fixedExpenseMeta.targetMonth}-01`)}
+              </p>
+              <ul className="list-inside list-disc space-y-1 text-[var(--text)] dark:text-sky-50">
+                {fixedExpenseAlerts.slice(0, 8).map((a) => (
+                  <li key={`${a.description}-${a.missingForMonth}-${a.lastEntryDate}`}>
+                    {a.description}
+                    {a.categoryName ? ` · ${a.categoryName}` : ""}
+                    {a.expectedAmountCents
+                      ? ` · previsto ${formatCentsBRL(a.expectedAmountCents)}`
+                      : ""}
+                    {" · último em "}
+                    {formatEntryDate(a.lastEntryDate)}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="text-[var(--text)] dark:text-sky-50">
+              Todas as despesas fixas previstas já têm lançamento no período de referência.
+            </p>
+          )}
+        </div>
+      ) : null}
+
       {tab === "fluxo" || tab === "prestacao" ? (
         <>
           {tab === "prestacao" ? (
@@ -928,7 +1046,7 @@ export default function FinanceiroPage() {
               />
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <StatTile
                 label="Entradas"
                 value={formatCentsBRL(totals.entradasCents)}
@@ -940,6 +1058,18 @@ export default function FinanceiroPage() {
                 value={formatCentsBRL(totals.saidasCents)}
                 icon={ArrowDownCircle}
                 accent="rose"
+              />
+              <StatTile
+                label="Saídas fixas"
+                value={formatCentsBRL(totals.saidasFixasCents ?? 0)}
+                icon={Pin}
+                accent="sky"
+              />
+              <StatTile
+                label="Saídas variáveis"
+                value={formatCentsBRL(totals.saidasVariaveisCents ?? 0)}
+                icon={Repeat}
+                accent="amber"
               />
               <StatTile label="Saldo" value={formatCentsBRL(totals.saldoCents)} icon={Scale} accent="sky" />
             </div>
@@ -1040,6 +1170,24 @@ export default function FinanceiroPage() {
                       ))}
                     </select>
                   </label>
+                  <label className="block text-sm">
+                    <span className="text-[var(--text-muted)]">Natureza (saídas)</span>
+                    <select
+                      className={`mt-1 ${selectClass}`}
+                      value={expenseNatureFilter}
+                      onChange={(e) =>
+                        setExpenseNatureFilter(e.target.value as "" | FinancialExpenseNature | "NONE")
+                      }
+                    >
+                      <option value="">Todas</option>
+                      {FINANCIAL_EXPENSE_NATURES.map((n) => (
+                        <option key={n} value={n}>
+                          {FINANCIAL_EXPENSE_NATURE_LABEL[n]}
+                        </option>
+                      ))}
+                      <option value="NONE">Sem classificação</option>
+                    </select>
+                  </label>
                 </>
               ) : null}
               <label className="block text-sm">
@@ -1088,6 +1236,7 @@ export default function FinanceiroPage() {
                     <Th>Descrição</Th>
                     <Th>Vencimento</Th>
                     <Th>Status</Th>
+                    <Th>Natureza</Th>
                     <Th>Valor</Th>
                     <Th>Forma de pagamento</Th>
                     <Th>Destino / observação</Th>
@@ -1106,6 +1255,19 @@ export default function FinanceiroPage() {
                           {e.dueUrgency === "due_today" && e.paymentStatus !== "PAGO" ? " · hoje" : ""}
                           {e.dueUrgency === "due_soon" && e.paymentStatus === "EM_ABERTO" ? " · a vencer" : ""}
                         </Badge>
+                      </Td>
+                      <Td>
+                        {e.kind === "SAIDA" ? (
+                          <Badge
+                            tone={
+                              e.expenseNature === "FIXA" ? "blue" : e.expenseNature ? "zinc" : "amber"
+                            }
+                          >
+                            {displayExpenseNature(e.kind, e.expenseNature)}
+                          </Badge>
+                        ) : (
+                          "—"
+                        )}
                       </Td>
                       <Td className="whitespace-nowrap font-medium">{formatCentsBRL(e.amountCents)}</Td>
                       <Td>{FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod]}</Td>
@@ -1134,6 +1296,7 @@ export default function FinanceiroPage() {
                     <Th>Vencimento</Th>
                     <Th>Status</Th>
                     <Th>Tipo</Th>
+                    <Th>Natureza</Th>
                     <Th>Descrição</Th>
                     <Th>Valor</Th>
                     <Th>Categoria</Th>
@@ -1157,6 +1320,19 @@ export default function FinanceiroPage() {
                         <Badge tone={e.kind === "ENTRADA" ? "green" : "red"}>
                           {FINANCIAL_ENTRY_KIND_LABEL[e.kind]}
                         </Badge>
+                      </Td>
+                      <Td>
+                        {e.kind === "SAIDA" ? (
+                          <Badge
+                            tone={
+                              e.expenseNature === "FIXA" ? "blue" : e.expenseNature ? "zinc" : "amber"
+                            }
+                          >
+                            {displayExpenseNature(e.kind, e.expenseNature)}
+                          </Badge>
+                        ) : (
+                          "—"
+                        )}
                       </Td>
                       <Td>
                         <div className="font-medium">{e.description}</div>
@@ -1354,7 +1530,12 @@ export default function FinanceiroPage() {
                 value={form.kind}
                 onChange={(e) => {
                   const kind = e.target.value as FinancialEntryKind;
-                  setForm((prev) => ({ ...prev, kind, categoryId: "" }));
+                  setForm((prev) => ({
+                    ...prev,
+                    kind,
+                    categoryId: "",
+                    expenseNature: kind === "SAIDA" ? prev.expenseNature || "VARIAVEL" : "",
+                  }));
                 }}
               >
                 {FINANCIAL_ENTRY_KINDS.map((k) => (
@@ -1364,6 +1545,22 @@ export default function FinanceiroPage() {
                 ))}
               </select>
             </label>
+            {form.kind === "SAIDA" ? (
+              <label className="block text-sm">
+                <span className="text-[var(--text-muted)]">Natureza da despesa</span>
+                <select
+                  className={`mt-1 ${selectClass}`}
+                  value={form.expenseNature || "VARIAVEL"}
+                  onChange={(e) => setField("expenseNature", e.target.value as FinancialExpenseNature)}
+                >
+                  {FINANCIAL_EXPENSE_NATURES.map((n) => (
+                    <option key={n} value={n}>
+                      {FINANCIAL_EXPENSE_NATURE_LABEL[n]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="block text-sm">
               <span className="text-[var(--text-muted)]">Data de vencimento</span>
               <Input

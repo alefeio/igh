@@ -8,6 +8,11 @@ export type InvoiceSuggestion = {
   entryDate?: string;
   /** Nome sugerido da categoria (ex.: Água, Energia). */
   categoryName?: string;
+  bankName?: string;
+  bankAgency?: string;
+  bankAccount?: string;
+  pixKey?: string;
+  prestadorCnpj?: string;
 };
 
 export type KnownBillCategory = {
@@ -153,6 +158,95 @@ function valueAfterLabel(cleaned: string, labelRe: RegExp, maxLookahead = 6): st
   return undefined;
 }
 
+function digitsOrEmpty(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function looksLikeCnpj(value: string): boolean {
+  return digitsOrEmpty(value).length === 14;
+}
+
+function formatMaybeCnpj(value: string): string {
+  const d = digitsOrEmpty(value);
+  if (d.length === 14) {
+    return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+  }
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function trimBankToken(value: string): string {
+  return value
+    .replace(/[.,;]+$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/** Extrai banco/agência/conta/PIX do texto da NF (quando o prestador informa dados de pagamento). */
+export function extractBankPaymentFields(text: string): InvoiceSuggestion {
+  const cleaned = text.replace(/\u00a0/g, " ").replace(/\t/g, " ");
+  const suggestion: InvoiceSuggestion = {};
+
+  const pixRaw =
+    cleaned.match(/chave\s*pix\s*[:\-]?\s*([^\n\r,;]+)/i)?.[1] ||
+    valueAfterLabel(cleaned, /^chave\s*pix\b/i) ||
+    cleaned.match(/\bPIX\s*[:\-]?\s*([^\n\r,;]{3,80})/i)?.[1];
+  if (pixRaw) {
+    const pix = trimBankToken(pixRaw.replace(/^chave\s*pix\s*[:\-]?\s*/i, ""));
+    if (pix && pix !== "-" && pix.length >= 3 && !/^(banco|agencia|conta)\b/i.test(pix)) {
+      suggestion.pixKey = pix.slice(0, 120);
+    }
+  }
+
+  const agencyRaw =
+    cleaned.match(/ag[eê]ncia\s*[:\-]?\s*(\d{1,6}(?:-?\d)?)/i)?.[1] ||
+    valueAfterLabel(cleaned, /^ag[eê]ncia\b/i);
+  if (agencyRaw) {
+    const agency = trimBankToken(agencyRaw);
+    const digits = digitsOrEmpty(agency);
+    if (digits.length >= 1 && digits.length <= 8) suggestion.bankAgency = agency.slice(0, 20);
+  }
+
+  const accountRaw =
+    cleaned.match(
+      /conta(?:\s*(?:corrente|poupan[cç]a|pj|p\.?j\.?|pessoal(?:\s+jur[ií]dica)?))?\s*[:\-]?\s*(\d[\d.\-]*\d)/i,
+    )?.[1] || valueAfterLabel(cleaned, /^conta\b/i);
+  if (accountRaw) {
+    const account = trimBankToken(accountRaw);
+    const digits = digitsOrEmpty(account);
+    if (digits.length >= 4 && digits.length <= 20 && !/pessoal/i.test(account)) {
+      suggestion.bankAccount = account.slice(0, 30);
+    }
+  }
+
+  const compactBank = cleaned.match(
+    /([A-Za-zÁ-ú][A-Za-zÁ-ú0-9 .]{1,40}?)\s*[-–]\s*\d{3,4}\s*\/\s*Ag[eê]ncia/i,
+  )?.[1];
+  const labeledBank =
+    cleaned.match(/\bbanco\s*[:\-]?\s*([^\n\r/,]{2,50})/i)?.[1] ||
+    valueAfterLabel(cleaned, /^banco\b/i);
+  const bankName = trimBankToken(compactBank || labeledBank || "");
+  if (
+    bankName &&
+    bankName.length >= 2 &&
+    !/^(ag[eê]ncia|conta|pix|chave|dados)\b/i.test(bankName) &&
+    !looksLikeCnpj(bankName)
+  ) {
+    suggestion.bankName = bankName.replace(/\s*[-–]\s*\d{3,4}\s*$/, "").slice(0, 80);
+  }
+
+  if (!suggestion.prestadorCnpj) {
+    const labeledCnpj =
+      cleaned.match(
+        /(?:CNPJ\s+do\s+prestador|CNPJ\s*\/\s*CPF\s*\/\s*NIF)\s*[:\-]?\s*(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})/i,
+      )?.[1];
+    if (labeledCnpj && looksLikeCnpj(labeledCnpj)) {
+      suggestion.prestadorCnpj = formatMaybeCnpj(labeledCnpj);
+    }
+  }
+
+  return suggestion;
+}
+
 function parsePtLongDate(day: string, monthName: string, year: string): string | undefined {
   const mm = PT_MONTHS[monthName.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()] ?? PT_MONTHS[monthName.toLowerCase()];
   if (!mm) return undefined;
@@ -259,7 +353,14 @@ export function extractNfseFields(text: string): InvoiceSuggestion | null {
     suggestion.amount = normalizeMoneyCapture(amountRaw.match(MONEY_TOKEN)?.[0] || amountRaw);
   }
 
-  return suggestion;
+  const prestadorCnpj =
+    valueAfterLabel(prestadorText, /^CNPJ\s*\/\s*CPF\s*\/\s*NIF\b/i) ||
+    prestadorText.match(/\b(\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2})\b/)?.[1];
+  if (prestadorCnpj && looksLikeCnpj(prestadorCnpj)) {
+    suggestion.prestadorCnpj = formatMaybeCnpj(prestadorCnpj);
+  }
+
+  return mergeSuggestion(suggestion, extractBankPaymentFields(cleaned));
 }
 
 function findByKeys(
@@ -295,6 +396,11 @@ export function mergeSuggestion(base: InvoiceSuggestion, extra: InvoiceSuggestio
     invoiceNumber: base.invoiceNumber || extra.invoiceNumber,
     entryDate: base.entryDate || extra.entryDate,
     categoryName: base.categoryName || extra.categoryName,
+    bankName: base.bankName || extra.bankName,
+    bankAgency: base.bankAgency || extra.bankAgency,
+    bankAccount: base.bankAccount || extra.bankAccount,
+    pixKey: base.pixKey || extra.pixKey,
+    prestadorCnpj: base.prestadorCnpj || extra.prestadorCnpj,
   };
 }
 
@@ -544,7 +650,7 @@ function extractFieldsFromTextGeneric(text: string): InvoiceSuggestion {
     else if (suggestion.amount) suggestion.description = `Conta / nota R$ ${suggestion.amount}`;
   }
 
-  return suggestion;
+  return mergeSuggestion(suggestion, extractBankPaymentFields(cleaned));
 }
 
 export function parseQrPayload(raw: string): InvoiceSuggestion {

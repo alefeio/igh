@@ -1450,6 +1450,11 @@ model EmployeeInvoiceSubmission {
   reviewedByUserId String?
   financialEntryId String?
   monthlyInvoiceId String?
+  /// * NF com dados bancários/PIX diferentes do cadastro (colaborador confirmou o envio).
+  bankMismatch               Boolean   @default(false)
+  /// * JSON: mismatches, extracted, employeeSnapshot.
+  bankMismatchDetails        String?   @db.Text
+  bankMismatchAcknowledgedAt DateTime?
   createdAt        DateTime                        @default(now())
   updatedAt        DateTime                        @updatedAt
   employee         Employee                        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1597,6 +1602,8 @@ model FinancialEntry {
   attachmentUrl        String?
   attachmentPublicId   String?
   attachmentFileName   String?
+  /// * Só para SAIDA. Null em entradas e lançamentos legados.
+  expenseNature        FinancialExpenseNature?
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
   createdByUserId      String?
@@ -1613,6 +1620,7 @@ model FinancialEntry {
   @@index([deletedAt, entryDate])
   @@index([kind, entryDate])
   @@index([paymentStatus, entryDate])
+  @@index([kind, expenseNature, entryDate])
   @@index([categoryId])
   @@index([poloId])
 }
@@ -2577,6 +2585,8 @@ enum UserNotificationKind {
   EMPLOYEE_CLEANING_REPORT
   /// * Registro do motorista no portal.
   EMPLOYEE_DRIVER_LOG
+  /// * NF do colaborador com dados bancários/PIX divergentes do cadastro.
+  EMPLOYEE_INVOICE_BANK_MISMATCH
 }
 
 /// * Termos de uso, política de privacidade ou política de cookies (LGPD / ePrivacy).
@@ -2816,6 +2826,12 @@ enum DriverLogKind {
 enum FinancialEntryKind {
   ENTRADA
   SAIDA
+}
+
+/// * Classificação de despesa (apenas SAIDA).
+enum FinancialExpenseNature {
+  FIXA
+  VARIAVEL
 }
 
 /// * Ciclo de pagamento da conta (AP): aberto → pago; se vencer sem pagamento → pendente.

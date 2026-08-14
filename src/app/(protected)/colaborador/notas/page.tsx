@@ -40,6 +40,25 @@ type InvoiceSuggestion = {
   entryDate?: string;
 };
 
+type BankCheck = {
+  hasExtractedBankData: boolean;
+  mismatches: string[];
+  employeeSnapshot: {
+    bankName: string | null;
+    bankAgency: string | null;
+    bankAccount: string | null;
+    pixKey: string | null;
+    meiCnpj: string | null;
+  };
+  extracted: {
+    bankName?: string;
+    bankAgency?: string;
+    bankAccount?: string;
+    pixKey?: string;
+    prestadorCnpj?: string;
+  };
+};
+
 const STATUS_LABEL: Record<Submission["status"], string> = {
   PENDENTE: "Em análise",
   APROVADA: "Aprovada",
@@ -87,6 +106,8 @@ export default function ColaboradorNotasPage() {
   const [dragOver, setDragOver] = useState(false);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [preview, setPreview] = useState<Submission | null>(null);
+  const [bankCheck, setBankCheck] = useState<BankCheck | null>(null);
+  const [bankAckOpen, setBankAckOpen] = useState(false);
   const [form, setForm] = useState({
     referenceMonth: new Date().toISOString().slice(0, 7),
     amount: "",
@@ -127,9 +148,13 @@ export default function ColaboradorNotasPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attachmentUrl, attachmentFileName }),
       });
-      const json = (await res.json()) as ApiResponse<{ suggestion: InvoiceSuggestion }>;
+      const json = (await res.json()) as ApiResponse<{
+        suggestion: InvoiceSuggestion;
+        bankCheck?: BankCheck;
+      }>;
       if (!res.ok || !json.ok) return;
       const s = json.data.suggestion;
+      setBankCheck(json.data.bankCheck ?? null);
       setForm((prev) => ({
         ...prev,
         amount: prev.amount || s.amount || "",
@@ -176,6 +201,7 @@ export default function ColaboradorNotasPage() {
         filePublicId: cloud.publicId,
         fileName,
       }));
+      setBankCheck(null);
       toast.push("success", "Arquivo anexado.");
       void readInvoice(cloud.url, fileName);
     } catch {
@@ -185,9 +211,16 @@ export default function ColaboradorNotasPage() {
     }
   }
 
-  async function submit() {
+  async function submit(acknowledgeBankMismatch = false) {
     if (!form.fileUrl) {
       toast.push("error", "Anexe o arquivo da nota.");
+      return;
+    }
+    const pendingMismatch =
+      !acknowledgeBankMismatch &&
+      Boolean(bankCheck?.hasExtractedBankData && bankCheck.mismatches.length > 0);
+    if (pendingMismatch) {
+      setBankAckOpen(true);
       return;
     }
     setSaving(true);
@@ -204,14 +237,23 @@ export default function ColaboradorNotasPage() {
           fileUrl: form.fileUrl,
           filePublicId: form.filePublicId || null,
           fileName: form.fileName || null,
+          acknowledgeBankMismatch,
         }),
       });
       const json = (await res.json()) as ApiResponse<{ submission: Submission }>;
+      if (res.status === 409 && !json.ok && json.error.code === "BANK_MISMATCH") {
+        const details = json.error.details as BankCheck | undefined;
+        if (details?.mismatches?.length) setBankCheck(details);
+        setBankAckOpen(true);
+        return;
+      }
       if (!res.ok || !json.ok) {
         toast.push("error", !json.ok ? json.error.message : "Falha ao enviar a nota.");
         return;
       }
       toast.push("success", "Nota enviada para a gerência.");
+      setBankCheck(null);
+      setBankAckOpen(false);
       setForm({
         referenceMonth: new Date().toISOString().slice(0, 7),
         amount: "",
@@ -345,9 +387,14 @@ export default function ColaboradorNotasPage() {
             {reading ? <span className="text-sm text-[var(--text-muted)]">Lendo a nota…</span> : null}
           </div>
         </div>
+        {bankCheck?.hasExtractedBankData && bankCheck.mismatches.length > 0 ? (
+          <p className="mt-3 text-sm text-amber-800 dark:text-amber-200">
+            Os dados bancários da nota diferem do cadastro. Ao enviar, pediremos uma confirmação.
+          </p>
+        ) : null}
 
         <div className="mt-3 flex justify-end">
-          <Button type="button" onClick={() => void submit()} disabled={saving || !form.fileUrl}>
+          <Button type="button" onClick={() => void submit(false)} disabled={saving || !form.fileUrl}>
             {saving ? "Enviando…" : "Enviar para a gerência"}
           </Button>
         </div>
@@ -456,6 +503,33 @@ export default function ColaboradorNotasPage() {
             </Button>
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={bankAckOpen}
+        title="Dados bancários divergentes"
+        onClose={() => setBankAckOpen(false)}
+        size="small"
+      >
+        <p className="text-sm text-[var(--text-primary)]">
+          A nota informa dados de pagamento diferentes do seu cadastro. Confirme se deseja enviar mesmo
+          assim — a gerência será avisada.
+        </p>
+        {bankCheck?.mismatches.length ? (
+          <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-[var(--text-muted)]">
+            {bankCheck.mismatches.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="mt-4 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={() => setBankAckOpen(false)} disabled={saving}>
+            Voltar
+          </Button>
+          <Button type="button" onClick={() => void submit(true)} disabled={saving}>
+            {saving ? "Enviando…" : "Confirmar e enviar"}
+          </Button>
+        </div>
       </Modal>
     </PanelPageStack>
   );

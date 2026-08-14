@@ -147,14 +147,14 @@ async function tryVisionSuggestion(
       {
         role: "system",
         content:
-          "Você extrai dados de notas fiscais e contas de consumo brasileiras (água, luz, NF-e, NFC-e, NFS-e, recibos). Responda só JSON com chaves opcionais: amount (string brasileira 1.234,56 sem R$), supplier, description, invoiceNumber, entryDate (YYYY-MM-DD, vencimento), categoryName (Água, Energia, Gás, Internet, Telefone, IPTU, Condomínio ou Aluguel quando for conta de consumo). Prefira o valor TOTAL A PAGAR / valor da fatura. Não invente valores; omita o que não estiver legível.",
+          "Você extrai dados de notas fiscais e contas de consumo brasileiras (água, luz, NF-e, NFC-e, NFS-e, recibos). Responda só JSON com chaves opcionais: amount (string brasileira 1.234,56 sem R$), supplier, description, invoiceNumber, entryDate (YYYY-MM-DD, vencimento), categoryName (Água, Energia, Gás, Internet, Telefone, IPTU, Condomínio ou Aluguel quando for conta de consumo), bankName, bankAgency, bankAccount, pixKey, prestadorCnpj. Prefira o valor TOTAL A PAGAR / valor da fatura. Não invente valores; omita o que não estiver legível.",
       },
       {
         role: "user",
         content: [
           {
             type: "text",
-            text: "Extraia valor total, fornecedor/concessionária, descrição curta, número da fatura/nota e data de vencimento ou emissão.",
+            text: "Extraia valor total, fornecedor/concessionária, descrição curta, número da fatura/nota, data de vencimento ou emissão e, se houver, dados bancários/PIX e CNPJ do prestador.",
           },
           { type: "image_url", image_url: { url: dataUrl } },
         ],
@@ -210,6 +210,15 @@ async function tryVisionSuggestion(
       );
       if (guessed) suggestion.categoryName = guessed.name;
     }
+    const copyText = (key: keyof InvoiceSuggestion, max: number) => {
+      const v = parsed[key];
+      if (typeof v === "string" && v.trim()) suggestion[key] = v.trim().slice(0, max);
+    };
+    copyText("bankName", 80);
+    copyText("bankAgency", 20);
+    copyText("bankAccount", 30);
+    copyText("pixKey", 120);
+    copyText("prestadorCnpj", 20);
     return { suggestion };
   } catch (e) {
     return {

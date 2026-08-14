@@ -7,7 +7,9 @@ import {
   serializeFinancialEntry,
   sumFinancialTotals,
   summarizePaymentAlerts,
+  buildFixedExpenseInsights,
 } from "@/lib/financeiro-db";
+import { resolveSaidaExpenseNature } from "@/lib/financeiro";
 import { resolveInitialPaymentStatus, syncFinancialPaymentLifecycle } from "@/lib/financeiro-payment";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
@@ -33,7 +35,7 @@ export async function GET(request: Request) {
   const query = parseFinancialListQuery(new URL(request.url).searchParams);
   const where = financialEntryWhere(query);
 
-  const [entries, totals, count, alerts] = await Promise.all([
+  const [entries, totals, count, alerts, fixedInsights] = await Promise.all([
     prisma.financialEntry.findMany({
       where,
       orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
@@ -43,6 +45,7 @@ export async function GET(request: Request) {
     sumFinancialTotals(where),
     prisma.financialEntry.count({ where }),
     summarizePaymentAlerts(),
+    buildFixedExpenseInsights(query),
   ]);
 
   return jsonOk({
@@ -50,6 +53,13 @@ export async function GET(request: Request) {
     totals,
     count,
     alerts,
+    fixedExpenseAlerts: fixedInsights.alerts,
+    fixedExpenseForecast: fixedInsights.forecast,
+    fixedExpenseMeta: {
+      targetMonth: fixedInsights.targetMonth,
+      currentMonth: fixedInsights.currentMonth,
+      nextMonth: fixedInsights.nextMonth,
+    },
     filters: query,
   });
 }
@@ -107,6 +117,7 @@ export async function POST(request: Request) {
       attachmentUrl: data.attachmentUrl ?? null,
       attachmentPublicId: data.attachmentPublicId ?? null,
       attachmentFileName: data.attachmentFileName ?? null,
+      expenseNature: resolveSaidaExpenseNature(data.kind, data.expenseNature),
       createdByUserId: actor.id,
     },
     include: financialEntryInclude,

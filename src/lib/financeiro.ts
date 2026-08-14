@@ -1,5 +1,6 @@
 import type {
   FinancialEntryKind,
+  FinancialExpenseNature,
   FinancialPaymentMethod,
   FinancialPaymentStatus,
 } from "@/generated/prisma/client";
@@ -15,6 +16,30 @@ export const FINANCIAL_ENTRY_KIND_LABEL: Record<FinancialEntryKind, string> = {
   ENTRADA: "Entrada",
   SAIDA: "Saída",
 };
+
+export const FINANCIAL_EXPENSE_NATURES: readonly FinancialExpenseNature[] = ["FIXA", "VARIAVEL"] as const;
+
+export const FINANCIAL_EXPENSE_NATURE_LABEL: Record<FinancialExpenseNature, string> = {
+  FIXA: "Fixa",
+  VARIAVEL: "Variável",
+};
+
+export function displayExpenseNature(
+  kind: FinancialEntryKind,
+  nature: FinancialExpenseNature | null | undefined,
+): string {
+  if (kind !== "SAIDA") return "—";
+  if (!nature) return "Sem classificação";
+  return FINANCIAL_EXPENSE_NATURE_LABEL[nature];
+}
+
+export function resolveSaidaExpenseNature(
+  kind: FinancialEntryKind,
+  nature: FinancialExpenseNature | null | undefined,
+): FinancialExpenseNature | null {
+  if (kind !== "SAIDA") return null;
+  return nature ?? "VARIAVEL";
+}
 
 export const FINANCIAL_PAYMENT_METHODS: readonly FinancialPaymentMethod[] = [
   "PIX",
@@ -70,6 +95,7 @@ export type FinancialEntryView = {
   attachmentUrl: string | null;
   attachmentPublicId: string | null;
   attachmentFileName: string | null;
+  expenseNature: FinancialExpenseNature | null;
   createdAt: string;
   updatedAt: string;
   category: { id: string; name: string; kind: FinancialEntryKind } | null;

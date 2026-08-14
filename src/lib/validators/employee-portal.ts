@@ -64,6 +64,7 @@ export const createInvoiceSubmissionSchema = z.object({
   fileUrl: httpsUrl,
   filePublicId: optionalText,
   fileName: optionalText,
+  acknowledgeBankMismatch: z.boolean().optional(),
 });
 
 export const adminCreateInvoiceSubmissionSchema = createInvoiceSubmissionSchema.extend({

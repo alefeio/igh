@@ -72,6 +72,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
             responsibleName: existing.employeeName,
             notes: existing.observation,
             createdByUserId: actor.id,
+            expenseNature: "FIXA",
           },
           select: { id: true },
         });

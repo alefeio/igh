@@ -17,6 +17,11 @@ import { requireSessionUser, type SessionUser } from "@/lib/auth";
 import { employeePositionText, formatCentsBRL, formatReferenceMonth } from "@/lib/employees";
 import { matchCategoryName } from "@/lib/financeiro-invoice-parse";
 import { resolveInitialPaymentStatus } from "@/lib/financeiro-payment";
+import {
+  compareEmployeeBankData,
+  type BankMismatchCheck,
+  type EmployeeBankSnapshot,
+} from "@/lib/employee-invoice-bank";
 import { prisma } from "@/lib/prisma";
 import { createUserNotificationIfNew } from "@/lib/user-notifications";
 
@@ -77,6 +82,7 @@ export async function listAdminManagerUserIds(): Promise<string[]> {
 export async function notifyAdminManagers(input: {
   kind:
     | "EMPLOYEE_INVOICE_SUBMITTED"
+    | "EMPLOYEE_INVOICE_BANK_MISMATCH"
     | "EMPLOYEE_PORTAL_MESSAGE"
     | "EMPLOYEE_CLEANING_REPORT"
     | "EMPLOYEE_DRIVER_LOG";
@@ -149,6 +155,9 @@ export function serializeInvoiceSubmission(row: SubmissionRow) {
     reviewedByName: row.reviewedByUser?.name ?? null,
     financialEntryId: row.financialEntryId,
     monthlyInvoiceId: row.monthlyInvoiceId,
+    bankMismatch: row.bankMismatch,
+    bankMismatchDetails: row.bankMismatchDetails,
+    bankMismatchAcknowledgedAt: row.bankMismatchAcknowledgedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -165,6 +174,42 @@ export async function getInvoiceSubmissionOrThrow(id: string): Promise<Submissio
 }
 
 export { submissionInclude };
+
+const employeeBankSelect = {
+  bankName: true,
+  bankAgency: true,
+  bankAccount: true,
+  bankAccountType: true,
+  pixKey: true,
+  pixKeyType: true,
+  meiCnpj: true,
+} as const;
+
+export async function getEmployeeBankCheck(
+  employeeId: string,
+  suggestion: {
+    bankName?: string;
+    bankAgency?: string;
+    bankAccount?: string;
+    pixKey?: string;
+    prestadorCnpj?: string;
+  },
+): Promise<BankMismatchCheck> {
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, deletedAt: null },
+    select: employeeBankSelect,
+  });
+  const snapshot: EmployeeBankSnapshot = {
+    bankName: employee?.bankName ?? null,
+    bankAgency: employee?.bankAgency ?? null,
+    bankAccount: employee?.bankAccount ?? null,
+    bankAccountType: employee?.bankAccountType ?? null,
+    pixKey: employee?.pixKey ?? null,
+    pixKeyType: employee?.pixKeyType ?? null,
+    meiCnpj: employee?.meiCnpj ?? null,
+  };
+  return compareEmployeeBankData(snapshot, suggestion);
+}
 
 const threadListSelect = {
   id: true,
@@ -482,6 +527,7 @@ export async function markDriverLogSeen(input: {
           attachmentPublicId: current.filePublicId,
           attachmentFileName: current.fileName,
           createdByUserId: input.actorId,
+          expenseNature: "VARIAVEL",
         },
         select: { id: true },
       });
@@ -544,6 +590,7 @@ export async function approveInvoiceSubmission(input: {
           attachmentPublicId: current.filePublicId,
           attachmentFileName: current.fileName,
           createdByUserId: input.actorId,
+          expenseNature: "FIXA",
         },
         select: { id: true },
       });

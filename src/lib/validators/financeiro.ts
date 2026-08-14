@@ -18,9 +18,12 @@ const listKinds = ["ENTRADA", "SAIDA"] as const;
 const listPaymentStatuses = ["EM_ABERTO", "PAGO", "PENDENTE"] as const;
 const listDueAlerts = ["soon", "today", "overdue", "attention"] as const;
 
+const listExpenseNatures = ["FIXA", "VARIAVEL", "NONE"] as const;
+
 type FinancialListKind = (typeof listKinds)[number];
 type FinancialListPaymentStatus = (typeof listPaymentStatuses)[number];
 type FinancialListDueAlert = (typeof listDueAlerts)[number];
+type FinancialListExpenseNature = (typeof listExpenseNatures)[number];
 
 function parseAllowed<T extends string>(value: string | null, allowed: readonly T[]): T | undefined {
   return value != null && (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
@@ -102,6 +105,7 @@ export const createFinancialEntrySchema = z
     attachmentUrl: optionalHttps,
     attachmentPublicId: optionalText,
     attachmentFileName: optionalText,
+    expenseNature: z.enum(["FIXA", "VARIAVEL"]).nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.responsibleUserId && !data.responsibleName) {
@@ -109,6 +113,13 @@ export const createFinancialEntrySchema = z
         code: "custom",
         path: ["responsibleName"],
         message: "Informe o responsável (usuário ou nome).",
+      });
+    }
+    if (data.kind === "ENTRADA" && data.expenseNature) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["expenseNature"],
+        message: "Natureza da despesa só se aplica a saídas.",
       });
     }
   });
@@ -135,6 +146,7 @@ export const updateFinancialEntrySchema = z
     attachmentUrl: optionalHttps,
     attachmentPublicId: optionalText,
     attachmentFileName: optionalText,
+    expenseNature: z.enum(["FIXA", "VARIAVEL"]).nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -149,6 +161,13 @@ export const updateFinancialEntrySchema = z
         });
       }
     }
+    if (data.kind === "ENTRADA" && data.expenseNature) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["expenseNature"],
+        message: "Natureza da despesa só se aplica a saídas.",
+      });
+    }
   });
 
 /** Filtros de listagem / exportação. */
@@ -162,6 +181,7 @@ export type FinancialListQuery = {
   month: string | undefined;
   paymentStatus: FinancialListPaymentStatus | undefined;
   dueAlert: FinancialListDueAlert | undefined;
+  expenseNature: FinancialListExpenseNature | undefined;
 };
 
 export function parseFinancialListQuery(searchParams: URLSearchParams): FinancialListQuery {
@@ -174,6 +194,7 @@ export function parseFinancialListQuery(searchParams: URLSearchParams): Financia
   const to = searchParams.get("to");
   const paymentStatus = searchParams.get("paymentStatus");
   const dueAlert = searchParams.get("dueAlert"); // soon | today | overdue | attention
+  const expenseNature = searchParams.get("expenseNature");
 
   let dateFrom: Date | undefined;
   let dateTo: Date | undefined;
@@ -200,6 +221,7 @@ export function parseFinancialListQuery(searchParams: URLSearchParams): Financia
     month: month && /^\d{4}-\d{2}$/.test(month) ? month : undefined,
     paymentStatus: parseAllowed(paymentStatus, listPaymentStatuses),
     dueAlert: parseAllowed(dueAlert, listDueAlerts),
+    expenseNature: parseAllowed(expenseNature, listExpenseNatures),
   };
 }
 

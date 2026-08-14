@@ -195,6 +195,7 @@ export async function confirmDonationSideEffects(opts: {
         responsibleUserId: opts.actorId,
         notes: `Doação ${donation.id}`,
         createdByUserId: opts.actorId,
+        expenseNature: "VARIAVEL",
       },
     });
     financialEntryId = entry.id;

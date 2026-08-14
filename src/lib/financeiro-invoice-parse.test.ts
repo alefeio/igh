@@ -158,5 +158,10 @@ R$ 3.750,00
     expect(s.categoryName).toBeUndefined();
     // Competência do serviço (julho), não só a data de emissão/competência formal (agosto)
     expect(s.entryDate?.slice(0, 7)).toBe("2026-07");
+    expect(s.bankName).toMatch(/nubank/i);
+    expect(s.bankAgency).toMatch(/0001/);
+    expect(s.bankAccount?.replace(/\D/g, "")).toBe("1170113465");
+    expect(s.pixKey?.replace(/\D/g, "")).toBe("64798644000150");
+    expect(s.prestadorCnpj?.replace(/\D/g, "")).toBe("64798644000150");
   });
 });
