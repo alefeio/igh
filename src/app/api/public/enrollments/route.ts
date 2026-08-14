@@ -6,6 +6,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { createPreEnrollmentSchema } from "@/lib/validators/public-enrollment";
 import { verifyStudentToken } from "@/lib/student-token";
 import { classGroupAllowsPublicEnrollment } from "@/lib/class-group-scope";
+import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 function toDateOnlyString(value: Date | string | null | undefined): string | null {
   if (value == null) return null;
@@ -85,15 +86,15 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
   }
 
-  const activeCount = await prisma.enrollment.count({
-    where: { classGroupId, status: "ACTIVE" },
+  const occupiedCount = await prisma.enrollment.count({
+    where: { classGroupId, status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
   });
-  if (activeCount >= classGroup.capacity) {
+  if (occupiedCount >= classGroup.capacity) {
     return jsonErr("VALIDATION_ERROR", "Esta turma não possui vagas disponíveis.", 400);
   }
 
   const existing = await prisma.enrollment.findFirst({
-    where: { studentId, classGroupId, status: "ACTIVE" },
+    where: { studentId, classGroupId, status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
   });
   if (existing) {
     return jsonErr("DUPLICATE", "Você já está inscrito nesta turma.", 409);

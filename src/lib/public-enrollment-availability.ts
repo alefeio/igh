@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
+import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 /** Turmas inscrevíveis pelo público (site /inscreva), inclusive já em andamento. */
 export const PUBLIC_INSCREVA_STATUSES = ["PLANEJADA", "ABERTA", "EM_ANDAMENTO"] as const;
@@ -27,7 +28,7 @@ export async function countOpenPublicClassGroups(): Promise<number> {
     where: publicInscrevaClassGroupWhere(),
     select: {
       capacity: true,
-      _count: { select: { enrollments: { where: { status: "ACTIVE" } } } },
+      _count: { select: { enrollments: { where: { status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } } } } },
     },
   });
   return classGroups.filter((cg) => cg._count.enrollments < cg.capacity).length;

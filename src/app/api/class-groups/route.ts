@@ -13,6 +13,7 @@ import {
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import { classGroupTeacherAccessWhere, syncClassGroupTeachers, validateTeacherIds } from "@/lib/class-group-teachers";
 import { buildClassGroupWhereForPoloCoordinator } from "@/lib/polo-coordinator-scope";
+import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 export async function GET() {
   try {
@@ -61,7 +62,7 @@ export async function GET() {
         sessions: {
           orderBy: { sessionDate: "asc" },
         },
-        enrollments: { where: { status: "ACTIVE" }, select: { id: true } },
+        enrollments: { where: { status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } }, select: { id: true } },
       },
     });
 

@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { assertPublicCycleEnrollmentLimit } from "@/lib/enrollment-cycle-limit";
 import { PUBLIC_INSCREVA_STATUSES } from "@/lib/public-enrollment-availability";
+import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 const WAITLIST_ELIGIBLE_STATUSES = ["ABERTA", "EM_ANDAMENTO", "PLANEJADA"] as const;
 
@@ -91,10 +92,13 @@ export async function assertCanJoinWaitlist(args: {
     };
   }
 
-  const activeCount = await prisma.enrollment.count({
-    where: { classGroupId: args.classGroupId, status: "ACTIVE" },
+  const occupiedCount = await prisma.enrollment.count({
+    where: {
+      classGroupId: args.classGroupId,
+      status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
+    },
   });
-  if (activeCount < classGroup.capacity) {
+  if (occupiedCount < classGroup.capacity) {
     return {
       ok: false,
       code: "VALIDATION_ERROR",
@@ -104,7 +108,11 @@ export async function assertCanJoinWaitlist(args: {
   }
 
   const activeEnrollment = await prisma.enrollment.findFirst({
-    where: { studentId: args.studentId, classGroupId: args.classGroupId, status: "ACTIVE" },
+    where: {
+      studentId: args.studentId,
+      classGroupId: args.classGroupId,
+      status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
+    },
     select: { id: true },
   });
   if (activeEnrollment) {

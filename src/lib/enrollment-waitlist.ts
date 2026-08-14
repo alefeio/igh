@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { sendEnrollmentWelcomeForStudent } from "@/lib/enrollment-welcome-email";
 import { notifyTeachersOfWaitlistEnrollment } from "@/lib/waitlist-teacher-notifications";
+import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 export type WaitlistStatus = "WAITING" | "CONVERTED" | "CANCELLED";
 export { sendEnrollmentWelcomeForStudent } from "@/lib/enrollment-welcome-email";
@@ -26,14 +27,14 @@ export async function promoteNextWaitlistForClassGroup(
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const activeCount = await tx.enrollment.count({
-      where: { classGroupId, status: "ACTIVE" },
+    const occupiedCount = await tx.enrollment.count({
+      where: { classGroupId, status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
     });
-    if (activeCount >= classGroup.capacity) {
+    if (occupiedCount >= classGroup.capacity) {
       return null;
     }
 
-    // Tenta o próximo WAITING válido (pula quem já tenha matrícula ACTIVE).
+    // Tenta o próximo WAITING válido (pula quem já ocupe vaga nesta turma).
     for (let attempt = 0; attempt < 20; attempt++) {
       const next = await tx.enrollmentWaitlist.findFirst({
         where: { classGroupId, status: "WAITING" },
@@ -43,7 +44,11 @@ export async function promoteNextWaitlistForClassGroup(
       if (!next) return null;
 
       const alreadyActive = await tx.enrollment.findFirst({
-        where: { studentId: next.studentId, classGroupId, status: "ACTIVE" },
+        where: {
+          studentId: next.studentId,
+          classGroupId,
+          status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
+        },
         select: { id: true },
       });
       if (alreadyActive) {

@@ -14,6 +14,7 @@ import {
   teacherOwnsClassGroup,
 } from "@/lib/class-group-teachers";
 import type { Prisma } from "@/generated/prisma/client";
+import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 /** Lista reservas (WAITING por padrão). Query: classGroupId, status, all=1. */
 export async function GET(request: Request) {
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
           capacity: true,
           status: true,
           course: { select: { id: true, name: true } },
-          _count: { select: { enrollments: { where: { status: "ACTIVE" } } } },
+          _count: { select: { enrollments: { where: { status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } } } } },
         },
       },
     },

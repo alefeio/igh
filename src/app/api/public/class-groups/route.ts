@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import { publicInscrevaClassGroupWhere } from "@/lib/public-enrollment-availability";
+import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 /** Lista turmas para pré-matrícula e lista de espera (público). Inclui lotadas (waitlistOnly). */
 
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
         poloLocation: {
           select: { id: true, name: true, polo: { select: { id: true, name: true } } },
         },
-        enrollments: { where: { status: "ACTIVE" }, select: { id: true } },
+        enrollments: { where: { status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } }, select: { id: true } },
       },
     });
 

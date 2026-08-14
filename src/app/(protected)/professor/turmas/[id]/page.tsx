@@ -411,8 +411,8 @@ export default function ProfessorTurmaDetailPage() {
       }
 
       if (nextStatus === "CANCELLED") {
-        setEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
         toast.push("success", `Matrícula de ${enrollment.studentName} cancelada.`);
+        await loadEnrollments();
       } else {
         setEnrollments((prev) =>
           prev.map((e) => (e.id === enrollment.id ? { ...e, status: nextStatus } : e)),

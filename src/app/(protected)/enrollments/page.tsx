@@ -18,6 +18,7 @@ import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
 import { formatClassGroupTurmaLine, formatDaysOrderedPt, formatEnrollmentClassGroupOptionLabel } from "@/lib/turma-display";
 import { isExactMaster, isMasterOrGeneralAdmin } from "@/lib/rbac";
+import { enrollmentOccupiesSeat } from "@/lib/enrollment-seat";
 
 const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Ativa",
@@ -756,11 +757,11 @@ export default function EnrollmentsPage() {
     const allowedClassGroups = new Set(turmaFilterIds);
     const allowedClassGroupStatuses = new Set(classGroupStatusFilter);
     const allowedClassGroupScopes = new Set(classGroupScopeFilter);
-    const activeByClassGroup = new Map<string, number>();
+    const occupiedByClassGroup = new Map<string, number>();
     for (const enrollment of list) {
-      if (enrollment.status !== "ACTIVE") continue;
+      if (!enrollmentOccupiesSeat(enrollment.status)) continue;
       const id = enrollment.classGroup.id;
-      activeByClassGroup.set(id, (activeByClassGroup.get(id) ?? 0) + 1);
+      occupiedByClassGroup.set(id, (occupiedByClassGroup.get(id) ?? 0) + 1);
     }
 
     // A capacidade deve considerar todas as turmas dos ciclos selecionados,
@@ -772,19 +773,19 @@ export default function EnrollmentsPage() {
       if (allowedClassGroups.size > 0 && !allowedClassGroups.has(cg.id)) continue;
       byClassGroup.set(cg.id, {
         classGroup: cg,
-        count: activeByClassGroup.get(cg.id) ?? 0,
+        count: occupiedByClassGroup.get(cg.id) ?? 0,
       });
     }
 
     // Fallback enquanto/quanto a API de turmas não trouxer alguma turma já
-    // presente nas matrículas. Conta somente matrículas ativas como vagas preenchidas.
+    // presente nas matrículas. Conta ativas e suspensas como vagas preenchidas.
     for (const e of list) {
-      if (e.status !== "ACTIVE" || byClassGroup.has(e.classGroup.id)) continue;
+      if (!enrollmentOccupiesSeat(e.status) || byClassGroup.has(e.classGroup.id)) continue;
       const cg = e.classGroup;
-      const activeCount = list.filter(
-        (row) => row.status === "ACTIVE" && row.classGroup.id === cg.id,
+      const occupiedCount = list.filter(
+        (row) => enrollmentOccupiesSeat(row.status) && row.classGroup.id === cg.id,
       ).length;
-      byClassGroup.set(cg.id, { classGroup: cg, count: activeCount });
+      byClassGroup.set(cg.id, { classGroup: cg, count: occupiedCount });
     }
 
     const byCourse = new Map<string, { courseName: string; turmas: { classGroup: ClassGroup; count: number }[] }>();
@@ -849,10 +850,10 @@ export default function EnrollmentsPage() {
     return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   }, [allTeachers, filteredItems]);
 
-  const activeCountByClassGroup = useMemo(() => {
+  const occupiedCountByClassGroup = useMemo(() => {
     const m = new Map<string, number>();
     for (const e of items) {
-      if (e.status !== "ACTIVE") continue;
+      if (!enrollmentOccupiesSeat(e.status)) continue;
       const id = e.classGroup.id;
       m.set(id, (m.get(id) ?? 0) + 1);
     }
@@ -1170,7 +1171,7 @@ export default function EnrollmentsPage() {
     if (!studentId || !classGroupId || submitting) return;
     if (!canOverrideEnrollment) {
       const cg = classGroupsForModal.find((c) => c.id === classGroupId);
-      const count = cg?.enrollmentsCount ?? activeCountByClassGroup.get(classGroupId) ?? 0;
+      const count = cg?.enrollmentsCount ?? occupiedCountByClassGroup.get(classGroupId) ?? 0;
       const cap = cg?.capacity ?? 0;
       if (cap > 0 && count >= cap) {
         toast.push("error", "Esta turma está lotada. Escolha outra turma.");

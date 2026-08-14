@@ -19,6 +19,7 @@ import {
   teacherOwnsClassGroup,
   teacherOwnsEnrollment,
 } from "@/lib/class-group-teachers";
+import { enrollmentOccupiesSeat, ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 async function assertEnrollmentScope(
   user: { id: string; role: string },
@@ -146,7 +147,7 @@ export async function PATCH(
       where: {
         studentId: newStudentId,
         classGroupId: targetClassGroupId,
-        status: "ACTIVE",
+        status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
         id: { not: id },
       },
       select: { id: true },
@@ -212,10 +213,10 @@ export async function PATCH(
       return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
     }
     if (!canOverrideEnrollmentRules) {
-      const activeInNew = await prisma.enrollment.count({
-        where: { classGroupId: newClassGroupId, status: "ACTIVE" },
+      const occupiedInNew = await prisma.enrollment.count({
+        where: { classGroupId: newClassGroupId, status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
       });
-      if (activeInNew >= newClassGroup.capacity) {
+      if (occupiedInNew >= newClassGroup.capacity) {
         return jsonErr("VALIDATION_ERROR", "Esta turma não possui vagas disponíveis.", 400);
       }
     }
@@ -223,7 +224,7 @@ export async function PATCH(
       where: {
         studentId: data.studentId ?? existing.studentId,
         classGroupId: newClassGroupId,
-        status: "ACTIVE",
+        status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
         id: { not: id },
       },
     });
@@ -275,7 +276,7 @@ export async function PATCH(
 
   if (
     parsed.data.status === "CANCELLED" &&
-    existing.status === "ACTIVE" &&
+    enrollmentOccupiesSeat(existing.status) &&
     updated.status === "CANCELLED"
   ) {
     await tryPromoteWaitlistAfterSeatFreed(updated.classGroupId, user.id);
@@ -359,7 +360,7 @@ export async function DELETE(
     return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
   }
 
-  const freedSeat = enrollment.status === "ACTIVE";
+  const freedSeat = enrollmentOccupiesSeat(enrollment.status);
   const classGroupId = enrollment.classGroupId;
 
   await prisma.enrollment.delete({ where: { id } });

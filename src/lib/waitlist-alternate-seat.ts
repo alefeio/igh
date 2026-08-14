@@ -8,6 +8,7 @@ import { formatDateOnly } from "@/lib/format";
 import { generateSecureToken, hashToken } from "@/lib/verification-token";
 import { getAppUrl } from "@/lib/email";
 import { PUBLIC_INSCREVA_STATUSES } from "@/lib/public-enrollment-availability";
+import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 const OFFER_EXPIRY_DAYS = 5;
 
@@ -44,10 +45,10 @@ export async function notifyWaitlistStudentsOfAlternateSeat(
   }
   if (["ENCERRADA", "CANCELADA"].includes(classGroup.status)) return { offered: 0 };
 
-  const activeCount = await prisma.enrollment.count({
-    where: { classGroupId, status: "ACTIVE" },
+  const occupiedCount = await prisma.enrollment.count({
+    where: { classGroupId, status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
   });
-  if (activeCount >= classGroup.capacity) return { offered: 0 };
+  if (occupiedCount >= classGroup.capacity) return { offered: 0 };
 
   const ownWaiting = await prisma.enrollmentWaitlist.count({
     where: { classGroupId, status: "WAITING" },
@@ -216,10 +217,10 @@ export async function acceptWaitlistSeatOffer(rawToken: string): Promise<
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const activeCount = await tx.enrollment.count({
-      where: { classGroupId: offer.classGroupId, status: "ACTIVE" },
+    const occupiedCount = await tx.enrollment.count({
+      where: { classGroupId: offer.classGroupId, status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
     });
-    if (activeCount >= offer.classGroup.capacity) {
+    if (occupiedCount >= offer.classGroup.capacity) {
       return { error: "FULL" as const };
     }
 

@@ -17,6 +17,7 @@ import {
 } from "@/lib/polo-coordinator-scope";
 import { classGroupAllowsStaffEnrollment } from "@/lib/class-group-scope";
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
+import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 export async function GET() {
   const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
@@ -188,16 +189,16 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", "Esta turma não está aceitando matrículas no momento.", 400);
   }
   if (!canOverrideEnrollmentRules) {
-    const activeCount = await prisma.enrollment.count({
-      where: { classGroupId, status: "ACTIVE" },
+    const occupiedCount = await prisma.enrollment.count({
+      where: { classGroupId, status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
     });
-    if (activeCount >= classGroup.capacity) {
+    if (occupiedCount >= classGroup.capacity) {
       return jsonErr("VALIDATION_ERROR", "Esta turma não possui vagas disponíveis.", 400);
     }
   }
 
   const existing = await prisma.enrollment.findFirst({
-    where: { studentId, classGroupId, status: "ACTIVE" },
+    where: { studentId, classGroupId, status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
   });
   if (existing) {
     return jsonErr("DUPLICATE", "Este aluno já está matriculado nesta turma.", 409);
