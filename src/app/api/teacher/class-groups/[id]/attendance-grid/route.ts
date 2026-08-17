@@ -116,7 +116,7 @@ export async function GET(
   });
 }
 
-/** Atualiza uma ou mais células da grade. Body: { updates: { sessionId, enrollmentId, mark: "P"|"F"|"J" }[] } */
+/** Atualiza uma ou mais células da grade. Body: { updates: { sessionId, enrollmentId, mark: "P"|"F"|"J"|null }[] } */
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -128,13 +128,13 @@ export async function PATCH(
 
   const body = await request.json().catch(() => null);
   const rawUpdates = Array.isArray(body?.updates) ? body.updates : [];
-  const updates: { sessionId: string; enrollmentId: string; mark: AttendanceMark }[] = [];
+  const updates: { sessionId: string; enrollmentId: string; mark: AttendanceMark | null }[] = [];
 
   for (const u of rawUpdates) {
     if (!u || typeof u !== "object") continue;
     const o = u as Record<string, unknown>;
     if (typeof o.sessionId !== "string" || typeof o.enrollmentId !== "string") continue;
-    if (o.mark !== "P" && o.mark !== "F" && o.mark !== "J") continue;
+    if (o.mark !== "P" && o.mark !== "F" && o.mark !== "J" && o.mark !== null) continue;
     updates.push({ sessionId: o.sessionId, enrollmentId: o.enrollmentId, mark: o.mark });
   }
 
@@ -168,6 +168,11 @@ export async function PATCH(
 
   await prisma.$transaction(
     savedRows.map((u) => {
+      if (u.mark == null) {
+        return prisma.sessionAttendance.deleteMany({
+          where: { classSessionId: u.sessionId, enrollmentId: u.enrollmentId },
+        });
+      }
       const { present, absenceJustification } = markToDb(u.mark);
       return prisma.sessionAttendance.upsert({
         where: {
@@ -188,6 +193,13 @@ export async function PATCH(
   );
 
   const suspensionRows = savedRows.map((u) => {
+    if (u.mark == null) {
+      return {
+        enrollmentId: u.enrollmentId,
+        present: false,
+        absenceJustification: null,
+      };
+    }
     const { present, absenceJustification } = markToDb(u.mark);
     return {
       enrollmentId: u.enrollmentId,

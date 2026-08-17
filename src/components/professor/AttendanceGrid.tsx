@@ -141,7 +141,7 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
   const handleMarkChange = async (
     enrollmentId: string,
     sessionId: string,
-    next: AttendanceMark
+    next: AttendanceMark | null
   ) => {
     const rowIdx = rowIndexByEnrollment.get(enrollmentId);
     if (rowIdx === undefined) return;
@@ -236,8 +236,9 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
         Em cada célula, clique direto no status:{" "}
         <span className="font-semibold text-emerald-700">P</span> (presente),{" "}
         <span className="font-semibold text-amber-700">J</span> (justificado) ou{" "}
-        <span className="font-semibold text-rose-700">F</span> (falta). Células sem destaque ainda
-        não foram lançadas. A frequência é calculada com base nas aulas já lançadas.
+        <span className="font-semibold text-rose-700">F</span> (falta). Clique de novo no mesmo
+        status para desmarcar. Células sem destaque ainda não foram lançadas. A frequência é
+        calculada com base nas aulas já lançadas.
       </p>
       <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
         <table className="min-w-full border-collapse text-sm">
@@ -333,10 +334,15 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
                               type="button"
                               disabled={saving}
                               aria-pressed={selected}
-                              aria-label={`${btn.label} (${btn.mark})`}
-                              title={btn.label}
+                              aria-label={
+                                selected
+                                  ? `${btn.label} (${btn.mark}), marcado. Clique para desmarcar`
+                                  : `${btn.label} (${btn.mark})`
+                              }
+                              title={selected ? `${btn.label} — clique para desmarcar` : btn.label}
                               onClick={() => {
-                                void handleMarkChange(row.enrollmentId, s.id, btn.mark);
+                                const next = mark === btn.mark ? null : btn.mark;
+                                void handleMarkChange(row.enrollmentId, s.id, next);
                               }}
                               className={markButtonClass(
                                 btn.mark,
