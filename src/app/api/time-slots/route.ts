@@ -6,7 +6,7 @@ import { createAuditLog } from "@/lib/audit";
 
 export async function GET(request: Request) {
   // Leitura também alimenta o cadastro de turmas, então segue aberta à equipe da sede.
-  await requireRole(["MASTER", "ADMIN"]);
+  await requireRole(["MASTER", "ADMIN", "POLO_COORDINATOR"]);
 
   const { searchParams } = new URL(request.url);
   const activeOnly = searchParams.get("activeOnly");

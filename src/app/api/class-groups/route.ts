@@ -12,7 +12,10 @@ import {
 } from "@/lib/schedule";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import { classGroupTeacherAccessWhere, syncClassGroupTeachers, validateTeacherIds } from "@/lib/class-group-teachers";
-import { buildClassGroupWhereForPoloCoordinator } from "@/lib/polo-coordinator-scope";
+import {
+  buildClassGroupWhereForPoloCoordinator,
+  poloCoordinatorOwnsPoloLocation,
+} from "@/lib/polo-coordinator-scope";
 import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 
 export async function GET() {
@@ -94,7 +97,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = createClassGroupSchema.safeParse(body);
@@ -104,6 +107,24 @@ export async function POST(request: Request) {
 
   const { cycleId, courseId, teacherIds, startDate, daysOfWeek, startTime, endTime, capacity, status, isExternal, location, poloLocationId } =
     parsed.data;
+
+  if (user.role === "POLO_COORDINATOR") {
+    if (!poloLocationId) {
+      return jsonErr(
+        "VALIDATION_ERROR",
+        "Selecione o polo/local da turma. Coordenadores só podem criar turmas nos polos que coordenam.",
+        400,
+      );
+    }
+    const locOk = await poloCoordinatorOwnsPoloLocation(user.id, poloLocationId);
+    if (!locOk) {
+      return jsonErr(
+        "FORBIDDEN",
+        "Você só pode criar turmas em locais dos polos que coordena.",
+        403,
+      );
+    }
+  }
 
   const teacherValidation = await validateTeacherIds(teacherIds);
   if (!teacherValidation.ok) return jsonErr("INVALID_TEACHER", teacherValidation.message, 400);

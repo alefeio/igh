@@ -79,6 +79,18 @@ export function enrollmentWhereForPoloCoordinator(userId: string): Prisma.Enroll
   };
 }
 
+/** Verifica se o local do polo pertence a um polo coordenado pelo usuário. */
+export async function poloCoordinatorOwnsPoloLocation(
+  userId: string,
+  poloLocationId: string,
+): Promise<boolean> {
+  const loc = await prisma.poloLocation.findFirst({
+    where: { id: poloLocationId, polo: { coordinatorUserId: userId } },
+    select: { id: true },
+  });
+  return !!loc;
+}
+
 /** Verifica se a turma pertence a um polo coordenado pelo usuário. */
 export async function poloCoordinatorOwnsClassGroup(
   userId: string,

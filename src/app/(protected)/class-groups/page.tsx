@@ -203,6 +203,8 @@ export default function ClassGroupsPage() {
   const user = useUser();
   const canMutate =
     user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "ADMIN";
+  const isPoloCoordinator = user.role === "POLO_COORDINATOR";
+  const canEditClassGroups = canMutate || isPoloCoordinator;
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ClassGroup[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
@@ -314,9 +316,23 @@ export default function ClassGroupsPage() {
       startDate.trim().length > 0 &&
       startTime.trim().length > 0 &&
       endTime.trim().length > 0 &&
-      Number(capacity) > 0;
+      Number(capacity) > 0 &&
+      (!isPoloCoordinator || poloLocationId.length > 0);
     return base && (editing != null || courseHasWorkload);
-  }, [cycleId, courseId, teacherIds, daysOfWeek, startDate, startTime, endTime, capacity, courseHasWorkload, editing]);
+  }, [
+    cycleId,
+    courseId,
+    teacherIds,
+    daysOfWeek,
+    startDate,
+    startTime,
+    endTime,
+    capacity,
+    courseHasWorkload,
+    editing,
+    isPoloCoordinator,
+    poloLocationId,
+  ]);
 
   function toggleTeacher(id: string) {
     setTeacherIds((prev) =>
@@ -369,6 +385,11 @@ export default function ClassGroupsPage() {
 
   function openCreate() {
     resetForm();
+    if (isPoloCoordinator && poloLocationOptions.length === 1) {
+      const only = poloLocationOptions[0]!;
+      setPoloLocationId(only.id);
+      setLocation(only.name);
+    }
     setOpen(true);
   }
 
@@ -931,7 +952,7 @@ export default function ClassGroupsPage() {
         eyebrow="Operação"
         title="Turmas"
         description={
-          canMutate
+          canEditClassGroups
             ? "Por padrão, só as turmas do ciclo atual (visível para matrículas). Pesquise e filtre por status."
             : "Por padrão, só as turmas do ciclo atual (consulta). Pesquise e filtre por status."
         }
@@ -1165,33 +1186,37 @@ export default function ClassGroupsPage() {
                     >
                       {downloadingCycleCertsId === c.id ? "Gerando ZIP…" : "Baixar certificados"}
                     </Button>
-                    <Button variant="secondary" onClick={() => openEditCycle(c)}>
-                      Editar
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={async () => {
-                        if (!canMutate) return;
-                        try {
-                          const res = await fetch(`/api/cycles/${c.id}`, {
-                            method: "PATCH",
-                            headers: { "content-type": "application/json" },
-                            body: JSON.stringify({ isVisibleForEnrollments: !c.isVisibleForEnrollments }),
-                          });
-                          const json = await parseJsonSafe<{ cycle: Cycle }>(res);
-                          if (!res.ok || !json?.ok) {
-                            toast.push("error", apiErrorMessage(json, "Falha ao atualizar ciclo."));
-                            return;
-                          }
-                          toast.push("success", "Ciclo atualizado.");
-                          await loadAll();
-                        } catch {
-                          toast.push("error", "Falha ao atualizar ciclo.");
-                        }
-                      }}
-                    >
-                      {c.isVisibleForEnrollments ? "Ocultar" : "Exibir"}
-                    </Button>
+                    {canMutate ? (
+                      <>
+                        <Button variant="secondary" onClick={() => openEditCycle(c)}>
+                          Editar
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={async () => {
+                            if (!canMutate) return;
+                            try {
+                              const res = await fetch(`/api/cycles/${c.id}`, {
+                                method: "PATCH",
+                                headers: { "content-type": "application/json" },
+                                body: JSON.stringify({ isVisibleForEnrollments: !c.isVisibleForEnrollments }),
+                              });
+                              const json = await parseJsonSafe<{ cycle: Cycle }>(res);
+                              if (!res.ok || !json?.ok) {
+                                toast.push("error", apiErrorMessage(json, "Falha ao atualizar ciclo."));
+                                return;
+                              }
+                              toast.push("success", "Ciclo atualizado.");
+                              await loadAll();
+                            } catch {
+                              toast.push("error", "Falha ao atualizar ciclo.");
+                            }
+                          }}
+                        >
+                          {c.isVisibleForEnrollments ? "Ocultar" : "Exibir"}
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                 </Td>
               </tr>
@@ -1217,7 +1242,7 @@ export default function ClassGroupsPage() {
               : `${visibleItems.length} ${visibleItems.length === 1 ? "turma" : "turmas"} com os filtros atuais.`
         }
         action={
-          canMutate && !showInactive ? (
+          canEditClassGroups && !showInactive ? (
             <Button onClick={openCreate} className="w-full sm:w-auto">
               Nova turma
             </Button>
@@ -1236,7 +1261,7 @@ export default function ClassGroupsPage() {
                 value={certificatePagesMode}
                 onChange={setCertificatePagesMode}
               />
-              {canMutate ? (
+              {canEditClassGroups ? (
                 <Button
                   type="button"
                   variant="secondary"
@@ -1465,20 +1490,22 @@ export default function ClassGroupsPage() {
                       ? "Gerando ZIP…"
                       : "Baixar certificados"}
                   </button>
+                  {canEditClassGroups ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                      onClick={() => {
+                        setActionsMenuId(null);
+                        setActionsMenuPos(null);
+                        openEdit(actionsMenuClassGroup);
+                      }}
+                    >
+                      Editar
+                    </button>
+                  ) : null}
                   {canMutate ? (
                     <>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
-                        onClick={() => {
-                          setActionsMenuId(null);
-                          setActionsMenuPos(null);
-                          openEdit(actionsMenuClassGroup);
-                        }}
-                      >
-                        Editar
-                      </button>
                       <button
                         type="button"
                         role="menuitem"
@@ -2192,11 +2219,14 @@ export default function ClassGroupsPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Polo / Local (recomendado)</label>
+            <label className="text-sm font-medium">
+              Polo / Local{isPoloCoordinator ? " (obrigatório)" : " (recomendado)"}
+            </label>
             <div className="mt-1">
               <select
                 className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
                 value={poloLocationId}
+                required={isPoloCoordinator}
                 onChange={(e) => {
                   const id = e.target.value;
                   setPoloLocationId(id);
@@ -2204,7 +2234,9 @@ export default function ClassGroupsPage() {
                   if (opt) setLocation(opt.name);
                 }}
               >
-                <option value="">Sem vínculo a polo</option>
+                <option value="">
+                  {isPoloCoordinator ? "Selecione o local do polo" : "Sem vínculo a polo"}
+                </option>
                 {poloLocationOptions.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.label}
@@ -2213,7 +2245,9 @@ export default function ClassGroupsPage() {
               </select>
             </div>
             <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Vincule a turma a um local cadastrado em Administração → Polos para o coordenador do polo gerenciar as matrículas.
+              {isPoloCoordinator
+                ? "A turma precisa estar vinculada a um local dos polos que você coordena."
+                : "Vincule a turma a um local cadastrado em Administração → Polos para o coordenador do polo gerenciar as matrículas."}
             </p>
           </div>
 

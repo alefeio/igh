@@ -22,11 +22,12 @@ const poloInclude = {
   _count: { select: { locations: true } },
 } as const;
 
-/** Lista polos (Admin/Master/Coordenador). */
+/** Lista polos (Admin/Master/Coordenador). Coordenador vê só os polos que coordena. */
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
 
   const polos = await prisma.polo.findMany({
+    where: user.role === "POLO_COORDINATOR" ? { coordinatorUserId: user.id } : undefined,
     orderBy: { name: "asc" },
     include: poloInclude,
   });

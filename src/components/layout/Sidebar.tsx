@@ -148,7 +148,7 @@ const ITEMS: Item[] = [
   { href: "/students", label: "Alunos", roles: STAFF_AND_TEACHER, category: "Pedagógico" },
   { href: "/courses", label: "Cursos", roles: STAFF_AND_TEACHER, category: "Pedagógico" },
   { href: "/admin/cursos/planos-de-aula", label: "Planos de aula (PDF)", roles: STAFF, category: "Pedagógico" },
-  { href: "/class-groups", label: "Turmas", roles: STAFF, category: "Pedagógico" },
+  { href: "/class-groups", label: "Turmas", roles: ["MASTER", "GENERAL_ADMIN", "ADMIN", "POLO_COORDINATOR"], category: "Pedagógico" },
   { href: "/admin/polos", label: "Polos", roles: STAFF, category: "Pedagógico" },
   {
     href: "/enrollments",

@@ -55,8 +55,14 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (pathname.startsWith("/teachers") || pathname.startsWith("/class-groups")) {
+  if (pathname.startsWith("/teachers")) {
     if (!PEDAGOGICAL_GOVERNANCE.includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
+  if (pathname.startsWith("/class-groups")) {
+    if (![...PEDAGOGICAL_GOVERNANCE, "POLO_COORDINATOR"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }

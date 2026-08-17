@@ -1,18 +1,47 @@
 import { prisma } from "@/lib/prisma";
-import { requireStaffWrite } from "@/lib/auth";
+import { requireRole, requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { applyClassGroupUpdate } from "@/lib/class-group-update";
 import { updateClassGroupSchema } from "@/lib/validators/class-groups";
 import { createAuditLog } from "@/lib/audit";
+import {
+  poloCoordinatorOwnsClassGroup,
+  poloCoordinatorOwnsPoloLocation,
+} from "@/lib/polo-coordinator-scope";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireStaffWrite();
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
   const parsed = updateClassGroupSchema.safeParse(body);
   if (!parsed.success) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
+  }
+
+  if (user.role === "POLO_COORDINATOR") {
+    const owns = await poloCoordinatorOwnsClassGroup(user.id, id);
+    if (!owns) {
+      return jsonErr("FORBIDDEN", "Você só pode editar turmas dos polos que coordena.", 403);
+    }
+    const nextPoloLocationId = parsed.data.poloLocationId;
+    if (nextPoloLocationId !== undefined) {
+      if (!nextPoloLocationId) {
+        return jsonErr(
+          "VALIDATION_ERROR",
+          "Selecione o polo/local da turma. Coordenadores só podem manter turmas nos polos que coordenam.",
+          400,
+        );
+      }
+      const locOk = await poloCoordinatorOwnsPoloLocation(user.id, nextPoloLocationId);
+      if (!locOk) {
+        return jsonErr(
+          "FORBIDDEN",
+          "Você só pode vincular a turma a um local dos polos que coordena.",
+          403,
+        );
+      }
+    }
   }
 
   const result = await applyClassGroupUpdate({

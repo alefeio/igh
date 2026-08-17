@@ -1,10 +1,14 @@
-import { requireStaffWrite } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { applyClassGroupUpdate } from "@/lib/class-group-update";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { bulkUpdateClassGroupsSchema } from "@/lib/validators/class-groups";
+import {
+  poloCoordinatorOwnsClassGroup,
+  poloCoordinatorOwnsPoloLocation,
+} from "@/lib/polo-coordinator-scope";
 
 export async function PATCH(request: Request) {
-  const user = await requireStaffWrite();
+  const user = await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
   const body = await request.json().catch(() => null);
   const parsed = bulkUpdateClassGroupsSchema.safeParse(body);
   if (!parsed.success) {
@@ -13,6 +17,25 @@ export async function PATCH(request: Request) {
 
   const ids = [...new Set(parsed.data.ids)];
   const patch = parsed.data.patch;
+
+  if (user.role === "POLO_COORDINATOR") {
+    for (const id of ids) {
+      const owns = await poloCoordinatorOwnsClassGroup(user.id, id);
+      if (!owns) {
+        return jsonErr("FORBIDDEN", "Você só pode editar turmas dos polos que coordena.", 403);
+      }
+    }
+    if (patch.poloLocationId) {
+      const locOk = await poloCoordinatorOwnsPoloLocation(user.id, patch.poloLocationId);
+      if (!locOk) {
+        return jsonErr(
+          "FORBIDDEN",
+          "Você só pode vincular turmas a um local dos polos que coordena.",
+          403,
+        );
+      }
+    }
+  }
   const updated: string[] = [];
   const regenerated: string[] = [];
   const errors: Array<{ id: string; message: string }> = [];
