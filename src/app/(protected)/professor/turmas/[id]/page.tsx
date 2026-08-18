@@ -1023,7 +1023,7 @@ export default function ProfessorTurmaDetailPage() {
                           }
                           className="text-rose-700 hover:text-rose-800 dark:text-rose-300"
                         >
-                          Cancelar
+                          Cancelar matrícula
                         </Button>
                       </div>
                     )}
