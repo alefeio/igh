@@ -69,7 +69,11 @@ export function ProfessorExamEditor({
   const loadPool = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${classGroupId}/exams/pool`);
     const json = (await res.json()) as ApiResponse<{ items: PoolItem[]; total: number }>;
-    if (res.ok && json.ok) setPool(json.data.items);
+    if (res.ok && json.ok) {
+      setPool(json.data.items);
+      const allowed = new Set(json.data.items.map((p) => p.id));
+      setManualIds((prev) => prev.filter((id) => allowed.has(id)));
+    }
   }, [classGroupId]);
 
   useEffect(() => {
@@ -94,9 +98,18 @@ export function ProfessorExamEditor({
     setTimingMode(item.timingMode);
     setSelectionMode(item.selectionMode);
     setQuestionCount(item.questionCount);
-    setManualIds(item.manualExerciseIds ?? []);
+    const allowed = new Set(pool.map((p) => p.id));
+    const kept = (item.manualExerciseIds ?? []).filter((id) => allowed.has(id));
+    setManualIds(kept);
     setShuffleQuestions(item.shuffleQuestions);
     setShuffleOptions(item.shuffleOptions);
+    if (item.selectionMode === "MANUAL" && kept.length < (item.manualExerciseIds?.length ?? 0)) {
+      toast.push(
+        "success",
+        "Configuração carregada. Questões de aulas ainda não dadas nesta turma foram omitidas. Ajuste as datas e salve.",
+      );
+      return;
+    }
     toast.push("success", "Configuração carregada. Ajuste as datas para esta turma e salve.");
   }
 
@@ -174,7 +187,10 @@ export function ProfessorExamEditor({
       timingMode,
       selectionMode,
       questionCount,
-      manualExerciseIds: selectionMode === "MANUAL" ? manualIds.slice(0, questionCount) : [],
+      manualExerciseIds:
+        selectionMode === "MANUAL"
+          ? manualIds.filter((id) => pool.some((p) => p.id === id)).slice(0, questionCount)
+          : [],
       shuffleQuestions,
       shuffleOptions,
     };
@@ -339,8 +355,8 @@ export function ProfessorExamEditor({
             onChange={(e) => setSelectionMode(e.target.value as typeof selectionMode)}
             disabled={readOnly}
           >
-            <option value="RANDOM">Aleatórias do banco do curso</option>
-            <option value="MANUAL">Escolher manualmente</option>
+            <option value="RANDOM">Aleatórias do banco de aulas já dadas</option>
+            <option value="MANUAL">Escolher manualmente (aulas já dadas)</option>
           </select>
         </div>
         <div>
@@ -353,7 +369,10 @@ export function ProfessorExamEditor({
             onChange={(e) => setQuestionCount(parseInt(e.target.value, 10) || 1)}
             disabled={readOnly}
           />
-          <p className="mt-1 text-xs text-[var(--text-muted)]">Banco disponível: {pool.length} questões válidas</p>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Somente aulas já dadas até hoje. Banco disponível: {pool.length}{" "}
+            {pool.length === 1 ? "questão válida" : "questões válidas"}
+          </p>
         </div>
       </div>
 
@@ -371,24 +390,30 @@ export function ProfessorExamEditor({
       {selectionMode === "MANUAL" && (
         <div className="max-h-64 overflow-y-auto rounded-lg border border-[var(--card-border)] p-3">
           <p className="mb-2 text-sm font-medium">Selecione as questões ({manualIds.length} marcadas)</p>
-          <ul className="space-y-2">
-            {pool.map((p) => (
-              <li key={p.id}>
-                <label className="flex cursor-pointer gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={manualIds.includes(p.id)}
-                    onChange={() => toggleManual(p.id)}
-                    disabled={readOnly}
-                  />
-                  <span>
-                    <span className="text-xs text-[var(--text-muted)]">{p.lessonTitle} — </span>
-                    {p.question}
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
+          {pool.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">
+              Nenhuma questão disponível: ainda não há aulas dadas até hoje nesta turma.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {pool.map((p) => (
+                <li key={p.id}>
+                  <label className="flex cursor-pointer gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={manualIds.includes(p.id)}
+                      onChange={() => toggleManual(p.id)}
+                      disabled={readOnly}
+                    />
+                    <span>
+                      <span className="text-xs text-[var(--text-muted)]">{p.lessonTitle} — </span>
+                      {p.question}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

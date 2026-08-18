@@ -246,15 +246,18 @@ export default function FinanceiroPage() {
     } else if (month) {
       sp.set("month", month);
     }
-    if (kindFilter) sp.set("kind", kindFilter);
-    if (statusFilter) sp.set("paymentStatus", statusFilter);
-    if (dueAlertFilter) sp.set("dueAlert", dueAlertFilter);
-    if (categoryFilter) sp.set("categoryId", categoryFilter);
-    if (poloFilter) sp.set("poloId", poloFilter);
-    if (expenseNatureFilter) sp.set("expenseNature", expenseNatureFilter);
+    if (tab !== "prestacao") {
+      if (kindFilter) sp.set("kind", kindFilter);
+      if (statusFilter) sp.set("paymentStatus", statusFilter);
+      if (dueAlertFilter) sp.set("dueAlert", dueAlertFilter);
+      if (categoryFilter) sp.set("categoryId", categoryFilter);
+      if (poloFilter) sp.set("poloId", poloFilter);
+      if (expenseNatureFilter) sp.set("expenseNature", expenseNatureFilter);
+    }
     if (q.trim()) sp.set("q", q.trim());
     return sp.toString();
   }, [
+    tab,
     month,
     dateFrom,
     dateTo,
@@ -345,6 +348,18 @@ export default function FinanceiroPage() {
     () => categories.filter((c) => c.isActive && (!kindFilter || c.kind === kindFilter)),
     [categories, kindFilter],
   );
+
+  const prestacaoPeriodLabel = month || (dateFrom || dateTo ? `${dateFrom || "…"} a ${dateTo || "…"}` : "todos");
+  const prestacaoFixas = useMemo(
+    () => entries.filter((e) => e.kind === "SAIDA" && e.expenseNature === "FIXA"),
+    [entries],
+  );
+  const prestacaoVariaveis = useMemo(
+    () => entries.filter((e) => e.kind === "SAIDA" && e.expenseNature !== "FIXA"),
+    [entries],
+  );
+  const prestacaoFixasTotal = prestacaoFixas.reduce((sum, e) => sum + e.amountCents, 0);
+  const prestacaoVariaveisTotal = prestacaoVariaveis.reduce((sum, e) => sum + e.amountCents, 0);
 
   function setField<K extends keyof EntryForm>(key: K, value: EntryForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -772,8 +787,12 @@ export default function FinanceiroPage() {
     w.document.close();
   }
 
-  function exportPrestacao() {
-    const rows = entries.map((e, idx) => ({
+  function exportPrestacaoRows(
+    list: FinancialEntryView[],
+    sheetName: string,
+    fileSuffix: string,
+  ) {
+    const rows = list.map((e, idx) => ({
       "#": idx + 1,
       Descrição: e.description,
       Data: formatEntryDate(e.entryDate),
@@ -787,8 +806,147 @@ export default function FinanceiroPage() {
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Prestacao");
-    XLSX.writeFile(wb, `prestacao_contas_${month || "periodo"}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, `prestacao_contas_${fileSuffix}_${month || "periodo"}.xlsx`);
+  }
+
+  function exportPrestacaoWorkbook() {
+    function toRows(list: FinancialEntryView[]) {
+      return list.map((e, idx) => ({
+        "#": idx + 1,
+        Descrição: e.description,
+        Data: formatEntryDate(e.entryDate),
+        Status: FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus],
+        Valor: e.amountCents / 100,
+        "Forma de pagamento": FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod],
+        "Destino / observação": e.notes ?? "",
+        Responsável: responsibleLabel(e),
+        Natureza: displayExpenseNature(e.kind, e.expenseNature),
+      }));
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(toRows(prestacaoFixas)), "Contas fixas");
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(toRows(prestacaoVariaveis)),
+      "Contas variaveis",
+    );
+    XLSX.writeFile(wb, `prestacao_contas_fixas_e_variaveis_${month || "periodo"}.xlsx`);
+  }
+
+  function exportPrestacaoPdf(
+    list: FinancialEntryView[],
+    title: string,
+    totalCents: number,
+  ) {
+    const w = window.open("", "_blank");
+    if (!w) {
+      toast.push("error", "Permita pop-ups para exportar o PDF.");
+      return;
+    }
+    const rowsHtml = list
+      .map(
+        (e) =>
+          `<tr>
+            <td>${e.description}</td>
+            <td>${formatEntryDate(e.entryDate)}</td>
+            <td>${FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus]}</td>
+            <td>${displayExpenseNature(e.kind, e.expenseNature)}</td>
+            <td style="text-align:right">${formatCentsBRL(e.amountCents)}</td>
+            <td>${FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod]}</td>
+            <td>${e.notes ?? "—"}</td>
+            <td>${responsibleLabel(e)}</td>
+          </tr>`,
+      )
+      .join("");
+    w.document.write(`<!doctype html><html><head><title>${title}</title>
+      <style>
+        body{font-family:system-ui,sans-serif;padding:24px;color:#111}
+        h1{font-size:18px;margin:0 0 8px}
+        .meta{color:#555;margin-bottom:16px;font-size:13px}
+        table{width:100%;border-collapse:collapse;font-size:12px}
+        th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}
+        th{background:#f5f5f5}
+        .totais{margin-top:16px;font-size:13px}
+      </style></head><body>
+      <h1>${title}</h1>
+      <div class="meta">Período: ${prestacaoPeriodLabel} · ${list.length} lançamento(s)</div>
+      <table><thead><tr>
+        <th>Descrição</th><th>Vencimento</th><th>Status</th><th>Natureza</th><th>Valor</th><th>Pagamento</th><th>Destino</th><th>Responsável</th>
+      </tr></thead><tbody>${rowsHtml}</tbody></table>
+      <div class="totais">Total: <strong>${formatCentsBRL(totalCents)}</strong></div>
+      <script>window.onload=()=>window.print()</script>
+      </body></html>`);
+    w.document.close();
+  }
+
+  function exportPrestacao() {
+    exportPrestacaoWorkbook();
+  }
+
+  function prestacaoTable(rows: FinancialEntryView[]) {
+    if (rows.length === 0) {
+      return (
+        <p className="rounded-md border border-dashed border-[var(--card-border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+          Nenhuma conta neste relatório no período.
+        </p>
+      );
+    }
+    return (
+      <Table>
+        <thead>
+          <tr>
+            <Th>Descrição</Th>
+            <Th>Vencimento</Th>
+            <Th>Status</Th>
+            <Th>Natureza</Th>
+            <Th>Valor</Th>
+            <Th>Forma de pagamento</Th>
+            <Th>Destino / observação</Th>
+            <Th>Responsável</Th>
+            <Th>Ações</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((e) => (
+            <tr key={e.id}>
+              <Td className="font-medium">{e.description}</Td>
+              <Td className="whitespace-nowrap">{formatEntryDate(e.entryDate)}</Td>
+              <Td>
+                <Badge tone={paymentStatusBadgeTone(e.paymentStatus, e.dueUrgency)}>
+                  {FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus]}
+                  {e.dueUrgency === "due_today" && e.paymentStatus !== "PAGO" ? " · hoje" : ""}
+                  {e.dueUrgency === "due_soon" && e.paymentStatus === "EM_ABERTO" ? " · a vencer" : ""}
+                </Badge>
+              </Td>
+              <Td>
+                <Badge
+                  tone={e.expenseNature === "FIXA" ? "blue" : e.expenseNature ? "zinc" : "amber"}
+                >
+                  {displayExpenseNature(e.kind, e.expenseNature)}
+                </Badge>
+              </Td>
+              <Td className="whitespace-nowrap font-medium">{formatCentsBRL(e.amountCents)}</Td>
+              <Td>{FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod]}</Td>
+              <Td className="max-w-[220px] text-sm text-[var(--text-muted)]">{e.notes ?? "—"}</Td>
+              <Td>{responsibleLabel(e)}</Td>
+              <Td>
+                <div className="flex flex-wrap gap-1.5">
+                  {e.paymentStatus !== "PAGO" ? (
+                    <Button size="sm" onClick={() => void markAsPaid(e)}>
+                      Marcar pago
+                    </Button>
+                  ) : null}
+                  <Button size="sm" variant="secondary" onClick={() => openEdit(e)}>
+                    Editar
+                  </Button>
+                </div>
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    );
   }
 
   async function importPrestacaoSheet(file: File) {
@@ -844,7 +1002,11 @@ export default function FinanceiroPage() {
       <DashboardHero
         eyebrow="Gerência · Financeiro"
         title="Entradas e saídas"
-        description="Fluxo de caixa com vencimento, status de pagamento e leitura de NF no anexo."
+        description={
+          tab === "prestacao"
+            ? "Relatórios separados de contas fixas e variáveis, com exportação independente."
+            : "Fluxo de caixa com vencimento, status de pagamento e leitura de NF no anexo."
+        }
         rightSlot={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setCatOpen(true)}>
@@ -876,10 +1038,14 @@ export default function FinanceiroPage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={tab === "prestacao" ? exportPrestacao : exportXlsx}
-                  disabled={entries.length === 0}
+                  onClick={tab === "prestacao" ? exportPrestacaoWorkbook : exportXlsx}
+                  disabled={
+                    tab === "prestacao"
+                      ? prestacaoFixas.length + prestacaoVariaveis.length === 0
+                      : entries.length === 0
+                  }
                 >
-                  Excel
+                  {tab === "prestacao" ? "Excel (fixas + variáveis)" : "Excel"}
                 </Button>
                 {tab === "fluxo" ? (
                   <Button variant="secondary" onClick={exportPdf} disabled={entries.length === 0}>
@@ -1031,17 +1197,29 @@ export default function FinanceiroPage() {
       {tab === "fluxo" || tab === "prestacao" ? (
         <>
           {tab === "prestacao" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <StatTile
-                label="Total de valores"
-                value={formatCentsBRL(totals.saidasCents + totals.entradasCents)}
-                icon={Scale}
+                label="Contas fixas"
+                value={formatCentsBRL(prestacaoFixasTotal)}
+                icon={Pin}
                 accent="sky"
               />
               <StatTile
-                label="Total de lançamentos"
-                value={String(entries.length)}
-                icon={ArrowDownCircle}
+                label="Lançamentos fixos"
+                value={String(prestacaoFixas.length)}
+                icon={Pin}
+                accent="sky"
+              />
+              <StatTile
+                label="Contas variáveis"
+                value={formatCentsBRL(prestacaoVariaveisTotal)}
+                icon={Repeat}
+                accent="amber"
+              />
+              <StatTile
+                label="Lançamentos variáveis"
+                value={String(prestacaoVariaveis.length)}
+                icon={Repeat}
                 accent="amber"
               />
             </div>
@@ -1214,13 +1392,87 @@ export default function FinanceiroPage() {
             ) : null}
           </SectionCard>
 
+          {tab === "prestacao" ? (
+            <>
+              <SectionCard
+                title="Relatório de contas fixas"
+                description={`${prestacaoFixas.length} lançamento(s) · ${formatCentsBRL(prestacaoFixasTotal)} · ${prestacaoPeriodLabel}`}
+                variant="elevated"
+                action={
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={prestacaoFixas.length === 0}
+                      onClick={() => exportPrestacaoRows(prestacaoFixas, "Fixas", "fixas")}
+                    >
+                      Excel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={prestacaoFixas.length === 0}
+                      onClick={() =>
+                        exportPrestacaoPdf(
+                          prestacaoFixas,
+                          "Prestação de contas — Contas fixas",
+                          prestacaoFixasTotal,
+                        )
+                      }
+                    >
+                      PDF
+                    </Button>
+                  </div>
+                }
+              >
+                {loading ? (
+                  <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
+                ) : (
+                  prestacaoTable(prestacaoFixas)
+                )}
+              </SectionCard>
+              <SectionCard
+                title="Relatório de contas variáveis"
+                description={`${prestacaoVariaveis.length} lançamento(s) · ${formatCentsBRL(prestacaoVariaveisTotal)} · ${prestacaoPeriodLabel}`}
+                variant="elevated"
+                action={
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={prestacaoVariaveis.length === 0}
+                      onClick={() => exportPrestacaoRows(prestacaoVariaveis, "Variaveis", "variaveis")}
+                    >
+                      Excel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={prestacaoVariaveis.length === 0}
+                      onClick={() =>
+                        exportPrestacaoPdf(
+                          prestacaoVariaveis,
+                          "Prestação de contas — Contas variáveis",
+                          prestacaoVariaveisTotal,
+                        )
+                      }
+                    >
+                      PDF
+                    </Button>
+                  </div>
+                }
+              >
+                {loading ? (
+                  <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
+                ) : (
+                  prestacaoTable(prestacaoVariaveis)
+                )}
+              </SectionCard>
+            </>
+          ) : (
           <SectionCard
-            title={tab === "prestacao" ? "Prestação de contas" : "Lançamentos"}
-            description={
-              tab === "prestacao"
-                ? `${entries.length} movimentação(ões) no mês · estilo controle de contas`
-                : `${entries.length} registro(s) no filtro atual.`
-            }
+            title="Lançamentos"
+            description={`${entries.length} registro(s) no filtro atual.`}
             variant="elevated"
           >
             {loading ? (
@@ -1229,66 +1481,6 @@ export default function FinanceiroPage() {
               <p className="rounded-md border border-dashed border-[var(--card-border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
                 Nenhum lançamento neste período.
               </p>
-            ) : tab === "prestacao" ? (
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Descrição</Th>
-                    <Th>Vencimento</Th>
-                    <Th>Status</Th>
-                    <Th>Natureza</Th>
-                    <Th>Valor</Th>
-                    <Th>Forma de pagamento</Th>
-                    <Th>Destino / observação</Th>
-                    <Th>Responsável</Th>
-                    <Th>Ações</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((e) => (
-                    <tr key={e.id}>
-                      <Td className="font-medium">{e.description}</Td>
-                      <Td className="whitespace-nowrap">{formatEntryDate(e.entryDate)}</Td>
-                      <Td>
-                        <Badge tone={paymentStatusBadgeTone(e.paymentStatus, e.dueUrgency)}>
-                          {FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus]}
-                          {e.dueUrgency === "due_today" && e.paymentStatus !== "PAGO" ? " · hoje" : ""}
-                          {e.dueUrgency === "due_soon" && e.paymentStatus === "EM_ABERTO" ? " · a vencer" : ""}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        {e.kind === "SAIDA" ? (
-                          <Badge
-                            tone={
-                              e.expenseNature === "FIXA" ? "blue" : e.expenseNature ? "zinc" : "amber"
-                            }
-                          >
-                            {displayExpenseNature(e.kind, e.expenseNature)}
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </Td>
-                      <Td className="whitespace-nowrap font-medium">{formatCentsBRL(e.amountCents)}</Td>
-                      <Td>{FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod]}</Td>
-                      <Td className="max-w-[220px] text-sm text-[var(--text-muted)]">{e.notes ?? "—"}</Td>
-                      <Td>{responsibleLabel(e)}</Td>
-                      <Td>
-                        <div className="flex flex-wrap gap-1.5">
-                          {e.paymentStatus !== "PAGO" ? (
-                            <Button size="sm" onClick={() => void markAsPaid(e)}>
-                              Marcar pago
-                            </Button>
-                          ) : null}
-                          <Button size="sm" variant="secondary" onClick={() => openEdit(e)}>
-                            Editar
-                          </Button>
-                        </div>
-                      </Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
             ) : (
               <Table>
                 <thead>
@@ -1387,6 +1579,7 @@ export default function FinanceiroPage() {
               </Table>
             )}
           </SectionCard>
+          )}
         </>
       ) : (
         <SectionCard

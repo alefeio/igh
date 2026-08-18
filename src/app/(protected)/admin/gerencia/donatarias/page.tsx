@@ -191,7 +191,7 @@ export default function DonatariasPage() {
       <DashboardHero
         eyebrow="Gerência"
         title="Donatárias"
-        description="Entidades que recebem doações de saída do instituto."
+        description="Entidades que recebem as doações. Quem doa é cadastrado em Doadoras e escolhido no termo."
         rightSlot={
           <Button onClick={openCreate}>
             <Plus className="mr-1.5 h-4 w-4" />

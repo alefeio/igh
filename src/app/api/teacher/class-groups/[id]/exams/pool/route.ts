@@ -1,5 +1,5 @@
 import { jsonOk } from "@/lib/http";
-import { getValidExercisePoolForCourse } from "@/lib/class-group-exams";
+import { getValidExercisePoolForClassGroup } from "@/lib/class-group-exams";
 import { requireTeacherClassGroup } from "@/lib/teacher-class-group-access";
 
 type RouteCtx = { params: Promise<{ id: string }> };
@@ -9,7 +9,7 @@ export async function GET(_req: Request, ctx: RouteCtx) {
   const access = await requireTeacherClassGroup(classGroupId);
   if ("error" in access) return access.error;
 
-  const pool = await getValidExercisePoolForCourse(access.classGroup.courseId);
+  const pool = await getValidExercisePoolForClassGroup(classGroupId);
   return jsonOk({
     items: pool.map((p) => ({
       id: p.id,

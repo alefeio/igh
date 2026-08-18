@@ -99,6 +99,7 @@ const donationItemSchema = z.object({
 export const createDonationSchema = z
   .object({
     donatariaId: z.string().uuid("Donatária inválida"),
+    donorInstitutionId: z.string().uuid("Doadora inválida").nullable().optional(),
     kind: z.enum(["BENS", "DINHEIRO", "MISTO"]),
     donatedAt: requiredDate,
     description: optionalText,
@@ -143,6 +144,7 @@ export const confirmDonationSchema = z.object({
 export const updateDonationDraftSchema = z
   .object({
     donatariaId: z.string().uuid("Donatária inválida").optional(),
+    donorInstitutionId: z.string().uuid("Doadora inválida").nullable().optional(),
     kind: z.enum(["BENS", "DINHEIRO", "MISTO"]).optional(),
     donatedAt: requiredDate.optional(),
     description: optionalText,

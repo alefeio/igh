@@ -9,6 +9,7 @@ import {
   resolveDonationItems,
   serializeDonation,
 } from "@/lib/donations";
+import { resolveDonorInstitution } from "@/lib/donor-institution";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { createDonationSchema } from "@/lib/validators/inventory-donations";
@@ -66,6 +67,11 @@ export async function POST(request: Request) {
   });
   if (!donataria) return jsonErr("NOT_FOUND", "Donatária não encontrada.", 404);
 
+  const donor = await resolveDonorInstitution(data.donorInstitutionId, actor.id);
+  if (data.donorInstitutionId && donor.id !== data.donorInstitutionId) {
+    return jsonErr("NOT_FOUND", "Doadora não encontrada.", 404);
+  }
+
   if (data.templateId) {
     const template = await prisma.documentTemplate.findFirst({
       where: { id: data.templateId, type: "TERMO_DOACAO", isActive: true },
@@ -113,6 +119,7 @@ export async function POST(request: Request) {
   const created = await prisma.donation.create({
     data: {
       donatariaId: data.donatariaId,
+      donorInstitutionId: donor.id,
       kind: data.kind,
       donatedAt: data.donatedAt,
       description: data.description ?? null,
@@ -139,7 +146,7 @@ export async function POST(request: Request) {
     entityType: "Donation",
     entityId: created.id,
     action: "CREATE",
-    diff: { donatariaId: data.donatariaId, kind: data.kind, status: "RASCUNHO" },
+    diff: { donatariaId: data.donatariaId, donorInstitutionId: donor.id, kind: data.kind, status: "RASCUNHO" },
     performedByUserId: actor.id,
   });
 

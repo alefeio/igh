@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { getValidExercisePoolForCourse, pickExerciseIdsForExam } from "@/lib/class-group-exams";
+import { getValidExercisePoolForClassGroup, pickExerciseIdsForExam } from "@/lib/class-group-exams";
 import { requireTeacherClassGroup } from "@/lib/teacher-class-group-access";
 import { classGroupExamUpsertSchema } from "@/lib/validators/class-group-exam";
 
@@ -45,7 +45,7 @@ export async function POST(request: Request, ctx: RouteCtx) {
   }
 
   const d = parsed.data;
-  const pool = await getValidExercisePoolForCourse(access.classGroup.courseId);
+  const pool = await getValidExercisePoolForClassGroup(classGroupId);
   try {
     if (d.selectionMode === "MANUAL") {
       const manual = d.manualExerciseIds ?? [];

@@ -27,19 +27,13 @@ export async function ensureClassSessionsLiberatedForStudent(classGroupId: strin
   }
 }
 
-/** IDs de aulas liberadas para a matrícula (turma encerrada = curso inteiro; suspensa = nenhuma). */
-export async function getLiberatedLessonIdsForEnrollment(params: {
-  enrollmentId: string;
-  enrollmentStatus: string;
+/** Aulas já dadas nesta turma (sessões até hoje, ou curso inteiro se a turma encerrou). */
+export async function getLiberatedLessonIdsForClassGroup(params: {
   classGroupId: string;
   classGroupStatus: string;
   classGroupEndDate: Date | null;
   courseId: string;
 }): Promise<Set<string>> {
-  if (isEnrollmentContentBlocked(params.enrollmentStatus)) {
-    return new Set();
-  }
-
   await ensureClassSessionsLiberatedForStudent(params.classGroupId, params.classGroupStatus);
 
   const courseLessonIdsInOrder = await getCourseLessonIdsInOrder(params.courseId);
@@ -66,4 +60,25 @@ export async function getLiberatedLessonIdsForEnrollment(params: {
   });
 
   return liberadaLessonIds;
+}
+
+/** IDs de aulas liberadas para a matrícula (turma encerrada = curso inteiro; suspensa = nenhuma). */
+export async function getLiberatedLessonIdsForEnrollment(params: {
+  enrollmentId: string;
+  enrollmentStatus: string;
+  classGroupId: string;
+  classGroupStatus: string;
+  classGroupEndDate: Date | null;
+  courseId: string;
+}): Promise<Set<string>> {
+  if (isEnrollmentContentBlocked(params.enrollmentStatus)) {
+    return new Set();
+  }
+
+  return getLiberatedLessonIdsForClassGroup({
+    classGroupId: params.classGroupId,
+    classGroupStatus: params.classGroupStatus,
+    classGroupEndDate: params.classGroupEndDate,
+    courseId: params.courseId,
+  });
 }

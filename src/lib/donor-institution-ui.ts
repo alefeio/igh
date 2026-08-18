@@ -11,5 +11,9 @@ export type DonorInstitutionView = {
   representativeName: string | null;
   representativeRole: string | null;
   representativeCpf: string | null;
+  isActive: boolean;
+  isDefault: boolean;
+  createdAt: string;
   updatedAt: string;
+  _count?: { donations: number };
 };

@@ -6,7 +6,7 @@ import {
   canStartExamNow,
   computeAttemptExpiresAt,
   gradeAttempt,
-  getValidExercisePoolForCourse,
+  getValidExercisePoolForClassGroup,
   pickExerciseIdsForExam,
   remainingMs,
 } from "@/lib/class-group-exams";
@@ -57,7 +57,6 @@ export async function ensureAttemptNotExpired(attemptId: string) {
 export async function createExamAttempt(examId: string, enrollmentId: string) {
   const exam = await prisma.classGroupExam.findUnique({
     where: { id: examId },
-    include: { classGroup: { select: { courseId: true } } },
   });
   if (!exam) throw new Error("NOT_FOUND");
 
@@ -82,7 +81,7 @@ export async function createExamAttempt(examId: string, enrollmentId: string) {
   });
   if (inProgress) return inProgress;
 
-  const pool = await getValidExercisePoolForCourse(exam.classGroup.courseId);
+  const pool = await getValidExercisePoolForClassGroup(exam.classGroupId);
   const exerciseIds = pickExerciseIdsForExam(exam, pool);
   const exercises = exerciseIds.map((id) => {
     const p = pool.find((x) => x.id === id);

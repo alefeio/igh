@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { getLiberatedLessonIdsForClassGroup } from "@/lib/student-lesson-liberation";
 
 export type ExamTimingMode = "FROM_STUDENT_START" | "FROM_EXAM_START";
 
@@ -125,18 +126,47 @@ export async function getValidExercisePoolForCourse(courseId: string): Promise<
   return pool;
 }
 
+/** Banco de questões só de aulas já dadas nesta turma (sessões até hoje). */
+export async function getValidExercisePoolForClassGroup(classGroupId: string) {
+  const classGroup = await prisma.classGroup.findFirst({
+    where: { id: classGroupId },
+    select: { id: true, courseId: true, status: true, endDate: true },
+  });
+  if (!classGroup) return [];
+
+  const [pool, allowedLessonIds] = await Promise.all([
+    getValidExercisePoolForCourse(classGroup.courseId),
+    getLiberatedLessonIdsForClassGroup({
+      classGroupId: classGroup.id,
+      classGroupStatus: classGroup.status,
+      classGroupEndDate: classGroup.endDate,
+      courseId: classGroup.courseId,
+    }),
+  ]);
+
+  return pool.filter((item) => allowedLessonIds.has(item.lessonId));
+}
+
 export function pickExerciseIdsForExam(
   exam: { selectionMode: string; questionCount: number; manualExerciseIds: string[] },
   pool: { id: string }[]
 ): string[] {
   if (exam.selectionMode === "MANUAL") {
     const ids = exam.manualExerciseIds.filter((id) => pool.some((p) => p.id === id));
-    if (ids.length === 0) throw new Error("Nenhuma questão manual válida.");
+    if (ids.length < exam.questionCount) {
+      throw new Error(
+        ids.length === 0
+          ? "Nenhuma questão de aula já dada nesta turma."
+          : `Selecione ${exam.questionCount} questões de aulas já dadas (disponíveis: ${ids.length}).`,
+      );
+    }
     return ids.slice(0, exam.questionCount);
   }
   const poolIds = pool.map((p) => p.id);
   if (poolIds.length < exam.questionCount) {
-    throw new Error(`Banco insuficiente: ${poolIds.length} questões válidas, precisa de ${exam.questionCount}.`);
+    throw new Error(
+      `Banco insuficiente: ${poolIds.length} questões de aulas já dadas, precisa de ${exam.questionCount}.`,
+    );
   }
   return shuffle(poolIds).slice(0, exam.questionCount);
 }

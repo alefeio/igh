@@ -19,4 +19,10 @@ export const updateDonorInstitutionSchema = z.object({
   representativeName: optionalText,
   representativeRole: optionalText,
   representativeCpf: optionalText,
+  isActive: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+});
+
+export const createDonorInstitutionSchema = updateDonorInstitutionSchema.extend({
+  name: z.string().trim().min(2, "Nome da doadora é obrigatório"),
 });

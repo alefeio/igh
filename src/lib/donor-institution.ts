@@ -7,22 +7,98 @@ import type { DonorInstitutionView } from "@/lib/donor-institution-ui";
 
 export type { DonorInstitutionView };
 
+const donorSelect = {
+  id: true,
+  name: true,
+  document: true,
+  email: true,
+  address: true,
+  city: true,
+  state: true,
+  cep: true,
+  phone: true,
+  representativeName: true,
+  representativeRole: true,
+  representativeCpf: true,
+  isActive: true,
+  isDefault: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 export async function getOrCreateDonorInstitutionSettings(actorId?: string | null) {
   const existing = await prisma.donorInstitutionSettings.findFirst({
-    orderBy: { updatedAt: "desc" },
+    where: { deletedAt: null },
+    orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
   });
   if (existing) return existing;
 
   return prisma.donorInstitutionSettings.create({
     data: {
       name: BRAND.legalName,
+      isActive: true,
+      isDefault: true,
       updatedByUserId: actorId ?? null,
     },
   });
 }
 
+export async function listDonorInstitutions() {
+  await getOrCreateDonorInstitutionSettings();
+  return prisma.donorInstitutionSettings.findMany({
+    where: { deletedAt: null },
+    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    include: { _count: { select: { donations: true } } },
+  });
+}
+
+export async function resolveDonorInstitution(id?: string | null, actorId?: string | null) {
+  if (id) {
+    const found = await prisma.donorInstitutionSettings.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (found) return found;
+  }
+  const preferred = await prisma.donorInstitutionSettings.findFirst({
+    where: { deletedAt: null, isActive: true, isDefault: true },
+  });
+  if (preferred) return preferred;
+  return getOrCreateDonorInstitutionSettings(actorId);
+}
+
+export async function setDefaultDonorInstitution(id: string, actorId?: string | null) {
+  await prisma.$transaction([
+    prisma.donorInstitutionSettings.updateMany({
+      where: { deletedAt: null, isDefault: true, NOT: { id } },
+      data: { isDefault: false },
+    }),
+    prisma.donorInstitutionSettings.update({
+      where: { id },
+      data: { isDefault: true, isActive: true, updatedByUserId: actorId ?? null },
+    }),
+  ]);
+}
+
 export function serializeDonorInstitution(
-  row: Awaited<ReturnType<typeof getOrCreateDonorInstitutionSettings>>,
+  row: {
+    id: string;
+    name: string | null;
+    document: string | null;
+    email: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    cep: string | null;
+    phone: string | null;
+    representativeName: string | null;
+    representativeRole: string | null;
+    representativeCpf: string | null;
+    isActive?: boolean;
+    isDefault?: boolean;
+    createdAt?: Date;
+    updatedAt: Date;
+    _count?: { donations: number };
+  },
 ): DonorInstitutionView {
   return {
     id: row.id,
@@ -37,7 +113,11 @@ export function serializeDonorInstitution(
     representativeName: row.representativeName,
     representativeRole: row.representativeRole,
     representativeCpf: row.representativeCpf,
+    isActive: row.isActive ?? true,
+    isDefault: row.isDefault ?? false,
+    createdAt: (row.createdAt ?? row.updatedAt).toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    ...(row._count ? { _count: row._count } : {}),
   };
 }
 
@@ -65,7 +145,7 @@ export function donorInstitutionVariableMap(
     .filter(Boolean)
     .join(", ");
 
-  return {
+  const instituto: Record<string, string> = {
     "instituto.nome": name,
     "instituto.cnpj": donor?.document?.trim() || "—",
     "instituto.email": donor?.email?.trim() || "—",
@@ -78,4 +158,10 @@ export function donorInstitutionVariableMap(
     "instituto.cargo": donor?.representativeRole?.trim() || "—",
     "instituto.cpf": donor?.representativeCpf?.trim() || "—",
   };
+  const doadora = Object.fromEntries(
+    Object.entries(instituto).map(([key, value]) => [key.replace("instituto.", "doadora."), value]),
+  );
+  return { ...instituto, ...doadora };
 }
+
+export { donorSelect };

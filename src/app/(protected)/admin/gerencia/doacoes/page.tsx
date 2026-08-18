@@ -1,6 +1,7 @@
 "use client";
 
 import { Gift, Plus, Search } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DashboardHero, PanelPageStack, SectionCard, StatTile } from "@/components/dashboard/DashboardUI";
@@ -19,6 +20,7 @@ import {
   type DonationKitComponent,
 } from "@/lib/donation-kits";
 import type { DonationKind, DonationStatus } from "@/generated/prisma/client";
+import type { DonorInstitutionView } from "@/lib/donor-institution-ui";
 import {
   DONATION_KIND_LABEL,
   DONATION_KINDS,
@@ -40,6 +42,7 @@ type ExtraItem = {
 };
 
 type FormState = {
+  donorInstitutionId: string;
   donatariaId: string;
   kind: DonationKind;
   donatedAt: string;
@@ -60,6 +63,7 @@ function emptyForm(): FormState {
   const today = new Date();
   const place = `Belém, ${today.getDate()} de ${today.toLocaleDateString("pt-BR", { month: "long" })} de ${today.getFullYear()}`;
   return {
+    donorInstitutionId: "",
     donatariaId: "",
     kind: "BENS",
     donatedAt: today.toISOString().slice(0, 10),
@@ -91,6 +95,7 @@ export default function DoacoesPage() {
   const [loading, setLoading] = useState(true);
   const [donations, setDonations] = useState<DonationView[]>([]);
   const [donatarias, setDonatarias] = useState<DonatariaView[]>([]);
+  const [donors, setDonors] = useState<DonorInstitutionView[]>([]);
   const [inventory, setInventory] = useState<InventoryItemView[]>([]);
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [kitComponents, setKitComponents] = useState<DonationKitComponent[]>([
@@ -116,9 +121,10 @@ export default function DoacoesPage() {
       if (statusFilter) sp.set("status", statusFilter);
       if (kindFilter) sp.set("kind", kindFilter);
 
-      const [dRes, donRes, invRes, tplRes, eqRes] = await Promise.all([
+      const [dRes, donRes, donorRes, invRes, tplRes, eqRes] = await Promise.all([
         fetch(`/api/admin/gerencia/doacoes?${sp.toString()}`, { cache: "no-store" }),
         fetch("/api/admin/gerencia/donatarias", { cache: "no-store" }),
+        fetch("/api/admin/gerencia/configuracoes-doadora", { cache: "no-store" }),
         fetch("/api/admin/gerencia/almoxarifado/itens", { cache: "no-store" }),
         fetch("/api/admin/gerencia/modelos", { cache: "no-store" }),
         fetch("/api/admin/gerencia/equipamentos", { cache: "no-store" }),
@@ -126,6 +132,7 @@ export default function DoacoesPage() {
 
       const dJson = (await dRes.json()) as ApiResponse<{ donations: DonationView[] }>;
       const donJson = (await donRes.json()) as ApiResponse<{ donatarias: DonatariaView[] }>;
+      const donorJson = (await donorRes.json()) as ApiResponse<{ institutions: DonorInstitutionView[] }>;
       const invJson = (await invRes.json()) as ApiResponse<{ items: InventoryItemView[] }>;
       const tplJson = (await tplRes.json()) as ApiResponse<{ templates: TemplateOption[] }>;
       const eqJson = (await eqRes.json()) as ApiResponse<{
@@ -139,6 +146,9 @@ export default function DoacoesPage() {
       setDonations(dJson.data.donations);
       if (donRes.ok && donJson.ok) {
         setDonatarias(donJson.data.donatarias.filter((d) => d.isActive));
+      }
+      if (donorRes.ok && donorJson.ok) {
+        setDonors((donorJson.data.institutions ?? []).filter((d) => d.isActive));
       }
       if (invRes.ok && invJson.ok) {
         setInventory(invJson.data.items.filter((i) => i.isActive));
@@ -177,7 +187,7 @@ export default function DoacoesPage() {
     const q = search.trim().toLowerCase();
     if (!q) return donations;
     return donations.filter((d) => {
-      const hay = `${d.donataria.name} ${d.description ?? ""} ${d.belongsTo ?? ""} ${DONATION_KIND_LABEL[d.kind]}`.toLowerCase();
+      const hay = `${d.donorInstitution?.name ?? ""} ${d.donataria.name} ${d.description ?? ""} ${d.belongsTo ?? ""} ${DONATION_KIND_LABEL[d.kind]}`.toLowerCase();
       return hay.includes(q);
     });
   }, [donations, search]);
@@ -191,8 +201,9 @@ export default function DoacoesPage() {
   }, [donations]);
 
   function openCreate() {
+    const defaultDonor = donors.find((d) => d.isDefault) ?? donors[0];
     setEditingId(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), donorInstitutionId: defaultDonor?.id ?? "" });
     setFormOpen(true);
   }
 
@@ -210,6 +221,7 @@ export default function DoacoesPage() {
 
     setEditingId(d.id);
     setForm({
+      donorInstitutionId: d.donorInstitutionId ?? d.donorInstitution?.id ?? "",
       donatariaId: d.donatariaId,
       kind: d.kind,
       donatedAt: d.donatedAt.slice(0, 10),
@@ -249,8 +261,12 @@ export default function DoacoesPage() {
   }
 
   async function save() {
+    if (!form.donorInstitutionId) {
+      toast.push("error", "Selecione a instituição doadora (quem doa).");
+      return;
+    }
     if (!form.donatariaId) {
-      toast.push("error", "Selecione a donatária.");
+      toast.push("error", "Selecione a donatária (quem recebe).");
       return;
     }
     const showGoods = form.kind === "BENS" || form.kind === "MISTO";
@@ -262,6 +278,7 @@ export default function DoacoesPage() {
     setSaving(true);
     try {
       const payload = {
+        donorInstitutionId: form.donorInstitutionId,
         donatariaId: form.donatariaId,
         kind: form.kind,
         donatedAt: form.donatedAt,
@@ -365,7 +382,7 @@ export default function DoacoesPage() {
       <DashboardHero
         eyebrow="Gerência"
         title="Doações"
-        description="Crie o termo em rascunho, revise e confirme para baixar estoque, financeiro e PDF."
+        description="O termo registra a doação de uma instituição (doadora) para outra (donatária). Escolha as duas partes ao criar."
         rightSlot={
           <Button onClick={openCreate}>
             <Plus className="mr-1.5 h-4 w-4" />
@@ -396,7 +413,7 @@ export default function DoacoesPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
             <Input
               className="pl-9"
-              placeholder="Buscar donatária, pertence a…"
+              placeholder="Buscar doadora, donatária, pertence a…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -433,6 +450,7 @@ export default function DoacoesPage() {
             <tr>
               <Th>Nº</Th>
               <Th>Data</Th>
+              <Th>Doadora</Th>
               <Th>Donatária</Th>
               <Th>Kits / itens</Th>
               <Th>Status</Th>
@@ -446,6 +464,12 @@ export default function DoacoesPage() {
                   {d.termNumber != null ? `#${d.termNumber}` : "—"}
                 </Td>
                 <Td className="whitespace-nowrap">{formatDonationDate(d.donatedAt)}</Td>
+                <Td>
+                  <div className="font-medium">{d.donorInstitution?.name || "—"}</div>
+                  <div className="text-xs text-[var(--text-muted)]">
+                    {d.donorInstitution?.document || "Quem doa"}
+                  </div>
+                </Td>
                 <Td>
                   <div className="font-medium">{d.donataria.name}</div>
                   <div className="text-xs text-[var(--text-muted)]">
@@ -508,7 +532,7 @@ export default function DoacoesPage() {
             ))}
             {!loading && filtered.length === 0 ? (
               <tr>
-                <Td colSpan={6}>
+                <Td colSpan={7}>
                   <div className="flex flex-col items-center gap-3 py-8">
                     <p className="text-center text-sm text-[var(--text-muted)]">
                       Nenhuma doação encontrada.
@@ -534,20 +558,57 @@ export default function DoacoesPage() {
         title={editingId ? "Editar rascunho de doação" : "Novo termo de doação"}
       >
         <div className="grid max-h-[70vh] gap-3 overflow-y-auto sm:grid-cols-2">
-          <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm">Donatária</span>
+          <div className="sm:col-span-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm text-[var(--text-muted)]">
+            <p className="font-medium text-[var(--text-primary)]">Quem participa do termo</p>
+            <p className="mt-1">
+              <strong>Doadora</strong> é quem entrega os bens ou o valor.{" "}
+              <strong>Donatária</strong> é a entidade que recebe.
+            </p>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-sm">Doadora (quem doa)</span>
+            <select
+              className={selectClass}
+              value={form.donorInstitutionId}
+              onChange={(e) => setForm((f) => ({ ...f, donorInstitutionId: e.target.value }))}
+            >
+              <option value="">Selecione a doadora…</option>
+              {donors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                  {d.isDefault ? " (padrão)" : ""}
+                </option>
+              ))}
+            </select>
+            <Link
+              href="/admin/gerencia/configuracoes-doadora"
+              target="_blank"
+              className="mt-1 inline-block text-xs text-[var(--igh-primary)] hover:underline"
+            >
+              Cadastrar outra doadora
+            </Link>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm">Donatária (quem recebe)</span>
             <select
               className={selectClass}
               value={form.donatariaId}
               onChange={(e) => setForm((f) => ({ ...f, donatariaId: e.target.value }))}
             >
-              <option value="">Selecione…</option>
+              <option value="">Selecione a donatária…</option>
               {donatarias.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
                 </option>
               ))}
             </select>
+            <Link
+              href="/admin/gerencia/donatarias"
+              target="_blank"
+              className="mt-1 inline-block text-xs text-[var(--igh-primary)] hover:underline"
+            >
+              Cadastrar donatária
+            </Link>
           </label>
           <label className="block">
             <span className="mb-1 block text-sm">Tipo</span>

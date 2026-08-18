@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { getValidExercisePoolForCourse, pickExerciseIdsForExam } from "@/lib/class-group-exams";
+import { getValidExercisePoolForClassGroup, pickExerciseIdsForExam } from "@/lib/class-group-exams";
 import {
   examToTemplateConfig,
   findReusableExamForTeacher,
@@ -48,7 +48,7 @@ export async function POST(request: Request, ctx: RouteCtx) {
     return jsonErr("VALIDATION_ERROR", "O término deve ser após o início.", 400);
   }
 
-  const pool = await getValidExercisePoolForCourse(access.classGroup.courseId);
+  const pool = await getValidExercisePoolForClassGroup(classGroupId);
   try {
     if (template.selectionMode === "MANUAL") {
       pickExerciseIdsForExam(

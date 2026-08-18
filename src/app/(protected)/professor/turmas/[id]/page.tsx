@@ -1166,7 +1166,7 @@ export default function ProfessorTurmaDetailPage() {
         <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-6">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Provas da turma</h2>
           <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Crie provas com questões do banco de exercícios do curso, defina tempo e janela de disponibilidade.
+            Crie provas com questões das aulas já dadas até hoje, defina tempo e janela de disponibilidade.
           </p>
           <Link
             href={`/professor/turmas/${id}/provas`}

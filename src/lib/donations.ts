@@ -1,6 +1,6 @@
 import "server-only";
 
-import { renderDocumentHtmlToPdfBytes } from "@/lib/admin/document-template-pdf";
+import { renderOfficialDonationTermPdf } from "@/lib/admin/donation-term-pdf";
 import {
   buildDonationVariableMap,
   renderDocumentTemplateHtml,
@@ -8,7 +8,7 @@ import {
 import { uploadGerenciaPdfBytes } from "@/lib/admin/gerencia-pdf-upload";
 import {
   donorInstitutionVariableMap,
-  getOrCreateDonorInstitutionSettings,
+  resolveDonorInstitution,
 } from "@/lib/donor-institution";
 import { expandDonationKitItems } from "@/lib/donation-kits";
 import { applyInventoryMovement } from "@/lib/inventory";
@@ -16,6 +16,7 @@ import { prisma } from "@/lib/prisma";
 
 export const donationInclude = {
   donataria: true,
+  donorInstitution: true,
   template: { select: { id: true, title: true, type: true } },
   items: {
     include: {
@@ -35,6 +36,7 @@ export function serializeDonation(d: DonationLoaded) {
   return {
     id: d.id,
     donatariaId: d.donatariaId,
+    donorInstitutionId: d.donorInstitutionId,
     kind: d.kind,
     donatedAt: d.donatedAt.toISOString().slice(0, 10),
     description: d.description,
@@ -63,6 +65,14 @@ export function serializeDonation(d: DonationLoaded) {
       state: d.donataria.state,
       zone: d.donataria.zone,
     },
+    donorInstitution: d.donorInstitution
+      ? {
+          id: d.donorInstitution.id,
+          name: d.donorInstitution.name,
+          document: d.donorInstitution.document,
+          isDefault: d.donorInstitution.isDefault,
+        }
+      : null,
     template: d.template,
     financialEntry: d.financialEntry,
     items: d.items.map((item) => ({
@@ -201,6 +211,8 @@ export async function confirmDonationSideEffects(opts: {
     financialEntryId = entry.id;
   }
 
+  const donor = await resolveDonorInstitution(donation.donorInstitutionId, opts.actorId);
+
   if (opts.generatePdf) {
     const template = templateId
       ? await prisma.documentTemplate.findFirst({
@@ -213,7 +225,6 @@ export async function confirmDonationSideEffects(opts: {
 
     if (template) {
       templateId = template.id;
-      const donor = await getOrCreateDonorInstitutionSettings(opts.actorId);
       const vars = buildDonationVariableMap({
         donataria: donation.donataria,
         donatedAt: donation.donatedAt,
@@ -227,14 +238,22 @@ export async function confirmDonationSideEffects(opts: {
         donorInstitution: donorInstitutionVariableMap(donor),
       });
       renderedHtml = renderDocumentTemplateHtml(template.contentRich, vars);
-      const bytes = await renderDocumentHtmlToPdfBytes(renderedHtml, template.title);
-      const uploaded = await uploadGerenciaPdfBytes(
-        bytes,
-        `termo-doacao-${termNumber}-${donation.donataria.name.replace(/\s+/g, "-").slice(0, 40)}.pdf`,
-      );
-      pdfUrl = uploaded.url;
-      pdfPublicId = uploaded.publicId;
     }
+
+    const bytes = await renderOfficialDonationTermPdf({
+      donor,
+      donataria: donation.donataria,
+      donatedAt: donation.donatedAt,
+      placeDateText: donation.placeDateText,
+      kitsCount: donation.kitsCount,
+      items: donation.items,
+    });
+    const uploaded = await uploadGerenciaPdfBytes(
+      bytes,
+      `termo-doacao-${termNumber}-${donation.donataria.name.replace(/\s+/g, "-").slice(0, 40)}.pdf`,
+    );
+    pdfUrl = uploaded.url;
+    pdfPublicId = uploaded.publicId;
   }
 
   return prisma.donation.update({
@@ -242,6 +261,7 @@ export async function confirmDonationSideEffects(opts: {
     data: {
       status: "CONFIRMADA",
       termNumber,
+      donorInstitutionId: donation.donorInstitutionId ?? donor.id,
       inventoryPosted,
       financialEntryId,
       templateId,

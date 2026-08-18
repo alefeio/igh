@@ -8,6 +8,7 @@ import {
   resolveDonationItems,
   serializeDonation,
 } from "@/lib/donations";
+import { resolveDonorInstitution } from "@/lib/donor-institution";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { updateDonationDraftSchema } from "@/lib/validators/inventory-donations";
@@ -68,6 +69,13 @@ export async function PATCH(request: Request, ctx: Ctx) {
     if (!donataria) return jsonErr("NOT_FOUND", "Donatária não encontrada.", 404);
   }
 
+  if (data.donorInstitutionId) {
+    const donor = await resolveDonorInstitution(data.donorInstitutionId, actor.id);
+    if (donor.id !== data.donorInstitutionId) {
+      return jsonErr("NOT_FOUND", "Doadora não encontrada.", 404);
+    }
+  }
+
   if (data.templateId) {
     const template = await prisma.documentTemplate.findFirst({
       where: { id: data.templateId, type: "TERMO_DOACAO", isActive: true },
@@ -123,6 +131,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
       where: { id },
       data: {
         ...(data.donatariaId !== undefined ? { donatariaId: data.donatariaId } : {}),
+        ...(data.donorInstitutionId !== undefined ? { donorInstitutionId: data.donorInstitutionId } : {}),
         ...(data.kind !== undefined ? { kind: data.kind } : {}),
         ...(data.donatedAt !== undefined ? { donatedAt: data.donatedAt } : {}),
         ...(data.description !== undefined ? { description: data.description } : {}),

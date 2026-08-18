@@ -1726,6 +1726,8 @@ model Donataria {
 model Donation {
   id                  String         @id @default(uuid())
   donatariaId         String
+  /// * Instituição doadora escolhida no termo (além da donatária).
+  donorInstitutionId  String?
   kind                DonationKind
   donatedAt           DateTime       @db.Date
   description         String?
@@ -1753,6 +1755,7 @@ model Donation {
   createdByUserId     String?
   deletedAt           DateTime?
   donataria           Donataria      @relation(fields: [donatariaId], references: [id], onDelete: Restrict)
+  donorInstitution    DonorInstitutionSettings? @relation(fields: [donorInstitutionId], references: [id], onDelete: SetNull)
   template            DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   financialEntry      FinancialEntry?   @relation(fields: [financialEntryId], references: [id], onDelete: SetNull)
   createdByUser       User?             @relation("DonationCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1760,6 +1763,7 @@ model Donation {
   inventoryMovements  InventoryMovement[]
 
   @@index([donatariaId, donatedAt])
+  @@index([donorInstitutionId])
   @@index([status, deletedAt])
   @@index([termNumber])
 }
@@ -1852,9 +1856,9 @@ model TechnicalVisitChecklistItem {
   @@unique([visitId, key])
 }
 
-/// * Dados da instituição doadora usados nos termos de doação (singleton).
+/// * Instituições doadoras usadas nos termos de doação (catálogo; uma pode ser a padrão).
 model DonorInstitutionSettings {
-  id                   String   @id @default(uuid())
+  id                   String     @id @default(uuid())
   name                 String?
   document             String?
   email                String?
@@ -1866,9 +1870,17 @@ model DonorInstitutionSettings {
   representativeName   String?
   representativeRole   String?
   representativeCpf    String?
-  updatedAt            DateTime @updatedAt
+  isActive             Boolean    @default(true)
+  isDefault            Boolean    @default(false)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
   updatedByUserId      String?
-  updatedByUser        User?    @relation("DonorInstitutionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  deletedAt            DateTime?
+  updatedByUser        User?      @relation("DonorInstitutionUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  donations            Donation[]
+
+  @@index([deletedAt, isActive])
+  @@index([isDefault])
 }
 
 /// * Meta anual de doação de computadores e formação de pessoas.

@@ -46,6 +46,14 @@ const nextConfig: NextConfig = {
       "./assets/certificates/**/*",
       "./assets/fonts/**/*",
     ],
+    "/api/admin/gerencia/doacoes": [
+      "./assets/gerencia/termo-doacao/**/*",
+      "./assets/fonts/**/*",
+    ],
+    "/api/admin/gerencia/doacoes/[id]/confirmar": [
+      "./assets/gerencia/termo-doacao/**/*",
+      "./assets/fonts/**/*",
+    ],
   },
   /**
    * Next.js 16: o build em produção usa Turbopack por omissão (ver `next/dist/lib/bundler.js`).

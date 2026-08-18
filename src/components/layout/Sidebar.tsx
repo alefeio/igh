@@ -268,7 +268,7 @@ const ITEMS: Item[] = [
   },
   {
     href: "/admin/gerencia/configuracoes-doadora",
-    label: "Config. da doadora",
+    label: "Doadoras",
     roles: ADMIN_MANAGEMENT,
     category: "Gerência",
   },

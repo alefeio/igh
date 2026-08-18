@@ -104,6 +104,7 @@ export type DonatariaView = {
 export type DonationView = {
   id: string;
   donatariaId: string;
+  donorInstitutionId: string | null;
   kind: DonationKind;
   donatedAt: string;
   description: string | null;
@@ -132,6 +133,12 @@ export type DonationView = {
     state: string | null;
     zone?: DonatariaZone;
   };
+  donorInstitution: {
+    id: string;
+    name: string | null;
+    document: string | null;
+    isDefault: boolean;
+  } | null;
   template: { id: string; title: string; type: string } | null;
   financialEntry: { id: string; amountCents: number; description: string } | null;
   items: Array<{
