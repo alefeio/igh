@@ -198,7 +198,7 @@ export async function PATCH(
         enrollmentId: u.enrollmentId,
         present: false,
         absenceJustification: null,
-        appliedMark: null as const,
+        appliedMark: null as AttendanceMark | null,
       };
     }
     const { present, absenceJustification } = markToDb(u.mark);
@@ -206,7 +206,7 @@ export async function PATCH(
       enrollmentId: u.enrollmentId,
       present,
       absenceJustification,
-      appliedMark: u.mark,
+      appliedMark: u.mark as AttendanceMark | null,
     };
   });
 
