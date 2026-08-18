@@ -198,6 +198,7 @@ export async function PATCH(
         enrollmentId: u.enrollmentId,
         present: false,
         absenceJustification: null,
+        appliedMark: null as const,
       };
     }
     const { present, absenceJustification } = markToDb(u.mark);
@@ -205,6 +206,7 @@ export async function PATCH(
       enrollmentId: u.enrollmentId,
       present,
       absenceJustification,
+      appliedMark: u.mark,
     };
   });
 
@@ -213,7 +215,7 @@ export async function PATCH(
     uniqueByEnrollment.set(row.enrollmentId, row);
   }
 
-  const { suspendedIds, reactivatedIds } = await applyAttendanceSuspensionRules({
+  const { suspendedIds, reactivatedIds, cancelledIds } = await applyAttendanceSuspensionRules({
     classGroupId,
     rows: [...uniqueByEnrollment.values()],
     performedByUserId: user.id,
@@ -233,5 +235,6 @@ export async function PATCH(
     saved: savedRows.length,
     suspendedEnrollmentIds: suspendedIds,
     reactivatedEnrollmentIds: reactivatedIds,
+    cancelledEnrollmentIds: cancelledIds,
   });
 }

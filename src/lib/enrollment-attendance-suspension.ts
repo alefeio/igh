@@ -1,37 +1,22 @@
 import "server-only";
 
 import { createAuditLog } from "@/lib/audit";
+import {
+  CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT,
+  CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT,
+  countConsecutiveUnjustifiedAbsenceStreak,
+  isUnjustifiedAbsence,
+} from "@/lib/enrollment-attendance-streak";
 import { sendEnrollmentSuspensionEmail } from "@/lib/enrollment-suspension-email";
+import { tryPromoteWaitlistAfterSeatFreed } from "@/lib/enrollment-waitlist";
 import { prisma } from "@/lib/prisma";
 
-export const CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT = 3;
-
-export function isUnjustifiedAbsence(row: {
-  present: boolean;
-  absenceJustification: string | null;
-}): boolean {
-  if (row.present) return false;
-  return (row.absenceJustification ?? "").trim().length === 0;
-}
-
-/**
- * Conta faltas consecutivas sem justificativa entre sessões já lançadas,
- * da mais recente para trás. Sessões liberadas sem lançamento são ignoradas
- * (não interrompem a sequência — evita zerar o streak quando há aulas futuras).
- */
-export function countConsecutiveUnjustifiedAbsenceStreak(
-  sessionsNewestFirst: { id: string }[],
-  attendanceBySessionId: Map<string, { present: boolean; absenceJustification: string | null }>,
-): number {
-  let streak = 0;
-  for (const session of sessionsNewestFirst) {
-    const row = attendanceBySessionId.get(session.id);
-    if (!row) continue;
-    if (isUnjustifiedAbsence(row)) streak += 1;
-    else break;
-  }
-  return streak;
-}
+export {
+  CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT,
+  CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT,
+  countConsecutiveUnjustifiedAbsenceStreak,
+  isUnjustifiedAbsence,
+};
 
 /** Faltas consecutivas sem justificativa, da aula mais recente para trás (sessões liberadas). */
 export async function getConsecutiveUnjustifiedAbsenceStreak(
@@ -59,18 +44,22 @@ type AttendancePatchRow = {
   enrollmentId: string;
   present: boolean;
   absenceJustification: string | null;
+  /** Grade: P/F/J ou null (desmarcar). Ausente nas APIs que só enviam presença. */
+  appliedMark?: "P" | "F" | "J" | null;
 };
 
 /**
- * Após salvar frequência: reativa matrícula suspensa com presença; suspende após 3 faltas consecutivas sem justificativa.
+ * Após salvar frequência: reativa matrícula suspensa com presença; suspende após 3 faltas
+ * consecutivas sem justificativa; cancela após a 4ª falta consecutiva (já suspenso).
  */
 export async function applyAttendanceSuspensionRules(params: {
   classGroupId: string;
   rows: AttendancePatchRow[];
   performedByUserId?: string | null;
-}): Promise<{ reactivatedIds: string[]; suspendedIds: string[] }> {
+}): Promise<{ reactivatedIds: string[]; suspendedIds: string[]; cancelledIds: string[] }> {
   const reactivatedIds: string[] = [];
   const suspendedIds: string[] = [];
+  const cancelledIds: string[] = [];
 
   for (const row of params.rows) {
     const enrollment = await prisma.enrollment.findFirst({
@@ -98,10 +87,40 @@ export async function applyAttendanceSuspensionRules(params: {
       continue;
     }
 
+    const streak = await getConsecutiveUnjustifiedAbsenceStreak(enrollment.id, params.classGroupId);
+    const markingUnjustifiedAbsence =
+      row.appliedMark === undefined
+        ? isUnjustifiedAbsence(row)
+        : row.appliedMark === "F";
+
+    if (
+      enrollment.status === "SUSPENDED" &&
+      markingUnjustifiedAbsence &&
+      streak >= CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT
+    ) {
+      await prisma.enrollment.update({
+        where: { id: enrollment.id },
+        data: { status: "CANCELLED" },
+      });
+      cancelledIds.push(enrollment.id);
+      await createAuditLog({
+        entityType: "Enrollment",
+        entityId: enrollment.id,
+        action: "AUTO_CANCEL_ATTENDANCE",
+        performedByUserId: params.performedByUserId ?? null,
+        diff: {
+          reason: `${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT} faltas consecutivas sem justificativa`,
+          consecutiveUnjustifiedAbsences: streak,
+          studentName: enrollment.student.name,
+        },
+      });
+      await tryPromoteWaitlistAfterSeatFreed(params.classGroupId, params.performedByUserId);
+      continue;
+    }
+
     if (enrollment.status !== "ACTIVE") continue;
 
-    const streak = await getConsecutiveUnjustifiedAbsenceStreak(enrollment.id, params.classGroupId);
-    if (streak >= CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT) {
+    if (markingUnjustifiedAbsence && streak >= CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT) {
       await prisma.enrollment.update({
         where: { id: enrollment.id },
         data: { status: "SUSPENDED" },
@@ -125,5 +144,5 @@ export async function applyAttendanceSuspensionRules(params: {
     }
   }
 
-  return { reactivatedIds, suspendedIds };
+  return { reactivatedIds, suspendedIds, cancelledIds };
 }

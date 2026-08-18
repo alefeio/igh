@@ -183,7 +183,7 @@ export async function PATCH(
       )
   );
 
-  const { reactivatedIds, suspendedIds } = await applyAttendanceSuspensionRules({
+  const { reactivatedIds, suspendedIds, cancelledIds } = await applyAttendanceSuspensionRules({
     classGroupId,
     rows: savedRows,
     performedByUserId: user.id,
@@ -229,6 +229,7 @@ export async function PATCH(
   return jsonOk({
     suspendedEnrollmentIds: suspendedIds,
     reactivatedEnrollmentIds: reactivatedIds,
+    cancelledEnrollmentIds: cancelledIds,
     attendance: enrollmentsAfter.map((e) => {
       const st = e.student;
       const hasIdDocument = st.attachments.some((a) => a.type === "ID_DOCUMENT");

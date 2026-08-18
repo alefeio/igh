@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import type { ApiResponse } from "@/lib/api-types";
 import {
   attendancePercent,
   type AttendanceMark,
 } from "@/lib/attendance-mark";
+import { wouldCancelEnrollmentOnFourthAbsence } from "@/lib/enrollment-attendance-streak";
 
 type GridSession = {
   id: string;
@@ -93,6 +96,11 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
   const [rows, setRows] = useState<GridRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [cancelConfirm, setCancelConfirm] = useState<{
+    enrollmentId: string;
+    sessionId: string;
+    studentName: string;
+  } | null>(null);
 
   const loadGrid = useCallback(async () => {
     setLoading(true);
@@ -172,6 +180,7 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
       const json = (await res.json()) as ApiResponse<{
         suspendedEnrollmentIds?: string[];
         reactivatedEnrollmentIds?: string[];
+        cancelledEnrollmentIds?: string[];
       }>;
 
       if (!res.ok || !json?.ok) {
@@ -186,7 +195,15 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
 
       const suspended = json.data?.suspendedEnrollmentIds ?? [];
       const reactivated = json.data?.reactivatedEnrollmentIds ?? [];
-      if (suspended.length > 0) {
+      const cancelled = json.data?.cancelledEnrollmentIds ?? [];
+      if (cancelled.length > 0) {
+        toast.push(
+          "success",
+          `${cancelled.length} matrícula(s) cancelada(s) por 4 faltas consecutivas sem justificativa.`,
+        );
+        onEnrollmentChange?.();
+        void loadGrid();
+      } else if (suspended.length > 0) {
         toast.push(
           "success",
           `${suspended.length} matrícula(s) suspensa(s) por 3 faltas consecutivas sem justificativa.`
@@ -238,7 +255,8 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
         <span className="font-semibold text-amber-700">J</span> (justificado) ou{" "}
         <span className="font-semibold text-rose-700">F</span> (falta). Clique de novo no mesmo
         status para desmarcar. Células sem destaque ainda não foram lançadas. A frequência é
-        calculada com base nas aulas já lançadas.
+        calculada com base nas aulas já lançadas. Três faltas consecutivas sem justificativa
+        suspendem a matrícula; a quarta falta consecutiva (após a suspensão) cancela a matrícula.
       </p>
       <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
         <table className="min-w-full border-collapse text-sm">
@@ -342,6 +360,22 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
                               title={selected ? `${btn.label} — clique para desmarcar` : btn.label}
                               onClick={() => {
                                 const next = mark === btn.mark ? null : btn.mark;
+                                if (
+                                  wouldCancelEnrollmentOnFourthAbsence({
+                                    enrollmentStatus: row.enrollmentStatus,
+                                    sessionsOldestFirst: sessions,
+                                    cells: row.cells,
+                                    sessionId: s.id,
+                                    next,
+                                  })
+                                ) {
+                                  setCancelConfirm({
+                                    enrollmentId: row.enrollmentId,
+                                    sessionId: s.id,
+                                    studentName: row.studentName,
+                                  });
+                                  return;
+                                }
                                 void handleMarkChange(row.enrollmentId, s.id, next);
                               }}
                               className={markButtonClass(
@@ -366,6 +400,37 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
           </tbody>
         </table>
       </div>
+
+      <Modal
+        open={cancelConfirm != null}
+        title="Cancelar matrícula"
+        size="small"
+        onClose={() => setCancelConfirm(null)}
+      >
+        <p className="text-sm text-[var(--text-secondary)]">
+          {cancelConfirm
+            ? `A 4ª falta consecutiva sem justificativa cancelará a matrícula de ${cancelConfirm.studentName}. Confirma o cancelamento? Se houver aluno na lista de espera, a vaga poderá ser preenchida automaticamente.`
+            : null}
+        </p>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={() => setCancelConfirm(null)}>
+            Voltar
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            disabled={savingKey != null}
+            onClick={() => {
+              if (!cancelConfirm) return;
+              const { enrollmentId, sessionId } = cancelConfirm;
+              setCancelConfirm(null);
+              void handleMarkChange(enrollmentId, sessionId, "F");
+            }}
+          >
+            Confirmar cancelamento
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
