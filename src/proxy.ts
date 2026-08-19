@@ -86,7 +86,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname.startsWith("/students")) {
-    if (![...PEDAGOGICAL_GOVERNANCE, "TEACHER"].includes(role ?? "")) {
+    if (![...PEDAGOGICAL_GOVERNANCE, "POLO_COORDINATOR", "TEACHER"].includes(role ?? "")) {
       return NextResponse.redirect(dashboardUrl);
     }
   }

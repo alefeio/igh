@@ -42,6 +42,7 @@ const ALL_ROLES = [
 /** Equipe pedagógica da sede (sem Admin Site). */
 const STAFF = ["MASTER", "GENERAL_ADMIN", "ADMIN"] as const;
 const STAFF_AND_TEACHER = ["MASTER", "GENERAL_ADMIN", "ADMIN", "TEACHER"] as const;
+const STAFF_TEACHER_AND_POLO = ["MASTER", "GENERAL_ADMIN", "ADMIN", "POLO_COORDINATOR", "TEACHER"] as const;
 /** Administração pedagógica (sem Site/Comunicação). */
 const MASTER_AND_ADMIN = ["MASTER", "GENERAL_ADMIN", "ADMIN"] as const;
 /** Master e Administrador Geral (governança plena). */
@@ -145,7 +146,7 @@ const ITEMS: Item[] = [
 
   /* —— Pedagógico —— */
   { href: "/teachers", label: "Professores", roles: STAFF, category: "Pedagógico" },
-  { href: "/students", label: "Alunos", roles: STAFF_AND_TEACHER, category: "Pedagógico" },
+  { href: "/students", label: "Alunos", roles: STAFF_TEACHER_AND_POLO, category: "Pedagógico" },
   { href: "/courses", label: "Cursos", roles: STAFF_AND_TEACHER, category: "Pedagógico" },
   { href: "/admin/cursos/planos-de-aula", label: "Planos de aula (PDF)", roles: STAFF, category: "Pedagógico" },
   { href: "/class-groups", label: "Turmas", roles: ["MASTER", "GENERAL_ADMIN", "ADMIN", "POLO_COORDINATOR"], category: "Pedagógico" },

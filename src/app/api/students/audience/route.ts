@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonOk } from "@/lib/http";
 import { activeEnrollmentInCycles, resolveCycleIdsParam } from "@/lib/current-cycle";
+import { studentWhereInStaffScope, andStudentWhere } from "@/lib/student-staff-scope";
 // Busca e paginação da tela não afetam o perfil geral; só o recorte por ciclo.
 
 function ageFromBirthDate(birthDate: Date, now = new Date()): number {
@@ -82,7 +83,7 @@ function labelIdentity(k: string) {
 }
 
 export async function GET(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
 
   const where: Prisma.StudentWhereInput = {};
   where.deletedAt = null;
@@ -90,50 +91,10 @@ export async function GET(request: Request) {
   // Acompanha o filtro de ciclo da tela para que os indicadores falem do mesmo recorte.
   const cycleIds = resolveCycleIdsParam(new URL(request.url).searchParams.get("cycles"));
   if (cycleIds) {
-    Object.assign(where, activeEnrollmentInCycles(cycleIds));
+    andStudentWhere(where, activeEnrollmentInCycles(cycleIds));
   }
 
-  let teacherStudentIds: string[] | null = null;
-  if (user.role === "TEACHER") {
-    const teacher = await prisma.teacher.findFirst({
-      where: { userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!teacher) {
-      return jsonOk({
-        total: 0,
-        gender: [],
-        age: [],
-        neighborhood: [],
-        city: [],
-        state: [],
-        educationLevel: [],
-        studyShift: [],
-      });
-    }
-    const enrollments = await prisma.enrollment.findMany({
-      where: { classGroup: { teacherId: teacher.id } },
-      select: { studentId: true },
-      distinct: ["studentId"],
-    });
-    teacherStudentIds = enrollments.map((e) => e.studentId);
-    if (teacherStudentIds.length === 0) {
-      return jsonOk({
-        total: 0,
-        gender: [],
-        age: [],
-        neighborhood: [],
-        city: [],
-        state: [],
-        educationLevel: [],
-        studyShift: [],
-      });
-    }
-  }
-
-  if (teacherStudentIds) {
-    where.id = { in: teacherStudentIds };
-  }
+  andStudentWhere(where, await studentWhereInStaffScope(user));
 
   const total = await prisma.student.count({ where });
   if (total === 0) {

@@ -136,13 +136,17 @@ export default function StudentsPage() {
   const toast = useToast();
   const user = useUser();
   const isTeacher = user.role === "TEACHER";
+  const isPoloCoordinator = user.role === "POLO_COORDINATOR";
   const staffFullAccess =
     user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "ADMIN";
+  const canEditStudent = staffFullAccess || isTeacher || isPoloCoordinator;
+  const canCreateStudent = staffFullAccess;
   const canExport =
     user.role === "MASTER" ||
     user.role === "GENERAL_ADMIN" ||
     user.role === "ADMIN" ||
-    user.role === "TEACHER";
+    user.role === "TEACHER" ||
+    user.role === "POLO_COORDINATOR";
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Student[]>([]);
@@ -270,6 +274,7 @@ export default function StudentsPage() {
       if (q.trim()) params.set("q", q.trim());
       if (staffFullAccess && includeDeleted) params.set("includeDeleted", "true");
       if (cyclesParam) params.set("cycles", cyclesParam);
+      if (isTeacher || isPoloCoordinator) params.set("scope", "own");
       const res = await fetch(`/api/students?${params.toString()}`);
       const json = (await res.json()) as ApiResponse<{
         students: Student[];
@@ -286,7 +291,7 @@ export default function StudentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [q, staffFullAccess, includeDeleted, toast, page, pageSize, cyclesParam]);
+  }, [q, staffFullAccess, includeDeleted, toast, page, pageSize, cyclesParam, isTeacher, isPoloCoordinator]);
 
   const loadAudience = useCallback(async () => {
     setAudienceLoading(true);
@@ -463,12 +468,14 @@ export default function StudentsPage() {
   return (
     <div className="flex min-w-0 flex-col gap-6 sm:gap-8">
       <DashboardHero
-        eyebrow={isTeacher ? "Professor" : "Cadastros"}
+        eyebrow={isTeacher ? "Professor" : isPoloCoordinator ? "Coordenação de polo" : "Cadastros"}
         title="Alunos"
         description={
           isTeacher
-            ? "Alunos matriculados nas turmas que você leciona. Use a busca por nome ou CPF."
-            : "Cadastro base do aluno. Use a busca por nome ou CPF."
+            ? "Alunos matriculados nas turmas que você leciona. Você pode atualizar os dados cadastrais. Use a busca por nome ou CPF."
+            : isPoloCoordinator
+              ? "Alunos das turmas dos polos que você coordena. Você pode atualizar os dados cadastrais. Use a busca por nome ou CPF."
+              : "Cadastro base do aluno. Use a busca por nome ou CPF."
         }
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
@@ -494,7 +501,7 @@ export default function StudentsPage() {
                 </Button>
               </>
             ) : null}
-            {!isTeacher ? (
+            {canCreateStudent ? (
               <Button onClick={openCreate} className="w-full sm:w-auto">
                 Novo aluno
               </Button>
@@ -771,15 +778,14 @@ export default function StudentsPage() {
                     <Button variant="secondary" onClick={() => openView(s)}>
                       Visualizar
                     </Button>
-                    {!isTeacher && (
+                    {canEditStudent && !s.deletedAt && (
+                      <Button variant="secondary" onClick={() => openEdit(s)}>
+                        Editar
+                      </Button>
+                    )}
+                    {staffFullAccess && (
                       <>
-                        {!s.deletedAt && (
-                          <Button variant="secondary" onClick={() => openEdit(s)}>
-                            Editar
-                          </Button>
-                        )}
-                        {staffFullAccess && (
-                          s.deletedAt ? (
+                        {s.deletedAt ? (
                             <>
                               <Button variant="secondary" onClick={() => reactivate(s)}>
                                 Reativar
@@ -800,8 +806,7 @@ export default function StudentsPage() {
                             >
                               Excluir
                             </Button>
-                          )
-                        )}
+                          )}
                       </>
                     )}
                   </div>

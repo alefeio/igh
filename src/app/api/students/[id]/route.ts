@@ -7,6 +7,7 @@ import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateStudentRegistered, templateAddedAsStudent } from "@/lib/email/templates";
 import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
+import { staffCanAccessStudent } from "@/lib/student-staff-scope";
 
 export async function GET(
   _request: Request,
@@ -28,25 +29,8 @@ export async function GET(
     return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
   }
 
-  // Professor s├│ pode ver aluno se estiver em alguma turma que ele leciona
-  if (user.role === "TEACHER") {
-    const teacher = await prisma.teacher.findFirst({
-      where: { userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!teacher) {
-      return jsonErr("FORBIDDEN", "Acesso negado.", 403);
-    }
-    const enrollment = await prisma.enrollment.findFirst({
-      where: {
-        studentId: id,
-        classGroup: { teacherId: teacher.id },
-      },
-      select: { id: true },
-    });
-    if (!enrollment) {
-      return jsonErr("FORBIDDEN", "Acesso negado.", 403);
-    }
+  if (!(await staffCanAccessStudent(user, id))) {
+    return jsonErr("FORBIDDEN", "Acesso negado.", 403);
   }
 
   const { attachments, ...rest } = student;
@@ -72,11 +56,16 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireStaffWrite();
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
   if (body?.reactivate === true) {
+    try {
+      await requireStaffWrite();
+    } catch {
+      return jsonErr("FORBIDDEN", "Apenas a administração pedagógica pode reativar alunos.", 403);
+    }
     const existing = await prisma.student.findUnique({ where: { id } });
     if (!existing) {
       return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
@@ -116,6 +105,9 @@ export async function PATCH(
   const existing = await prisma.student.findUnique({ where: { id } });
   if (!existing) {
     return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
+  }
+  if (!(await staffCanAccessStudent(user, id))) {
+    return jsonErr("FORBIDDEN", "Você só pode editar alunos do seu escopo.", 403);
   }
 
   const data = parsed.data;

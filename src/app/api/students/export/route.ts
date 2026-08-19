@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr } from "@/lib/http";
 import { activeEnrollmentInCycles, resolveCycleIdsParam } from "@/lib/current-cycle";
+import { studentWhereInStaffScope, andStudentWhere } from "@/lib/student-staff-scope";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import * as XLSX from "xlsx";
 
@@ -116,7 +117,7 @@ function safeFilenameDate() {
 }
 
 export async function POST(request: Request) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
 
   const { searchParams } = new URL(request.url);
   const format = (searchParams.get("format") ?? "").toLowerCase();
@@ -149,39 +150,13 @@ export async function POST(request: Request) {
   // A planilha segue o mesmo recorte de ciclo que está na tela.
   const cycleIds = resolveCycleIdsParam(cycles);
   if (cycleIds) {
-    Object.assign(where, activeEnrollmentInCycles(cycleIds));
+    andStudentWhere(where, activeEnrollmentInCycles(cycleIds));
   }
 
-  let teacherStudentIds: string[] | null = null;
-  if (user.role === "TEACHER") {
-    const teacher = await prisma.teacher.findFirst({
-      where: { userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!teacher) {
-      teacherStudentIds = [];
-    } else {
-      const enrollments = await prisma.enrollment.findMany({
-        where: { classGroup: { teacherId: teacher.id } },
-        select: { studentId: true },
-        distinct: ["studentId"],
-      });
-      teacherStudentIds = enrollments.map((e) => e.studentId);
-    }
-    if (teacherStudentIds.length === 0) {
-      return jsonErr("NO_DATA", "Nenhum aluno disponível para exportação.", 404);
-    }
-  }
+  andStudentWhere(where, await studentWhereInStaffScope(user));
 
   if (q.length > 0) {
-    const searchOr = buildStudentSearchOr(q);
-    if (teacherStudentIds) {
-      where.AND = [{ id: { in: teacherStudentIds } }, { OR: searchOr }];
-    } else {
-      where.OR = searchOr;
-    }
-  } else if (teacherStudentIds) {
-    where.id = { in: teacherStudentIds };
+    andStudentWhere(where, { OR: buildStudentSearchOr(q) });
   }
 
   const students = await prisma.student.findMany({

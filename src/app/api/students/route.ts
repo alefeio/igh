@@ -11,6 +11,7 @@ import { birthDateToStudentPasswordParts } from "@/lib/student-password";
 import { maybeSendBirthdayGreetingForUser } from "@/lib/birthday-notifications";
 import { activeEnrollmentInCycles, resolveCycleIdsParam } from "@/lib/current-cycle";
 import { attributeStudentReferral } from "@/lib/student-referrals";
+import { studentWhereInStaffScope, andStudentWhere } from "@/lib/student-staff-scope";
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
@@ -66,38 +67,24 @@ export async function GET(request: Request) {
     where.deletedAt = null;
   }
 
-  let teacherStudentIds: string[] | null = null;
+  // `scope=own`: listagem de /students (professor e coordenador de polo só veem os seus).
+  // Sem `q` também recorta — com `q` e sem scope, a busca permanece global (combobox de matrícula).
+  const scopeOwn = searchParams.get("scope") === "own";
+  const applyOwnScope =
+    scopeOwn ||
+    ((user.role === "TEACHER" || user.role === "POLO_COORDINATOR") && q.length === 0);
 
-  // Professor: sem `q`, só alunos já matriculados nas turmas que leciona.
-  // Com `q`, busca global no sistema (necessário para o combobox de Nova matrícula).
-  if (user.role === "TEACHER" && q.length === 0) {
-    const teacher = await prisma.teacher.findFirst({
-      where: { userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!teacher) {
-      return jsonOk({ students: [], total: 0, page: 1, pageSize });
-    }
-    const enrollments = await prisma.enrollment.findMany({
-      where: { classGroup: { teacherId: teacher.id } },
-      select: { studentId: true },
-      distinct: ["studentId"],
-    });
-    teacherStudentIds = enrollments.map((e) => e.studentId);
-    if (teacherStudentIds.length === 0) {
-      return jsonOk({ students: [], total: 0, page: 1, pageSize });
-    }
+  if (applyOwnScope) {
+    andStudentWhere(where, await studentWhereInStaffScope(user));
   }
 
   if (q.length > 0) {
-    where.OR = buildStudentSearchOr(q);
-  } else if (teacherStudentIds) {
-    where.id = { in: teacherStudentIds };
+    andStudentWhere(where, { OR: buildStudentSearchOr(q) });
   }
 
   const cycleIds = resolveCycleIdsParam(searchParams.get("cycles"));
   if (cycleIds) {
-    Object.assign(where, activeEnrollmentInCycles(cycleIds));
+    andStudentWhere(where, activeEnrollmentInCycles(cycleIds));
   }
 
   const [students, total] = await prisma.$transaction([

@@ -1,32 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
-import type { SessionUser } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAttachmentSchema } from "@/lib/validators/attachments";
-
-async function canAccessStudent(user: SessionUser, studentId: string): Promise<boolean> {
-  if (user.role === "TEACHER") {
-    const teacher = await prisma.teacher.findFirst({
-      where: { userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!teacher) return false;
-    const enrollment = await prisma.enrollment.findFirst({
-      where: { studentId, classGroup: { teacherId: teacher.id } },
-      select: { id: true },
-    });
-    return !!enrollment;
-  }
-  return (
-    user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN"
-  );
-}
+import { staffCanAccessStudent } from "@/lib/student-staff-scope";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
   const { id: studentId } = await context.params;
 
-  if (!(await canAccessStudent(user, studentId))) {
+  if (!(await staffCanAccessStudent(user, studentId))) {
     return jsonErr("FORBIDDEN", "Acesso negado.", 403);
   }
 
@@ -47,10 +29,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["ADMIN", "MASTER", "TEACHER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
   const { id: studentId } = await context.params;
 
-  if (!(await canAccessStudent(user, studentId))) {
+  if (!(await staffCanAccessStudent(user, studentId))) {
     return jsonErr("FORBIDDEN", "Acesso negado.", 403);
   }
 

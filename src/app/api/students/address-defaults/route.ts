@@ -7,7 +7,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
  * Usado por quem cadastra alunos (Admin, Master, Coordenador de Polo).
  */
 export async function GET() {
-  await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR"]);
+  await requireRole(["ADMIN", "MASTER", "POLO_COORDINATOR", "TEACHER"]);
   try {
     const settings = await prisma.siteSettings.findFirst({
       select: { certificateCity: true, certificateCityState: true },

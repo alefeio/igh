@@ -3,6 +3,9 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getApimagesConfig } from "@/lib/apimages";
 import { z } from "zod";
+import { resolveTeacherIdForUser, teacherOwnsEnrollment } from "@/lib/class-group-teachers";
+import { poloCoordinatorOwnsEnrollment } from "@/lib/polo-coordinator-scope";
+import { staffCanAccessStudent } from "@/lib/student-staff-scope";
 
 const bodySchema = z
   .object({
@@ -15,7 +18,7 @@ const bodySchema = z
   });
 
 export async function POST(request: Request) {
-  await requireRole(["ADMIN", "MASTER"]);
+  const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
 
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
@@ -26,6 +29,16 @@ export async function POST(request: Request) {
   const { studentId, enrollmentId } = parsed.data;
 
   if (enrollmentId) {
+    if (user.role === "TEACHER") {
+      const teacherId = await resolveTeacherIdForUser(user.id);
+      if (!teacherId || !(await teacherOwnsEnrollment(teacherId, enrollmentId))) {
+        return jsonErr("FORBIDDEN", "Acesso negado.", 403);
+      }
+    } else if (user.role === "POLO_COORDINATOR") {
+      if (!(await poloCoordinatorOwnsEnrollment(user.id, enrollmentId))) {
+        return jsonErr("FORBIDDEN", "Acesso negado.", 403);
+      }
+    }
     const enrollment = await prisma.enrollment.findUnique({
       where: { id: enrollmentId },
       select: { id: true },
@@ -48,6 +61,9 @@ export async function POST(request: Request) {
   });
   if (!student) {
     return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
+  }
+  if (!(await staffCanAccessStudent(user, student.id))) {
+    return jsonErr("FORBIDDEN", "Acesso negado.", 403);
   }
 
   try {

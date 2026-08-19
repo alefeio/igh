@@ -1,32 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
-import type { SessionUser } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { staffCanAccessStudent } from "@/lib/student-staff-scope";
 
-async function canAccessStudent(user: SessionUser, studentId: string): Promise<boolean> {
-  if (user.role === "TEACHER") {
-    const teacher = await prisma.teacher.findFirst({
-      where: { userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!teacher) return false;
-    const enrollment = await prisma.enrollment.findFirst({
-      where: { studentId, classGroup: { teacherId: teacher.id } },
-      select: { id: true },
-    });
-    return !!enrollment;
-  }
-  return (
-    user.role === "ADMIN" || user.role === "MASTER" || user.role === "GENERAL_ADMIN"
-  );
-}
-
-/** Remoção lógica de anexo (Master, Admin ou Coordenador). */
+/** Remoção lógica de anexo. */
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string; attachmentId: string }> }) {
-  const user = await requireRole(["MASTER", "ADMIN"]);
+  const user = await requireRole(["MASTER", "ADMIN", "TEACHER", "POLO_COORDINATOR"]);
   const { id: studentId, attachmentId } = await context.params;
 
-  if (!(await canAccessStudent(user, studentId))) {
+  if (!(await staffCanAccessStudent(user, studentId))) {
     return jsonErr("FORBIDDEN", "Acesso negado.", 403);
   }
 
