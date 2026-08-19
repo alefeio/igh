@@ -173,5 +173,14 @@ export async function DELETE(
     await tryPromoteWaitlistAfterSeatFreed(enrollment.classGroupId, user.id);
   }
 
+  const { sendEnrollmentCancellationEmail } = await import("@/lib/enrollment-suspension-email");
+  const { processEmailOutboxBatch } = await import("@/lib/email/outbox");
+  await sendEnrollmentCancellationEmail({
+    enrollmentId,
+    performedByUserId: user.id,
+    cause: "self",
+  });
+  await processEmailOutboxBatch(1);
+
   return jsonOk({ cancelled: true });
 }

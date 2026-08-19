@@ -489,19 +489,29 @@ export function templateCoordinatorReportReplyToReporter(params: {
   return { subject: `Coordenação — Resposta ao reporte ${escapeHtml(protocolNumber)}`, html: wrapHtml(body) };
 }
 
-/** Matrícula suspensa por 3 faltas consecutivas sem justificativa na frequência. */
-export function templateEnrollmentSuspendedAttendance(params: {
+/** Matrícula suspensa (faltas consecutivas ou decisão da equipe). */
+export function templateEnrollmentSuspended(params: {
   name: string;
   courseName: string;
   classGroupLabel: string;
   supportUrl: string;
   loginUrl: string;
+  cause: "attendance" | "staff";
 }): { subject: string; html: string } {
-  const { name, courseName, classGroupLabel, supportUrl, loginUrl } = params;
+  const { name, courseName, classGroupLabel, supportUrl, loginUrl, cause } = params;
+  const reason =
+    cause === "attendance"
+      ? `porque você acumulou <strong>três faltas consecutivas sem justificativa</strong> na frequência da turma.`
+      : `pela equipe do ${escapeHtml(BRAND.legalName)}.`;
+  const reverse =
+    cause === "attendance"
+      ? `<li><strong>Volte a frequentar as aulas presenciais</strong> e peça ao professor que registre sua <strong>presença</strong> na frequência — a matrícula será reativada automaticamente.</li>
+  <li>Se a falta foi justificada ou você precisa de orientação, fale com o professor ou com a secretaria.</li>`
+      : `<li>Fale com o professor da turma, com a secretaria do Instituto ou abra um chamado no suporte para solicitar a reativação, se for o caso.</li>`;
   const body = `
-<h2>Acesso às aulas bloqueado nesta turma</h2>
+<h2>Matrícula suspensa</h2>
 <p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
-<p>Informamos que sua matrícula no curso <strong>${escapeHtml(courseName)}</strong> foi <strong>suspensa</strong> porque você acumulou <strong>três faltas consecutivas sem justificativa</strong> na frequência da turma.</p>
+<p>Informamos que sua matrícula no curso <strong>${escapeHtml(courseName)}</strong> foi <strong>suspensa</strong> ${reason}</p>
 <p>Por esse motivo, o <strong>acesso às aulas e atividades online desta turma</strong> está temporariamente bloqueado. Você continua podendo acessar o portal normalmente.</p>
 <table width="100%" cellpadding="0" cellspacing="0" style="background: #fffbeb; border-radius: 8px; margin: 16px 0; border: 1px solid #fcd34d;">
   <tr><td style="padding: 16px;">
@@ -509,19 +519,70 @@ export function templateEnrollmentSuspendedAttendance(params: {
     <p style="margin: 0; font-weight: 600; color: #78350f;">${escapeHtml(classGroupLabel)}</p>
   </td></tr>
 </table>
-<h3 style="font-size: 16px; margin: 24px 0 8px;">Como liberar o acesso novamente</h3>
+<h3 style="font-size: 16px; margin: 24px 0 8px;">Como reverter a suspensão</h3>
 <ul>
-  <li><strong>Volte a frequentar as aulas presenciais</strong> e peça ao professor que registre sua <strong>presença</strong> na frequência — a matrícula será reativada automaticamente.</li>
-  <li>Se a falta foi justificada ou você precisa de orientação, <strong>fale com o professor ou a coordenação da turma</strong>.</li>
+  ${reverse}
 </ul>
+<h3 style="font-size: 16px; margin: 24px 0 8px;">Precisa de ajuda?</h3>
+<p>Você pode entrar em contato pelo <strong>suporte, na área do aluno</strong>, ou pela <strong>secretaria do ${escapeHtml(BRAND.legalName)}</strong>.</p>
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding: 12px 0;">
   <a href="${escapeHtml(loginUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; margin-right: 8px;">Acessar o portal</a>
-  <a href="${escapeHtml(supportUrl)}" style="display: inline-block; background: #f3f4f6; color: #1f2937 !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Falar com o suporte</a>
+  <a href="${escapeHtml(supportUrl)}" style="display: inline-block; background: #f3f4f6; color: #1f2937 !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Abrir suporte</a>
 </td></tr></table>
-<p style="font-size: 13px; color: #6b7280; margin-top: 20px;">Se você acredita que houve um engano no registro de frequência, entre em contato com a secretaria ou com a coordenação do ${escapeHtml(BRAND.shortName)}.</p>
 `;
   return {
     subject: "Matrícula suspensa — acesso às aulas bloqueado",
+    html: wrapHtml(body),
+  };
+}
+
+/** @deprecated Use templateEnrollmentSuspended */
+export function templateEnrollmentSuspendedAttendance(params: {
+  name: string;
+  courseName: string;
+  classGroupLabel: string;
+  supportUrl: string;
+  loginUrl: string;
+}): { subject: string; html: string } {
+  return templateEnrollmentSuspended({ ...params, cause: "attendance" });
+}
+
+/** Matrícula cancelada (4ª falta consecutiva ou decisão da equipe). */
+export function templateEnrollmentCancelled(params: {
+  name: string;
+  courseName: string;
+  classGroupLabel: string;
+  supportUrl: string;
+  loginUrl: string;
+  cause: "attendance" | "staff" | "self";
+}): { subject: string; html: string } {
+  const { name, courseName, classGroupLabel, supportUrl, loginUrl, cause } = params;
+  const reason =
+    cause === "attendance"
+      ? `porque você acumulou <strong>quatro faltas consecutivas sem justificativa</strong> (uma após a suspensão da matrícula).`
+      : cause === "self"
+        ? `a seu pedido, pelo portal do aluno.`
+        : `pela equipe do ${escapeHtml(BRAND.legalName)}.`;
+  const body = `
+<h2>Matrícula cancelada</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Informamos que sua matrícula no curso <strong>${escapeHtml(courseName)}</strong> foi <strong>cancelada</strong> ${reason}</p>
+<p>Com o cancelamento, você deixa de ocupar a vaga nesta turma e o acesso às aulas e atividades online desta turma é encerrado.</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="background: #fef2f2; border-radius: 8px; margin: 16px 0; border: 1px solid #fecaca;">
+  <tr><td style="padding: 16px;">
+    <p style="margin: 0 0 8px; font-size: 12px; color: #991b1b;">Turma</p>
+    <p style="margin: 0; font-weight: 600; color: #7f1d1d;">${escapeHtml(classGroupLabel)}</p>
+  </td></tr>
+</table>
+<h3 style="font-size: 16px; margin: 24px 0 8px;">Precisa de ajuda?</h3>
+<p>Você pode entrar em contato pelo <strong>suporte, na área do aluno</strong>, ou pela <strong>secretaria do ${escapeHtml(BRAND.legalName)}</strong>.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding: 12px 0;">
+  <a href="${escapeHtml(loginUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; margin-right: 8px;">Acessar o portal</a>
+  <a href="${escapeHtml(supportUrl)}" style="display: inline-block; background: #f3f4f6; color: #1f2937 !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Abrir suporte</a>
+</td></tr></table>
+`;
+  return {
+    subject: "Matrícula cancelada",
     html: wrapHtml(body),
   };
 }

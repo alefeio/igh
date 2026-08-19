@@ -195,8 +195,8 @@ export async function PATCH(
     savedRows.filter((r) => r.present).map((r) => r.enrollmentId),
   );
 
-  if (suspendedIds.length > 0) {
-    await processEmailOutboxBatch(Math.min(25, suspendedIds.length));
+  if (suspendedIds.length > 0 || cancelledIds.length > 0) {
+    await processEmailOutboxBatch(Math.min(25, suspendedIds.length + cancelledIds.length));
   }
 
   const attendances = await prisma.sessionAttendance.findMany({

@@ -7,7 +7,7 @@ import {
   countConsecutiveUnjustifiedAbsenceStreak,
   isUnjustifiedAbsence,
 } from "@/lib/enrollment-attendance-streak";
-import { sendEnrollmentSuspensionEmail } from "@/lib/enrollment-suspension-email";
+import { sendEnrollmentCancellationEmail, sendEnrollmentSuspensionEmail } from "@/lib/enrollment-suspension-email";
 import { tryPromoteWaitlistAfterSeatFreed } from "@/lib/enrollment-waitlist";
 import { prisma } from "@/lib/prisma";
 
@@ -115,6 +115,11 @@ export async function applyAttendanceSuspensionRules(params: {
         },
       });
       await tryPromoteWaitlistAfterSeatFreed(params.classGroupId, params.performedByUserId);
+      await sendEnrollmentCancellationEmail({
+        enrollmentId: enrollment.id,
+        performedByUserId: params.performedByUserId,
+        cause: "attendance",
+      });
       continue;
     }
 
@@ -140,6 +145,7 @@ export async function applyAttendanceSuspensionRules(params: {
       await sendEnrollmentSuspensionEmail({
         enrollmentId: enrollment.id,
         performedByUserId: params.performedByUserId,
+        cause: "attendance",
       });
     }
   }

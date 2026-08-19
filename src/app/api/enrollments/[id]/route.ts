@@ -13,6 +13,8 @@ import {
   poloCoordinatorOwnsEnrollment,
 } from "@/lib/polo-coordinator-scope";
 import { tryPromoteWaitlistAfterSeatFreed } from "@/lib/enrollment-waitlist";
+import { sendEnrollmentCancellationEmail, sendEnrollmentSuspensionEmail } from "@/lib/enrollment-suspension-email";
+import { processEmailOutboxBatch } from "@/lib/email/outbox";
 import { classGroupAllowsStaffEnrollment } from "@/lib/class-group-scope";
 import {
   resolveTeacherIdForUser,
@@ -280,6 +282,25 @@ export async function PATCH(
     updated.status === "CANCELLED"
   ) {
     await tryPromoteWaitlistAfterSeatFreed(updated.classGroupId, user.id);
+    await sendEnrollmentCancellationEmail({
+      enrollmentId: updated.id,
+      performedByUserId: user.id,
+      cause: "staff",
+    });
+    await processEmailOutboxBatch(1);
+  }
+
+  if (
+    parsed.data.status === "SUSPENDED" &&
+    existing.status !== "SUSPENDED" &&
+    updated.status === "SUSPENDED"
+  ) {
+    await sendEnrollmentSuspensionEmail({
+      enrollmentId: updated.id,
+      performedByUserId: user.id,
+      cause: "staff",
+    });
+    await processEmailOutboxBatch(1);
   }
 
   if (parsed.data.isPreEnrollment === false && updated.student.email && updated.student.userId) {

@@ -108,7 +108,7 @@ export async function processEmailOutboxBatch(batchSize = 25): Promise<ProcessEm
   }
 
   const take = Math.min(batchSize, quotaRemaining);
-  const priorityEmailTypes = ["enrollment_suspended_attendance"];
+  const priorityEmailTypes = ["enrollment_suspended_attendance", "enrollment_cancelled"];
 
   const [priorityPending, regularPending] = await Promise.all([
     prisma.emailOutbox.findMany({
