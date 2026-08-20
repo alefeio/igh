@@ -2,12 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { updateEnrollmentSchema } from "@/lib/validators/enrollments";
-import { formatDateOnly } from "@/lib/format";
 import { createAuditLog } from "@/lib/audit";
-import { createVerificationToken } from "@/lib/verification-token";
-import { getAppUrl } from "@/lib/email";
-import { templateStudentWelcome } from "@/lib/email/templates";
-import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import {
   poloCoordinatorOwnsClassGroup,
   poloCoordinatorOwnsEnrollment,
@@ -22,6 +17,7 @@ import {
   teacherOwnsEnrollment,
 } from "@/lib/class-group-teachers";
 import { enrollmentOccupiesSeat, ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
+import { sendEnrollmentWelcomeForStudent } from "@/lib/enrollment-welcome-email";
 
 async function assertEnrollmentScope(
   user: { id: string; role: string },
@@ -100,7 +96,7 @@ export async function PATCH(
 
   const existing = await prisma.enrollment.findUnique({
     where: { id },
-    select: { studentId: true, classGroupId: true, status: true },
+    select: { studentId: true, classGroupId: true, status: true, isPreEnrollment: true },
   });
   if (!existing) {
     return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
@@ -303,47 +299,16 @@ export async function PATCH(
     await processEmailOutboxBatch(1);
   }
 
-  if (parsed.data.isPreEnrollment === false && updated.student.email && updated.student.userId) {
-    const { token, expiresAt } = await createVerificationToken({
-      userId: updated.student.userId,
-      type: "ENROLLMENT_CONFIRMATION",
+  if (
+    parsed.data.isPreEnrollment === false &&
+    existing.isPreEnrollment === true &&
+    updated.student.email
+  ) {
+    await sendEnrollmentWelcomeForStudent({
       studentId: updated.studentId,
       enrollmentId: id,
-      expiresInDays: 7,
-    });
-    const confirmUrl = getAppUrl(`/confirmar-inscricao?token=${token}`);
-    const classGroup = updated.classGroup;
-    const startDateFormatted = formatDateOnly(classGroup.startDate);
-    const daysFormatted = Array.isArray(classGroup.daysOfWeek)
-      ? classGroup.daysOfWeek.join(", ")
-      : String(classGroup.daysOfWeek);
-    const { subject, html } = templateStudentWelcome({
-      name: updated.student.name,
-      email: updated.student.email,
-      tempPassword: null,
-      courseName: classGroup.course.name,
-      startDate: startDateFormatted,
-      daysOfWeek: daysFormatted,
-      startTime: classGroup.startTime,
-      endTime: classGroup.endTime,
-      location: classGroup.location,
-      confirmUrl,
-    });
-    await sendEmailAndRecord({
-      to: updated.student.email,
-      subject,
-      html,
-      emailType: "welcome_student",
-      entityType: "Enrollment",
-      entityId: id,
       performedByUserId: user.id,
-    });
-    await createAuditLog({
-      entityType: "Enrollment",
-      entityId: id,
-      action: "EMAIL_SENT",
-      diff: { type: "welcome_student", expiresAt: expiresAt.toISOString() },
-      performedByUserId: user.id,
+      auditExtra: { triggeredBy: "confirm_pre_enrollment" },
     });
   }
 

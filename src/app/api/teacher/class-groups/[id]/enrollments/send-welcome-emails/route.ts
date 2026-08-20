@@ -66,7 +66,8 @@ export async function POST(
         emailType: "welcome_student",
         auditExtra: { triggeredBy: "teacher" },
       });
-      if (result.emailSent) sent += 1;
+      if (result.skipped) continue;
+      if (result.emailSent || result.queued) sent += 1;
       else {
         failed += 1;
         errors.push({

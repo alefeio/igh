@@ -4,13 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createEnrollmentSchema } from "@/lib/validators/enrollments";
 import { createAuditLog } from "@/lib/audit";
-import { formatDateOnly } from "@/lib/format";
-import { createVerificationToken } from "@/lib/verification-token";
-import { sendEmailAndRecord } from "@/lib/email/send-and-record";
-import { getAppUrl } from "@/lib/email";
-import { templateStudentWelcome } from "@/lib/email/templates";
-import { hashPassword } from "@/lib/auth";
-import { birthDateToStudentPasswordParts } from "@/lib/student-password";
+import { sendEnrollmentWelcomeForStudent } from "@/lib/enrollment-welcome-email";
 import {
   buildEnrollmentWhereForPoloCoordinator,
   poloCoordinatorOwnsClassGroup,
@@ -156,7 +150,6 @@ export async function POST(request: Request) {
 
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    include: { user: true },
   });
   if (!student) {
     return jsonErr("NOT_FOUND", "Aluno não encontrado.", 404);
@@ -220,86 +213,15 @@ export async function POST(request: Request) {
     performedByUserId: user.id,
   });
 
-  let emailResult = { success: false };
-
+  let emailSent = false;
   if (student.email) {
-    let tempPassword: string | null = null;
-    let userId = student.userId;
-
-    if (!student.userId || !student.user) {
-      // Senha inicial = data de nascimento (DDMMAAAA), igual ao cadastro de aluno.
-      const { password: birthPwd } = birthDateToStudentPasswordParts(student.birthDate);
-      tempPassword = birthPwd;
-      const passwordHash = await hashPassword(tempPassword);
-      const createdUser = await prisma.user.create({
-        data: {
-          name: student.name,
-          email: student.email,
-          passwordHash,
-          role: "STUDENT",
-          isActive: true,
-          mustChangePassword: true,
-          birthDate: student.birthDate,
-        },
-      });
-      userId = createdUser.id;
-      await prisma.student.update({
-        where: { id: studentId },
-        data: { userId: createdUser.id },
-      });
-    }
-    // Se a conta já existe (mesmo com mustChangePassword), NÃO sobrescreve a senha —
-    // antes isso gerava senha aleatória e o aluno não conseguia entrar com a data de nascimento.
-
-    const { token, expiresAt } = await createVerificationToken({
-      userId: userId!,
-      type: "ENROLLMENT_CONFIRMATION",
+    const welcome = await sendEnrollmentWelcomeForStudent({
       studentId,
       enrollmentId: enrollment.id,
-      expiresInDays: 7,
-    });
-
-    const confirmUrl = getAppUrl(`/confirmar-inscricao?token=${token}`);
-
-    const startDateFormatted = formatDateOnly(classGroup.startDate);
-    const daysFormatted = Array.isArray(classGroup.daysOfWeek)
-      ? classGroup.daysOfWeek.join(", ")
-      : String(classGroup.daysOfWeek);
-
-    const { subject, html } = templateStudentWelcome({
-      name: student.name,
-      email: student.email,
-      tempPassword: tempPassword ?? null,
-      courseName: classGroup.course.name,
-      startDate: startDateFormatted,
-      daysOfWeek: daysFormatted,
-      startTime: classGroup.startTime,
-      endTime: classGroup.endTime,
-      location: classGroup.location,
-      confirmUrl,
-    });
-
-    emailResult = await sendEmailAndRecord({
-      to: student.email,
-      subject,
-      html,
-      emailType: "welcome_student",
-      entityType: "Enrollment",
-      entityId: enrollment.id,
       performedByUserId: user.id,
+      auditExtra: { triggeredBy: "create_enrollment" },
     });
-
-    await createAuditLog({
-      entityType: "Enrollment",
-      entityId: enrollment.id,
-      action: "EMAIL_SENT",
-      diff: {
-        type: "welcome_student",
-        success: emailResult.success,
-        expiresAt: expiresAt.toISOString(),
-      },
-      performedByUserId: user.id,
-    });
+    emailSent = Boolean(welcome.emailSent || welcome.queued) && !welcome.skipped;
   }
 
   const enrollmentWithRelations = await prisma.enrollment.findUnique({
@@ -313,7 +235,7 @@ export async function POST(request: Request) {
   return jsonOk(
     {
       enrollment: enrollmentWithRelations,
-      emailSent: emailResult.success,
+      emailSent,
       studentHadNoEmail: !student.email,
     },
     { status: 201 }

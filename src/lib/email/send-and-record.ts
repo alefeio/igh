@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "./index";
 import type { SendEmailParams, SendEmailResult } from "./index";
 import { hasResendDailyEmailQuota } from "./daily-quota";
-import { enqueueEmail } from "./outbox";
+import { enqueueEmail, hasEnrollmentWelcomeEmailPendingOrSent } from "./outbox";
 
 export interface SendEmailAndRecordParams extends SendEmailParams {
   emailType: string;
@@ -36,6 +36,14 @@ export async function sendEmailAndRecord(
     ...emailParams
   } = params;
 
+  const isWelcome =
+    entityType === "Enrollment" &&
+    Boolean(entityId) &&
+    (emailType === "welcome_student" || emailType === "welcome_student_waitlist");
+  if (isWelcome && entityId && (await hasEnrollmentWelcomeEmailPendingOrSent(entityId))) {
+    return { success: true, skippedDuplicate: true };
+  }
+
   if (queueIfDailyQuotaExceeded) {
     const hasQuota = await hasResendDailyEmailQuota(1);
     if (!hasQuota) {
@@ -57,7 +65,7 @@ export async function sendEmailAndRecord(
   if (!result.success) {
     return result;
   }
-  if (!result.messageId || result.messageId === "dev-skip") {
+  if (result.messageId === "dev-skip") {
     return result;
   }
 

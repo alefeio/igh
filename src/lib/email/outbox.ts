@@ -6,6 +6,12 @@ import { getResendDailyEmailRemaining } from "@/lib/email/daily-quota";
 
 const MAX_ATTEMPTS = 5;
 
+/** Tipos do e-mail de cadastro na turma (uma vez por matrícula). */
+export const ENROLLMENT_WELCOME_EMAIL_TYPES = [
+  "welcome_student",
+  "welcome_student_waitlist",
+] as const;
+
 export type EnqueueEmailParams = {
   to: string;
   subject: string;
@@ -59,7 +65,50 @@ export async function hasEmailPendingOrSent(params: {
   return !!(sent || queued);
 }
 
-/** Evita duplicar aviso de suspensão na mesma ocorrência; permite novo e-mail após reativação. */
+/** Já houve envio ou fila de boas-vindas para esta matrícula. */
+export async function hasEnrollmentWelcomeEmailPendingOrSent(
+  enrollmentId: string,
+): Promise<boolean> {
+  const ids = await findEnrollmentIdsWithWelcomeEmail([enrollmentId]);
+  return ids.has(enrollmentId);
+}
+
+/** IDs de matrícula que já tiveram e-mail de cadastro enviado ou enfileirado. */
+export async function findEnrollmentIdsWithWelcomeEmail(
+  enrollmentIds: string[],
+): Promise<Set<string>> {
+  if (enrollmentIds.length === 0) return new Set();
+
+  const types = [...ENROLLMENT_WELCOME_EMAIL_TYPES];
+  const [sent, queued] = await Promise.all([
+    prisma.sentEmail.findMany({
+      where: {
+        entityType: "Enrollment",
+        entityId: { in: enrollmentIds },
+        emailType: { in: types },
+      },
+      select: { entityId: true },
+    }),
+    prisma.emailOutbox.findMany({
+      where: {
+        entityType: "Enrollment",
+        entityId: { in: enrollmentIds },
+        emailType: { in: types },
+        status: { in: ["PENDING", "SENT"] },
+      },
+      select: { entityId: true },
+    }),
+  ]);
+
+  const ids = new Set<string>();
+  for (const row of sent) {
+    if (row.entityId) ids.add(row.entityId);
+  }
+  for (const row of queued) {
+    if (row.entityId) ids.add(row.entityId);
+  }
+  return ids;
+}
 export async function hasEnrollmentSuspensionEmailPendingOrSentSince(
   enrollmentId: string,
   since: Date
@@ -127,9 +176,43 @@ export async function processEmailOutboxBatch(batchSize = 25): Promise<ProcessEm
 
   let sent = 0;
   let failed = 0;
+  const welcomeHandledThisBatch = new Set<string>();
 
   for (const row of pending) {
     if (quotaRemaining <= 0) break;
+
+    const isWelcome =
+      row.entityType === "Enrollment" &&
+      row.entityId &&
+      (ENROLLMENT_WELCOME_EMAIL_TYPES as readonly string[]).includes(row.emailType);
+
+    if (isWelcome && row.entityId) {
+      const alreadySent = welcomeHandledThisBatch.has(row.entityId)
+        ? true
+        : Boolean(
+            await prisma.sentEmail.findFirst({
+              where: {
+                entityType: "Enrollment",
+                entityId: row.entityId,
+                emailType: { in: [...ENROLLMENT_WELCOME_EMAIL_TYPES] },
+              },
+              select: { id: true },
+            }),
+          );
+      if (alreadySent) {
+        welcomeHandledThisBatch.add(row.entityId);
+        await prisma.emailOutbox.update({
+          where: { id: row.id },
+          data: {
+            status: "SENT",
+            sentAt: new Date(),
+            attempts: row.attempts + 1,
+            errorMessage: "skipped_duplicate",
+          },
+        });
+        continue;
+      }
+    }
 
     const result = await sendEmail({
       to: row.to,
@@ -137,13 +220,13 @@ export async function processEmailOutboxBatch(batchSize = 25): Promise<ProcessEm
       html: row.html,
     });
 
-    if (result.success && result.messageId && result.messageId !== "dev-skip") {
+    if (result.success && result.messageId !== "dev-skip") {
       await prisma.$transaction([
         prisma.sentEmail.create({
           data: {
             to: row.to,
             subject: row.subject,
-            messageId: result.messageId,
+            messageId: result.messageId ?? undefined,
             emailType: row.emailType,
             entityType: row.entityType ?? undefined,
             entityId: row.entityId ?? undefined,
@@ -157,6 +240,7 @@ export async function processEmailOutboxBatch(batchSize = 25): Promise<ProcessEm
       ]);
       sent += 1;
       quotaRemaining -= 1;
+      if (isWelcome && row.entityId) welcomeHandledThisBatch.add(row.entityId);
       continue;
     }
 

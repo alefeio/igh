@@ -9,51 +9,15 @@ import { getAppUrl } from "@/lib/email";
 import { templateStudentWelcome } from "@/lib/email/templates";
 import { formatDateOnly } from "@/lib/format";
 import { birthDateToStudentPasswordParts } from "@/lib/student-password";
+import {
+  ENROLLMENT_WELCOME_EMAIL_TYPES,
+  findEnrollmentIdsWithWelcomeEmail,
+  hasEnrollmentWelcomeEmailPendingOrSent,
+} from "@/lib/email/outbox";
 
-/** Tipos gravados em SentEmail/Outbox para o e-mail de cadastro na turma. */
-export const ENROLLMENT_WELCOME_EMAIL_TYPES = [
-  "welcome_student",
-  "welcome_student_waitlist",
-] as const;
+export { ENROLLMENT_WELCOME_EMAIL_TYPES, findEnrollmentIdsWithWelcomeEmail };
 
 export type EnrollmentWelcomeEmailType = (typeof ENROLLMENT_WELCOME_EMAIL_TYPES)[number];
-
-/** IDs de matrícula que já tiveram e-mail de cadastro enviado ou enfileirado. */
-export async function findEnrollmentIdsWithWelcomeEmail(
-  enrollmentIds: string[],
-): Promise<Set<string>> {
-  if (enrollmentIds.length === 0) return new Set();
-
-  const types = [...ENROLLMENT_WELCOME_EMAIL_TYPES];
-  const [sent, queued] = await Promise.all([
-    prisma.sentEmail.findMany({
-      where: {
-        entityType: "Enrollment",
-        entityId: { in: enrollmentIds },
-        emailType: { in: types },
-      },
-      select: { entityId: true },
-    }),
-    prisma.emailOutbox.findMany({
-      where: {
-        entityType: "Enrollment",
-        entityId: { in: enrollmentIds },
-        emailType: { in: types },
-        status: { in: ["PENDING", "SENT"] },
-      },
-      select: { entityId: true },
-    }),
-  ]);
-
-  const ids = new Set<string>();
-  for (const row of sent) {
-    if (row.entityId) ids.add(row.entityId);
-  }
-  for (const row of queued) {
-    if (row.entityId) ids.add(row.entityId);
-  }
-  return ids;
-}
 
 /**
  * Garante User do aluno (senha = nascimento) e envia e-mail de boas-vindas da matrícula.
@@ -66,8 +30,11 @@ export async function sendEnrollmentWelcomeForStudent(args: {
   emailType?: EnrollmentWelcomeEmailType;
   /** Extra no audit (ex.: fromWaitlist). */
   auditExtra?: Record<string, unknown>;
-}): Promise<{ emailSent: boolean; hadEmail: boolean; queued?: boolean }> {
+}): Promise<{ emailSent: boolean; hadEmail: boolean; queued?: boolean; skipped?: boolean }> {
   const emailType = args.emailType ?? "welcome_student";
+  if (await hasEnrollmentWelcomeEmailPendingOrSent(args.enrollmentId)) {
+    return { emailSent: false, hadEmail: true, skipped: true };
+  }
   const student = await prisma.student.findUnique({
     where: { id: args.studentId },
     include: {
@@ -147,6 +114,10 @@ export async function sendEnrollmentWelcomeForStudent(args: {
     entityId: enrollment.id,
     performedByUserId: args.performedByUserId ?? undefined,
   });
+
+  if (emailResult.skippedDuplicate) {
+    return { emailSent: false, hadEmail: true, skipped: true };
+  }
 
   await createAuditLog({
     entityType: "Enrollment",
