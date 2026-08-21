@@ -16,10 +16,20 @@ export type OpportunityRates = {
   presentCount: number;
   justifiedCount: number;
   unjustifiedCount: number;
+  /** Oportunidades elegíveis sem lançamento de chamada — NÃO contam como falta. */
   unmarkedCount: number;
+  markedCount: number;
+  /** markedCount ÷ opportunities; null se opportunities=0. */
+  callCompletenessRate: number | null;
   presentRate: number | null;
   justifiedRate: number | null;
   unjustifiedRate: number | null;
+  /**
+   * ok = todas as oportunidades marcadas;
+   * partial = há chamada incompleta (unmarked>0);
+   * unavailable = sem oportunidades.
+   */
+  quality: "ok" | "partial" | "unavailable";
 };
 
 function rate(num: number, den: number): number | null {
@@ -27,9 +37,21 @@ function rate(num: number, den: number): number | null {
   return Math.round((num / den) * 1000) / 10;
 }
 
+function qualityFrom(opportunities: number, unmarkedCount: number): OpportunityRates["quality"] {
+  if (opportunities <= 0) return "unavailable";
+  if (unmarkedCount > 0) return "partial";
+  return "ok";
+}
+
 /**
  * Taxas de frequência sobre oportunidades elegíveis (aluno × sessão).
- * Sessão sem lançamento conta como oportunidade não marcada (não é presença).
+ *
+ * Regra de chamada incompleta (Fase 1A):
+ * - Oportunidade sem `SessionAttendance` entra no denominador das taxas,
+ *   mas **não** é convertida em falta justificada/não justificada.
+ * - Completude da chamada = marcadas ÷ oportunidades.
+ * - Qualidade = partial quando unmarkedCount > 0.
+ * - Streak ignora sessões sem lançamento (não incrementa nem zera o streak).
  */
 export function computeOpportunityRates(
   enrollment: EnrollmentEntryLike,
@@ -58,15 +80,19 @@ export function computeOpportunityRates(
   }
 
   const opportunities = eligible.length;
+  const markedCount = opportunities - unmarkedCount;
   return {
     opportunities,
     presentCount,
     justifiedCount,
     unjustifiedCount,
     unmarkedCount,
+    markedCount,
+    callCompletenessRate: rate(markedCount, opportunities),
     presentRate: rate(presentCount, opportunities),
     justifiedRate: rate(justifiedCount, opportunities),
     unjustifiedRate: rate(unjustifiedCount, opportunities),
+    quality: qualityFrom(opportunities, unmarkedCount),
   };
 }
 
@@ -88,11 +114,15 @@ export function aggregateOpportunityRates(rows: OpportunityRates[]): Opportunity
       unmarkedCount: 0,
     },
   );
+  const markedCount = sum.opportunities - sum.unmarkedCount;
   return {
     ...sum,
+    markedCount,
+    callCompletenessRate: rate(markedCount, sum.opportunities),
     presentRate: rate(sum.presentCount, sum.opportunities),
     justifiedRate: rate(sum.justifiedCount, sum.opportunities),
     unjustifiedRate: rate(sum.unjustifiedCount, sum.opportunities),
+    quality: qualityFrom(sum.opportunities, sum.unmarkedCount),
   };
 }
 
@@ -112,7 +142,8 @@ export function countUnjustifiedStreakEligible(
   let streak = 0;
   for (const s of newestFirst) {
     const row = attendanceBySessionId.get(s.id);
-    if (!row) continue; // não lançada: não interrompe nem incrementa (alinhado ao streak operacional)
+    // Chamada incompleta: não incrementa e não interrompe (mesmo critério operacional).
+    if (!row) continue;
     if (isUnjustifiedAbsence(row)) streak += 1;
     else break;
   }
@@ -131,4 +162,24 @@ export function hasStarted(
     if (row?.present) return true;
   }
   return false;
+}
+
+export function classifyCriticalAbsenceRisk(params: {
+  status: string;
+  streak: number;
+  cancelLimit: number;
+}): "none" | "critical_linked" {
+  if (params.status !== "ACTIVE" && params.status !== "SUSPENDED") return "none";
+  if (params.streak >= params.cancelLimit) return "critical_linked";
+  return "none";
+}
+
+export function completionStartedRate(params: {
+  classGroupStatus: string;
+  startedCount: number;
+  completedStartedCount: number;
+}): number | null {
+  if (params.classGroupStatus !== "ENCERRADA") return null;
+  if (params.startedCount <= 0) return null;
+  return rate(params.completedStartedCount, params.startedCount);
 }

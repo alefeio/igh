@@ -33,6 +33,7 @@ type OfferData = {
     ge80: number;
     full: number;
     waitlist: number;
+    demandUniqueCount: number;
     seatOffers: {
       pending: number;
       accepted: number;
@@ -121,6 +122,12 @@ function Inner() {
               label="Lista de espera"
               value={data.offer.waitlist}
               formula={data.metrics.waitlist?.formula}
+              quality="ok"
+            />
+            <MetricCard
+              label="Demanda única (pré ∪ waitlist)"
+              value={data.offer.demandUniqueCount}
+              formula="studentIds distintos em pré-matrícula ∪ waitlist WAITING"
               quality="ok"
             />
             <MetricCard

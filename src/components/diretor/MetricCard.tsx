@@ -7,6 +7,8 @@ export function MetricCard({
   value,
   unit,
   formula,
+  denominator,
+  period,
   quality,
   unavailableReason,
   href,
@@ -15,24 +17,38 @@ export function MetricCard({
   value: number | string | null;
   unit?: string;
   formula?: string;
+  denominator?: string;
+  period?: string;
   quality: string;
   unavailableReason?: string | null;
   href?: string;
 }) {
   const display =
-    value == null || unavailableReason
+    value === null || value === undefined
       ? unavailableReason || "Indisponível"
-      : typeof value === "number" && unit === "%"
-        ? `${value}%`
-        : String(value);
+      : unavailableReason
+        ? unavailableReason
+        : typeof value === "number" && unit === "%"
+          ? `${value}%`
+          : String(value);
+
+  const tip = [formula, denominator ? `Denominador: ${denominator}` : null, period ? `Período: ${period}` : null]
+    .filter(Boolean)
+    .join(" · ");
 
   const inner = (
     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{label}</p>
-      <p className="mt-2 text-2xl font-bold tabular-nums text-[var(--text-primary)]">{display}</p>
+      <p
+        className="mt-2 text-2xl font-bold tabular-nums text-[var(--text-primary)]"
+        title={tip || undefined}
+      >
+        {display}
+      </p>
       {formula ? (
-        <p className="mt-2 text-[11px] text-[var(--text-muted)]" title={formula}>
+        <p className="mt-2 text-[11px] text-[var(--text-muted)]" title={tip || formula}>
           {formula}
+          {denominator ? ` · denom.: ${denominator}` : ""}
         </p>
       ) : null}
       {quality !== "ok" ? (

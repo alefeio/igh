@@ -1,7 +1,7 @@
 import { requireDirectorRead } from "@/lib/diretor/auth";
-import { listMetricsForGuide } from "@/lib/diretor/catalog/definitions";
-import { FORMULA_VERSION_1A } from "@/lib/diretor/catalog/definitions";
-import { jsonErr, jsonOk } from "@/lib/http";
+import { FORMULA_VERSION_1A, listMetricsForGuide } from "@/lib/diretor/catalog/definitions";
+import { directorApiError, methodNotAllowed } from "@/lib/diretor/http";
+import { jsonOk } from "@/lib/http";
 
 export async function GET() {
   try {
@@ -33,19 +33,27 @@ export async function GET() {
             "Par aluno×sessão com sessão LIBERADA, instante ≤ dataAsOf e após a entrada do aluno na turma.",
         },
         {
+          term: "Chamada incompleta",
+          definition:
+            "Oportunidade elegível sem SessionAttendance. Entra no denominador das taxas, não vira falta automática; eleva qualidade para parcial e reduz completude da chamada.",
+        },
+        {
           term: "Aluno efetivamente atendido",
           definition: "studentId distinto com pelo menos uma presença elegível no recorte.",
         },
       ],
     });
   } catch (e) {
-    if (e instanceof Error && e.message === "FORBIDDEN") {
-      return jsonErr("FORBIDDEN", "Acesso restrito ao perfil Diretor (ou preview Master).", 403);
-    }
-    if (e instanceof Error && e.message === "UNAUTHENTICATED") {
-      return jsonErr("UNAUTHENTICATED", "Não autenticado.", 401);
-    }
-    console.error("[diretor/guide]", e);
-    return jsonErr("INTERNAL", "Falha ao carregar o guia.", 500);
+    return directorApiError(e);
   }
+}
+
+export function POST() {
+  return methodNotAllowed();
+}
+export function PATCH() {
+  return methodNotAllowed();
+}
+export function DELETE() {
+  return methodNotAllowed();
 }

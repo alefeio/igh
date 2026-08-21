@@ -1,9 +1,10 @@
 import { requireDirectorRead } from "@/lib/diretor/auth";
+import { getMetricDefinition } from "@/lib/diretor/catalog/definitions";
+import { directorApiError, methodNotAllowed } from "@/lib/diretor/http";
 import { resolveDirectorScope } from "@/lib/diretor/load-scope";
 import { loadAcademicOfferBundle } from "@/lib/diretor/metrics/academic-offer";
-import { getMetricDefinition } from "@/lib/diretor/catalog/definitions";
 import { offerQuerySchema, parseSearchParams } from "@/lib/diretor/search-params";
-import { jsonErr, jsonOk } from "@/lib/http";
+import { jsonOk } from "@/lib/http";
 
 export async function GET(request: Request) {
   try {
@@ -33,16 +34,19 @@ export async function GET(request: Request) {
       },
       qualityNotes: bundle.qualityNotes,
       note:
-        "Ocupação inicial não é exibida na Visão Geral nem como KPI principal nesta fase (apenas estimativa futura). Tempo para preenchimento: indisponível sem data confiável de abertura da oferta.",
+        "Ocupação inicial não é exibida na Visão Geral nem como KPI principal nesta fase (apenas estimativa futura). Tempo para preenchimento: indisponível sem data confiável de abertura da oferta. Transferências acadêmicas não possuem histórico tipado — cancelamentos pós-início ficam como motivo não tipado.",
     });
   } catch (e) {
-    if (e instanceof Error && e.message === "FORBIDDEN") {
-      return jsonErr("FORBIDDEN", "Acesso restrito ao perfil Diretor (ou preview Master).", 403);
-    }
-    if (e instanceof Error && e.message === "UNAUTHENTICATED") {
-      return jsonErr("UNAUTHENTICATED", "Não autenticado.", 401);
-    }
-    console.error("[diretor/offer-territories]", e);
-    return jsonErr("INTERNAL", "Falha ao montar oferta e territórios.", 500);
+    return directorApiError(e);
   }
+}
+
+export function POST() {
+  return methodNotAllowed();
+}
+export function PATCH() {
+  return methodNotAllowed();
+}
+export function DELETE() {
+  return methodNotAllowed();
 }

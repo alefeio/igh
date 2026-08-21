@@ -287,8 +287,24 @@ Financeiro, administrativo, impacto social, projetos (com disclaimer), relatóri
 
 ---
 
-## 11. Referências cruzadas
+## Limitações e regras da Fase 1A (validação)
 
-- `docs/diretor/matriz-cobertura-dados.md`
-- `docs/diretor/catalogo-indicadores.md`
-- `docs/diretor/arquitetura-paginas-e-apis.md`
+### Chamada incompleta
+Oportunidade elegível (`LIBERADA`, ≤ `dataAsOf`, após entrada) **sem** `SessionAttendance`:
+- entra no **denominador** das taxas de presença/justificada/não justificada;
+- **não** é convertida em falta;
+- eleva `quality` para `partial`;
+- `callCompletenessRate = marcadas ÷ oportunidades`;
+- no streak: sessão sem lançamento é ignorada (não incrementa nem zera).
+
+### Transferência acadêmica
+Não há histórico tipado de transferência. Cancelamentos após o início com presença aparecem como **“Cancelamentos após o início — motivo não tipado”** (qualidade parcial). Não usar o rótulo “evasão confirmada”.
+
+### Estoque vs série histórica
+Ocupação atual, suspensos, waitlist e risco crítico são **estoque/estado atual** do recorte, não séries temporais congeladas. Sem snapshot, “histórico indisponível” quando a comparação não for reconstruível.
+
+### Versão das fórmulas
+`formulaVersion = 1A.0.0` (`FORMULA_VERSION_1A`).
+
+### Métricas ainda indisponíveis na 1A
+Financeiro completo, administrativo, impacto social completo, projetos/convênios institucionais, ocupação inicial na Visão Geral, tempo para preenchimento, evasão confirmada, snapshots, alertas persistentes.

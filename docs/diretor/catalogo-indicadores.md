@@ -274,3 +274,16 @@ Para cada indicador implementado:
 ## E. Relação com o Guia do Diretor
 
 O Guia (`/diretor/guia`) deve ser gerado a partir deste catálogo (ou do módulo TS espelho na Fase 1), evitando texto paralelo divergente no seed de onboarding.
+
+---
+
+## F. Chamada incompleta (Fase 1A — regra canônica)
+
+Oportunidade elegível **sem** `SessionAttendance`:
+- **não** é convertida em falta justificada/não justificada;
+- permanece no **denominador** das taxas (`presentRate` etc.);
+- `callCompletenessRate = marcadas ÷ oportunidades`;
+- `quality = partial` quando `unmarkedCount > 0`;
+- streak operacional: sessão sem lançamento é **ignorada** (não incrementa nem zera).
+
+Versão das fórmulas implementadas na 1A: `1A.0.0`.

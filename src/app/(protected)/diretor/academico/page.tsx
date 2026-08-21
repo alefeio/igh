@@ -38,9 +38,12 @@ type AcademicData = {
       presentCount: number;
       justifiedCount: number;
       unjustifiedCount: number;
+      unmarkedCount: number;
+      callCompletenessRate: number | null;
       presentRate: number | null;
       justifiedRate: number | null;
       unjustifiedRate: number | null;
+      quality?: string;
     };
     suspensions: number;
     criticalAbsenceRisk: number;
@@ -120,9 +123,34 @@ function Inner() {
               value={data.academic.attendance.presentRate}
               unit="%"
               formula={data.metrics.present?.formula}
-              quality={data.academic.attendance.presentRate == null ? "unavailable" : "ok"}
+              denominator="oportunidades elegíveis (LIBERADA)"
+              period="até dataAsOf"
+              quality={
+                data.academic.attendance.quality ??
+                (data.academic.attendance.presentRate == null ? "unavailable" : "ok")
+              }
               unavailableReason={
                 data.academic.attendance.presentRate == null
+                  ? "Sem oportunidades elegíveis"
+                  : null
+              }
+            />
+            <MetricCard
+              label="Completude da chamada"
+              value={data.academic.attendance.callCompletenessRate}
+              unit="%"
+              formula="oportunidades com SessionAttendance ÷ oportunidades elegíveis"
+              denominator="oportunidades elegíveis"
+              period="até dataAsOf"
+              quality={
+                (data.academic.attendance.unmarkedCount ?? 0) > 0
+                  ? "partial"
+                  : data.academic.attendance.callCompletenessRate == null
+                    ? "unavailable"
+                    : "ok"
+              }
+              unavailableReason={
+                data.academic.attendance.callCompletenessRate == null
                   ? "Sem oportunidades elegíveis"
                   : null
               }

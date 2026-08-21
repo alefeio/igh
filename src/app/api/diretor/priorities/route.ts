@@ -1,8 +1,9 @@
 import { requireDirectorRead } from "@/lib/diretor/auth";
+import { directorApiError, methodNotAllowed } from "@/lib/diretor/http";
 import { resolveDirectorScope } from "@/lib/diretor/load-scope";
 import { loadAcademicOfferBundle } from "@/lib/diretor/metrics/academic-offer";
 import { parseSearchParams, prioritiesQuerySchema } from "@/lib/diretor/search-params";
-import { jsonErr, jsonOk } from "@/lib/http";
+import { jsonOk } from "@/lib/http";
 
 export async function GET(request: Request) {
   try {
@@ -24,20 +25,30 @@ export async function GET(request: Request) {
     }
 
     return jsonOk({
-      meta: bundle.meta,
+      meta: {
+        ...bundle.meta,
+        filters: {
+          ...bundle.meta.filters,
+          severity: q.severity,
+          domain: q.domain,
+        },
+      },
       cycleLabel: scope.cycleLabel,
       cycles: scope.cycles,
       alerts,
       qualityNotes: bundle.qualityNotes,
     });
   } catch (e) {
-    if (e instanceof Error && e.message === "FORBIDDEN") {
-      return jsonErr("FORBIDDEN", "Acesso restrito ao perfil Diretor (ou preview Master).", 403);
-    }
-    if (e instanceof Error && e.message === "UNAUTHENTICATED") {
-      return jsonErr("UNAUTHENTICATED", "Não autenticado.", 401);
-    }
-    console.error("[diretor/priorities]", e);
-    return jsonErr("INTERNAL", "Falha ao montar prioridades.", 500);
+    return directorApiError(e);
   }
+}
+
+export function POST() {
+  return methodNotAllowed();
+}
+export function PATCH() {
+  return methodNotAllowed();
+}
+export function DELETE() {
+  return methodNotAllowed();
 }

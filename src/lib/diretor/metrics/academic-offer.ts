@@ -13,6 +13,12 @@ import {
   hasStarted,
   type AttendanceMarkRow,
 } from "@/lib/diretor/metrics/attendance-formulas";
+import {
+  demandCompletionQuadrant,
+  occupancyPercent as occupancyPct,
+  seatOfferAcceptRate,
+  uniqueDemandStudentIds,
+} from "@/lib/diretor/metrics/offer-formulas";
 import { buildDirectorHref } from "@/lib/diretor/search-params";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
 import type { ScopeResolution } from "@/lib/diretor/load-scope";
@@ -97,6 +103,8 @@ export type AcademicOfferBundle = {
       occupancyPercent: number | null;
       turmas: number;
     }>;
+    /** Pessoas únicas em pré-matrícula ∪ waitlist WAITING. */
+    demandUniqueCount: number;
     demandCompletionMatrix: Array<{
       courseId: string;
       courseName: string;
@@ -263,9 +271,11 @@ export async function loadAcademicOfferBundle(
     else if (row.status === "EXPIRED") seatOfferCounts.expired = row._count.id;
     else if (row.status === "CANCELLED") seatOfferCounts.cancelled = row._count.id;
   }
-  const seatDecided =
-    seatOfferCounts.accepted + seatOfferCounts.expired + seatOfferCounts.cancelled;
-  const acceptRate = pctOrNull(seatOfferCounts.accepted, seatDecided);
+  const acceptRate = seatOfferAcceptRate({
+    accepted: seatOfferCounts.accepted,
+    expired: seatOfferCounts.expired,
+    cancelled: seatOfferCounts.cancelled,
+  });
 
   let capacity = 0;
   let occupied = 0;
@@ -283,7 +293,7 @@ export async function loadAcademicOfferBundle(
     occByCg.set(g.id, occ);
     capacity += g.capacity;
     occupied += occ;
-    const p = pctOrNull(occ, g.capacity);
+    const p = occupancyPct(occ, g.capacity);
     if (occ === 0) emptyClasses += 1;
     if (p != null && p < 30) below30 += 1;
     if (p != null && p >= 80) ge80 += 1;
@@ -297,7 +307,6 @@ export async function loadAcademicOfferBundle(
   const opportunityRows = [];
   let criticalAbsenceRisk = 0;
   let startedCount = 0;
-  let completedStarted = 0;
   let cancelAfterStart = 0;
   let startedInClosed = 0;
   let completedStartedInClosed = 0;
@@ -321,7 +330,6 @@ export async function loadAcademicOfferBundle(
         startedInClosed += 1;
         if (e.status === "COMPLETED") completedStartedInClosed += 1;
       }
-      if (e.status === "COMPLETED") completedStarted += 1;
       if (e.status === "CANCELLED") cancelAfterStart += 1;
     }
 
@@ -339,6 +347,28 @@ export async function loadAcademicOfferBundle(
   }
 
   const attendanceAgg = aggregateOpportunityRates(opportunityRows);
+  if (attendanceAgg.unmarkedCount > 0) {
+    qualityNotes.push(
+      `Chamada incompleta: ${attendanceAgg.unmarkedCount} oportunidade(s) elegível(is) sem lançamento — não contadas como falta; completude ${attendanceAgg.callCompletenessRate ?? 0}%.`,
+    );
+    quality.push({
+      domain: "academic",
+      status: "partial",
+      note: "Há oportunidades sem registro de presença/falta.",
+    });
+  }
+
+  const waitlistStudents =
+    cgIds.length > 0
+      ? await prisma.enrollmentWaitlist.findMany({
+          where: { classGroupId: { in: cgIds }, status: "WAITING" },
+          select: { studentId: true },
+        })
+      : [];
+  const demandUnique = uniqueDemandStudentIds({
+    preEnrollmentStudentIds: enrollments.filter((e) => e.isPreEnrollment).map((e) => e.studentId),
+    waitlistWaitingStudentIds: waitlistStudents.map((w) => w.studentId),
+  });
   const completionStartedRate =
     closedCgIds.size === 0
       ? null
@@ -444,16 +474,13 @@ export async function loadAcademicOfferBundle(
       }
       const completionStartedRate = pctOrNull(completed, started);
       const demandProxy = c.waitlist + c.occupied;
-      const highDemand = demandProxy >= (c.capacity || 1) * 0.8 || c.waitlist > 0;
-      const highCompletion =
-        completionStartedRate != null && completionStartedRate >= 70;
-      let quadrant: "expand" | "review_execution" | "review_marketing" | "reassess" | "unavailable" =
-        "unavailable";
-      if (completionStartedRate == null) quadrant = "unavailable";
-      else if (highDemand && highCompletion) quadrant = "expand";
-      else if (highDemand && !highCompletion) quadrant = "review_execution";
-      else if (!highDemand && highCompletion) quadrant = "review_marketing";
-      else quadrant = "reassess";
+      const quadrant = demandCompletionQuadrant({
+        hasClosedCohort: true,
+        demandProxy,
+        capacity: c.capacity,
+        waitlist: c.waitlist,
+        completionStartedRate,
+      });
       return {
         courseId: c.courseId,
         courseName: c.courseName,
@@ -464,7 +491,7 @@ export async function loadAcademicOfferBundle(
     })
     .filter((r) => r.quadrant !== "unavailable" || closedCgIds.size === 0);
 
-  const occupancyPercent = pctOrNull(occupied, capacity);
+  const occupancyPercent = occupancyPct(occupied, capacity);
   const totalWaitlist = [...waitlistByCg.values()].reduce((a, b) => a + b, 0);
 
   const hrefAcad = buildDirectorHref("/diretor/academico", filterQs);
@@ -484,10 +511,10 @@ export async function loadAcademicOfferBundle(
     }),
     metricCard("acad.attendance.present_rate", attendanceAgg.presentRate, {
       quality:
-        sessionQuality.pastNotReleasedCount > 0
-          ? "partial"
-          : attendanceAgg.presentRate == null
-            ? "unavailable"
+        attendanceAgg.quality === "unavailable"
+          ? "unavailable"
+          : attendanceAgg.quality === "partial" || sessionQuality.pastNotReleasedCount > 0
+            ? "partial"
             : "ok",
       unavailableReason:
         attendanceAgg.presentRate == null ? "Sem oportunidades elegíveis (LIBERADA)" : null,
@@ -633,6 +660,7 @@ export async function loadAcademicOfferBundle(
       waitlist: totalWaitlist,
       seatOffers: { ...seatOfferCounts, acceptRate },
       territories,
+      demandUniqueCount: demandUnique.uniqueCount,
       demandCompletionMatrix,
     },
     alerts,

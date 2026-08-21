@@ -1,9 +1,10 @@
 import { requireDirectorRead } from "@/lib/diretor/auth";
+import { getMetricDefinition } from "@/lib/diretor/catalog/definitions";
+import { directorApiError, methodNotAllowed } from "@/lib/diretor/http";
 import { resolveDirectorScope } from "@/lib/diretor/load-scope";
 import { loadAcademicOfferBundle } from "@/lib/diretor/metrics/academic-offer";
 import { academicQuerySchema, parseSearchParams } from "@/lib/diretor/search-params";
-import { getMetricDefinition } from "@/lib/diretor/catalog/definitions";
-import { jsonErr, jsonOk } from "@/lib/http";
+import { jsonOk } from "@/lib/http";
 
 export async function GET(request: Request) {
   try {
@@ -41,13 +42,16 @@ export async function GET(request: Request) {
       qualityNotes: bundle.qualityNotes,
     });
   } catch (e) {
-    if (e instanceof Error && e.message === "FORBIDDEN") {
-      return jsonErr("FORBIDDEN", "Acesso restrito ao perfil Diretor (ou preview Master).", 403);
-    }
-    if (e instanceof Error && e.message === "UNAUTHENTICATED") {
-      return jsonErr("UNAUTHENTICATED", "Não autenticado.", 401);
-    }
-    console.error("[diretor/academic]", e);
-    return jsonErr("INTERNAL", "Falha ao montar acadêmico.", 500);
+    return directorApiError(e);
   }
+}
+
+export function POST() {
+  return methodNotAllowed();
+}
+export function PATCH() {
+  return methodNotAllowed();
+}
+export function DELETE() {
+  return methodNotAllowed();
 }
