@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { authErrorResponse } from "@/lib/api-auth-guard";
-import { requireAdminManager } from "@/lib/auth";
+import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { matchCategoryName } from "@/lib/financeiro-invoice-parse";
 import { readInvoiceAttachment } from "@/lib/financeiro-invoice-read";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -17,7 +17,7 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    await requireAdminManager();
+    await requireAdminManagerWrite();
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;

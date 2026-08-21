@@ -17,6 +17,7 @@ const ALLOWED_ROLES: UserRole[] = [
   "SITE_ADMIN",
   "MASTER",
   "GENERAL_ADMIN",
+  "DIRECTOR",
   "POLO_COORDINATOR",
 ];
 
@@ -95,6 +96,13 @@ export async function POST(request: Request) {
       return jsonErr("FORBIDDEN", "Você não tem acesso como Administrador Geral.", 403);
     }
     return jsonOkWithSession({ role: "GENERAL_ADMIN" as const }, sessionPayload, "GENERAL_ADMIN");
+  }
+
+  if (role === "DIRECTOR") {
+    if (full.role !== "DIRECTOR") {
+      return jsonErr("FORBIDDEN", "Você não tem acesso como Diretor.", 403);
+    }
+    return jsonOkWithSession({ role: "DIRECTOR" as const }, sessionPayload, "DIRECTOR");
   }
 
   if (role === "ADMIN") {

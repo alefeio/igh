@@ -25,6 +25,7 @@ import {
 
 import { StudentEnrollmentSuspensionBanner } from "@/components/student/StudentEnrollmentSuspensionBanner";
 import { StudentEnrollmentCtaBanner } from "@/components/student/StudentEnrollmentCtaBanner";
+import { DirectorDashboard } from "@/components/director/DirectorDashboard";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import {
   DashboardHero,
@@ -1136,6 +1137,9 @@ export default async function DashboardPage() {
   const user = await requireSessionUser();
   if (user.role === "POLO_COORDINATOR") {
     redirect("/enrollments");
+  }
+  if (user.role === "DIRECTOR") {
+    return <DirectorDashboard userName={user.name} />;
   }
   let data: DashboardData;
   try {

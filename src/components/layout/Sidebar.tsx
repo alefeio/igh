@@ -14,6 +14,7 @@ type PanelRole =
   | "ADMIN_MANAGER"
   | "SITE_ADMIN"
   | "POLO_COORDINATOR"
+  | "DIRECTOR"
   | "TEACHER"
   | "STUDENT";
 
@@ -36,6 +37,7 @@ const ALL_ROLES = [
   "ADMIN_MANAGER",
   "SITE_ADMIN",
   "POLO_COORDINATOR",
+  "DIRECTOR",
   "TEACHER",
   "STUDENT",
 ] as const;
@@ -50,7 +52,7 @@ const MASTER_OR_GENERAL = ["MASTER", "GENERAL_ADMIN"] as const;
 /** Comunicação e Site: Master, Admin Geral e Administrador Site. */
 const SITE_AND_COMMS = ["MASTER", "GENERAL_ADMIN", "SITE_ADMIN"] as const;
 /** Gerência Administrativa: pessoas, patrimônio, doações e financeiro. */
-const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER"] as const;
+const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER", "DIRECTOR"] as const;
 
 /**
  * Ordem do array = ordem no menu dentro de cada categoria.
@@ -317,8 +319,8 @@ export function Sidebar({
   user: {
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     isAdminManager?: boolean;
@@ -329,6 +331,7 @@ export function Sidebar({
     availableRoles?: {
       canMaster: boolean;
       canGeneralAdmin?: boolean;
+      canDirector?: boolean;
       canStudent: boolean;
       canTeacher: boolean;
       canAdmin: boolean;

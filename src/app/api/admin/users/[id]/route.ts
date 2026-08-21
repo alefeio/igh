@@ -27,6 +27,7 @@ const adminListFilter = {
     { role: "SITE_ADMIN" as const },
     { role: "POLO_COORDINATOR" as const },
     { role: "ADMIN_MANAGER" as const },
+    { role: "DIRECTOR" as const },
     { isAdmin: true },
     { isSiteAdmin: true },
     { isPoloCoordinator: true },
@@ -108,6 +109,9 @@ export async function PATCH(request: Request, ctx: Ctx) {
   if (existing.role === "GENERAL_ADMIN" && !isExactMaster(actor)) {
     return jsonErr("FORBIDDEN", "Somente o Master pode editar o perfil Administrador Geral.", 403);
   }
+  if (existing.role === "DIRECTOR" && !isExactMaster(actor)) {
+    return jsonErr("FORBIDDEN", "Somente o Master pode editar o perfil Diretor.", 403);
+  }
 
   const selectedRoles: ManagedAccessRole[] | undefined =
     parsed.data.roles !== undefined
@@ -119,12 +123,15 @@ export async function PATCH(request: Request, ctx: Ctx) {
   if (selectedRoles?.includes("GENERAL_ADMIN") && !isExactMaster(actor)) {
     return jsonErr("FORBIDDEN", "Apenas o Master pode atribuir o perfil Administrador Geral.", 403);
   }
+  if (selectedRoles?.includes("DIRECTOR") && !isExactMaster(actor)) {
+    return jsonErr("FORBIDDEN", "Apenas o Master pode atribuir o perfil Diretor.", 403);
+  }
 
   const data: {
     name?: string;
     email?: string;
     isActive?: boolean;
-    role?: "GENERAL_ADMIN" | StaffAccessRole;
+    role?: "GENERAL_ADMIN" | "DIRECTOR" | StaffAccessRole;
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     isCoordinator?: boolean;
@@ -163,8 +170,25 @@ export async function PATCH(request: Request, ctx: Ctx) {
       data.isCoordinator = false;
       data.isPoloCoordinator = keepPoloAccess;
       data.isAdminManager = false;
+    } else if (selectedRoles.includes("DIRECTOR")) {
+      await requireExactMaster();
+      if (hasPoloLinks) {
+        return jsonErr(
+          "INVALID_STATE",
+          "Não é possível definir o perfil Diretor enquanto o usuário for responsável por polos. Transfira a coordenação antes.",
+          400,
+        );
+      }
+      data.role = "DIRECTOR";
+      data.isAdmin = false;
+      data.isSiteAdmin = false;
+      data.isCoordinator = false;
+      data.isPoloCoordinator = false;
+      data.isAdminManager = false;
     } else {
-      const staffSelected = selectedRoles as StaffAccessRole[];
+      const staffSelected = selectedRoles.filter(
+        (r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR",
+      );
       const willKeepPolo = staffSelected.includes("POLO_COORDINATOR");
       if (hasPoloLinks && !willKeepPolo) {
         return jsonErr(
@@ -173,8 +197,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
           400,
         );
       }
-      if (existing.role === "GENERAL_ADMIN") {
-        // Master rebaixando Admin Geral para staff
+      if (existing.role === "GENERAL_ADMIN" || existing.role === "DIRECTOR") {
         await requireExactMaster();
         const access = resolveStaffAccessUpdate("ADMIN", staffSelected);
         data.role = access.role ?? "ADMIN";
@@ -307,6 +330,9 @@ export async function DELETE(request: Request, ctx: Ctx) {
   }
   if (existing.role === "GENERAL_ADMIN" && !isExactMaster(actor)) {
     return jsonErr("FORBIDDEN", "Somente o Master pode excluir ou desativar Administrador Geral.", 403);
+  }
+  if (existing.role === "DIRECTOR" && !isExactMaster(actor)) {
+    return jsonErr("FORBIDDEN", "Somente o Master pode excluir ou desativar Diretor.", 403);
   }
   if (actor.id === id) {
     return jsonErr("INVALID_STATE", "Você não pode desativar ou excluir sua própria conta.", 400);

@@ -1,5 +1,5 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
-import { requireAdminManager } from "@/lib/auth";
+import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { DOCUMENT_TEMPLATE_VARIABLE_HELP } from "@/lib/admin/document-template-vars";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -30,7 +30,7 @@ export async function GET() {
 export async function POST(request: Request) {
   let actor;
   try {
-    actor = await requireAdminManager();
+    actor = await requireAdminManagerWrite();
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;

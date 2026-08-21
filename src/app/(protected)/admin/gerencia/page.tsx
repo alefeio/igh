@@ -28,6 +28,7 @@ import {
   SectionCard,
   StatTile,
 } from "@/components/dashboard/DashboardUI";
+import { GerenciaReadOnlyBanner } from "@/components/gerencia/GerenciaReadOnlyBanner";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
@@ -67,6 +68,7 @@ export default function GerenciaHomePage() {
 
   return (
     <PanelPageStack>
+      <GerenciaReadOnlyBanner />
       <DashboardHero
         eyebrow="IGH — Gerência"
         title="Central administrativa"

@@ -27,6 +27,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   const availableRoles = {
     canMaster: user.baseRole === "MASTER",
     canGeneralAdmin: user.baseRole === "GENERAL_ADMIN",
+    canDirector: user.baseRole === "DIRECTOR",
     canStudent: user.hasStudentProfile === true,
     canTeacher: user.hasTeacherProfile === true,
     canAdmin: user.isAdmin === true || user.baseRole === "ADMIN",

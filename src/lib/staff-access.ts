@@ -1,5 +1,5 @@
 export type StaffAccessRole = "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR";
-export type ManagedAccessRole = StaffAccessRole | "GENERAL_ADMIN";
+export type ManagedAccessRole = StaffAccessRole | "GENERAL_ADMIN" | "DIRECTOR";
 
 export const STAFF_ACCESS_ROLES: readonly StaffAccessRole[] = [
   "ADMIN",
@@ -18,6 +18,7 @@ export const STAFF_ACCESS_LABEL: Record<StaffAccessRole, string> = {
 export const MANAGED_ACCESS_LABEL: Record<ManagedAccessRole, string> = {
   ...STAFF_ACCESS_LABEL,
   GENERAL_ADMIN: "Administrador Geral",
+  DIRECTOR: "Diretor",
 };
 
 /** Prioridade ao escolher o papel-base quando vários tipos são marcados. */
@@ -44,7 +45,10 @@ export function normalizeManagedRoles(
   if (unique.includes("GENERAL_ADMIN")) {
     return ["GENERAL_ADMIN"];
   }
-  return normalizeStaffRoles(unique.filter((r): r is StaffAccessRole => r !== "GENERAL_ADMIN"));
+  if (unique.includes("DIRECTOR")) {
+    return ["DIRECTOR"];
+  }
+  return normalizeStaffRoles(unique.filter((r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR"));
 }
 
 export function pickStaffBaseRole(roles: readonly StaffAccessRole[]): StaffAccessRole {
@@ -88,18 +92,32 @@ export function userHasStaffAccess(
 }
 
 /**
- * Acesso ao módulo Gerência (menu, proxy e APIs): papel ativo Master/Admin Geral/
- * Gerência Administrativa, ou overlay `isAdminManager` atribuído em /users.
+ * Acesso ao módulo Gerência (menu, proxy e APIs de leitura): papel ativo Master/Admin Geral/
+ * Gerência Administrativa/Diretor, ou overlay `isAdminManager` atribuído em /users.
  */
 export function hasAdminManagementAccess(user: {
   role?: string | null;
   isAdminManager?: boolean | null;
 }): boolean {
   const active = user.role ?? "";
-  if (active === "ADMIN_MANAGER" || active === "MASTER" || active === "GENERAL_ADMIN") {
+  if (
+    active === "ADMIN_MANAGER" ||
+    active === "MASTER" ||
+    active === "GENERAL_ADMIN" ||
+    active === "DIRECTOR"
+  ) {
     return true;
   }
   return user.isAdminManager === true;
+}
+
+/** Alterações na Gerência — Diretor só acompanha (leitura). */
+export function hasAdminManagementWriteAccess(user: {
+  role?: string | null;
+  isAdminManager?: boolean | null;
+}): boolean {
+  if ((user.role ?? "") === "DIRECTOR") return false;
+  return hasAdminManagementAccess(user);
 }
 
 export function staffRolesFromUser(user: {
@@ -122,6 +140,7 @@ export function managedRolesFromUser(user: {
   isAdminManager?: boolean;
 }): ManagedAccessRole[] {
   if (user.role === "GENERAL_ADMIN") return ["GENERAL_ADMIN"];
+  if (user.role === "DIRECTOR") return ["DIRECTOR"];
   return staffRolesFromUser(user);
 }
 

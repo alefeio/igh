@@ -2648,6 +2648,8 @@ enum UserRole {
   SITE_ADMIN
   /// * Gerência Administrativa: pessoas, contratos, patrimônio, doações e financeiro.
   ADMIN_MANAGER
+  /// * Diretor: dashboard executivo e leitura da Gerência (somente Master cria este perfil).
+  DIRECTOR
   TEACHER
   STUDENT
   /// * Deprecated — migrado para ADMIN; valor mantido no enum do banco.

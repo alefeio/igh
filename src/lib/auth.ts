@@ -7,7 +7,7 @@ import { compare, hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { EmployeePosition, User, UserRole } from "@/generated/prisma/client";
 import { expandMasterRoles } from "@/lib/rbac";
-import { hasAdminManagementAccess } from "@/lib/staff-access";
+import { hasAdminManagementAccess, hasAdminManagementWriteAccess } from "@/lib/staff-access";
 
 /** Nome do cookie de sessão (usar em Route Handlers com NextResponse.cookies). */
 export const AUTH_TOKEN_COOKIE_NAME = "auth_token";
@@ -224,10 +224,19 @@ export async function requireStaffWrite(): Promise<SessionUser> {
   return requireRole(["ADMIN", "MASTER"]);
 }
 
-/** Módulo de Gerência Administrativa (pessoas, contratos, patrimônio, doações e financeiro). */
+/** Módulo de Gerência Administrativa — leitura (inclui Diretor). */
 export async function requireAdminManager(): Promise<SessionUser> {
   const user = await requireSessionUser();
   if (!hasAdminManagementAccess(user)) {
+    throw new Error("FORBIDDEN");
+  }
+  return user;
+}
+
+/** Alterações na Gerência (Diretor não altera). */
+export async function requireAdminManagerWrite(): Promise<SessionUser> {
+  const user = await requireSessionUser();
+  if (!hasAdminManagementWriteAccess(user)) {
     throw new Error("FORBIDDEN");
   }
   return user;

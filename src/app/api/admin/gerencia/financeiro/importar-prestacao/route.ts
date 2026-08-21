@@ -1,6 +1,6 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { createAuditLog } from "@/lib/audit";
-import { requireAdminManager } from "@/lib/auth";
+import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import {
   parsePrestacaoWorkbook,
   type PrestacaoImportRow,
@@ -54,7 +54,7 @@ function rowKey(row: PrestacaoImportRow): string {
 export async function POST(request: Request) {
   let actor;
   try {
-    actor = await requireAdminManager();
+    actor = await requireAdminManagerWrite();
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;

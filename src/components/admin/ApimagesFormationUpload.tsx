@@ -34,6 +34,7 @@ type Props = {
     | "ADMIN_MANAGER"
     | "SITE_ADMIN"
     | "POLO_COORDINATOR"
+    | "DIRECTOR"
     | "TEACHER"
     | "STUDENT";
 };

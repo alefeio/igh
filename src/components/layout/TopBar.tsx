@@ -17,6 +17,7 @@ type RoleOption = {
     | "SITE_ADMIN"
     | "MASTER"
     | "GENERAL_ADMIN"
+    | "DIRECTOR"
     | "POLO_COORDINATOR";
   label: string;
 };
@@ -36,8 +37,8 @@ export function TopBar({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     isAdminManager?: boolean;
@@ -47,6 +48,7 @@ export function TopBar({
     availableRoles?: {
       canMaster: boolean;
       canGeneralAdmin?: boolean;
+      canDirector?: boolean;
       canStudent: boolean;
       canTeacher: boolean;
       canAdmin: boolean;
@@ -178,6 +180,7 @@ export function TopBar({
   const r = user.availableRoles;
   const canMaster = r?.canMaster ?? (user.baseRole === "MASTER");
   const canGeneralAdmin = r?.canGeneralAdmin ?? (user.baseRole === "GENERAL_ADMIN");
+  const canDirector = r?.canDirector ?? (user.baseRole === "DIRECTOR");
   const canStudent = r?.canStudent ?? (user.hasStudentProfile === true);
   const canTeacher = r?.canTeacher ?? (user.hasTeacherProfile === true);
   const canAdmin = r?.canAdmin ?? (user.isAdmin === true || user.baseRole === "ADMIN");
@@ -194,15 +197,17 @@ export function TopBar({
     ADMIN_MANAGER: "Gerência Administrativa",
     SITE_ADMIN: "Administrador Site",
     POLO_COORDINATOR: "Coordenador de Polos",
+    DIRECTOR: "Diretor",
     TEACHER: "Professor",
     STUDENT: "Aluno",
   };
 
-  const hidesStaffPicker = canMaster || canGeneralAdmin;
+  const hidesStaffPicker = canMaster || canGeneralAdmin || canDirector;
 
   let roleOptions: RoleOption[] = [
     ...(canMaster ? [{ value: "MASTER" as const, label: roleLabels.MASTER }] : []),
     ...(canGeneralAdmin ? [{ value: "GENERAL_ADMIN" as const, label: roleLabels.GENERAL_ADMIN }] : []),
+    ...(canDirector ? [{ value: "DIRECTOR" as const, label: roleLabels.DIRECTOR }] : []),
     ...(canStudent ? [{ value: "STUDENT" as const, label: roleLabels.STUDENT }] : []),
     ...(canTeacher ? [{ value: "TEACHER" as const, label: roleLabels.TEACHER }] : []),
     ...(canAdmin && !hidesStaffPicker ? [{ value: "ADMIN" as const, label: roleLabels.ADMIN }] : []),

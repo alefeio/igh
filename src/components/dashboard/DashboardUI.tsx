@@ -12,6 +12,7 @@ export type SessionPanelRole =
   | "ADMIN_MANAGER"
   | "SITE_ADMIN"
   | "POLO_COORDINATOR"
+  | "DIRECTOR"
   | "TEACHER"
   | "STUDENT";
 
@@ -100,7 +101,7 @@ export function StatTile({
   value: number | string;
   href?: string;
   sublabel?: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   accent?: "default" | "emerald" | "violet" | "amber" | "sky" | "rose";
 }) {
   const accents = {
@@ -119,11 +120,13 @@ export function StatTile({
         aria-hidden
       />
       <div className="relative flex items-start gap-3">
-        <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-inner ${accents[accent]}`}
-        >
-          <Icon className="h-5 w-5" strokeWidth={2} aria-hidden />
-        </div>
+        {Icon ? (
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-inner ${accents[accent]}`}
+          >
+            <Icon className="h-5 w-5" strokeWidth={2} aria-hidden />
+          </div>
+        ) : null}
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">{label}</p>
           <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-[var(--text-primary)] sm:text-3xl">

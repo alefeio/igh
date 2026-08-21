@@ -1,5 +1,5 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
-import { requireAdminManager } from "@/lib/auth";
+import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { serializeThreadDetail } from "@/lib/employee-portal";
 import { createUserNotificationIfNew } from "@/lib/user-notifications";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -46,7 +46,7 @@ export async function GET(_request: Request, ctx: Ctx) {
 export async function POST(request: Request, ctx: Ctx) {
   let actor;
   try {
-    actor = await requireAdminManager();
+    actor = await requireAdminManagerWrite();
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;
@@ -110,7 +110,7 @@ export async function POST(request: Request, ctx: Ctx) {
 
 export async function PATCH(request: Request, ctx: Ctx) {
   try {
-    await requireAdminManager();
+    await requireAdminManagerWrite();
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;

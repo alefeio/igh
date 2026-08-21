@@ -39,7 +39,7 @@ export async function proxy(request: NextRequest) {
   /** Site e Comunicação. */
   const SITE_AND_COMMS = ["MASTER", "GENERAL_ADMIN", "SITE_ADMIN"];
   /** Gerência Administrativa: pessoas, patrimônio, doações e financeiro. */
-  const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER"];
+  const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER", "DIRECTOR"];
 
   const isMasterEquivalent = role === "MASTER" || role === "GENERAL_ADMIN";
 

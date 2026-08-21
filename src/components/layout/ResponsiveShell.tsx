@@ -20,8 +20,8 @@ export function ResponsiveShell({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     isAdminManager?: boolean;
@@ -34,6 +34,7 @@ export function ResponsiveShell({
     availableRoles?: {
       canMaster: boolean;
       canGeneralAdmin?: boolean;
+      canDirector?: boolean;
       canStudent: boolean;
       canTeacher: boolean;
       canAdmin: boolean;

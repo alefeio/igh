@@ -27,6 +27,7 @@ type AdminUser = {
   email: string;
   role:
     | "GENERAL_ADMIN"
+    | "DIRECTOR"
     | "ADMIN"
     | "ADMIN_MANAGER"
     | "SITE_ADMIN"
@@ -50,6 +51,12 @@ const STAFF_ACCESS_OPTIONS: { value: ManagedAccessRole; label: string; hint: str
     value: "GENERAL_ADMIN",
     label: "Administrador Geral",
     hint: "Mesmas permissões do Master, exceto gerir Master e criar/editar Admin Geral",
+    masterOnly: true,
+  },
+  {
+    value: "DIRECTOR",
+    label: "Diretor",
+    hint: "Dashboard executivo e acompanhamento da Gerência (somente leitura). Apenas Master cria este perfil",
     masterOnly: true,
   },
   {
@@ -80,6 +87,7 @@ function roleLabel(u: AdminUser): string {
   if (u.role === "STUDENT") parts.push("Aluno");
   else if (u.role === "TEACHER") parts.push("Professor");
   else if (u.role === "GENERAL_ADMIN") parts.push("Administrador Geral");
+  else if (u.role === "DIRECTOR") parts.push("Diretor");
   else if (u.role === "ADMIN") parts.push("Administrador Pedagógico");
   else if (u.role === "ADMIN_MANAGER") parts.push("Gerência Administrativa");
   else if (u.role === "SITE_ADMIN") parts.push("Administrador Site");
@@ -108,39 +116,41 @@ function AccessTypeCheckboxes({
   onBlockedPoloUncheck?: () => void;
 }) {
   function toggle(role: ManagedAccessRole) {
-    if (role === "GENERAL_ADMIN") {
-      if (selected.includes("GENERAL_ADMIN")) {
-        // Ao sair do Admin Geral, preserva Coordenador de Polos se houver vínculo.
+    if (role === "GENERAL_ADMIN" || role === "DIRECTOR") {
+      if (selected.includes(role)) {
         onChange(lockPoloCoordinator ? ["POLO_COORDINATOR"] : []);
       } else {
-        onChange(["GENERAL_ADMIN"]);
+        onChange([role]);
       }
       return;
     }
-    const withoutGeneral = selected.filter((r) => r !== "GENERAL_ADMIN") as StaffAccessRole[];
-    if (withoutGeneral.includes(role as StaffAccessRole)) {
+    const withoutExclusive = selected.filter(
+      (r) => r !== "GENERAL_ADMIN" && r !== "DIRECTOR",
+    ) as StaffAccessRole[];
+    if (withoutExclusive.includes(role as StaffAccessRole)) {
       if (role === "POLO_COORDINATOR" && lockPoloCoordinator) {
         onBlockedPoloUncheck?.();
         return;
       }
-      onChange(withoutGeneral.filter((r) => r !== role));
+      onChange(withoutExclusive.filter((r) => r !== role));
     } else {
-      onChange([...withoutGeneral, role]);
+      onChange([...withoutExclusive, role]);
     }
   }
 
   const options = STAFF_ACCESS_OPTIONS.filter((o) => !o.masterOnly || allowGeneralAdmin);
-  const generalSelected = selected.includes("GENERAL_ADMIN");
+  const exclusiveSelected =
+    selected.includes("GENERAL_ADMIN") || selected.includes("DIRECTOR");
 
   return (
     <div className="mt-1 flex flex-col gap-2">
       {options.map((opt) => {
         const inputId = `${idPrefix}-${opt.value}`;
         const poloLocked =
-          opt.value === "POLO_COORDINATOR" && lockPoloCoordinator && !generalSelected;
+          opt.value === "POLO_COORDINATOR" && lockPoloCoordinator && !exclusiveSelected;
         const checked =
           selected.includes(opt.value) ||
-          (opt.value === "POLO_COORDINATOR" && lockPoloCoordinator && generalSelected);
+          (opt.value === "POLO_COORDINATOR" && lockPoloCoordinator && exclusiveSelected);
         return (
           <label key={opt.value} htmlFor={inputId} className="flex cursor-pointer items-start gap-2">
             <input
@@ -148,7 +158,10 @@ function AccessTypeCheckboxes({
               type="checkbox"
               className="mt-1 h-4 w-4 rounded border-[var(--input-border)]"
               checked={checked}
-              disabled={poloLocked || (opt.value === "POLO_COORDINATOR" && generalSelected && lockPoloCoordinator)}
+              disabled={
+                poloLocked ||
+                (opt.value === "POLO_COORDINATOR" && exclusiveSelected && lockPoloCoordinator)
+              }
               onChange={() => toggle(opt.value)}
             />
             <span>
@@ -163,8 +176,8 @@ function AccessTypeCheckboxes({
         );
       })}
       <p className="text-xs text-[var(--text-muted)]">
-        É possível marcar mais de um perfil operacional. Administrador Geral é exclusivo e só o Master pode
-        atribuir
+        É possível marcar mais de um perfil operacional. Administrador Geral e Diretor são exclusivos e só o
+        Master pode atribuir
         {lockPoloCoordinator
           ? "; a responsabilidade pelos polos vinculados é mantida ao promover a Administrador Geral"
           : ""}
@@ -255,6 +268,10 @@ export default function UsersPage() {
     if (!canSubmitEdit || !editing || savingEdit) return;
     if (editing.role === "GENERAL_ADMIN" && !isMaster) {
       toast.push("error", "Somente o Master pode editar Administrador Geral.");
+      return;
+    }
+    if (editing.role === "DIRECTOR" && !isMaster) {
+      toast.push("error", "Somente o Master pode editar Diretor.");
       return;
     }
     const linkedToPolo = (editing.coordinatedPoloCount ?? 0) > 0;
@@ -479,10 +496,10 @@ export default function UsersPage() {
                       <Button
                         variant="secondary"
                         onClick={() => openEdit(u)}
-                        disabled={u.role === "GENERAL_ADMIN" && !isMaster}
+                        disabled={(u.role === "GENERAL_ADMIN" || u.role === "DIRECTOR") && !isMaster}
                         title={
-                          u.role === "GENERAL_ADMIN" && !isMaster
-                            ? "Somente o Master pode editar Administrador Geral"
+                          (u.role === "GENERAL_ADMIN" || u.role === "DIRECTOR") && !isMaster
+                            ? "Somente o Master pode editar este perfil"
                             : undefined
                         }
                       >
@@ -492,7 +509,7 @@ export default function UsersPage() {
                         <Button
                           variant="secondary"
                           onClick={() => deactivateUser(u)}
-                          disabled={u.role === "GENERAL_ADMIN" && !isMaster}
+                          disabled={(u.role === "GENERAL_ADMIN" || u.role === "DIRECTOR") && !isMaster}
                           className="text-red-600 hover:text-red-700"
                         >
                           Inativar
@@ -502,14 +519,14 @@ export default function UsersPage() {
                           <Button
                             variant="secondary"
                             onClick={() => reactivateUser(u)}
-                            disabled={u.role === "GENERAL_ADMIN" && !isMaster}
+                            disabled={(u.role === "GENERAL_ADMIN" || u.role === "DIRECTOR") && !isMaster}
                           >
                             Reativar
                           </Button>
                           <Button
                             variant="secondary"
                             onClick={() => deleteUserPermanent(u)}
-                            disabled={u.role === "GENERAL_ADMIN" && !isMaster}
+                            disabled={(u.role === "GENERAL_ADMIN" || u.role === "DIRECTOR") && !isMaster}
                             className="text-red-600 hover:text-red-700"
                           >
                             Excluir
@@ -577,6 +594,9 @@ export default function UsersPage() {
               ) : null}
               {editing?.role === "GENERAL_ADMIN" && !isMaster ? (
                 <p className="mt-1 text-xs text-red-600">Somente o Master pode alterar Administrador Geral.</p>
+              ) : null}
+              {editing?.role === "DIRECTOR" && !isMaster ? (
+                <p className="mt-1 text-xs text-red-600">Somente o Master pode alterar Diretor.</p>
               ) : null}
             </div>
           ) : null}

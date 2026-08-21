@@ -23,6 +23,7 @@ export async function GET() {
   const base = user.baseRole;
   const canMaster = base === "MASTER";
   const canGeneralAdmin = base === "GENERAL_ADMIN";
+  const canDirector = base === "DIRECTOR";
   const canPoloCoordinator = user.isPoloCoordinator === true || base === "POLO_COORDINATOR";
   const canAdmin = user.isAdmin === true || base === "ADMIN";
   const canSiteAdmin = user.isSiteAdmin === true || base === "SITE_ADMIN";
@@ -37,5 +38,6 @@ export async function GET() {
     canPoloCoordinator,
     canMaster,
     canGeneralAdmin,
+    canDirector,
   });
 }

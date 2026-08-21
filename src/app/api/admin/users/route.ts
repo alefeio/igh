@@ -31,6 +31,7 @@ const ROLE_LABEL_PT: Record<string, string> = {
   ADMIN_MANAGER: "Gerência Administrativa",
   SITE_ADMIN: "Administrador Site",
   POLO_COORDINATOR: "Coordenador de Polos",
+  DIRECTOR: "Diretor",
   TEACHER: "Professor",
   STUDENT: "Aluno",
 };
@@ -72,6 +73,7 @@ export async function GET() {
         { role: "ADMIN_MANAGER" },
         { role: "SITE_ADMIN" },
         { role: "POLO_COORDINATOR" },
+        { role: "DIRECTOR" },
         { isAdmin: true },
         { isSiteAdmin: true },
         { isPoloCoordinator: true },
@@ -132,12 +134,23 @@ export async function POST(request: Request) {
     parsed.data.roles ?? (parsed.data.role ? [parsed.data.role] : undefined),
   );
   const wantsGeneralAdmin = selectedRoles.includes("GENERAL_ADMIN");
+  const wantsDirector = selectedRoles.includes("DIRECTOR");
   if (wantsGeneralAdmin && !isExactMaster(actor)) {
     return jsonErr(
       "FORBIDDEN",
       "Apenas o Master pode criar o perfil Administrador Geral.",
       403,
     );
+  }
+  if (wantsDirector && !isExactMaster(actor)) {
+    return jsonErr(
+      "FORBIDDEN",
+      "Apenas o Master pode criar o perfil Diretor.",
+      403,
+    );
+  }
+  if (wantsGeneralAdmin && wantsDirector) {
+    return jsonErr("VALIDATION_ERROR", "Selecione apenas um perfil exclusivo por vez.", 400);
   }
 
   const { name, email, phone, birthDate } = parsed.data;
@@ -169,15 +182,24 @@ export async function POST(request: Request) {
         409,
       );
     }
-    if (wantsGeneralAdmin) {
+    if (existing.role === "DIRECTOR") {
+      return jsonErr(
+        "EMAIL_IN_USE",
+        "Este usuário já é Diretor. Somente o Master pode alterar esse perfil.",
+        409,
+      );
+    }
+    if (wantsGeneralAdmin || wantsDirector) {
       return jsonErr(
         "VALIDATION_ERROR",
-        "Para promover a Administrador Geral, edite o usuário na listagem (somente Master).",
+        "Para promover a Administrador Geral ou Diretor, edite o usuário na listagem (somente Master).",
         400,
       );
     }
 
-    const staffSelected = selectedRoles.filter((r): r is StaffAccessRole => r !== "GENERAL_ADMIN");
+    const staffSelected = selectedRoles.filter(
+      (r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR",
+    );
     const newlyGranted = staffSelected.filter((r) => !userHasStaffAccess(existing, r));
     if (newlyGranted.length === 0) {
       return jsonErr("EMAIL_IN_USE", "Este usuário já possui todos os perfis de acesso selecionados.", 409);
@@ -275,7 +297,7 @@ export async function POST(request: Request) {
     name: string;
     email: string;
     passwordHash: string;
-    role: "GENERAL_ADMIN" | StaffAccessRole;
+    role: "GENERAL_ADMIN" | "DIRECTOR" | StaffAccessRole;
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     isCoordinator?: boolean;
@@ -294,6 +316,23 @@ export async function POST(request: Request) {
       email,
       passwordHash,
       role: "GENERAL_ADMIN",
+      isAdmin: false,
+      isSiteAdmin: false,
+      isCoordinator: false,
+      isPoloCoordinator: false,
+      isAdminManager: false,
+      isActive: true,
+      mustChangePassword: true,
+      whatsapp: phone,
+      birthDate: birthDateValue,
+    };
+  } else if (wantsDirector) {
+    await requireExactMaster();
+    createData = {
+      name,
+      email,
+      passwordHash,
+      role: "DIRECTOR",
       isAdmin: false,
       isSiteAdmin: false,
       isCoordinator: false,

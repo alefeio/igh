@@ -1,12 +1,12 @@
 import { getApimagesConfig } from "@/lib/apimages";
 import { authErrorResponse } from "@/lib/api-auth-guard";
-import { requireAdminManager } from "@/lib/auth";
+import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 
 /** Assinatura Apimages para documentos da Gerência Administrativa. */
 export async function POST() {
   try {
-    await requireAdminManager();
+    await requireAdminManagerWrite();
     const { apiKey, uploadUrl } = getApimagesConfig();
     return jsonOk({ uploadUrl, apiKey });
   } catch (e) {

@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { authErrorResponse } from "@/lib/api-auth-guard";
-import { requireAdminManager } from "@/lib/auth";
+import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { employeeSelect, serializeEmployee } from "@/lib/employee-serialize";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -33,7 +33,7 @@ export async function GET(_request: Request, ctx: Ctx) {
 export async function PATCH(request: Request, ctx: Ctx) {
   let actor;
   try {
-    actor = await requireAdminManager();
+    actor = await requireAdminManagerWrite();
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;
@@ -112,7 +112,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 export async function DELETE(request: Request, ctx: Ctx) {
   let actor;
   try {
-    actor = await requireAdminManager();
+    actor = await requireAdminManagerWrite();
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;
