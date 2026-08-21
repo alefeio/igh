@@ -1139,7 +1139,18 @@ export default async function DashboardPage() {
     redirect("/enrollments");
   }
   if (user.role === "DIRECTOR") {
-    return <DirectorDashboard userName={user.name} />;
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
+          Nova área executiva em validação:{" "}
+          <Link href="/diretor" className="font-semibold underline">
+            abrir /diretor (Fase 1A)
+          </Link>
+          . Este painel legado permanece como fallback até o redirect definitivo.
+        </div>
+        <DirectorDashboard userName={user.name} />
+      </div>
+    );
   }
   let data: DashboardData;
   try {

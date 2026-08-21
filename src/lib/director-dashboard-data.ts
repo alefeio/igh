@@ -436,8 +436,8 @@ function buildInsights(params: {
   if (evasion > 0) {
     insights.push({
       tone: "attention",
-      title: "Evasão por faltas",
-      body: `${evasion} matrícula(s) com 4+ faltas consecutivas sem justificativa.`,
+      title: "Risco crítico por faltas",
+      body: `${evasion} matrícula(s) com streak ≥4 faltas consecutivas sem justificativa.`,
       action: "Priorize contato da coordenação/professores com esses alunos nesta semana.",
     });
   }

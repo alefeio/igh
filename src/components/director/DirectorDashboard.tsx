@@ -278,10 +278,10 @@ export function DirectorDashboard({ userName }: { userName: string }) {
               sublabel="Só aulas já ocorridas"
             />
             <StatTile
-              label="Evasão (4 faltas)"
+              label="Risco crítico por faltas"
               value={data.kpis.evasao}
               accent="rose"
-              sublabel="Consecutivas s/ justificativa"
+              sublabel="Streak ≥4 (ainda vinculados ou canceláveis) — não é evasão confirmada"
             />
             <StatTile
               label="Ocupação crítica"

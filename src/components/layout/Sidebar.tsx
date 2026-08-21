@@ -53,6 +53,8 @@ const MASTER_OR_GENERAL = ["MASTER", "GENERAL_ADMIN"] as const;
 const SITE_AND_COMMS = ["MASTER", "GENERAL_ADMIN", "SITE_ADMIN"] as const;
 /** Gerência Administrativa: pessoas, patrimônio, doações e financeiro (sem Diretor). */
 const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER"] as const;
+/** Área executiva do Diretor (Master também vê para preview). */
+const DIRECTOR_AREA = ["DIRECTOR", "MASTER"] as const;
 
 /**
  * Ordem do array = ordem no menu dentro de cada categoria.
@@ -66,6 +68,36 @@ const ITEMS: Item[] = [
     label: "Página Inicial",
     roles: [...ALL_ROLES],
     category: "Início",
+  },
+  {
+    href: "/diretor",
+    label: "Visão Geral (Direção)",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
+  },
+  {
+    href: "/diretor/prioridades",
+    label: "Prioridades",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
+  },
+  {
+    href: "/diretor/academico",
+    label: "Acadêmico",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
+  },
+  {
+    href: "/diretor/oferta-territorios",
+    label: "Oferta e Territórios",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
+  },
+  {
+    href: "/diretor/guia",
+    label: "Guia do Diretor",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
   },
   {
     href: "/onboarding",
@@ -375,6 +407,7 @@ export function Sidebar({
   }, {});
   const categoryOrder = [
     "Início",
+    "Direção",
     "Colaborador",
     "Aluno",
     "Professor",

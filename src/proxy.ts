@@ -163,6 +163,12 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/diretor")) {
+    if (role !== "DIRECTOR" && role !== "MASTER") {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
   return NextResponse.next();
 }
 
@@ -206,5 +212,6 @@ export const config = {
     "/admin/calendario/:path*",
     "/master/acessos/:path*",
     "/admin/gerencia/:path*",
+    "/diretor/:path*",
   ],
 };
