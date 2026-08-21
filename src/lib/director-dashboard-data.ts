@@ -139,6 +139,8 @@ export type DirectorInsight = {
   tone: "info" | "attention" | "positive";
   title: string;
   body: string;
+  /** Orientação objetiva para decisão. */
+  action?: string;
 };
 
 export type DirectorDashboardPayload = {
@@ -426,21 +428,73 @@ function buildInsights(params: {
   territories: DirectorTerritoryRow[];
   students: DirectorStudentsBlock;
   evasion: number;
+  gerencia: DirectorGerenciaSummary;
 }): DirectorInsight[] {
-  const { kpis, courses, territories, students, evasion } = params;
+  const { kpis, courses, territories, students, evasion, gerencia } = params;
   const insights: DirectorInsight[] = [];
 
-  insights.push({
-    tone: "info",
-    title: "Escala do recorte",
-    body: `${kpis.turmas} turmas, ${kpis.capacidade} vagas e ${kpis.inscritos} inscritos (ocupação ${kpis.ocupacaoPercent ?? 0}%). A frequência média usa apenas aulas já ocorridas (${kpis.sessoesPassadasMedia ?? 0} sessões em média por turma).`,
-  });
+  if (evasion > 0) {
+    insights.push({
+      tone: "attention",
+      title: "Evasão por faltas",
+      body: `${evasion} matrícula(s) com 4+ faltas consecutivas sem justificativa.`,
+      action: "Priorize contato da coordenação/professores com esses alunos nesta semana.",
+    });
+  }
 
   if (kpis.turmasSemInscritos > 0 || kpis.turmasAbaixo30 > 0) {
     insights.push({
       tone: "attention",
-      title: "Mobilização prioritária",
-      body: `Há ${kpis.turmasSemInscritos} turma(s) sem inscritos e ${kpis.turmasAbaixo30} abaixo de 30% de ocupação. Vale reforçar divulgação nessas ofertas antes de abrir novas turmas no mesmo perfil.`,
+      title: "Ocupação crítica",
+      body: `${kpis.turmasSemInscritos} turma(s) sem inscritos e ${kpis.turmasAbaixo30} abaixo de 30%.`,
+      action: "Concentre divulgação nessas ofertas antes de abrir turmas semelhantes.",
+    });
+  }
+
+  if (kpis.suspensos > 0) {
+    insights.push({
+      tone: "attention",
+      title: "Alunos suspensos",
+      body: `${kpis.suspensos} matrícula(s) suspensa(s) (bloqueio por faltas).`,
+      action: "Acompanhe retorno às aulas presenciais e suporte pedagógico.",
+    });
+  }
+
+  if (gerencia.folhaPendentes > 0) {
+    insights.push({
+      tone: "attention",
+      title: "Folha com pendências",
+      body: `${gerencia.folhaPendentes} pagamento(s) pendente(s)${gerencia.folhaCompetencia ? ` na competência ${gerencia.folhaCompetencia}` : ""}.`,
+      action: "Peça à Gerência o fechamento dos itens em aberto.",
+    });
+  }
+
+  if (gerencia.colaboradoresDocsPendentes > 0) {
+    insights.push({
+      tone: "attention",
+      title: "Documentação de colaboradores",
+      body: `${gerencia.colaboradoresDocsPendentes} colaborador(es) com documentos pendentes.`,
+      action: "Solicite regularização à Gerência para reduzir risco operacional.",
+    });
+  }
+
+  if (gerencia.almoxarifadoBaixoEstoque > 0) {
+    insights.push({
+      tone: "attention",
+      title: "Estoque baixo",
+      body: `${gerencia.almoxarifadoBaixoEstoque} item(ns) do almoxarifado abaixo do mínimo.`,
+      action: "Avalie reposição para não interromper atividades presenciais.",
+    });
+  }
+
+  const saldoMes =
+    gerencia.financeiroEntradasMesCents - gerencia.financeiroSaidasMesCents;
+  if (saldoMes < 0) {
+    insights.push({
+      tone: "attention",
+      title: "Caixa do mês negativo",
+      body: `Saídas superam entradas em ${(Math.abs(saldoMes) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} neste mês.`,
+      action: "Revise com a Gerência o fluxo de caixa e prioridades de despesa.",
     });
   }
 
@@ -448,7 +502,8 @@ function buildInsights(params: {
     insights.push({
       tone: "positive",
       title: "Ofertas consolidadas",
-      body: `${kpis.turmasGe80} turma(s) já passaram de 80% de ocupação (${kpis.turmas100} lotadas). Replicar a estratégia dos polos/cursos com melhor adesão tende a render mais inscritos.`,
+      body: `${kpis.turmasGe80} turma(s) ≥ 80% de ocupação (${kpis.turmas100} lotadas).`,
+      action: "Replique a mobilização dos polos/cursos com melhor adesão.",
     });
   }
 
@@ -457,8 +512,9 @@ function buildInsights(params: {
     const share = pct(topCourse.inscritos, kpis.inscritos);
     insights.push({
       tone: "info",
-      title: "Motor de matrículas",
-      body: `${topCourse.courseName} concentra ${topCourse.inscritos} inscritos (${share ?? 0}% do recorte) em ${topCourse.turmas} turma(s), com ocupação de ${topCourse.ocupacaoPercent ?? 0}%.`,
+      title: "Principal motor de matrículas",
+      body: `${topCourse.courseName}: ${topCourse.inscritos} inscritos (${share ?? 0}% do recorte), ocupação ${topCourse.ocupacaoPercent ?? 0}%.`,
+      action: "Use este curso como referência de comunicação e oferta.",
     });
   }
 
@@ -473,46 +529,48 @@ function buildInsights(params: {
     insights.push({
       tone: "positive",
       title: "Territórios de referência",
-      body: strongTerritories
-        .map((t) => `${t.territorio} (${t.ocupacaoPercent}%)`)
-        .join(", ") + ". Use como modelo de mobilização local.",
+      body: strongTerritories.map((t) => `${t.territorio} (${t.ocupacaoPercent}%)`).join(", ") + ".",
+      action: "Espelhe práticas locais nesses polos.",
     });
   }
   if (weakTerritories.length > 0) {
     insights.push({
       tone: "attention",
       title: "Territórios em atenção",
-      body: weakTerritories
-        .map((t) => `${t.territorio} (${t.ocupacaoPercent ?? 0}%)`)
-        .join(", ") + ". Revisar oferta, horário e comunicação nestas localidades.",
-    });
-  }
-
-  if (evasion > 0) {
-    insights.push({
-      tone: "attention",
-      title: "Evasão por faltas",
-      body: `${evasion} matrícula(s) com 4 ou mais faltas consecutivas sem justificativa (já canceladas ou ainda em risco). Intervir cedo reduz perda de vaga e melhora a taxa de conclusão.`,
+      body: weakTerritories.map((t) => `${t.territorio} (${t.ocupacaoPercent ?? 0}%)`).join(", ") + ".",
+      action: "Revisar horário, oferta e comunicação nestas localidades.",
     });
   }
 
   if (students.comMaisDeUmCurso > 0) {
     insights.push({
       tone: "positive",
-      title: "Retenção entre cursos",
-      body: `${students.comMaisDeUmCurso} aluno(s) já fizeram mais de um curso. Esse grupo é um bom termômetro de satisfação e de continuidade da jornada formativa.`,
+      title: "Continuidade formativa",
+      body: `${students.comMaisDeUmCurso} aluno(s) com mais de um curso.`,
+      action: "Potencial para campanhas de reingresso e trajetórias longas.",
     });
   }
 
-  if (kpis.formados === 0 && kpis.turmasEmAndamento === kpis.turmas && kpis.turmas > 0) {
+  if (kpis.frequenciaMediaPercent != null && kpis.frequenciaMediaPercent < 75) {
+    insights.push({
+      tone: "attention",
+      title: "Frequência abaixo do desejável",
+      body: `Frequência média de ${kpis.frequenciaMediaPercent}% (apenas aulas já ocorridas).`,
+      action: "Peça plano de recuperação de presença por turma crítica.",
+    });
+  }
+
+  if (insights.length === 0) {
     insights.push({
       tone: "info",
-      title: "Formação ainda em aberto",
-      body: "Não há formados neste recorte porque as turmas ainda estão em andamento. Acompanhe conclusão e frequência no encerramento das ofertas.",
+      title: "Recorte estável",
+      body: `${kpis.turmas} turmas · ocupação ${kpis.ocupacaoPercent ?? 0}% · ${kpis.inscritos} inscritos.`,
+      action: "Monitore ocupação e frequência semanalmente.",
     });
   }
 
-  return insights;
+  const order = { attention: 0, info: 1, positive: 2 } as const;
+  return insights.sort((a, b) => order[a.tone] - order[b.tone]);
 }
 
 async function loadGerenciaSummary(): Promise<DirectorGerenciaSummary> {
@@ -1076,6 +1134,7 @@ export async function getDirectorDashboardData(opts: {
     territories,
     students,
     evasion: evasionIds.size,
+    gerencia,
   });
 
   const cycleLabel =
@@ -1111,7 +1170,7 @@ export async function getCachedDirectorDashboard(opts: {
   const key = `${opts.scope}:${opts.cycleId ?? "none"}`;
   return unstable_cache(
     () => getDirectorDashboardData(opts),
-    ["director-dashboard-v1", key],
+    ["director-dashboard-v2", key],
     { revalidate: 90 },
   )();
 }

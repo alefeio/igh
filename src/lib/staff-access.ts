@@ -92,31 +92,27 @@ export function userHasStaffAccess(
 }
 
 /**
- * Acesso ao módulo Gerência (menu, proxy e APIs de leitura): papel ativo Master/Admin Geral/
- * Gerência Administrativa/Diretor, ou overlay `isAdminManager` atribuído em /users.
+ * Acesso ao módulo Gerência (menu, proxy e APIs): Master/Admin Geral/
+ * Gerência Administrativa, ou overlay `isAdminManager` em /users.
+ * Diretor NÃO acessa a Gerência — usa apenas o dashboard executivo.
  */
 export function hasAdminManagementAccess(user: {
   role?: string | null;
   isAdminManager?: boolean | null;
 }): boolean {
   const active = user.role ?? "";
-  if (
-    active === "ADMIN_MANAGER" ||
-    active === "MASTER" ||
-    active === "GENERAL_ADMIN" ||
-    active === "DIRECTOR"
-  ) {
+  if (active === "DIRECTOR") return false;
+  if (active === "ADMIN_MANAGER" || active === "MASTER" || active === "GENERAL_ADMIN") {
     return true;
   }
   return user.isAdminManager === true;
 }
 
-/** Alterações na Gerência — Diretor só acompanha (leitura). */
+/** Alterações na Gerência (mesmo conjunto de quem tem acesso ao módulo). */
 export function hasAdminManagementWriteAccess(user: {
   role?: string | null;
   isAdminManager?: boolean | null;
 }): boolean {
-  if ((user.role ?? "") === "DIRECTOR") return false;
   return hasAdminManagementAccess(user);
 }
 

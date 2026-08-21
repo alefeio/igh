@@ -242,23 +242,23 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
   DIRECTOR: {
     title: "Como usar o sistema — Diretor",
     contentRich: `<h2>Visão geral do perfil Diretor</h2>
-<p>O <strong>Diretor</strong> acompanha a operação com um <strong>dashboard executivo</strong>: ocupação de turmas, evolução de inscritos, destaques de professores e alunos, e um resumo da Gerência. O perfil é de <strong>leitura e decisão</strong> — não altera matrículas, cadastros pedagógicos nem registros da Gerência.</p>
+<p>O <strong>Diretor</strong> usa <strong>apenas o dashboard executivo</strong> para tomar decisões: alertas, prioridades, ocupação, frequência, evasão e um resumo institucional. <strong>Não há menu de Gerência</strong> nem acesso a criar, editar ou excluir registros operacionais.</p>
 <p>Somente o <strong>Master</strong> cria e gerencia contas com este perfil.</p>
 
 <h2>Início</h2>
 <h3>Página Inicial</h3>
-<p>Painel executivo com filtro de <strong>ciclo atual</strong>, <strong>relatório geral</strong> ou <strong>outro ciclo</strong>. Use os cards de leitura gerencial e os gráficos de evolução para priorizar mobilização, territórios e qualidade da frequência (calculada só com aulas já ocorridas).</p>
+<p>Comece por <strong>Prioridades agora</strong> (alertas com orientação de decisão). Em seguida veja os indicadores-chave, a evolução semanal e os sinais da operação administrativa. Filtre por <strong>ciclo atual</strong>, <strong>relatório geral</strong> ou <strong>outro ciclo</strong>.</p>
 <h3>Como usar o sistema</h3>
 <p>Esta página.</p>
 
-<h2>Gerência</h2>
-<p>Você pode <strong>abrir e detalhar</strong> colaboradores, contratos, financeiro, folha, almoxarifado, doações, doadoras, donatárias e a relação de beneficiados. Alterações (criar/editar/excluir) permanecem com a Gerência Administrativa.</p>
+<h2>O que este perfil não faz</h2>
+<p>Não acessa as páginas da Gerência (colaboradores, financeiro, folha, almoxarifado, doações etc.). A execução fica com a Gerência Administrativa; o Diretor acompanha pelos alertas e números consolidados do painel.</p>
 
 <h2>Boas práticas</h2>
 <ul>
-<li>Comece sempre pelo ciclo atual; use o relatório geral para comparar ciclos.</li>
-<li>Trate evasão (4 faltas consecutivas) e turmas abaixo de 30% como prioridades de gestão.</li>
-<li>Nos destaques, olhe além da pontuação: fórum, exercícios, tempo de estudo e professores do aluno.</li>
+<li>Trate primeiro os alertas em âmbar: evasão (4 faltas), ocupação crítica, folha e documentos pendentes.</li>
+<li>Frequência considera apenas aulas já ocorridas.</li>
+<li>Peça encaminhamento à equipe a partir da orientação “Decisão” de cada alerta.</li>
 </ul>`,
   },
 

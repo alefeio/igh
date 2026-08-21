@@ -166,6 +166,9 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
     ) {
       if (!user.isAdminManager) return null;
     }
+    if (payload.role === "DIRECTOR" && user.role !== "DIRECTOR") {
+      return null;
+    }
     return {
       id: user.id,
       name: user.name,
@@ -224,7 +227,7 @@ export async function requireStaffWrite(): Promise<SessionUser> {
   return requireRole(["ADMIN", "MASTER"]);
 }
 
-/** Módulo de Gerência Administrativa — leitura (inclui Diretor). */
+/** Módulo de Gerência Administrativa (Diretor não acessa — só o dashboard). */
 export async function requireAdminManager(): Promise<SessionUser> {
   const user = await requireSessionUser();
   if (!hasAdminManagementAccess(user)) {
@@ -233,7 +236,7 @@ export async function requireAdminManager(): Promise<SessionUser> {
   return user;
 }
 
-/** Alterações na Gerência (Diretor não altera). */
+/** Alterações na Gerência. */
 export async function requireAdminManagerWrite(): Promise<SessionUser> {
   const user = await requireSessionUser();
   if (!hasAdminManagementWriteAccess(user)) {

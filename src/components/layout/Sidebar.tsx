@@ -51,8 +51,8 @@ const MASTER_AND_ADMIN = ["MASTER", "GENERAL_ADMIN", "ADMIN"] as const;
 const MASTER_OR_GENERAL = ["MASTER", "GENERAL_ADMIN"] as const;
 /** Comunicação e Site: Master, Admin Geral e Administrador Site. */
 const SITE_AND_COMMS = ["MASTER", "GENERAL_ADMIN", "SITE_ADMIN"] as const;
-/** Gerência Administrativa: pessoas, patrimônio, doações e financeiro. */
-const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER", "DIRECTOR"] as const;
+/** Gerência Administrativa: pessoas, patrimônio, doações e financeiro (sem Diretor). */
+const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER"] as const;
 
 /**
  * Ordem do array = ordem no menu dentro de cada categoria.

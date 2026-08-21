@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
+  AlertTriangle,
   Building2,
   Gift,
   Package,
@@ -46,9 +46,13 @@ function formatCents(cents: number): string {
   });
 }
 
-function InsightTone({ tone }: { tone: "info" | "attention" | "positive" }) {
-  if (tone === "attention") return "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100";
-  if (tone === "positive") return "border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100";
+function insightBoxClass(tone: "info" | "attention" | "positive"): string {
+  if (tone === "attention") {
+    return "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100";
+  }
+  if (tone === "positive") {
+    return "border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100";
+  }
   return "border-sky-300 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100";
 }
 
@@ -125,29 +129,41 @@ export function DirectorDashboard({ userName }: { userName: string }) {
     void load();
   }, [load]);
 
+  const priorities = useMemo(
+    () => (data?.insights.filter((i) => i.tone === "attention") ?? []).slice(0, 6),
+    [data],
+  );
+  const contextInsights = useMemo(
+    () => (data?.insights.filter((i) => i.tone !== "attention") ?? []).slice(0, 4),
+    [data],
+  );
+
   const occupationChart = useMemo(() => {
     if (!data) return [];
-    return data.courses.slice(0, 12).map((c) => ({
+    return data.courses.slice(0, 10).map((c) => ({
       name: c.courseName.length > 28 ? `${c.courseName.slice(0, 26)}…` : c.courseName,
       ocupacao: c.ocupacaoPercent ?? 0,
-      inscritos: c.inscritos,
     }));
   }, [data]);
 
   const territoryChart = useMemo(() => {
     if (!data) return [];
-    return data.territories.slice(0, 12).map((t) => ({
+    return data.territories.slice(0, 10).map((t) => ({
       name: t.territorio.length > 22 ? `${t.territorio.slice(0, 20)}…` : t.territorio,
       ocupacao: t.ocupacaoPercent ?? 0,
     }));
   }, [data]);
 
+  const saldoMes = data
+    ? data.gerencia.financeiroEntradasMesCents - data.gerencia.financeiroSaidasMesCents
+    : 0;
+
   return (
     <PanelPageStack>
       <DashboardHero
-        eyebrow="Diretoria"
+        eyebrow="Diretoria — tomada de decisão"
         title={`Olá, ${userName.split(" ")[0]}`}
-        description="Visão executiva para decisão: ocupação, evolução, destaques e resumo da gerência."
+        description="Painel único: alertas, prioridades e indicadores consolidados. Sem páginas operacionais da Gerência — só o que importa para decidir."
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
             <div className="flex flex-wrap justify-end gap-2">
@@ -213,13 +229,43 @@ export function DirectorDashboard({ userName }: { userName: string }) {
             })}
           </p>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-            <StatTile label="Turmas" value={data.kpis.turmas} sublabel={`${data.kpis.turmasEmAndamento} em andamento`} />
-            <StatTile label="Capacidade" value={data.kpis.capacidade} />
-            <StatTile label="Inscritos" value={data.kpis.inscritos} sublabel="ACTIVE + SUSPENDED" />
+          <SectionCard
+            title="Prioridades agora"
+            description="Alertas que pedem ação. Leia o fato e a orientação — em seguida peça à equipe o encaminhamento."
+            variant="elevated"
+          >
+            {priorities.length === 0 ? (
+              <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+                Nenhum alerta crítico neste recorte. Continue monitorando ocupação e frequência.
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {priorities.map((ins, i) => (
+                  <div
+                    key={`prio-${i}`}
+                    className={`rounded-lg border px-4 py-3 text-sm ${insightBoxClass(ins.tone)}`}
+                  >
+                    <div className="flex items-start gap-2 font-semibold">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                      {ins.title}
+                    </div>
+                    <p className="mt-1 opacity-90">{ins.body}</p>
+                    {ins.action ? (
+                      <p className="mt-2 border-t border-current/15 pt-2 text-xs font-semibold uppercase tracking-wide">
+                        Decisão: <span className="font-medium normal-case tracking-normal">{ins.action}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
             <StatTile
               label="Ocupação"
               value={data.kpis.ocupacaoPercent != null ? `${data.kpis.ocupacaoPercent}%` : "—"}
+              sublabel={`${data.kpis.inscritos} inscritos / ${data.kpis.capacidade} vagas`}
               accent="emerald"
             />
             <StatTile
@@ -229,54 +275,120 @@ export function DirectorDashboard({ userName }: { userName: string }) {
                   ? `${data.kpis.frequenciaMediaPercent}%`
                   : "—"
               }
-              sublabel={
-                data.kpis.sessoesPassadasMedia != null
-                  ? `Só aulas passadas (média ${data.kpis.sessoesPassadasMedia} sessões)`
-                  : "Sem sessões passadas"
-              }
+              sublabel="Só aulas já ocorridas"
             />
-            <StatTile label="≥ 80% ocup." value={data.kpis.turmasGe80} accent="emerald" />
-            <StatTile label="Lotadas (100%)" value={data.kpis.turmas100} accent="emerald" />
-            <StatTile label="Sem inscritos" value={data.kpis.turmasSemInscritos} accent="amber" />
-            <StatTile label="Abaixo de 30%" value={data.kpis.turmasAbaixo30} accent="amber" />
-            <StatTile label="Suspensos" value={data.kpis.suspensos} accent="amber" />
-            <StatTile label="Cancelados" value={data.kpis.cancelados} />
             <StatTile
               label="Evasão (4 faltas)"
               value={data.kpis.evasao}
               accent="rose"
-              sublabel="Consecutivas sem justificativa"
+              sublabel="Consecutivas s/ justificativa"
             />
-            <StatTile label="Formados" value={data.kpis.formados} accent="emerald" />
+            <StatTile
+              label="Ocupação crítica"
+              value={data.kpis.turmasSemInscritos + data.kpis.turmasAbaixo30}
+              accent="amber"
+              sublabel={`${data.kpis.turmasSemInscritos} vazias · ${data.kpis.turmasAbaixo30} < 30%`}
+            />
+            <StatTile label="Suspensos" value={data.kpis.suspensos} accent="amber" />
+            <StatTile
+              label="Turmas"
+              value={data.kpis.turmas}
+              sublabel={`${data.kpis.turmasEmAndamento} em andamento · ${data.kpis.formados} formados`}
+            />
           </div>
 
+          {contextInsights.length > 0 ? (
+            <SectionCard
+              title="Leitura para decisão"
+              description="Contexto positivo ou informativo — use para reforçar o que já funciona."
+            >
+              <div className="grid gap-3 md:grid-cols-2">
+                {contextInsights.map((ins, i) => (
+                  <div
+                    key={`ctx-${i}`}
+                    className={`rounded-lg border px-4 py-3 text-sm ${insightBoxClass(ins.tone)}`}
+                  >
+                    <div className="font-semibold">{ins.title}</div>
+                    <p className="mt-1 opacity-90">{ins.body}</p>
+                    {ins.action ? (
+                      <p className="mt-2 text-xs font-medium opacity-90">→ {ins.action}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+          ) : null}
+
           <SectionCard
-            title="Leitura gerencial"
-            description="Interpretação dos números para apoiar decisão — não é apenas o valor bruto."
+            title="Sinais da operação administrativa"
+            description="Resumo para acompanhar riscos e resultados — a execução fica com a Gerência Administrativa."
             variant="elevated"
           >
-            <div className="grid gap-3 md:grid-cols-2">
-              {data.insights.map((ins, i) => (
-                <div
-                  key={i}
-                  className={`rounded-lg border px-4 py-3 text-sm ${InsightTone({ tone: ins.tone })}`}
-                >
-                  <div className="font-semibold">{ins.title}</div>
-                  <p className="mt-1 opacity-90">{ins.body}</p>
-                </div>
-              ))}
+            <div className="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/60 px-4 py-3">
+              <div className="flex items-center gap-2 font-semibold">
+                <Gift className="h-4 w-4 text-[var(--igh-primary)]" aria-hidden />
+                Beneficiados no ano
+              </div>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {data.gerencia.beneficiadosTermos} termo(s) · {data.gerencia.beneficiadosKits} kit(s)
+                doados · {data.gerencia.doacoesAno} doação(ões) · {data.gerencia.donatariasAtivas}{" "}
+                donatária(s) · {data.gerencia.doadorasAtivas} doadora(s)
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <StatTile
+                label="Colaboradores"
+                value={data.gerencia.colaboradoresAtivos}
+                sublabel={
+                  data.gerencia.colaboradoresDocsPendentes > 0
+                    ? `${data.gerencia.colaboradoresDocsPendentes} com docs pendentes`
+                    : `${data.gerencia.colaboradoresTotal} no cadastro`
+                }
+                icon={Users}
+                accent={data.gerencia.colaboradoresDocsPendentes > 0 ? "amber" : undefined}
+              />
+              <StatTile label="Contratos ativos" value={data.gerencia.contratosAtivos} />
+              <StatTile
+                label="Saldo do mês"
+                value={formatCents(saldoMes)}
+                sublabel={`Entradas ${formatCents(data.gerencia.financeiroEntradasMesCents)} · Saídas ${formatCents(data.gerencia.financeiroSaidasMesCents)}`}
+                icon={Wallet}
+                accent={saldoMes < 0 ? "rose" : "emerald"}
+              />
+              <StatTile
+                label="Folha"
+                value={data.gerencia.folhaCompetencia ?? "—"}
+                sublabel={`${data.gerencia.folhaPagos} pagos · ${data.gerencia.folhaPendentes} pendentes`}
+                accent={data.gerencia.folhaPendentes > 0 ? "amber" : undefined}
+              />
+              <StatTile
+                label="Almoxarifado"
+                value={data.gerencia.almoxarifadoItens}
+                sublabel={
+                  data.gerencia.almoxarifadoBaixoEstoque > 0
+                    ? `${data.gerencia.almoxarifadoBaixoEstoque} em estoque baixo`
+                    : "Estoque ok"
+                }
+                icon={Package}
+                accent={data.gerencia.almoxarifadoBaixoEstoque > 0 ? "amber" : undefined}
+              />
+              <StatTile
+                label="Doações (ano)"
+                value={data.gerencia.doacoesAno}
+                sublabel={`${data.gerencia.doacoesKitsAno} kits`}
+                icon={Building2}
+              />
             </div>
           </SectionCard>
 
           <SectionCard
-            title="Evolução de alunos no ciclo"
-            description="Linha do tempo semanal: matrículas acumuladas e ocupantes estimados (exclui cancelamentos já efetivados naquela semana)."
-            variant="elevated"
+            title="Evolução semanal de alunos"
+            description="Matrículas acumuladas e ocupantes estimados no recorte."
           >
             {data.evolution.length === 0 ? (
               <p className="text-sm text-[var(--text-muted)]">Sem série temporal neste recorte.</p>
             ) : (
-              <div className="h-72 w-full">
+              <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={data.evolution}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -308,7 +420,7 @@ export function DirectorDashboard({ userName }: { userName: string }) {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <SectionCard title="Ocupação por curso" description="Top cursos do recorte.">
-              <div className="h-72 w-full">
+              <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={occupationChart} layout="vertical" margin={{ left: 8, right: 12 }}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -320,8 +432,8 @@ export function DirectorDashboard({ userName }: { userName: string }) {
                 </ResponsiveContainer>
               </div>
             </SectionCard>
-            <SectionCard title="Ocupação por território" description="Polos / locais do recorte.">
-              <div className="h-72 w-full">
+            <SectionCard title="Ocupação por território" description="Polos / locais.">
+              <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={territoryChart} layout="vertical" margin={{ left: 8, right: 12 }}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -335,7 +447,7 @@ export function DirectorDashboard({ userName }: { userName: string }) {
             </SectionCard>
           </div>
 
-          <SectionCard title="Alunos" description="Histórico institucional e recorte selecionado.">
+          <SectionCard title="Alunos (síntese)" description="Histórico e recorte selecionado.">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <StatTile label="Total histórico" value={data.students.totalHistorico} icon={Users} />
               <StatTile label="Únicos no recorte" value={data.students.unicosNoRecorte} />
@@ -350,35 +462,11 @@ export function DirectorDashboard({ userName }: { userName: string }) {
               />
               <StatTile label="Mais de um curso" value={data.students.comMaisDeUmCurso} accent="emerald" />
             </div>
-            {data.students.porCiclo.length > 0 ? (
-              <TableShell className="mt-4">
-                <thead>
-                  <tr>
-                    <Th>Ciclo</Th>
-                    <Th>Únicos</Th>
-                    <Th>Inscritos</Th>
-                    <Th>Formados</Th>
-                    <Th>Freq.</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.students.porCiclo.map((r) => (
-                    <tr key={r.cycleId}>
-                      <Td>{r.label}</Td>
-                      <Td>{r.unicos}</Td>
-                      <Td>{r.inscritos}</Td>
-                      <Td>{r.formados}</Td>
-                      <Td>{r.frequenciaMediaPercent != null ? `${r.frequenciaMediaPercent}%` : "—"}</Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </TableShell>
-            ) : null}
           </SectionCard>
 
           <SectionCard
-            title="Cursos com turmas"
-            description="Médias de quem iniciou (ocupantes) e terminou (COMPLETED em turmas encerradas). Frequência só com aulas passadas."
+            title="Cursos — detalhe rápido"
+            description="Só o necessário: ocupação, frequência (aulas passadas) e evasão."
           >
             <TableShell>
               <thead>
@@ -387,8 +475,6 @@ export function DirectorDashboard({ userName }: { userName: string }) {
                   <Th>Turmas</Th>
                   <Th>Inscritos</Th>
                   <Th>Ocup.</Th>
-                  <Th>Média início</Th>
-                  <Th>Média fim</Th>
                   <Th>Freq.</Th>
                   <Th>Evasão</Th>
                 </tr>
@@ -400,8 +486,6 @@ export function DirectorDashboard({ userName }: { userName: string }) {
                     <Td>{c.turmas}</Td>
                     <Td>{c.inscritos}</Td>
                     <Td>{c.ocupacaoPercent != null ? `${c.ocupacaoPercent}%` : "—"}</Td>
-                    <Td>{c.mediaIniciaram ?? "—"}</Td>
-                    <Td>{c.mediaTerminaram ?? "—"}</Td>
                     <Td>
                       {c.frequenciaMediaPercent != null ? `${c.frequenciaMediaPercent}%` : "—"}
                     </Td>
@@ -413,102 +497,16 @@ export function DirectorDashboard({ userName }: { userName: string }) {
           </SectionCard>
 
           <SectionCard
-            title="Destaques"
-            description="Não só pontuação: carga, ocupação, fórum, tempo de estudo, exercícios e frequência. Nos alunos, os professores vinculados aparecem abaixo do nome."
+            title="Destaques (referência)"
+            description="Para reconhecer boas práticas — não substitui as prioridades acima."
           >
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <HighlightList title="Professores — carga de turmas" items={data.highlights.teachersByLoad} />
+              <HighlightList title="Professores — carga" items={data.highlights.teachersByLoad} />
               <HighlightList title="Professores — ocupação" items={data.highlights.teachersByOccupation} />
-              <HighlightList title="Professores — fórum" items={data.highlights.teachersByForum} />
-              <HighlightList title="Professores — horas assistidas" items={data.highlights.teachersByWatchHours} />
               <HighlightList title="Alunos — pontos" items={data.highlights.studentsByPoints} />
-              <HighlightList title="Alunos — fórum" items={data.highlights.studentsByForum} />
+              <HighlightList title="Alunos — frequência" items={data.highlights.studentsByAttendance} />
               <HighlightList title="Alunos — exercícios" items={data.highlights.studentsByExercises} />
-              <HighlightList title="Alunos — tempo de estudo" items={data.highlights.studentsByWatchTime} />
-              <HighlightList title="Alunos — presenças" items={data.highlights.studentsByAttendance} />
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Gerência — resumo"
-            description="Acompanhamento institucional. O Diretor visualiza e detalha; alterações ficam com a Gerência Administrativa."
-            variant="elevated"
-          >
-            <div className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 dark:border-emerald-800 dark:bg-emerald-950/40">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2 font-semibold text-emerald-900 dark:text-emerald-100">
-                    <Gift className="h-4 w-4" />
-                    Beneficiados (destaque)
-                  </div>
-                  <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
-                    {data.gerencia.beneficiadosTermos} termo(s) · {data.gerencia.beneficiadosKits} kit(s)
-                    doados
-                  </p>
-                </div>
-                <Link href="/admin/gerencia/relatorio-beneficiados">
-                  <Button size="sm">Ver relação</Button>
-                </Link>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <StatTile
-                label="Colaboradores"
-                value={data.gerencia.colaboradoresTotal}
-                sublabel={`${data.gerencia.colaboradoresAtivos} ativos · ${data.gerencia.colaboradoresDocsPendentes} sem docs`}
-                icon={Users}
-                href="/admin/gerencia/colaboradores"
-              />
-              <StatTile
-                label="Contratos ativos"
-                value={data.gerencia.contratosAtivos}
-                href="/admin/gerencia/contratos"
-              />
-              <StatTile
-                label="Financeiro (mês)"
-                value={formatCents(data.gerencia.financeiroEntradasMesCents)}
-                sublabel={`Saídas ${formatCents(data.gerencia.financeiroSaidasMesCents)}`}
-                icon={Wallet}
-                href="/admin/gerencia/financeiro"
-              />
-              <StatTile
-                label="Folha"
-                value={data.gerencia.folhaCompetencia ?? "—"}
-                sublabel={`${data.gerencia.folhaPagos} pagos · ${data.gerencia.folhaPendentes} pendentes`}
-                href="/admin/gerencia/folha"
-              />
-              <StatTile
-                label="Almoxarifado"
-                value={data.gerencia.almoxarifadoItens}
-                sublabel={`${data.gerencia.almoxarifadoBaixoEstoque} baixo estoque`}
-                icon={Package}
-                href="/admin/gerencia/almoxarifado"
-              />
-              <StatTile
-                label="Doações (ano)"
-                value={data.gerencia.doacoesAno}
-                sublabel={`${data.gerencia.doacoesKitsAno} kits · ${data.gerencia.donatariasAtivas} donatárias · ${data.gerencia.doadorasAtivas} doadoras`}
-                icon={Building2}
-                href="/admin/gerencia/doacoes"
-              />
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link href="/admin/gerencia">
-                <Button variant="secondary" size="sm">
-                  Central administrativa
-                </Button>
-              </Link>
-              <Link href="/admin/gerencia/donatarias">
-                <Button variant="secondary" size="sm">
-                  Donatárias
-                </Button>
-              </Link>
-              <Link href="/admin/gerencia/configuracoes-doadora">
-                <Button variant="secondary" size="sm">
-                  Doadoras
-                </Button>
-              </Link>
+              <HighlightList title="Alunos — fórum" items={data.highlights.studentsByForum} />
             </div>
           </SectionCard>
         </>
