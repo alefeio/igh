@@ -28,12 +28,28 @@ export const responseMetaSchema = z.object({
   viewer: z.enum(["DIRECTOR", "MASTER"]).optional(),
 });
 
+export const directorDomainSchema = z.enum([
+  "academic",
+  "offer",
+  "financial",
+  "administrative",
+  "social",
+  "projects",
+  "overview",
+]);
+
 export const derivedAlertSchema = z.object({
   id: z.string(),
-  domain: z.enum(["academic", "offer"]),
+  ruleId: z.string().optional(),
+  ruleVersion: z.string().optional(),
+  domain: directorDomainSchema,
   severity: z.enum(["critical", "attention", "info"]),
   title: z.string(),
   fact: z.string(),
+  value: z.union([z.number(), z.string()]).optional(),
+  denominator: z.string().optional(),
+  period: z.string().optional(),
+  impact: z.string().optional(),
   suggestedDecision: z.string().optional(),
   metricId: z.string().optional(),
   href: z.string(),

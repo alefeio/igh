@@ -1144,7 +1144,7 @@ export default async function DashboardPage() {
         <div className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
           Nova área executiva em validação:{" "}
           <Link href="/diretor" className="font-semibold underline">
-            abrir /diretor (Fase 1A)
+            abrir /diretor (Fase 1B)
           </Link>
           . Este painel legado permanece como fallback até o redirect definitivo.
         </div>

@@ -77,10 +77,9 @@ function Inner() {
       { etapa: "Pré-matrículas", valor: f.preEnrollments },
       { etapa: "Confirmadas", valor: f.confirmed },
       { etapa: "Iniciaram", valor: f.started },
-      {
-        etapa: "Concluíram (encerradas)",
-        valor: f.completedStarted ?? 0,
-      },
+      ...(f.completedStarted == null
+        ? []
+        : [{ etapa: "Concluíram (encerradas)", valor: f.completedStarted }]),
     ];
   }, [data]);
 

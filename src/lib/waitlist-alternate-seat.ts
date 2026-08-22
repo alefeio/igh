@@ -3,6 +3,9 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
+import {
+  checkWaitlistAlternateOfferEligibility,
+} from "@/lib/email/transactional-eligibility-db";
 import { templateWaitlistAlternateSeatOffer } from "@/lib/email/templates";
 import { formatDateOnly } from "@/lib/format";
 import { generateSecureToken, hashToken } from "@/lib/verification-token";
@@ -64,11 +67,13 @@ export async function notifyWaitlistStudentsOfAlternateSeat(
         cycleId: classGroup.cycleId,
       },
       student: {
+        deletedAt: null,
         email: { not: null },
         NOT: {
           enrollments: {
             some: {
-              status: "ACTIVE",
+              isPreEnrollment: false,
+              status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
               classGroup: { courseId: classGroup.courseId },
             },
           },
@@ -114,6 +119,20 @@ export async function notifyWaitlistStudentsOfAlternateSeat(
     if (offeredSet.has(entry.studentId)) continue;
     const email = entry.student.email?.trim();
     if (!email) continue;
+
+    const stillWaiting = await prisma.enrollmentWaitlist.findFirst({
+      where: { id: entry.id, status: "WAITING", studentId: entry.studentId },
+      select: { id: true },
+    });
+    if (!stillWaiting) continue;
+
+    const eligibility = await checkWaitlistAlternateOfferEligibility({
+      classGroupId,
+      studentId: entry.studentId,
+      recipientEmail: email,
+      sourceWaitlistId: entry.id,
+    });
+    if (!eligibility.eligible) continue;
 
     const rawToken = generateSecureToken();
     const tokenHash = hashToken(rawToken);

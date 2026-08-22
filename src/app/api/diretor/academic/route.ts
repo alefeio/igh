@@ -2,7 +2,7 @@ import { requireDirectorRead } from "@/lib/diretor/auth";
 import { getMetricDefinition } from "@/lib/diretor/catalog/definitions";
 import { directorApiError, methodNotAllowed } from "@/lib/diretor/http";
 import { resolveDirectorScope } from "@/lib/diretor/load-scope";
-import { loadAcademicOfferBundle } from "@/lib/diretor/metrics/academic-offer";
+import { loadAcademic } from "@/lib/diretor/metrics/academic";
 import { academicQuerySchema, parseSearchParams } from "@/lib/diretor/search-params";
 import { jsonOk } from "@/lib/http";
 
@@ -11,20 +11,12 @@ export async function GET(request: Request) {
     const { viewer } = await requireDirectorRead();
     const url = new URL(request.url);
     const q = parseSearchParams(academicQuerySchema, url);
-    const scope = await resolveDirectorScope({
-      scope: q.scope,
-      cycleId: q.cycleId,
-    });
-    const bundle = await loadAcademicOfferBundle(
+    const scope = await resolveDirectorScope({ scope: q.scope, cycleId: q.cycleId });
+    const bundle = await loadAcademic(
       scope,
-      {
-        courseId: q.courseId,
-        classGroupId: q.classGroupId,
-        poloId: q.poloId,
-      },
+      { courseId: q.courseId, classGroupId: q.classGroupId, poloId: q.poloId },
       viewer,
     );
-
     return jsonOk({
       meta: bundle.meta,
       cycleLabel: scope.cycleLabel,

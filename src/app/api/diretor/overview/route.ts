@@ -1,7 +1,7 @@
 import { requireDirectorRead } from "@/lib/diretor/auth";
 import { directorApiError, methodNotAllowed } from "@/lib/diretor/http";
 import { resolveDirectorScope } from "@/lib/diretor/load-scope";
-import { loadAcademicOfferBundle } from "@/lib/diretor/metrics/academic-offer";
+import { loadOverviewSummaries } from "@/lib/diretor/metrics/overview";
 import { overviewQuerySchema, parseSearchParams } from "@/lib/diretor/search-params";
 import { jsonOk } from "@/lib/http";
 
@@ -10,56 +10,30 @@ export async function GET(request: Request) {
     const { viewer } = await requireDirectorRead();
     const url = new URL(request.url);
     const q = parseSearchParams(overviewQuerySchema, url);
-    const scope = await resolveDirectorScope({
-      scope: q.scope,
-      cycleId: q.cycleId,
+    const scope = await resolveDirectorScope({ scope: q.scope, cycleId: q.cycleId });
+    const overview = await loadOverviewSummaries({
+      scope,
+      viewer,
+      execCompetence: q.execCompetence,
     });
 
-    let bundle: Awaited<ReturnType<typeof loadAcademicOfferBundle>> | null = null;
-    let loadError: string | null = null;
-    try {
-      bundle = await loadAcademicOfferBundle(scope, {}, viewer);
-    } catch (err) {
-      console.error("[diretor/overview] partial failure", err);
-      loadError = "Falha parcial ao agregar indicadores; tente atualizar.";
-    }
-
-    if (!bundle) {
-      return jsonOk({
-        meta: {
-          generatedAt: new Date().toISOString(),
-          dataAsOf: scope.dataAsOf.toISOString(),
-          filters: { scope: scope.scope, cycleId: scope.cycleId, cycleLabel: scope.cycleLabel },
-          quality: [{ domain: "overview", status: "unavailable" as const, note: loadError ?? undefined }],
-          formulaVersion: "1A.0.0",
-          viewer,
-        },
-        cycleLabel: scope.cycleLabel,
-        cycles: scope.cycles,
-        kpis: [],
-        alerts: [],
-        qualityNotes: [loadError ?? "Dados indisponíveis"],
-        links: {
-          priorities: "/diretor/prioridades",
-          academic: "/diretor/academico",
-          offer: "/diretor/oferta-territorios",
-          guide: "/diretor/guia",
-          legacyDashboard: "/dashboard",
-        },
-      });
-    }
-
     return jsonOk({
-      meta: bundle.meta,
+      meta: overview.meta,
       cycleLabel: scope.cycleLabel,
       cycles: scope.cycles,
-      kpis: bundle.kpis.slice(0, 6),
-      alerts: bundle.alerts.filter((a) => a.severity === "critical").slice(0, 5),
-      qualityNotes: bundle.qualityNotes,
+      kpis: overview.kpis,
+      alerts: overview.alerts,
+      qualityNotes: overview.qualityNotes,
+      domainStatus: overview.domainStatus,
       links: {
         priorities: "/diretor/prioridades",
         academic: "/diretor/academico",
         offer: "/diretor/oferta-territorios",
+        social: "/diretor/impacto-social",
+        financial: "/diretor/financeiro",
+        projects: "/diretor/projetos-convenios",
+        administrative: "/diretor/administrativo",
+        reports: "/diretor/relatorios",
         guide: "/diretor/guia",
         legacyDashboard: "/dashboard",
       },

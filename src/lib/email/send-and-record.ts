@@ -5,6 +5,7 @@ import { sendEmail } from "./index";
 import type { SendEmailParams, SendEmailResult } from "./index";
 import { hasResendDailyEmailQuota } from "./daily-quota";
 import { enqueueEmail, hasEnrollmentWelcomeEmailPendingOrSent } from "./outbox";
+import { checkOutboxRowEligibility } from "./transactional-eligibility-db";
 
 export interface SendEmailAndRecordParams extends SendEmailParams {
   emailType: string;
@@ -18,6 +19,7 @@ export interface SendEmailAndRecordParams extends SendEmailParams {
 export interface SendEmailAndRecordResult extends SendEmailResult {
   queued?: boolean;
   skippedDuplicate?: boolean;
+  skippedIneligible?: boolean;
 }
 
 /**
@@ -42,6 +44,16 @@ export async function sendEmailAndRecord(
     (emailType === "welcome_student" || emailType === "welcome_student_waitlist");
   if (isWelcome && entityId && (await hasEnrollmentWelcomeEmailPendingOrSent(entityId))) {
     return { success: true, skippedDuplicate: true };
+  }
+
+  const eligibility = await checkOutboxRowEligibility({
+    emailType,
+    entityType: entityType ?? null,
+    entityId: entityId ?? null,
+    to: Array.isArray(params.to) ? params.to.join(", ") : params.to,
+  });
+  if (!eligibility.eligible) {
+    return { success: true, skippedIneligible: true };
   }
 
   if (queueIfDailyQuotaExceeded) {

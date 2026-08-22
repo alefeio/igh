@@ -103,23 +103,27 @@ export async function applyAttendanceSuspensionRules(params: {
         data: { status: "CANCELLED" },
       });
       cancelledIds.push(enrollment.id);
-      await createAuditLog({
-        entityType: "Enrollment",
-        entityId: enrollment.id,
-        action: "AUTO_CANCEL_ATTENDANCE",
-        performedByUserId: params.performedByUserId ?? null,
-        diff: {
-          reason: `${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT} faltas consecutivas sem justificativa`,
-          consecutiveUnjustifiedAbsences: streak,
-          studentName: enrollment.student.name,
-        },
-      });
-      await tryPromoteWaitlistAfterSeatFreed(params.classGroupId, params.performedByUserId);
-      await sendEnrollmentCancellationEmail({
-        enrollmentId: enrollment.id,
-        performedByUserId: params.performedByUserId,
-        cause: "attendance",
-      });
+      try {
+        await createAuditLog({
+          entityType: "Enrollment",
+          entityId: enrollment.id,
+          action: "AUTO_CANCEL_ATTENDANCE",
+          performedByUserId: params.performedByUserId ?? null,
+          diff: {
+            reason: `${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT} faltas consecutivas sem justificativa`,
+            consecutiveUnjustifiedAbsences: streak,
+            studentName: enrollment.student.name,
+          },
+        });
+        await tryPromoteWaitlistAfterSeatFreed(params.classGroupId, params.performedByUserId);
+        await sendEnrollmentCancellationEmail({
+          enrollmentId: enrollment.id,
+          performedByUserId: params.performedByUserId,
+          cause: "attendance",
+        });
+      } catch (e) {
+        console.error("[attendance] efeito colateral após cancelamento", enrollment.id, e);
+      }
       continue;
     }
 
@@ -131,22 +135,26 @@ export async function applyAttendanceSuspensionRules(params: {
         data: { status: "SUSPENDED" },
       });
       suspendedIds.push(enrollment.id);
-      await createAuditLog({
-        entityType: "Enrollment",
-        entityId: enrollment.id,
-        action: "AUTO_SUSPEND_ATTENDANCE",
-        performedByUserId: params.performedByUserId ?? null,
-        diff: {
-          reason: `${CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT} faltas consecutivas sem justificativa`,
-          consecutiveUnjustifiedAbsences: streak,
-          studentName: enrollment.student.name,
-        },
-      });
-      await sendEnrollmentSuspensionEmail({
-        enrollmentId: enrollment.id,
-        performedByUserId: params.performedByUserId,
-        cause: "attendance",
-      });
+      try {
+        await createAuditLog({
+          entityType: "Enrollment",
+          entityId: enrollment.id,
+          action: "AUTO_SUSPEND_ATTENDANCE",
+          performedByUserId: params.performedByUserId ?? null,
+          diff: {
+            reason: `${CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT} faltas consecutivas sem justificativa`,
+            consecutiveUnjustifiedAbsences: streak,
+            studentName: enrollment.student.name,
+          },
+        });
+        await sendEnrollmentSuspensionEmail({
+          enrollmentId: enrollment.id,
+          performedByUserId: params.performedByUserId,
+          cause: "attendance",
+        });
+      } catch (e) {
+        console.error("[attendance] efeito colateral após suspensão", enrollment.id, e);
+      }
     }
   }
 

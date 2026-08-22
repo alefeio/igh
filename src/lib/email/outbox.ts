@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { getResendDailyEmailRemaining } from "@/lib/email/daily-quota";
+import { checkOutboxRowEligibility } from "@/lib/email/transactional-eligibility-db";
 
 const MAX_ATTEMPTS = 5;
 
@@ -212,6 +213,25 @@ export async function processEmailOutboxBatch(batchSize = 25): Promise<ProcessEm
         });
         continue;
       }
+    }
+
+    const eligibility = await checkOutboxRowEligibility({
+      emailType: row.emailType,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      to: row.to,
+    });
+    if (!eligibility.eligible) {
+      await prisma.emailOutbox.update({
+        where: { id: row.id },
+        data: {
+          status: "SENT",
+          sentAt: new Date(),
+          attempts: row.attempts + 1,
+          errorMessage: `skipped_ineligible:${eligibility.reason}`,
+        },
+      });
+      continue;
     }
 
     const result = await sendEmail({

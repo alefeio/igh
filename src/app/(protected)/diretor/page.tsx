@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import {
+  DirectorPeriodControls,
   DirectorScopeControls,
   useDirectorApiQuery,
   useFetchJson,
@@ -13,9 +14,15 @@ import { MetricCard } from "@/components/diretor/MetricCard";
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
 
 type OverviewData = {
-  meta: { dataAsOf: string; generatedAt: string; quality: Array<{ domain: string; status: string; note?: string }> };
+  meta: {
+    dataAsOf: string;
+    generatedAt: string;
+    quality: Array<{ domain: string; status: string; note?: string }>;
+    filters: { execCompetence?: string; cycleLabel?: string };
+  };
   cycleLabel: string;
   cycles: Array<{ id: string; label: string; isCurrent: boolean }>;
+  domainStatus?: Array<{ domain: string; status: string; note?: string }>;
   kpis: Array<{
     metricId: string;
     label: string;
@@ -39,7 +46,7 @@ type OverviewData = {
 };
 
 function OverviewInner() {
-  const qs = useDirectorApiQuery();
+  const qs = useDirectorApiQuery(["scope", "cycleId", "execCompetence"]);
   const { data, error, loading, load } = useFetchJson<OverviewData>(
     `/api/diretor/overview?${qs}`,
   );
@@ -51,15 +58,18 @@ function OverviewInner() {
   return (
     <PanelPageStack>
       <DashboardHero
-        eyebrow="Diretoria — Visão Geral (Fase 1A)"
+        eyebrow="Diretoria — Visão Geral (Fase 1B)"
         title="Como está a instituição agora?"
-        description="Porta de entrada resumida. Detalhes ficam nas páginas temáticas. Dashboard legado permanece disponível até validação."
+        description="Resumo executivo. Filtro de ciclo acadêmico e competência financeira são independentes. Dashboard legado permanece até validação da substituição."
         rightSlot={
-          <DirectorScopeControls
-            cycles={data?.cycles ?? []}
-            loading={loading}
-            onRefresh={() => void load()}
-          />
+          <div className="flex flex-col items-end gap-2">
+            <DirectorScopeControls
+              cycles={data?.cycles ?? []}
+              loading={loading}
+              onRefresh={() => void load()}
+            />
+            <DirectorPeriodControls mode="execCompetence" loading={loading} />
+          </div>
         }
       />
 
@@ -96,6 +106,26 @@ function OverviewInner() {
               </ul>
             </div>
           ) : null}
+
+          {data.domainStatus && data.domainStatus.some((d) => d.status !== "ok") ? (
+            <p className="text-xs text-[var(--text-muted)]">
+              Falha parcial:{" "}
+              {data.domainStatus
+                .filter((d) => d.status !== "ok")
+                .map((d) => `${d.domain} (${d.status})`)
+                .join(" · ")}
+            </p>
+          ) : null}
+
+          <nav className="flex flex-wrap gap-2 text-sm" aria-label="Páginas temáticas">
+            {Object.entries(data.links)
+              .filter(([k]) => k !== "legacyDashboard")
+              .map(([k, href]) => (
+                <Link key={k} href={href} className="rounded-md border border-[var(--card-border)] px-2 py-1">
+                  {k}
+                </Link>
+              ))}
+          </nav>
 
           <section aria-label="KPIs">
             <h2 className="mb-3 text-lg font-bold">Indicadores do recorte</h2>

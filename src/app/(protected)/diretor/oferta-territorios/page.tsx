@@ -48,22 +48,15 @@ type OfferData = {
       capacity: number;
       turmas: number;
     }>;
-    demandCompletionMatrix: Array<{
+    byCourse: Array<{
       courseName: string;
-      demandProxy: number;
-      completionStartedRate: number | null;
-      quadrant: string;
+      occupied: number;
+      capacity: number;
+      waitlist: number;
+      occupancyPercent: number | null;
     }>;
   };
   metrics: Record<string, { formula: string } | undefined>;
-};
-
-const QUADRANT_LABEL: Record<string, string> = {
-  expand: "Ampliar oferta",
-  review_execution: "Revisar execução",
-  review_marketing: "Revisar divulgação",
-  reassess: "Reavaliar oferta",
-  unavailable: "Indisponível",
 };
 
 function Inner() {
@@ -196,40 +189,29 @@ function Inner() {
           </ChartWithTable>
 
           <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
-            <h3 className="font-bold">Matriz demanda × conclusão (só turmas encerradas)</h3>
+            <h3 className="font-bold">Demanda por curso (ocupação e espera)</h3>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Quadrantes para decisão de ampliar, revisar execução/divulgação ou reavaliar oferta.
+              Quadrantes demanda × conclusão ficam no Acadêmico: este loader não consulta frequência.
             </p>
-            {data.offer.demandCompletionMatrix.length === 0 ? (
-              <p className="mt-3 text-sm text-[var(--text-muted)]">
-                Histórico indisponível — não há turmas encerradas comparáveis no recorte.
-              </p>
-            ) : (
-              <table className="mt-3 w-full text-left text-sm">
-                <thead>
-                  <tr>
-                    <th>Curso</th>
-                    <th>Demanda (proxy)</th>
-                    <th>Conclusão (iniciou)</th>
-                    <th>Quadrante</th>
+            <table className="mt-3 w-full text-left text-sm">
+              <caption className="sr-only">Demanda por curso</caption>
+              <thead>
+                <tr>
+                  <th>Curso</th>
+                  <th>Ocupação</th>
+                  <th>Espera</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.offer.byCourse ?? []).map((r) => (
+                  <tr key={r.courseName}>
+                    <td>{r.courseName}</td>
+                    <td>{r.occupancyPercent != null ? `${r.occupancyPercent}%` : "Indisponível"}</td>
+                    <td>{r.waitlist}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {data.offer.demandCompletionMatrix.map((r) => (
-                    <tr key={r.courseName}>
-                      <td>{r.courseName}</td>
-                      <td>{r.demandProxy}</td>
-                      <td>
-                        {r.completionStartedRate != null
-                          ? `${r.completionStartedRate}%`
-                          : "Indisponível"}
-                      </td>
-                      <td>{QUADRANT_LABEL[r.quadrant] ?? r.quadrant}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                ))}
+              </tbody>
+            </table>
           </section>
         </>
       ) : null}

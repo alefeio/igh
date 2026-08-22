@@ -381,3 +381,17 @@ Ver também `plano-dashboard-diretor-v2.md` e catálogo §D.
 - `docs/diretor/matriz-cobertura-dados.md`
 - `docs/diretor/catalogo-indicadores.md`
 - Código atual: `src/lib/director-dashboard-data.ts`, `src/lib/staff-access.ts`, `src/proxy.ts`, `prisma/schema.prisma`
+
+---
+
+## 17. Fase 1B — loaders independentes e cadastro futuro
+
+APIs temáticas **não** usam `loadAcademicOfferBundle`. Loaders: `academic.ts`, `offer.ts`, `financial.ts`, `administrative.ts`, `social.ts`, `projects.ts`. A Visão Geral usa `summarize*` + `Promise.allSettled` (falha parcial).
+
+Cache: `cachedDirector` com chave por domínio e filtros. Relatórios: JSON/CSV sob demanda (`csv-export`); PDF/XLSX existem no projeto (`pdf-lib`, `exceljs`) mas **não** são gerados neste endpoint na 1B.
+
+### Estrutura futura (sem migration nesta fase)
+
+`InstitutionalProject` (previsto): nome, vigência, financiador, metas, orçamento, responsáveis, status, prestação de contas.
+
+`GrantAgreement` (previsto): vínculo a projeto, financiador, período, valores acordados — **não** usar `PaymentAgreement` (Kanban de colaboradores).

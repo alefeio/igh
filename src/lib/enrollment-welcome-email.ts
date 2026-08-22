@@ -14,6 +14,7 @@ import {
   findEnrollmentIdsWithWelcomeEmail,
   hasEnrollmentWelcomeEmailPendingOrSent,
 } from "@/lib/email/outbox";
+import { checkWelcomeEmailEligibility } from "@/lib/email/transactional-eligibility-db";
 
 export { ENROLLMENT_WELCOME_EMAIL_TYPES, findEnrollmentIdsWithWelcomeEmail };
 
@@ -35,8 +36,9 @@ export async function sendEnrollmentWelcomeForStudent(args: {
   if (await hasEnrollmentWelcomeEmailPendingOrSent(args.enrollmentId)) {
     return { emailSent: false, hadEmail: true, skipped: true };
   }
-  const student = await prisma.student.findUnique({
-    where: { id: args.studentId },
+
+  const student = await prisma.student.findFirst({
+    where: { id: args.studentId, deletedAt: null },
     include: {
       user: true,
       enrollments: {
@@ -51,6 +53,15 @@ export async function sendEnrollmentWelcomeForStudent(args: {
   if (!student?.email) return { emailSent: false, hadEmail: false };
   const enrollment = student.enrollments[0];
   if (!enrollment) return { emailSent: false, hadEmail: true };
+
+  const eligibility = await checkWelcomeEmailEligibility({
+    enrollmentId: enrollment.id,
+    recipientEmail: student.email,
+    expectedStudentId: student.id,
+  });
+  if (!eligibility.eligible) {
+    return { emailSent: false, hadEmail: true, skipped: true };
+  }
 
   let tempPassword: string | null = null;
   let userId = student.userId;
@@ -115,7 +126,7 @@ export async function sendEnrollmentWelcomeForStudent(args: {
     performedByUserId: args.performedByUserId ?? undefined,
   });
 
-  if (emailResult.skippedDuplicate) {
+  if (emailResult.skippedDuplicate || emailResult.skippedIneligible) {
     return { emailSent: false, hadEmail: true, skipped: true };
   }
 

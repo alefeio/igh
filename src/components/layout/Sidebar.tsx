@@ -94,6 +94,36 @@ const ITEMS: Item[] = [
     category: "Direção",
   },
   {
+    href: "/diretor/impacto-social",
+    label: "Impacto Social",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
+  },
+  {
+    href: "/diretor/financeiro",
+    label: "Financeiro",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
+  },
+  {
+    href: "/diretor/projetos-convenios",
+    label: "Projetos e Convênios",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
+  },
+  {
+    href: "/diretor/administrativo",
+    label: "Administrativo",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
+  },
+  {
+    href: "/diretor/relatorios",
+    label: "Relatórios",
+    roles: DIRECTOR_AREA,
+    category: "Direção",
+  },
+  {
     href: "/diretor/guia",
     label: "Guia do Diretor",
     roles: DIRECTOR_AREA,

@@ -183,20 +183,32 @@ export async function PATCH(
       )
   );
 
-  const { reactivatedIds, suspendedIds, cancelledIds } = await applyAttendanceSuspensionRules({
-    classGroupId,
-    rows: savedRows,
-    performedByUserId: user.id,
-  });
+  let reactivatedIds: string[] = [];
+  let suspendedIds: string[] = [];
+  let cancelledIds: string[] = [];
+  try {
+    const applied = await applyAttendanceSuspensionRules({
+      classGroupId,
+      rows: savedRows,
+      performedByUserId: user.id,
+    });
+    reactivatedIds = applied.reactivatedIds;
+    suspendedIds = applied.suspendedIds;
+    cancelledIds = applied.cancelledIds;
+  } catch (e) {
+    console.error("[attendance] regras de matrícula após frequência", e);
+  }
 
-  await syncCertificateEligibleFromAttendance(savedRows.map((r) => r.enrollmentId));
-
-  await markReferralFirstAttendanceForPresentEnrollments(
-    savedRows.filter((r) => r.present).map((r) => r.enrollmentId),
-  );
-
-  if (suspendedIds.length > 0 || cancelledIds.length > 0) {
-    await processEmailOutboxBatch(Math.min(25, suspendedIds.length + cancelledIds.length));
+  try {
+    await syncCertificateEligibleFromAttendance(savedRows.map((r) => r.enrollmentId));
+    await markReferralFirstAttendanceForPresentEnrollments(
+      savedRows.filter((r) => r.present).map((r) => r.enrollmentId),
+    );
+    if (suspendedIds.length > 0 || cancelledIds.length > 0) {
+      await processEmailOutboxBatch(Math.min(25, suspendedIds.length + cancelledIds.length));
+    }
+  } catch (e) {
+    console.error("[attendance] pós-salvamento de frequência", e);
   }
 
   const attendances = await prisma.sessionAttendance.findMany({

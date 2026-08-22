@@ -308,3 +308,6 @@ Ocupação atual, suspensos, waitlist e risco crítico são **estoque/estado atu
 
 ### Métricas ainda indisponíveis na 1A
 Financeiro completo, administrativo, impacto social completo, projetos/convênios institucionais, ocupação inicial na Visão Geral, tempo para preenchimento, evasão confirmada, snapshots, alertas persistentes.
+
+### Fase 1B (implementada)
+Loaders independentes; financeiro (entryDate vs paidAt); administrativo; impacto (alcance); projetos informativo; relatórios JSON/CSV; overview com falha parcial. Sem redirect definitivo de `/dashboard`.

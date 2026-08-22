@@ -104,16 +104,19 @@ export async function GET(
     };
   });
 
-  return jsonOk({
-    sessions: sessions.map((s, index) => ({
-      id: s.id,
-      sessionDate: s.sessionDate,
-      sessionDateLabel: formatSessionDate(s.sessionDate),
-      lessonNumber: index + 1,
-      lessonTitle: s.lesson?.title ?? null,
-    })),
-    rows,
-  });
+  return jsonOk(
+    {
+      sessions: sessions.map((s, index) => ({
+        id: s.id,
+        sessionDate: s.sessionDate,
+        sessionDateLabel: formatSessionDate(s.sessionDate),
+        lessonNumber: index + 1,
+        lessonTitle: s.lesson?.title ?? null,
+      })),
+      rows,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 /** Atualiza uma ou mais células da grade. Body: { updates: { sessionId, enrollmentId, mark: "P"|"F"|"J"|null }[] } */
@@ -215,20 +218,32 @@ export async function PATCH(
     uniqueByEnrollment.set(row.enrollmentId, row);
   }
 
-  const { suspendedIds, reactivatedIds, cancelledIds } = await applyAttendanceSuspensionRules({
-    classGroupId,
-    rows: [...uniqueByEnrollment.values()],
-    performedByUserId: user.id,
-  });
+  let suspendedIds: string[] = [];
+  let reactivatedIds: string[] = [];
+  let cancelledIds: string[] = [];
+  try {
+    const applied = await applyAttendanceSuspensionRules({
+      classGroupId,
+      rows: [...uniqueByEnrollment.values()],
+      performedByUserId: user.id,
+    });
+    suspendedIds = applied.suspendedIds;
+    reactivatedIds = applied.reactivatedIds;
+    cancelledIds = applied.cancelledIds;
+  } catch (e) {
+    console.error("[attendance-grid] regras de matrícula após frequência", e);
+  }
 
-  await syncCertificateEligibleFromAttendance([...uniqueByEnrollment.keys()]);
-
-  await markReferralFirstAttendanceForPresentEnrollments(
-    [...uniqueByEnrollment.values()].filter((r) => r.present).map((r) => r.enrollmentId),
-  );
-
-  if (suspendedIds.length > 0 || cancelledIds.length > 0) {
-    await processEmailOutboxBatch(Math.min(25, suspendedIds.length + cancelledIds.length));
+  try {
+    await syncCertificateEligibleFromAttendance([...uniqueByEnrollment.keys()]);
+    await markReferralFirstAttendanceForPresentEnrollments(
+      [...uniqueByEnrollment.values()].filter((r) => r.present).map((r) => r.enrollmentId),
+    );
+    if (suspendedIds.length > 0 || cancelledIds.length > 0) {
+      await processEmailOutboxBatch(Math.min(25, suspendedIds.length + cancelledIds.length));
+    }
+  } catch (e) {
+    console.error("[attendance-grid] pós-salvamento de frequência", e);
   }
 
   return jsonOk({

@@ -30,7 +30,12 @@ export async function POST(
   if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
 
   const enrollments = await prisma.enrollment.findMany({
-    where: { classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
+    where: {
+      classGroupId,
+      status: { in: ["ACTIVE", "SUSPENDED"] },
+      isPreEnrollment: false,
+      student: { deletedAt: null },
+    },
     select: {
       id: true,
       studentId: true,

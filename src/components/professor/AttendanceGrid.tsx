@@ -102,20 +102,29 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
     studentName: string;
   } | null>(null);
 
-  const loadGrid = useCallback(async () => {
-    setLoading(true);
+  const loadGrid = useCallback(async (opts?: { silent?: boolean }): Promise<GridRow[] | null> => {
+    if (!opts?.silent) setLoading(true);
     try {
-      const res = await fetch(`/api/teacher/class-groups/${classGroupId}/attendance-grid`);
-      const json = (await res.json()) as ApiResponse<{ sessions: GridSession[]; rows: GridRow[] }>;
+      const res = await fetch(`/api/teacher/class-groups/${classGroupId}/attendance-grid`, {
+        cache: "no-store",
+      });
+      const json = (await res.json().catch(() => null)) as ApiResponse<{
+        sessions: GridSession[];
+        rows: GridRow[];
+      }> | null;
       if (res.ok && json?.ok) {
+        const nextRows = json.data.rows ?? [];
         setSessions(json.data.sessions ?? []);
-        setRows(json.data.rows ?? []);
-      } else {
+        setRows(nextRows);
+        return nextRows;
+      }
+      if (!opts?.silent) {
         setSessions([]);
         setRows([]);
       }
+      return null;
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [classGroupId]);
 
@@ -173,18 +182,28 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
       const res = await fetch(`/api/teacher/class-groups/${classGroupId}/attendance-grid`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify({
           updates: [{ sessionId, enrollmentId, mark: next }],
         }),
       });
-      const json = (await res.json()) as ApiResponse<{
+      const json = (await res.json().catch(() => null)) as ApiResponse<{
         suspendedEnrollmentIds?: string[];
         reactivatedEnrollmentIds?: string[];
         cancelledEnrollmentIds?: string[];
-      }>;
+      }> | null;
 
       if (!res.ok || !json?.ok) {
-        setRows(prevRows);
+        const latest = await loadGrid({ silent: true });
+        if (latest && !latest.some((r) => r.enrollmentId === enrollmentId)) {
+          toast.push(
+            "success",
+            "Matrícula cancelada por 4 faltas consecutivas sem justificativa.",
+          );
+          onEnrollmentChange?.();
+          return;
+        }
+        if (!latest) setRows(prevRows);
         const msg =
           json && "error" in json
             ? ((json.error as { message?: string }).message ?? "Erro ao salvar frequência.")
@@ -197,26 +216,36 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
       const reactivated = json.data?.reactivatedEnrollmentIds ?? [];
       const cancelled = json.data?.cancelledEnrollmentIds ?? [];
       if (cancelled.length > 0) {
+        setRows((prev) => prev.filter((r) => !cancelled.includes(r.enrollmentId)));
         toast.push(
           "success",
           `${cancelled.length} matrícula(s) cancelada(s) por 4 faltas consecutivas sem justificativa.`,
         );
         onEnrollmentChange?.();
-        void loadGrid();
+        void loadGrid({ silent: true });
       } else if (suspended.length > 0) {
         toast.push(
           "success",
           `${suspended.length} matrícula(s) suspensa(s) por 3 faltas consecutivas sem justificativa.`
         );
         onEnrollmentChange?.();
-        void loadGrid();
+        void loadGrid({ silent: true });
       } else if (reactivated.length > 0) {
         toast.push("success", `${reactivated.length} matrícula(s) reativada(s) após presença registrada.`);
         onEnrollmentChange?.();
       }
     } catch {
-      setRows(prevRows);
-      toast.push("error", "Erro ao salvar frequência.");
+      const latest = await loadGrid({ silent: true });
+      if (latest && !latest.some((r) => r.enrollmentId === enrollmentId)) {
+        toast.push(
+          "success",
+          "Matrícula cancelada por 4 faltas consecutivas sem justificativa.",
+        );
+        onEnrollmentChange?.();
+      } else {
+        if (!latest) setRows(prevRows);
+        toast.push("error", "Erro ao salvar frequência.");
+      }
     } finally {
       setSavingKey((k) => (k === key ? null : k));
     }
