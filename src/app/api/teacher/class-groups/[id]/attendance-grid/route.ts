@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { ensureClassSessionsLiberatedForStudent } from "@/lib/student-lesson-liberation";
 import { markReferralFirstAttendanceForPresentEnrollments } from "@/lib/student-referrals";
+import { after } from "next/server";
 
 async function getTeacherClassGroup(userId: string, classGroupId: string) {
   const teacher = await prisma.teacher.findFirst({
@@ -239,11 +240,16 @@ export async function PATCH(
     await markReferralFirstAttendanceForPresentEnrollments(
       [...uniqueByEnrollment.values()].filter((r) => r.present).map((r) => r.enrollmentId),
     );
-    if (suspendedIds.length > 0 || cancelledIds.length > 0) {
-      await processEmailOutboxBatch(Math.min(25, suspendedIds.length + cancelledIds.length));
-    }
   } catch (e) {
     console.error("[attendance-grid] pós-salvamento de frequência", e);
+  }
+
+  if (suspendedIds.length > 0 || cancelledIds.length > 0) {
+    after(() => {
+      void processEmailOutboxBatch(Math.min(25, suspendedIds.length + cancelledIds.length)).catch((e) =>
+        console.error("[attendance-grid] outbox após frequência", e),
+      );
+    });
   }
 
   return jsonOk({

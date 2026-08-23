@@ -16,6 +16,7 @@ export { sendEnrollmentWelcomeForStudent } from "@/lib/enrollment-welcome-email"
 export async function promoteNextWaitlistForClassGroup(
   classGroupId: string,
   performedByUserId?: string | null,
+  opts?: { skipNotifications?: boolean },
 ): Promise<{ promoted: boolean; enrollmentId?: string; studentId?: string }> {
   const classGroup = await prisma.classGroup.findUnique({
     where: { id: classGroupId },
@@ -97,18 +98,20 @@ export async function promoteNextWaitlistForClassGroup(
     performedByUserId: performedByUserId ?? undefined,
   });
 
-  await sendEnrollmentWelcomeForStudent({
-    studentId: result.studentId,
-    enrollmentId: result.enrollmentId,
-    performedByUserId,
-    emailType: "welcome_student_waitlist",
-    auditExtra: { fromWaitlist: true },
-  });
+  if (!opts?.skipNotifications) {
+    await sendEnrollmentWelcomeForStudent({
+      studentId: result.studentId,
+      enrollmentId: result.enrollmentId,
+      performedByUserId,
+      emailType: "welcome_student_waitlist",
+      auditExtra: { fromWaitlist: true },
+    });
 
-  try {
-    await notifyTeachersOfWaitlistEnrollment(result.enrollmentId);
-  } catch (e) {
-    console.error("[waitlist] falha ao notificar professor", result.enrollmentId, e);
+    try {
+      await notifyTeachersOfWaitlistEnrollment(result.enrollmentId);
+    } catch (e) {
+      console.error("[waitlist] falha ao notificar professor", result.enrollmentId, e);
+    }
   }
 
   return {
@@ -124,15 +127,22 @@ export async function promoteNextWaitlistForClassGroup(
 export async function tryPromoteWaitlistAfterSeatFreed(
   classGroupId: string,
   performedByUserId?: string | null,
-): Promise<void> {
+  opts?: { skipNotifications?: boolean },
+): Promise<{ promoted: boolean; enrollmentId?: string; studentId?: string }> {
   try {
-    const result = await promoteNextWaitlistForClassGroup(classGroupId, performedByUserId);
-    if (result.promoted) return;
-    const { notifyWaitlistStudentsOfAlternateSeat } = await import(
-      "@/lib/waitlist-alternate-seat"
-    );
-    await notifyWaitlistStudentsOfAlternateSeat(classGroupId, performedByUserId);
+    const result = await promoteNextWaitlistForClassGroup(classGroupId, performedByUserId, {
+      skipNotifications: opts?.skipNotifications,
+    });
+    if (result.promoted) return result;
+    if (!opts?.skipNotifications) {
+      const { notifyWaitlistStudentsOfAlternateSeat } = await import(
+        "@/lib/waitlist-alternate-seat"
+      );
+      await notifyWaitlistStudentsOfAlternateSeat(classGroupId, performedByUserId);
+    }
+    return { promoted: false };
   } catch (e) {
     console.error("[waitlist] falha ao promover reserva / ofertar vaga", classGroupId, e);
+    return { promoted: false };
   }
 }

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { after } from "next/server";
+
 import { createAuditLog } from "@/lib/audit";
 import {
   CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT,
@@ -8,7 +10,9 @@ import {
   isUnjustifiedAbsence,
 } from "@/lib/enrollment-attendance-streak";
 import { sendEnrollmentCancellationEmail, sendEnrollmentSuspensionEmail } from "@/lib/enrollment-suspension-email";
+import { sendEnrollmentWelcomeForStudent } from "@/lib/enrollment-welcome-email";
 import { tryPromoteWaitlistAfterSeatFreed } from "@/lib/enrollment-waitlist";
+import { notifyTeachersOfWaitlistEnrollment } from "@/lib/waitlist-teacher-notifications";
 import { prisma } from "@/lib/prisma";
 
 export {
@@ -115,11 +119,43 @@ export async function applyAttendanceSuspensionRules(params: {
             studentName: enrollment.student.name,
           },
         });
-        await tryPromoteWaitlistAfterSeatFreed(params.classGroupId, params.performedByUserId);
-        await sendEnrollmentCancellationEmail({
-          enrollmentId: enrollment.id,
-          performedByUserId: params.performedByUserId,
-          cause: "attendance",
+        const waitlist = await tryPromoteWaitlistAfterSeatFreed(params.classGroupId, params.performedByUserId, {
+          skipNotifications: true,
+        });
+        after(() => {
+          void (async () => {
+            try {
+              await sendEnrollmentCancellationEmail({
+                enrollmentId: enrollment.id,
+                performedByUserId: params.performedByUserId,
+                cause: "attendance",
+              });
+              if (waitlist.promoted && waitlist.enrollmentId && waitlist.studentId) {
+                await sendEnrollmentWelcomeForStudent({
+                  studentId: waitlist.studentId,
+                  enrollmentId: waitlist.enrollmentId,
+                  performedByUserId: params.performedByUserId,
+                  emailType: "welcome_student_waitlist",
+                  auditExtra: { fromWaitlist: true },
+                });
+                try {
+                  await notifyTeachersOfWaitlistEnrollment(waitlist.enrollmentId);
+                } catch (e) {
+                  console.error("[attendance] notificar professor após waitlist", e);
+                }
+              } else {
+                const { notifyWaitlistStudentsOfAlternateSeat } = await import(
+                  "@/lib/waitlist-alternate-seat"
+                );
+                await notifyWaitlistStudentsOfAlternateSeat(
+                  params.classGroupId,
+                  params.performedByUserId,
+                );
+              }
+            } catch (e) {
+              console.error("[attendance] e-mails após cancelamento", enrollment.id, e);
+            }
+          })();
         });
       } catch (e) {
         console.error("[attendance] efeito colateral após cancelamento", enrollment.id, e);
@@ -147,10 +183,12 @@ export async function applyAttendanceSuspensionRules(params: {
             studentName: enrollment.student.name,
           },
         });
-        await sendEnrollmentSuspensionEmail({
-          enrollmentId: enrollment.id,
-          performedByUserId: params.performedByUserId,
-          cause: "attendance",
+        after(() => {
+          void sendEnrollmentSuspensionEmail({
+            enrollmentId: enrollment.id,
+            performedByUserId: params.performedByUserId,
+            cause: "attendance",
+          }).catch((e) => console.error("[attendance] e-mail após suspensão", enrollment.id, e));
         });
       } catch (e) {
         console.error("[attendance] efeito colateral após suspensão", enrollment.id, e);

@@ -102,7 +102,7 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
     studentName: string;
   } | null>(null);
 
-  const loadGrid = useCallback(async (opts?: { silent?: boolean }): Promise<GridRow[] | null> => {
+  const loadGrid = useCallback(async (opts?: { silent?: boolean; excludeEnrollmentIds?: string[] }): Promise<GridRow[] | null> => {
     if (!opts?.silent) setLoading(true);
     try {
       const res = await fetch(`/api/teacher/class-groups/${classGroupId}/attendance-grid`, {
@@ -113,7 +113,8 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
         rows: GridRow[];
       }> | null;
       if (res.ok && json?.ok) {
-        const nextRows = json.data.rows ?? [];
+        const exclude = new Set(opts?.excludeEnrollmentIds ?? []);
+        const nextRows = (json.data.rows ?? []).filter((r) => !exclude.has(r.enrollmentId));
         setSessions(json.data.sessions ?? []);
         setRows(nextRows);
         return nextRows;
@@ -158,25 +159,38 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
   const handleMarkChange = async (
     enrollmentId: string,
     sessionId: string,
-    next: AttendanceMark | null
+    next: AttendanceMark | null,
+    opts?: { expectCancel?: boolean }
   ) => {
     const rowIdx = rowIndexByEnrollment.get(enrollmentId);
-    if (rowIdx === undefined) return;
+    if (rowIdx === undefined && !opts?.expectCancel) return;
 
-    const row = rows[rowIdx];
-    const current = row.cells[sessionId] ?? null;
-    if (current === next) return;
+    const row = rowIdx !== undefined ? rows[rowIdx] : null;
+    const current = row?.cells[sessionId] ?? null;
+    if (row && current === next) return;
 
     const key = `${enrollmentId}:${sessionId}`;
     const prevRows = rows;
     const sessionIds = sessions.map((s) => s.id);
-    const newCells = { ...row.cells, [sessionId]: next };
-    const stats = recomputeRowStats(newCells, sessionIds);
 
-    setRows((prev) =>
-      prev.map((r, i) => (i === rowIdx ? { ...r, cells: newCells, ...stats } : r))
-    );
+    if (opts?.expectCancel) {
+      setRows((prev) => prev.filter((r) => r.enrollmentId !== enrollmentId));
+    } else if (row) {
+      const newCells = { ...row.cells, [sessionId]: next };
+      const stats = recomputeRowStats(newCells, sessionIds);
+      setRows((prev) =>
+        prev.map((r) => (r.enrollmentId === enrollmentId ? { ...r, cells: newCells, ...stats } : r))
+      );
+    }
     setSavingKey(key);
+
+    const toastCancelled = () => {
+      toast.push(
+        "success",
+        "Matrícula cancelada por 4 faltas consecutivas sem justificativa.",
+      );
+      onEnrollmentChange?.();
+    };
 
     try {
       const res = await fetch(`/api/teacher/class-groups/${classGroupId}/attendance-grid`, {
@@ -193,14 +207,28 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
         cancelledEnrollmentIds?: string[];
       }> | null;
 
+      const cancelled = json?.ok ? (json.data?.cancelledEnrollmentIds ?? []) : [];
+      const excludeIds = [...new Set([...cancelled, ...(opts?.expectCancel ? [enrollmentId] : [])])];
+
       if (!res.ok || !json?.ok) {
-        const latest = await loadGrid({ silent: true });
+        if (opts?.expectCancel) {
+          const latest = await loadGrid({ silent: true });
+          if (latest?.some((r) => r.enrollmentId === enrollmentId)) {
+            setRows(latest);
+            const msg =
+              json && "error" in json
+                ? ((json.error as { message?: string }).message ?? "Erro ao salvar frequência.")
+                : "Erro ao salvar frequência.";
+            toast.push("error", msg);
+            return;
+          }
+          toastCancelled();
+          void loadGrid({ silent: true, excludeEnrollmentIds: [enrollmentId] });
+          return;
+        }
+        const latest = await loadGrid({ silent: true, excludeEnrollmentIds: excludeIds });
         if (latest && !latest.some((r) => r.enrollmentId === enrollmentId)) {
-          toast.push(
-            "success",
-            "Matrícula cancelada por 4 faltas consecutivas sem justificativa.",
-          );
-          onEnrollmentChange?.();
+          toastCancelled();
           return;
         }
         if (!latest) setRows(prevRows);
@@ -214,15 +242,19 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
 
       const suspended = json.data?.suspendedEnrollmentIds ?? [];
       const reactivated = json.data?.reactivatedEnrollmentIds ?? [];
-      const cancelled = json.data?.cancelledEnrollmentIds ?? [];
       if (cancelled.length > 0) {
         setRows((prev) => prev.filter((r) => !cancelled.includes(r.enrollmentId)));
-        toast.push(
-          "success",
-          `${cancelled.length} matrícula(s) cancelada(s) por 4 faltas consecutivas sem justificativa.`,
-        );
-        onEnrollmentChange?.();
-        void loadGrid({ silent: true });
+        toastCancelled();
+        void loadGrid({ silent: true, excludeEnrollmentIds: cancelled });
+      } else if (opts?.expectCancel) {
+        const latest = await loadGrid({ silent: true });
+        if (latest?.some((r) => r.enrollmentId === enrollmentId)) {
+          setRows(latest);
+          toast.push("error", "A frequência foi salva, mas a matrícula não foi cancelada.");
+        } else {
+          toastCancelled();
+          void loadGrid({ silent: true, excludeEnrollmentIds: [enrollmentId] });
+        }
       } else if (suspended.length > 0) {
         toast.push(
           "success",
@@ -235,13 +267,22 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
         onEnrollmentChange?.();
       }
     } catch {
+      if (opts?.expectCancel) {
+        const latest = await loadGrid({ silent: true });
+        if (latest?.some((r) => r.enrollmentId === enrollmentId)) {
+          setRows(latest);
+          toast.push("error", "Erro ao salvar frequência.");
+        } else {
+          toastCancelled();
+          if (latest) {
+            void loadGrid({ silent: true, excludeEnrollmentIds: [enrollmentId] });
+          }
+        }
+        return;
+      }
       const latest = await loadGrid({ silent: true });
       if (latest && !latest.some((r) => r.enrollmentId === enrollmentId)) {
-        toast.push(
-          "success",
-          "Matrícula cancelada por 4 faltas consecutivas sem justificativa.",
-        );
-        onEnrollmentChange?.();
+        toastCancelled();
       } else {
         if (!latest) setRows(prevRows);
         toast.push("error", "Erro ao salvar frequência.");
@@ -453,7 +494,7 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
               if (!cancelConfirm) return;
               const { enrollmentId, sessionId } = cancelConfirm;
               setCancelConfirm(null);
-              void handleMarkChange(enrollmentId, sessionId, "F");
+              void handleMarkChange(enrollmentId, sessionId, "F", { expectCancel: true });
             }}
           >
             Confirmar cancelamento

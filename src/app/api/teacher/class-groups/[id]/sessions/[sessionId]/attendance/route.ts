@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { markReferralFirstAttendanceForPresentEnrollments } from "@/lib/student-referrals";
+import { after } from "next/server";
 
 async function getTeacherAndSession(
   userId: string,
@@ -205,7 +206,11 @@ export async function PATCH(
       savedRows.filter((r) => r.present).map((r) => r.enrollmentId),
     );
     if (suspendedIds.length > 0 || cancelledIds.length > 0) {
-      await processEmailOutboxBatch(Math.min(25, suspendedIds.length + cancelledIds.length));
+      after(() => {
+        void processEmailOutboxBatch(Math.min(25, suspendedIds.length + cancelledIds.length)).catch((e) =>
+          console.error("[attendance] outbox após frequência", e),
+        );
+      });
     }
   } catch (e) {
     console.error("[attendance] pós-salvamento de frequência", e);
