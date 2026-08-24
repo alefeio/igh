@@ -5,7 +5,7 @@ import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 
 import { BRAND } from "@/lib/brand";
-import { formatFiltersHuman, qualityStatusLabel } from "@/lib/diretor/ui-labels";
+import { formatDataConsideredUntil, formatFiltersHuman, formatUpdatedAtFriendly, friendlyDataStamp, qualityStatusLabel } from "@/lib/diretor/ui-labels";
 
 type Kpi = { label: string; value: unknown; quality?: string; unit?: string };
 type Alert = { title?: string; fact?: string; suggestedDecision?: string; severity?: string };
@@ -121,8 +121,12 @@ export async function buildDirectorPdf(report: Report): Promise<Uint8Array> {
 
   draw(report.title, 18, true, NAVY);
   draw(`Filtros: ${report.periodLabel || formatFiltersHuman(report.period)}`, 9);
-  draw(`Dados atualizados em: ${formatDt(report.dataAsOf)}`, 9);
-  draw(`Gerado em: ${formatDt(report.generatedAt)}`, 9);
+  if (report.dataAsOf && report.generatedAt && report.dataAsOf !== report.generatedAt) {
+    draw(formatDataConsideredUntil(report.dataAsOf), 9);
+    draw(formatUpdatedAtFriendly(report.generatedAt).replace("Atualizado em", "Gerado em"), 9);
+  } else {
+    draw(friendlyDataStamp(report.dataAsOf ?? "", report.generatedAt), 9);
+  }
   y -= 6;
 
   draw("Síntese executiva", 13, true, NAVY);
@@ -217,13 +221,6 @@ function humanDomain(d?: string): string {
     overview: "Visão Geral",
   };
   return map[d ?? ""] ?? d ?? "Tema";
-}
-
-function formatDt(iso?: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function wrap(text: string, font: PDFFont, size: number, max: number): string[] {

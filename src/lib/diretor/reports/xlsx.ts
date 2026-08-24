@@ -5,7 +5,7 @@ import { BRAND } from "@/lib/brand";
 import {
   domainLabel,
   formatFiltersHuman,
-  formatUpdatedAt,
+  formatInstantPtBr,
   qualityStatusLabel,
   severityLabel,
 } from "@/lib/diretor/ui-labels";
@@ -89,8 +89,8 @@ export async function buildDirectorXlsx(report: {
   resumo.getRow(2).values = ["Relatório", report.title];
   resumo.getRow(3).values = ["Filtros", report.periodLabel || formatFiltersHuman(report.period)];
   resumo.getRow(4).values = [
-    "Dados atualizados em",
-    typeof report.dataAsOf === "string" ? formatUpdatedAt(report.dataAsOf) : asText(report.dataAsOf),
+    "Dados considerados até",
+    typeof report.dataAsOf === "string" ? formatInstantPtBr(report.dataAsOf) : asText(report.dataAsOf),
   ];
   resumo.getRow(5).values = ["Gerado em", asText(report.generatedAt)];
   resumo.getRow(6).values = ["Síntese", "Indicadores da área da Direção, sem dados pessoais nominais."];

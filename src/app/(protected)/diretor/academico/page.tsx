@@ -19,7 +19,7 @@ import {
 } from "@/components/diretor/DirectorScopeControls";
 import { ChartWithTable, MetricCard } from "@/components/diretor/MetricCard";
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
-import { formatUpdatedAt } from "@/lib/diretor/ui-labels";
+import { DirectorDataStamp } from "@/components/diretor/DirectorDataStamp";
 
 type AcademicData = {
   meta: { dataAsOf: string };
@@ -78,9 +78,8 @@ function Inner() {
 
   const att = data?.academic.attendance;
   const attendanceProvisional = att?.executiveReliable === false;
-  const attendanceLabel = attendanceProvisional
-    ? `Frequência provisória: ${att?.presentRate ?? "—"}% — apenas ${att?.callCompletenessRate ?? "—"}% das chamadas estão completas`
-    : "Frequência (presença)";
+  const completenessLabel =
+    att?.callCompletenessRate != null ? `${att.callCompletenessRate}% das chamadas preenchidas` : null;
 
   return (
     <PanelPageStack>
@@ -96,8 +95,12 @@ function Inner() {
       {data ? (
         <>
           <p className="text-sm text-[var(--text-muted)]">
-            Recorte: <strong>{data.cycleLabel}</strong> · Dados atualizados em {formatUpdatedAt(data.meta.dataAsOf)}
+            Recorte: <strong>{data.cycleLabel}</strong>
           </p>
+          <DirectorDataStamp dataAsOf={data.meta.dataAsOf} />
+          {attendanceProvisional && completenessLabel ? (
+            <p className="text-sm text-amber-800 dark:text-amber-300">{completenessLabel}</p>
+          ) : null}
           {data.qualityNotes.length > 0 ? (
             <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">{data.qualityNotes.join(" · ")}</div>
           ) : null}
@@ -110,12 +113,12 @@ function Inner() {
               quality="ok"
             />
             <MetricCard
-              label={attendanceLabel}
-              value={attendanceProvisional ? att?.presentRate ?? null : att?.presentRate ?? null}
+              label={attendanceProvisional ? "Frequência provisória" : "Frequência (presença)"}
+              value={att?.presentRate ?? null}
               unit="%"
               explanation={
                 attendanceProvisional
-                  ? "Valor preliminar. Abaixo de 90% de completude da chamada, a frequência não deve ser lida como institucional definitiva."
+                  ? `${completenessLabel ?? "Chamadas incompletas"}. Valor preliminar: não use para meta, ranking nem síntese conclusiva. Oportunidades sem lançamento permanecem desconhecidas, não são faltas.`
                   : "Presenças sobre as oportunidades de aula já liberadas no recorte."
               }
               quality={attendanceProvisional ? "partial" : att?.presentRate == null ? "unavailable" : "ok"}
@@ -180,6 +183,19 @@ function Inner() {
               quality="ok"
             />
           </div>
+
+          <details className="rounded-lg border border-[var(--card-border)] px-4 py-3 text-sm">
+            <summary className="cursor-pointer font-semibold">Reconciliação do não início (matrículas confirmadas)</summary>
+            <p className="mt-2 text-[var(--text-muted)]">
+              Recorte só de matrículas confirmadas — não mistura pessoas atendidas nem pré-matrículas.
+            </p>
+            <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+              <li>Confirmados: {f?.confirmed ?? 0}</li>
+              <li>Iniciaram entre os confirmados: {startedAmong}</li>
+              <li>Não iniciaram: {f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}</li>
+              <li>Percentual de não início: {f?.nonStartRateAmongConfirmed ?? "—"}%</li>
+            </ul>
+          </details>
 
           <ChartWithTable
             title="Situação da jornada no recorte"

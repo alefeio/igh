@@ -9,6 +9,9 @@ import {
   computeOpportunityRates,
   countUnjustifiedStreakEligible,
   hasStarted,
+  INCOMPLETE_CALL_ALERT,
+  isExecutiveAttendanceReliable,
+  shouldEmitExecutiveAttendanceAlerts,
 } from "@/lib/diretor/metrics/attendance-formulas";
 
 function session(
@@ -185,5 +188,22 @@ describe("indicadores acadêmicos (regras)", () => {
     const rates = computeOpportunityRates(enrollment, [], new Map(), dataAsOf);
     expect(rates.presentRate).toBeNull();
     expect(rates.presentRate === 0).toBe(false);
+  });
+});
+
+describe("limiar executivo de completude da chamada", () => {
+  it("89,9% é provisório; 90% e 100% são confiáveis", () => {
+    expect(isExecutiveAttendanceReliable(89.9)).toBe(false);
+    expect(shouldEmitExecutiveAttendanceAlerts(89.9)).toBe(false);
+    expect(isExecutiveAttendanceReliable(90)).toBe(true);
+    expect(shouldEmitExecutiveAttendanceAlerts(90)).toBe(true);
+    expect(isExecutiveAttendanceReliable(100)).toBe(true);
+    expect(shouldEmitExecutiveAttendanceAlerts(100)).toBe(true);
+    expect(INCOMPLETE_CALL_ALERT.fact).toBe(
+      "Chamadas incompletas impedem uma leitura confiável da frequência.",
+    );
+    expect(INCOMPLETE_CALL_ALERT.suggestedDecision).toBe(
+      "Solicitar a regularização das chamadas antes de avaliar a frequência.",
+    );
   });
 });

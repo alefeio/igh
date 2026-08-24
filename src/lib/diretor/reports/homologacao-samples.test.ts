@@ -43,7 +43,7 @@ describe.skipIf(!enabled)("amostras reais de relatórios 1C", () => {
               const parsed = await parser.getText();
               const text = parsed.text ?? "";
               expect(text.toLowerCase()).not.toMatch(/cpf\s*\d/);
-              expect(text).toMatch(/Dados atualizados|IGH|INAC/i);
+              expect(text).toMatch(/Dados considerados|Atualizado em|IGH|INAC/i);
               expect(text).not.toMatch(/\{"[a-z]+":/);
               writeFileSync(path.join(outDir, `${type}.pdf.txt`), text);
             } finally {

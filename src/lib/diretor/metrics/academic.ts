@@ -14,6 +14,8 @@ import {
   countUnjustifiedStreakEligible,
   hasStarted,
   isExecutiveAttendanceReliable,
+  INCOMPLETE_CALL_ALERT,
+  shouldEmitExecutiveAttendanceAlerts,
   reconcileConfirmedNonStart,
   type AttendanceMarkRow,
 } from "@/lib/diretor/metrics/attendance-formulas";
@@ -225,14 +227,21 @@ async function loadAcademicUncached(
 
   const attendanceAgg = aggregateOpportunityRates(opportunityRows);
   const attendanceReliable = isExecutiveAttendanceReliable(attendanceAgg.callCompletenessRate);
-  if (attendanceAgg.unmarkedCount > 0) {
-    qualityNotes.push(
-      `Frequência provisória: apenas ${attendanceAgg.callCompletenessRate ?? 0}% das oportunidades de chamada estão preenchidas (${attendanceAgg.unmarkedCount} sem lançamento).`,
-    );
+  if (!attendanceReliable && attendanceAgg.callCompletenessRate != null) {
+    qualityNotes.push(`${attendanceAgg.callCompletenessRate}% das chamadas preenchidas.`);
     quality.push({
       domain: "academic",
       status: "partial",
       note: "A frequência ainda não tem cobertura suficiente de chamada para leitura executiva definitiva.",
+    });
+  } else if (attendanceAgg.unmarkedCount > 0) {
+    qualityNotes.push(
+      `${attendanceAgg.callCompletenessRate ?? 0}% das chamadas preenchidas; ausências sem lançamento permanecem desconhecidas.`,
+    );
+    quality.push({
+      domain: "academic",
+      status: "partial",
+      note: "Há chamadas sem lançamento; essas oportunidades não são contadas como faltas.",
     });
   }
 
@@ -288,6 +297,24 @@ async function loadAcademicUncached(
   }
 
   const alerts: DerivedAlertDto[] = [];
+  if (!shouldEmitExecutiveAttendanceAlerts(attendanceAgg.callCompletenessRate) && attendanceAgg.callCompletenessRate != null) {
+    alerts.push({
+      id: "call-completeness-quality",
+      ruleId: "acad.call_completeness_quality",
+      ruleVersion: FORMULA_VERSION_1A,
+      domain: "academic",
+      severity: "attention",
+      title: INCOMPLETE_CALL_ALERT.title,
+      fact: INCOMPLETE_CALL_ALERT.fact,
+      value: attendanceAgg.callCompletenessRate,
+      period: scope.cycleLabel,
+      impact: "A frequência não deve ser lida como indicador institucional definitivo neste recorte.",
+      suggestedDecision: INCOMPLETE_CALL_ALERT.suggestedDecision,
+      href: hrefAcad,
+      source: "completude das chamadas",
+      status: "não acompanhado pelo sistema",
+    });
+  }
   if (criticalAbsenceRisk > 0) {
     alerts.push({
       id: "critical-absences",

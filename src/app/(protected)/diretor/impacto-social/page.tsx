@@ -6,6 +6,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
 import { DirectorPeriodControls, DirectorScopeControls, useDirectorApiQuery, useFetchJson } from "@/components/diretor/DirectorScopeControls";
 import { ChartWithTable, MetricCard } from "@/components/diretor/MetricCard";
+import { DirectorDataStamp } from "@/components/diretor/DirectorDataStamp";
 
 type Data = {
   meta: { dataAsOf: string; filters: { cycleLabel?: string } };
@@ -58,13 +59,33 @@ function Inner() {
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
       {data ? (
         <>
+          <DirectorDataStamp dataAsOf={data.meta.dataAsOf} />
+          <p className="text-sm text-[var(--text-muted)]">
+            Atendidos únicos usam o ciclo acadêmico e a mesma regra da Visão Geral e do Acadêmico. Novos e recorrentes
+            usam o período de calendário selecionado — não compare esses totais como se fossem o mesmo recorte.
+          </p>
           <p className="rounded-lg border px-4 py-3 text-sm">{data.disclaimerLongTerm}</p>
           <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">{data.peopleGoalNote}</p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <MetricCard label="Pessoas confirmadas únicas" value={data.reach.confirmedUnique} quality="ok" />
-            <MetricCard label="Atendidos únicos (presença)" value={data.reach.servedUnique} quality="ok" />
-            <MetricCard label="Novos atendidos" value={data.reach.newServed} quality="ok" />
-            <MetricCard label="Recorrentes" value={data.reach.recurrentServed} quality="ok" />
+            <MetricCard
+              label="Atendidos únicos (ciclo acadêmico)"
+              value={data.reach.servedUnique}
+              quality="ok"
+              explanation="Pessoas distintas com presença no ciclo — mesma função da Visão Geral e do Acadêmico."
+            />
+            <MetricCard
+              label="Novos atendidos (período de calendário)"
+              value={data.reach.newServed}
+              quality="ok"
+              explanation="Primeira presença no intervalo de datas selecionado. Recorte diferente do total do ciclo."
+            />
+            <MetricCard
+              label="Recorrentes (período de calendário)"
+              value={data.reach.recurrentServed}
+              quality="ok"
+              explanation="Já haviam sido atendidos antes do intervalo de datas selecionado."
+            />
             <MetricCard label="Concluintes únicos" value={data.reach.completersUnique} quality="ok" />
             <MetricCard label="Certificados emitidos" value={data.reach.certificatesIssued} quality="ok" />
             <MetricCard label="Equipamentos doados" value={data.donations.computersDonated} quality="ok" />

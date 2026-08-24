@@ -17,7 +17,8 @@ import {
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
 import { DirectorPeriodControls, useDirectorApiQuery, useFetchJson } from "@/components/diretor/DirectorScopeControls";
 import { ChartWithTable, formatAxisReais, MetricCard } from "@/components/diretor/MetricCard";
-import { centsToReais, formatUpdatedAt } from "@/lib/diretor/ui-labels";
+import { DirectorDataStamp } from "@/components/diretor/DirectorDataStamp";
+import { centsToReais } from "@/lib/diretor/ui-labels";
 import { formatCentsBRL } from "@/lib/employees";
 
 type Data = {
@@ -115,7 +116,7 @@ function Inner() {
       {loading && !data ? <p className="text-sm">Carregando…</p> : null}
       {data ? (
         <>
-          <p className="text-sm text-[var(--text-muted)]">Dados atualizados em {formatUpdatedAt(data.meta.dataAsOf)}</p>
+          <DirectorDataStamp dataAsOf={data.meta.dataAsOf} />
           <p className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-3 text-sm">{data.disclaimer}</p>
           {data.qualityNotes.length > 0 ? (
             <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">{data.qualityNotes.join(" · ")}</div>

@@ -12,7 +12,7 @@ import {
 import { DataQualityPanel } from "@/components/diretor/DataQualityPanel";
 import { MetricCard } from "@/components/diretor/MetricCard";
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
-import { formatUpdatedAt } from "@/lib/diretor/ui-labels";
+import { DirectorDataStamp } from "@/components/diretor/DirectorDataStamp";
 
 type OverviewData = {
   meta: {
@@ -76,9 +76,8 @@ function OverviewInner() {
         <>
           <p className="text-sm text-[var(--text-muted)]">
             Recorte: <strong>{data.cycleLabel}</strong>
-            {" · "}
-            Dados atualizados em {formatUpdatedAt(data.meta.dataAsOf)}
           </p>
+          <DirectorDataStamp dataAsOf={data.meta.dataAsOf} generatedAt={data.meta.generatedAt} />
 
           <DataQualityPanel
             items={[

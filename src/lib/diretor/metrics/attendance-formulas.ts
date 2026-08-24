@@ -203,6 +203,17 @@ export function isExecutiveAttendanceReliable(callCompletenessRate: number | nul
   return callCompletenessRate != null && callCompletenessRate >= EXECUTIVE_CALL_COMPLETENESS_THRESHOLD;
 }
 
+export const INCOMPLETE_CALL_ALERT = {
+  title: "Chamadas incompletas",
+  fact: "Chamadas incompletas impedem uma leitura confiável da frequência.",
+  suggestedDecision: "Solicitar a regularização das chamadas antes de avaliar a frequência.",
+} as const;
+
+/** Abaixo do limiar: não alimentar alertas nem comparações executivas de frequência. */
+export function shouldEmitExecutiveAttendanceAlerts(callCompletenessRate: number | null): boolean {
+  return isExecutiveAttendanceReliable(callCompletenessRate);
+}
+
 export function classifyCriticalAbsenceRisk(params: {
   status: string;
   streak: number;

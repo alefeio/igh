@@ -9,7 +9,8 @@ import {
   useFetchJson,
 } from "@/components/diretor/DirectorScopeControls";
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
-import { domainLabel, formatUpdatedAt, severityLabel } from "@/lib/diretor/ui-labels";
+import { DirectorDataStamp } from "@/components/diretor/DirectorDataStamp";
+import { domainLabel, severityLabel } from "@/lib/diretor/ui-labels";
 
 type PrioritiesData = {
   meta: { dataAsOf: string; generatedAt: string };
@@ -60,8 +61,9 @@ function Inner() {
       {data ? (
         <>
           <p className="text-sm text-[var(--text-muted)]">
-            Recorte: <strong>{data.cycleLabel}</strong> · Dados atualizados em {formatUpdatedAt(data.meta.dataAsOf)}
+            Recorte: <strong>{data.cycleLabel}</strong>
           </p>
+          <DirectorDataStamp dataAsOf={data.meta.dataAsOf} generatedAt={data.meta.generatedAt} />
           {data.alerts.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">Nenhum alerta no recorte.</p>
           ) : (

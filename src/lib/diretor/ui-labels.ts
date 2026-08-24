@@ -1,3 +1,5 @@
+import { BRAZIL_TIMEZONE } from "@/lib/format";
+
 /** Rótulos de interface da área Diretor (sem jargão interno). */
 
 export const DOMAIN_LABEL: Record<string, string> = {
@@ -36,14 +38,49 @@ export function qualityStatusLabel(status: string): string {
   return QUALITY_STATUS_LABEL[status] ?? status;
 }
 
-export function formatUpdatedAt(iso: string): string {
-  return new Date(iso).toLocaleString("pt-BR", {
+export function formatInstantPtBr(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const date = d.toLocaleDateString("pt-BR", {
+    timeZone: BRAZIL_TIMEZONE,
     day: "2-digit",
-    month: "long",
+    month: "2-digit",
     year: "numeric",
+  });
+  const time = d.toLocaleTimeString("pt-BR", {
+    timeZone: BRAZIL_TIMEZONE,
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
+  return `${date}, às ${time}`;
+}
+
+export function formatDataConsideredUntil(iso: string): string {
+  return `Dados considerados até ${formatInstantPtBr(iso)}`;
+}
+
+export function formatUpdatedAtFriendly(iso: string): string {
+  return `Atualizado em ${formatInstantPtBr(iso)}`;
+}
+
+/**
+ * Se a geração e a data de referência coincidem (até 2 min), “Atualizado em”.
+ * Caso contrário, “Dados considerados até” — não afirma que tudo foi gerado no mesmo instante.
+ */
+export function friendlyDataStamp(dataAsOf: string, generatedAt?: string): string {
+  if (generatedAt) {
+    const a = new Date(dataAsOf).getTime();
+    const b = new Date(generatedAt).getTime();
+    if (Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 120_000) {
+      return formatUpdatedAtFriendly(dataAsOf);
+    }
+  }
+  return formatDataConsideredUntil(dataAsOf);
+}
+
+export function formatUpdatedAt(iso: string): string {
+  return formatInstantPtBr(iso);
 }
 
 export function formatCompetenceMonth(ym: string): string {

@@ -6,6 +6,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
 import { DirectorPeriodControls, useDirectorApiQuery, useFetchJson } from "@/components/diretor/DirectorScopeControls";
 import { ChartWithTable, MetricCard } from "@/components/diretor/MetricCard";
+import { DirectorDataStamp } from "@/components/diretor/DirectorDataStamp";
 
 type Data = {
   meta: { dataAsOf: string };
@@ -45,6 +46,7 @@ function Inner() {
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
       {data ? (
         <>
+          <DirectorDataStamp dataAsOf={data.meta.dataAsOf} />
           {data.qualityNotes.length > 0 ? <p className="text-sm text-amber-800">{data.qualityNotes.join(" · ")}</p> : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard label="Colaboradores ativos" value={data.people.activeEmployees} quality="ok" />

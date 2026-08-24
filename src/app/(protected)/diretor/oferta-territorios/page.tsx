@@ -18,7 +18,7 @@ import {
 } from "@/components/diretor/DirectorScopeControls";
 import { ChartWithTable, MetricCard } from "@/components/diretor/MetricCard";
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
-import { formatUpdatedAt } from "@/lib/diretor/ui-labels";
+import { DirectorDataStamp } from "@/components/diretor/DirectorDataStamp";
 
 type OfferData = {
   meta: { dataAsOf: string };
@@ -96,8 +96,9 @@ function Inner() {
       {data ? (
         <>
           <p className="text-sm text-[var(--text-muted)]">
-            Recorte: <strong>{data.cycleLabel}</strong> · Dados atualizados em {formatUpdatedAt(data.meta.dataAsOf)}
+            Recorte: <strong>{data.cycleLabel}</strong>
           </p>
+          <DirectorDataStamp dataAsOf={data.meta.dataAsOf} />
           <p className="text-xs text-[var(--text-muted)]">{data.note}</p>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
