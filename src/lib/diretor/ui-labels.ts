@@ -56,6 +56,33 @@ export function formatInstantPtBr(iso: string): string {
   return `${date}, às ${time}`;
 }
 
+/**
+ * Data “ingênua” para Excel: o relógio de Brasília vira componentes UTC do Date,
+ * porque o serial do Excel não tem fuso. Assim 14:10 BRT aparece 14:10 na célula.
+ */
+export function excelNaiveDateFromBrazilIso(iso: string): Date | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BRAZIL_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+  const num = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === type)?.value);
+  const year = num("year");
+  const month = num("month");
+  const day = num("day");
+  const hour = num("hour");
+  const minute = num("minute");
+  if (![year, month, day, hour, minute].every((n) => Number.isFinite(n))) return null;
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+}
+
 export function formatDataConsideredUntil(iso: string): string {
   return `Dados considerados até ${formatInstantPtBr(iso)}`;
 }

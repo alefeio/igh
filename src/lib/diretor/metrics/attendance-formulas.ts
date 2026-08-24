@@ -215,6 +215,9 @@ export function presenceDependentQuality(reliable: boolean): "ok" | "partial" {
   return reliable ? "ok" : "partial";
 }
 
+export const SOCIAL_PRESENCE_PARTIAL_NOTE =
+  "Atendidos, novos, recorrentes e concluintes dependem dos registros de presença.";
+
 export function classifyCriticalAbsenceRisk(params: {
   status: string;
   streak: number;

@@ -138,11 +138,22 @@ export async function buildDirectorPdf(report: Report): Promise<Uint8Array> {
   const kpis = (report.indicators?.kpis ?? []).slice(0, 6);
   draw("Indicadores", 13, true, NAVY);
   for (const k of kpis) {
-    ensure(36);
-    page.drawRectangle({ x: 40, y: y - 22, width: 515, height: 32, color: rgb(0.95, 0.96, 0.98) });
-    page.drawText(k.label.slice(0, 70), { x: 48, y: y - 4, size: 8, font, color: MUTED });
-    page.drawText(asText(k.formattedValue ?? k.value).slice(0, 42), { x: 48, y: y - 18, size: 11, font: bold, color: NAVY });
-    y -= 40;
+    const valueLines = wrap(asText(k.formattedValue ?? k.value), bold, 11, 500);
+    const qLabel = k.quality === "partial" ? "Leitura parcial" : null;
+    const boxH = 22 + valueLines.length * 13 + (qLabel ? 12 : 0);
+    ensure(boxH + 8);
+    page.drawRectangle({ x: 40, y: y - boxH + 8, width: 515, height: boxH, color: rgb(0.95, 0.96, 0.98) });
+    page.drawText(k.label.slice(0, 90), { x: 48, y: y - 2, size: 8, font, color: MUTED });
+    y -= 16;
+    for (const line of valueLines) {
+      page.drawText(line, { x: 48, y, size: 11, font: bold, color: NAVY });
+      y -= 13;
+    }
+    if (qLabel) {
+      page.drawText(qLabel, { x: 48, y, size: 8, font, color: AMBER });
+      y -= 12;
+    }
+    y -= 8;
   }
 
   const countBars = kpis
@@ -198,22 +209,37 @@ export async function buildDirectorPdf(report: Report): Promise<Uint8Array> {
 
   const quality = Array.isArray(report.quality) ? report.quality : [];
   const caveats = report.caveats ?? [];
-  const qualityNeed = 36 + Math.max(1, quality.length + caveats.length + 1) * 16;
+  const qualityTexts = [
+    "Qualidade dos dados",
+    quality.length === 0 ? "Qualidade sem apontamentos." : "",
+    ...quality.map(
+      (q) => `${humanDomain(q.domain)} — ${qualityStatusLabel(q.status ?? "ok")}${q.note ? `: ${q.note}` : ""}`,
+    ),
+    ...caveats.map((c) => `• ${c}`),
+    `Dados técnicos: versão das fórmulas ${asText(report.formulaVersion)}`,
+  ].filter(Boolean);
+  const qualityLineCount = qualityTexts.reduce((n, t, i) => n + wrap(t, i === 0 ? bold : font, i === 0 ? 13 : 9, 500).length, 0);
+  const qualityNeed = qualityLineCount * 16 + 8;
   if (y - qualityNeed < 56) {
     page = doc.addPage([595, 842]);
     pages.push(page);
     y = 800;
   }
-  draw("Qualidade dos dados", 13, true, NAVY);
-  if (quality.length === 0) draw("Qualidade sem apontamentos.");
-  for (const q of quality) {
-    draw(
-      `${humanDomain(q.domain)} — ${qualityStatusLabel(q.status ?? "ok")}${q.note ? `: ${q.note}` : ""}`,
-      9,
-    );
+  for (let i = 0; i < qualityTexts.length; i++) {
+    const size = i === 0 ? 13 : 9;
+    const isTitle = i === 0;
+    const lines = wrap(qualityTexts[i], isTitle ? bold : font, size, 500);
+    for (const line of lines) {
+      page.drawText(line, {
+        x: 40,
+        y,
+        size,
+        font: isTitle ? bold : font,
+        color: isTitle ? NAVY : MUTED,
+      });
+      y -= size + 5;
+    }
   }
-  for (const c of caveats) draw(`• ${c}`, 9);
-  draw(`Dados técnicos: versão das fórmulas ${asText(report.formulaVersion)}`, 8);
 
   footer();
   return doc.save();
@@ -244,7 +270,7 @@ function wrap(text: string, font: PDFFont, size: number, max: number): string[] 
     } else cur = next;
   }
   if (cur) lines.push(cur);
-  return lines.slice(0, 8);
+  return lines;
 }
 
 function drawTypedBars(
@@ -262,14 +288,14 @@ function drawTypedBars(
     if (w != null && w > 0) {
       page.drawRectangle({ x, y: y - 10, width: w, height: 10, color: rgb(0.12, 0.35, 0.55) });
     }
-    page.drawText(`${it.label.slice(0, 28)}: ${it.display}`.slice(0, 42), {
-      x: x + 290,
-      y: y - 9,
-      size: 8,
-      font,
-      color: MUTED,
-    });
-    y -= 16;
+    page.drawText(it.label.slice(0, 36), { x, y: y + 2, size: 7, font, color: MUTED });
+    const valueLines = wrap(it.display, font, 8, 220);
+    let ty = y - 9;
+    for (const line of valueLines.slice(0, 3)) {
+      page.drawText(line, { x: x + 290, y: ty, size: 8, font, color: MUTED });
+      ty -= 10;
+    }
+    y -= 16 + Math.max(0, valueLines.length - 1) * 10;
   }
   return y;
 }

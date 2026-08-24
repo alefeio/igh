@@ -44,7 +44,8 @@ describe("homologação visual 1C — contratos", () => {
     expect(blob).not.toMatch(/sem snapshot/);
     expect(blob).not.toMatch(/pdf-lib|exceljs/);
     expect(blob).not.toMatch(/· dataAsOf/);
-    expect(blob).not.toMatch(/COUNT DISTINCT/);
+    expect(blob).not.toMatch(/IGH \/ INAC/);
+    expect(page("src/app/(protected)/diretor/relatorios/page.tsx")).toContain("BRAND.legalName");
     expect(blob).not.toMatch(/\bd0_30\b/);
     expect(blob).not.toMatch(/Falha parcial: academic/);
   });

@@ -95,6 +95,66 @@ describe("overview facts", () => {
     expect(JSON.stringify(r)).not.toMatch(/cpf/i);
     expect(JSON.stringify(r)).not.toMatch(/vencid/i);
   });
+
+  it("marca Impacto Social como leitura parcial quando a completude das chamadas é < 90%", async () => {
+    vi.mocked(loadAcademicExecutiveFacts).mockResolvedValue({
+      servedUnique: 880,
+      criticalAbsenceRisk: 2,
+      completionStartedRate: null,
+      callCompletenessRate: 64.5,
+      attendanceReliable: false,
+      periodLabel: "c",
+      quality: [{ domain: "academic", status: "partial", note: "chamadas" }],
+      qualityNotes: [],
+    });
+    vi.mocked(loadOfferExecutiveFacts).mockResolvedValue({
+      occupancyPercent: 74.4,
+      emptyClasses: 0,
+      below30: 0,
+      waitlist: 0,
+      periodLabel: "c",
+      quality: [{ domain: "offer", status: "ok" }],
+      qualityNotes: [],
+    });
+    vi.mocked(loadFinancialExecutiveFacts).mockResolvedValue({
+      netPaidCents: 0,
+      apCents: 0,
+      arCents: 0,
+      openAge91PlusCents: 0,
+      periodLabel: "c",
+      quality: [{ domain: "financial", status: "ok" }],
+      qualityNotes: [],
+    });
+    vi.mocked(loadSocialExecutiveFacts).mockResolvedValue({
+      computersDonated: 0,
+      computersTarget: 1000,
+      computersProgressPct: 0,
+      periodLabel: "2026",
+      quality: [{ domain: "social", status: "ok" }],
+      qualityNotes: [],
+    });
+    vi.mocked(loadAdministrativeExecutiveFacts).mockResolvedValue({
+      contractsExpired: 0,
+      pendingDocuments: 0,
+      inventoryZero: 0,
+      inventoryBelowMin: 0,
+      stockCritical: 0,
+      periodLabel: "e",
+      quality: [{ domain: "administrative", status: "ok" }],
+      qualityNotes: [],
+    });
+    vi.mocked(loadProjectExecutiveFacts).mockResolvedValue({
+      unavailable: true,
+      periodLabel: "2026",
+      quality: [{ domain: "projects", status: "unavailable" }],
+      qualityNotes: [],
+    });
+    const r = await loadOverviewSummaries({ scope, viewer: "DIRECTOR" });
+    const social = r.domainStatus.find((d) => d.domain === "social");
+    expect(social?.status).toBe("partial");
+    expect(social?.note).toMatch(/Atendidos, novos, recorrentes e concluintes/);
+    expect(r.kpis.find((k) => k.metricId === "soc.computers_donated")?.quality).not.toBe("unavailable");
+  });
 });
 
 describe("overview 1C", () => {

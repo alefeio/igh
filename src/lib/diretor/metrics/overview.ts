@@ -21,7 +21,8 @@ import type {
 } from "@/lib/diretor/facts/types";
 import type { ScopeResolution } from "@/lib/diretor/load-scope";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
-import { presenceDependentQuality } from "@/lib/diretor/metrics/attendance-formulas";
+import { presenceDependentQuality, SOCIAL_PRESENCE_PARTIAL_NOTE } from "@/lib/diretor/metrics/attendance-formulas";
+import { formatPtPercent } from "@/lib/diretor/reports/pdf-bars";
 import { domainLabel } from "@/lib/diretor/ui-labels";
 import { formatCentsBRL } from "@/lib/employees";
 
@@ -84,6 +85,18 @@ export async function loadOverviewSummaries(opts: {
   const admin = by.administrative?.ok ? (by.administrative.value as AdministrativeExecutiveFacts) : undefined;
   const projects = by.projects?.ok ? (by.projects.value as ProjectExecutiveFacts) : undefined;
 
+  if (acad && !acad.attendanceReliable) {
+    const socialPartial = {
+      domain: "social",
+      status: "partial" as const,
+      note: SOCIAL_PRESENCE_PARTIAL_NOTE,
+    };
+    const idx = domainStatus.findIndex((d) => d.domain === "social");
+    if (idx >= 0) domainStatus[idx] = socialPartial;
+    else domainStatus.push(socialPartial);
+    if (!qualityNotes.includes(SOCIAL_PRESENCE_PARTIAL_NOTE)) qualityNotes.push(SOCIAL_PRESENCE_PARTIAL_NOTE);
+  }
+
   if (acad) {
     const pq = presenceDependentQuality(acad.attendanceReliable);
     const servedLabel = acad.attendanceReliable
@@ -126,6 +139,7 @@ export async function loadOverviewSummaries(opts: {
         href: "/diretor/oferta-territorios",
         percentage: offer.occupancyPercent,
         currentValue: offer.occupancyPercent,
+        formattedValue: formatPtPercent(offer.occupancyPercent),
       }),
     );
   }
@@ -135,7 +149,7 @@ export async function loadOverviewSummaries(opts: {
     const pct = social.computersProgressPct;
     const display =
       target != null
-        ? `${donated.toLocaleString("pt-BR")} de ${target.toLocaleString("pt-BR")}${pct != null ? ` — ${pct}%` : ""}`
+        ? `${donated.toLocaleString("pt-BR")} de ${target.toLocaleString("pt-BR")}${pct != null ? ` — ${formatPtPercent(pct)}` : ""}`
         : donated.toLocaleString("pt-BR");
     kpis.push(
       metricCard("soc.computers_donated", donated, {

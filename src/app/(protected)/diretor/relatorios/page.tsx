@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { BRAND } from "@/lib/brand";
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
 import { Button } from "@/components/ui/Button";
 import {
@@ -95,7 +96,7 @@ function Inner() {
           <li>Ciclo: {cycle}</li>
           <li>Competência: {competence || "—"}</li>
           <li>Período: {periodLabel}</li>
-          <li>Instituição: IGH / INAC (marca do sistema)</li>
+          <li>Instituição: {`${BRAND.shortName} — ${BRAND.legalName}`}</li>
           <li>Formatos: PDF, Excel e CSV</li>
         </ul>
       </div>

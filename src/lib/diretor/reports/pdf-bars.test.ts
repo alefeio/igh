@@ -20,13 +20,11 @@ describe("barras do PDF — dados tipados", () => {
     expect(bar.display).toBe("0 de 1.000 — 0%");
   });
 
-  it("74,3% permanece em 0–100 e formata em pt-BR", () => {
-    const bar = resolvePdfBar({ label: "Ocupação", percentage: 74.3, unit: "%" }, "percent");
-    expect(bar.plot).toBe(74.3);
-    expect(formatPtPercent(74.3)).toBe("74,3%");
-    const w = pdfBarWidth(bar.plot, 100, 280);
-    expect(w).toBeCloseTo(74.3 * 2.8, 5);
-    expect(w ?? 0).toBeLessThanOrEqual(280);
+  it("74,4% formata em pt-BR e cabe no eixo 0–100", () => {
+    const bar = resolvePdfBar({ label: "Ocupação", percentage: 74.4, unit: "%" }, "percent");
+    expect(bar.plot).toBe(74.4);
+    expect(formatPtPercent(74.4)).toBe("74,4%");
+    expect(pdfBarWidth(bar.plot, 100, 280)).toBeCloseTo(74.4 * 2.8, 5);
   });
 
   it("100% preenche a área do gráfico sem ultrapassar", () => {

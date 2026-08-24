@@ -13,7 +13,9 @@ import {
   hasStarted,
   isExecutiveAttendanceReliable,
   presenceDependentQuality,
+  SOCIAL_PRESENCE_PARTIAL_NOTE,
 } from "@/lib/diretor/metrics/attendance-formulas";
+import { formatPtPercent } from "@/lib/diretor/reports/pdf-bars";
 import { metricCard } from "@/lib/diretor/metrics/metric-card";
 import {
   classifyNewVsRecurrent,
@@ -267,7 +269,7 @@ async function loadSocialUncached(
       quality.push({
         domain: "social",
         status: "partial",
-        note: "Indicadores essenciais de atendimento dependem de chamadas incompletas.",
+        note: SOCIAL_PRESENCE_PARTIAL_NOTE,
       });
     }
   }
@@ -299,7 +301,7 @@ async function loadSocialUncached(
       percentage: progress,
       formattedValue:
         computersTarget != null
-          ? `${computersDonated.toLocaleString("pt-BR")} de ${computersTarget.toLocaleString("pt-BR")}${progress != null ? ` — ${progress}%` : ""}`
+          ? `${computersDonated.toLocaleString("pt-BR")} de ${computersTarget.toLocaleString("pt-BR")}${progress != null ? ` — ${formatPtPercent(progress)}` : ""}`
           : computersDonated.toLocaleString("pt-BR"),
     }),
   ];
