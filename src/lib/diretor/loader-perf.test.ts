@@ -1,9 +1,16 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
+import { config as loadEnv } from "dotenv";
+
+loadEnv();
 
 vi.mock("server-only", () => ({}));
 
-const prismaReady = existsSync("node_modules/.prisma/client/index.js") || existsSync("node_modules/.prisma/client/default.js");
+/** Prisma 7 gera em src/generated/prisma (gitignored), não em node_modules/.prisma/client. */
+const prismaReady =
+  existsSync("src/generated/prisma/client.ts") ||
+  existsSync("src/generated/prisma/client.js") ||
+  existsSync("node_modules/.prisma/client/index.js");
 const enabled = process.env.RUN_DIRECTOR_PERF === "1" && prismaReady;
 
 function p95(samples: number[]): number {
@@ -64,12 +71,19 @@ describe.skipIf(!enabled)("diretor loader performance 1C (DB)", () => {
       const { REPORT_CATALOG } = await import("@/lib/diretor/reports/generate");
       const { defaultCompetence } = await import("@/lib/diretor/period");
 
-      const scope = await resolveDirectorScope({ scope: "current" });
+      const { prisma } = await import("@/lib/prisma");
+      const asOf = process.env.DIRECTOR_PERF_DATA_AS_OF
+        ? new Date(process.env.DIRECTOR_PERF_DATA_AS_OF)
+        : new Date("2026-08-21T12:00:00.000Z");
+      const cycle3 = await prisma.cycle.findFirst({ where: { year: 2026, cycle: 3 }, select: { id: true } });
+      const scope = cycle3
+        ? await resolveDirectorScope({ scope: "cycle", cycleId: cycle3.id, dataAsOf: asOf })
+        : await resolveDirectorScope({ scope: "current", dataAsOf: asOf });
+      if (!cycle3) console.warn("[perf] ciclo 3/2026 não encontrado; usando ciclo atual");
       const competence = defaultCompetence(scope.dataAsOf);
       const viewer = "DIRECTOR" as const;
       const runs = 10;
       const legacyRuns = Number(process.env.DIRECTOR_PERF_LEGACY_RUNS ?? 3);
-      const asOf = scope.dataAsOf;
 
       console.log("[perf] ciclo", scope.cycleLabel, "turmas", scope.classGroupIds.length, "dataAsOf", asOf.toISOString());
 
@@ -89,31 +103,45 @@ describe.skipIf(!enabled)("diretor loader performance 1C (DB)", () => {
       const sSocial = await timed("facts.social", () => loadSocialExecutiveFacts(viewer, asOf), runs);
       const sAdmin = await timed("facts.admin", () => loadAdministrativeExecutiveFacts(viewer, asOf), runs);
       const sProj = await timed("facts.projects", () => loadProjectExecutiveFacts(viewer), runs);
-      const sAlerts = await timed(
-        "overview.alerts-engine",
-        async () =>
-          alertsFromExecutiveFacts({
-            academic: await loadAcademicExecutiveFacts(scope, viewer),
-            offer: await loadOfferExecutiveFacts(scope, viewer),
-            financial: await loadFinancialExecutiveFacts({ competence }, viewer, asOf),
-            social: await loadSocialExecutiveFacts(viewer, asOf),
-            administrative: await loadAdministrativeExecutiveFacts(viewer, asOf),
-            projects: await loadProjectExecutiveFacts(viewer),
-          }),
+      const sAlerts = await timed("overview.alerts-engine", async () =>
+        alertsFromExecutiveFacts({
+          academic: sAcad.last || undefined,
+          offer: sOffer.last || undefined,
+          financial: sFin.last || undefined,
+          social: sSocial.last || undefined,
+          administrative: sAdmin.last || undefined,
+          projects: sProj.last || undefined,
+        }),
         runs,
       );
 
+      const { mapSettledLimit } = await import("@/lib/diretor/concurrency");
       const priorities = await timed(
         "priorities",
-        async () =>
-          alertsFromExecutiveFacts({
-            academic: await loadAcademicExecutiveFacts(scope, viewer),
-            offer: await loadOfferExecutiveFacts(scope, viewer),
-            financial: await loadFinancialExecutiveFacts({ competence }, viewer, asOf),
-            social: await loadSocialExecutiveFacts(viewer, asOf),
-            administrative: await loadAdministrativeExecutiveFacts(viewer, asOf),
-            projects: await loadProjectExecutiveFacts(viewer),
-          }),
+        async () => {
+          const settled = await mapSettledLimit(
+            [
+              { label: "academic", run: () => loadAcademicExecutiveFacts(scope, viewer) },
+              { label: "offer", run: () => loadOfferExecutiveFacts(scope, viewer) },
+              { label: "financial", run: () => loadFinancialExecutiveFacts({ competence }, viewer, asOf) },
+              { label: "social", run: () => loadSocialExecutiveFacts(viewer, asOf) },
+              { label: "administrative", run: () => loadAdministrativeExecutiveFacts(viewer, asOf) },
+              { label: "projects", run: () => loadProjectExecutiveFacts(viewer) },
+            ],
+            2,
+          );
+          const by = Object.fromEntries(settled.map((s) => [s.label, s]));
+          return alertsFromExecutiveFacts({
+            academic: by.academic?.ok ? (by.academic.value as NonNullable<typeof sAcad.last>) : undefined,
+            offer: by.offer?.ok ? (by.offer.value as NonNullable<typeof sOffer.last>) : undefined,
+            financial: by.financial?.ok ? (by.financial.value as NonNullable<typeof sFin.last>) : undefined,
+            social: by.social?.ok ? (by.social.value as NonNullable<typeof sSocial.last>) : undefined,
+            administrative: by.administrative?.ok
+              ? (by.administrative.value as NonNullable<typeof sAdmin.last>)
+              : undefined,
+            projects: by.projects?.ok ? (by.projects.value as NonNullable<typeof sProj.last>) : undefined,
+          });
+        },
         runs,
       );
 
@@ -158,6 +186,8 @@ describe.skipIf(!enabled)("diretor loader performance 1C (DB)", () => {
         },
       };
       console.log("[perf-report-1c]", JSON.stringify(report));
+      mkdirSync("tmp/homologacao-1c", { recursive: true });
+      writeFileSync("tmp/homologacao-1c/benchmark-1c.json", JSON.stringify(report, null, 2));
       expect(overview.bytes).toBeLessThan(legacy.bytes);
       expect(overview.medianMs).toBeGreaterThan(0);
     },

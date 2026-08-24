@@ -1146,11 +1146,10 @@ export default async function DashboardPage() {
     return (
       <div className="flex flex-col gap-4">
         <div className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
-          Nova área executiva em validação:{" "}
+          A área da Direção está em homologação.{" "}
           <Link href="/diretor" className="font-semibold underline">
-            abrir /diretor (Fase 1C)
+            Abrir Visão Geral
           </Link>
-          . Este painel legado permanece como fallback até o redirect definitivo.
         </div>
         <DirectorDashboard userName={user.name} />
       </div>

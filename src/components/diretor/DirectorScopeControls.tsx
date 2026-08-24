@@ -49,7 +49,7 @@ export function DirectorScopeControls({
         variant={scope === "all" ? "primary" : "secondary"}
         onClick={() => setParams({ scope: "all", cycleId: null })}
       >
-        Relatório geral
+        Todos os ciclos
       </Button>
       <Button
         size="sm"
@@ -90,16 +90,19 @@ export function DirectorPeriodControls({
   loading,
   onRefresh,
   mode,
+  fallbackMonth,
 }: {
   loading?: boolean;
   onRefresh?: () => void;
   mode: "competence" | "range" | "year" | "execCompetence";
+  /** Competência usada pela API quando a URL ainda não tem o parâmetro. */
+  fallbackMonth?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
-  const competence = search.get("competence") ?? "";
-  const execCompetence = search.get("execCompetence") ?? "";
+  const competence = search.get("competence") || fallbackMonth || "";
+  const execCompetence = search.get("execCompetence") || fallbackMonth || "";
   const from = search.get("from") ?? "";
   const to = search.get("to") ?? "";
   const year = search.get("year") ?? "";

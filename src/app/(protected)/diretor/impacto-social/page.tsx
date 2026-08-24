@@ -47,7 +47,7 @@ function Inner() {
       <DashboardHero
         eyebrow="Impacto Social"
         title="Qual o alcance e as entregas no período?"
-        description="Fase 1 apresenta alcance, entregas e produtos — não causalidade de impacto. Alunos e donatárias não são somados."
+        description="Alcance, entregas e produtos no período. Não mede causalidade de impacto. Alunos e instituições donatárias não são somados."
         rightSlot={
           <div className="flex flex-col gap-2">
             <DirectorPeriodControls mode="range" loading={loading} onRefresh={() => void load()} />

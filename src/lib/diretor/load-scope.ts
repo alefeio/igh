@@ -33,14 +33,14 @@ export async function resolveDirectorScope(opts: {
   }));
 
   let cycleId: string | null = null;
-  let cycleLabel = "Relatório geral (todos os ciclos)";
+  let cycleLabel = "Todos os ciclos";
   let classGroupWhere: { cycleId?: string; status?: { not: "CANCELADA" } } = {
     status: { not: "CANCELADA" },
   };
 
   if (opts.scope === "all") {
     cycleId = null;
-    cycleLabel = "Relatório geral (todos os ciclos)";
+    cycleLabel = "Todos os ciclos";
   } else if (opts.scope === "cycle" && opts.cycleId) {
     cycleId = opts.cycleId;
     cycleLabel = cycles.find((c) => c.id === cycleId)?.label ?? "Ciclo";

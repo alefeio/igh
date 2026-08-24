@@ -1,12 +1,14 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
 
 export function MetricCard({
   label,
   value,
   unit,
   formula,
+  explanation,
   denominator,
   period,
   quality,
@@ -17,6 +19,7 @@ export function MetricCard({
   value: number | string | null;
   unit?: string;
   formula?: string;
+  explanation?: string;
   denominator?: string;
   period?: string;
   quality: string;
@@ -32,38 +35,43 @@ export function MetricCard({
           ? `${value}%`
           : String(value);
 
-  const tip = [formula, denominator ? `Denominador: ${denominator}` : null, period ? `Período: ${period}` : null]
-    .filter(Boolean)
-    .join(" · ");
+  const how = explanation || (formula && !/[A-Z_]{3,}|COUNT |studentId|paidAt|entryDate/.test(formula) ? formula : null);
+  const qualityLabel =
+    quality === "partial" ? "Leitura provisória" : quality === "unavailable" ? "Não calculável" : null;
 
   const inner = (
-    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm">
+    <div
+      className={`rounded-xl border bg-[var(--card-bg)] p-4 shadow-sm ${
+        quality === "partial"
+          ? "border-amber-400"
+          : quality === "unavailable"
+            ? "border-[var(--card-border)] opacity-80"
+            : "border-[var(--card-border)]"
+      }`}
+    >
       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{label}</p>
-      <p
-        className="mt-2 text-2xl font-bold tabular-nums text-[var(--text-primary)]"
-        title={tip || undefined}
-      >
-        {display}
-      </p>
-      {formula ? (
-        <p className="mt-2 text-[11px] text-[var(--text-muted)]" title={tip || formula}>
-          {formula}
-          {denominator ? ` · denom.: ${denominator}` : ""}
-        </p>
+      <p className="mt-2 break-words text-2xl font-bold tabular-nums text-[var(--text-primary)]">{display}</p>
+      {qualityLabel ? (
+        <p className="mt-1 text-[11px] font-medium text-amber-800 dark:text-amber-300">{qualityLabel}</p>
       ) : null}
-      {quality !== "ok" ? (
-        <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
-          Qualidade: {quality}
-        </p>
+      {how ? (
+        <details className="mt-2 text-[11px] text-[var(--text-muted)]">
+          <summary className="cursor-pointer font-medium">Como este indicador é calculado?</summary>
+          <p className="mt-1">
+            {how}
+            {denominator ? ` Denominador: ${denominator}.` : ""}
+            {period ? ` Recorte: ${period}.` : ""}
+          </p>
+        </details>
       ) : null}
     </div>
   );
 
   if (href) {
     return (
-      <a href={href} className="block transition hover:opacity-95">
+      <Link href={href} className="block transition hover:opacity-95">
         {inner}
-      </a>
+      </Link>
     );
   }
   return inner;
@@ -72,7 +80,6 @@ export function MetricCard({
 export function ChartWithTable({
   title,
   description,
-  formula,
   children,
   table,
 }: {
@@ -82,17 +89,26 @@ export function ChartWithTable({
   children: ReactNode;
   table: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
   return (
     <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm">
       <h3 className="text-base font-bold text-[var(--text-primary)]">{title}</h3>
       {description ? <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p> : null}
-      {formula ? (
-        <p className="mt-1 text-xs text-[var(--text-muted)]" title={formula}>
-          Fórmula: {formula}
-        </p>
-      ) : null}
-      <div className="mt-4">{children}</div>
-      <div className="mt-4 overflow-x-auto">{table}</div>
+      <div className="mt-4 min-w-0 overflow-x-auto">
+        <div className="min-w-[520px] sm:min-w-0">{children}</div>
+      </div>
+      <button
+        type="button"
+        className="mt-3 text-sm font-semibold text-[var(--igh-primary)]"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? "Ocultar dados do gráfico" : "Ver dados do gráfico"}
+      </button>
+      {open ? <div className="mt-3 overflow-x-auto text-sm">{table}</div> : null}
     </section>
   );
+}
+
+export function formatAxisReais(value: number): string {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }

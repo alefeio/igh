@@ -9,6 +9,7 @@ import {
   netPaidMovementCents,
   openAgeBucket,
   OPEN_AGE_BUCKET_LABEL,
+  OPEN_AGE_CHART_LABEL,
   paidInPeriod,
   postedInPeriod,
   sumCents,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/diretor/metrics/financial-formulas";
 import { resolvePeriod } from "@/lib/diretor/period";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
+import { formatCentsBRL } from "@/lib/employees";
 import { prisma } from "@/lib/prisma";
 
 export type FinancialFilters = {
@@ -226,13 +228,13 @@ async function loadFinancialUncached(
       domain: "financial",
       severity: "attention",
       title: "Lançamentos em aberto há mais de 90 dias",
-      fact: `Existem lançamentos em aberto há mais de 90 dias (${openAge91PlusCents} centavos). Decisão sugerida: solicitar à equipe financeira a revisão da situação desses registros.`,
+      fact: `Existem lançamentos em aberto há mais de 90 dias (${formatCentsBRL(openAge91PlusCents)}). Solicite à equipe financeira a revisão desses registros.`,
       value: openAge91PlusCents,
       period: period.label,
-      impact: "Idade elevada do registro em aberto — não significa vencimento (não há dueDate).",
+      impact: "Registro aberto há muito tempo — não significa vencimento nem atraso contratual.",
       suggestedDecision: "Solicitar à equipe financeira a revisão da situação desses registros.",
       href,
-      source: "FinancialEntry.entryDate (idade em aberto)",
+      source: "lançamentos financeiros",
       status: "não acompanhado pelo sistema",
     });
   }
@@ -245,13 +247,13 @@ async function loadFinancialUncached(
       domain: "financial",
       severity: "attention",
       title: "Folha com linhas pendentes",
-      fact: `${n} linha(s) PENDENTE na competência de folha.`,
+      fact: `${n} linha(s) da folha ainda pendentes de pagamento.`,
       value: n,
       period: period.label,
       impact: "Folha não liquidada integralmente.",
       suggestedDecision: "Acompanhar fechamento/pagamento da folha.",
       href,
-      source: "PayrollLine.paymentStatus",
+      source: "folha de pagamento",
       status: "não acompanhado pelo sistema",
     });
   }
@@ -260,7 +262,13 @@ async function loadFinancialUncached(
     meta: {
       generatedAt: new Date().toISOString(),
       dataAsOf: asOf.toISOString(),
-      filters: { ...filters, periodFrom: period.from.toISOString(), periodTo: period.to.toISOString(), dateBasisPosted: "entryDate", dateBasisPaid: "paidAt" },
+      filters: {
+        competence: period.competence ?? filters.competence,
+        from: filters.from,
+        to: filters.to,
+        categoryId: filters.categoryId,
+        poloId: filters.poloId,
+      },
       quality,
       formulaVersion: FORMULA_VERSION_1C,
       viewer,
@@ -275,7 +283,7 @@ async function loadFinancialUncached(
       openAge91PlusCents,
       aging: [...agingMap.entries()].map(([bucket, amountCents]) => ({
         bucket,
-        label: OPEN_AGE_BUCKET_LABEL[bucket as keyof typeof OPEN_AGE_BUCKET_LABEL] ?? bucket,
+        label: OPEN_AGE_CHART_LABEL[bucket as keyof typeof OPEN_AGE_CHART_LABEL] ?? OPEN_AGE_BUCKET_LABEL[bucket as keyof typeof OPEN_AGE_BUCKET_LABEL] ?? bucket,
         amountCents,
       })),
     },

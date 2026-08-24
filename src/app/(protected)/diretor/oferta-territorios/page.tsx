@@ -18,6 +18,7 @@ import {
 } from "@/components/diretor/DirectorScopeControls";
 import { ChartWithTable, MetricCard } from "@/components/diretor/MetricCard";
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
+import { formatUpdatedAt } from "@/lib/diretor/ui-labels";
 
 type OfferData = {
   meta: { dataAsOf: string };
@@ -95,8 +96,7 @@ function Inner() {
       {data ? (
         <>
           <p className="text-sm text-[var(--text-muted)]">
-            Recorte: <strong>{data.cycleLabel}</strong> · dataAsOf{" "}
-            {new Date(data.meta.dataAsOf).toLocaleString("pt-BR")}
+            Recorte: <strong>{data.cycleLabel}</strong> · Dados atualizados em {formatUpdatedAt(data.meta.dataAsOf)}
           </p>
           <p className="text-xs text-[var(--text-muted)]">{data.note}</p>
 
@@ -118,9 +118,9 @@ function Inner() {
               quality="ok"
             />
             <MetricCard
-              label="Demanda única (pré ∪ waitlist)"
+              label="Demanda única (pré-matrícula e espera)"
               value={data.offer.demandUniqueCount}
-              formula="studentIds distintos em pré-matrícula ∪ waitlist WAITING"
+              explanation="Pessoas distintas em pré-matrícula ou na lista de espera."
               quality="ok"
             />
             <MetricCard
@@ -191,7 +191,7 @@ function Inner() {
           <section className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
             <h3 className="font-bold">Demanda por curso (ocupação e espera)</h3>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Quadrantes demanda × conclusão ficam no Acadêmico: este loader não consulta frequência.
+              A relação entre demanda e conclusão permanece na página Acadêmico.
             </p>
             <table className="mt-3 w-full text-left text-sm">
               <caption className="sr-only">Demanda por curso</caption>

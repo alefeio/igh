@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAuditLog } from "@/lib/audit";
 import { BRAND } from "@/lib/brand";
+import { formatFiltersHuman } from "@/lib/diretor/ui-labels";
 import { rowsToCsvSemicolon, safeReportFilename } from "@/lib/csv-export";
 import { loadAcademic } from "@/lib/diretor/metrics/academic";
 import { loadAdministrative } from "@/lib/diretor/metrics/administrative";
@@ -16,12 +17,12 @@ import type { reportsGenerateSchema } from "@/lib/diretor/search-params";
 import type { z } from "zod";
 
 export const REPORT_CATALOG = [
-  { type: "executive", title: "Executivo do período", domain: "overview" },
-  { type: "academic", title: "Acadêmico do ciclo", domain: "academic" },
-  { type: "offer", title: "Oferta e Territórios", domain: "offer" },
-  { type: "social", title: "Impacto Social", domain: "social" },
-  { type: "financial", title: "Movimentação Financeira", domain: "financial" },
-  { type: "administrative", title: "Administrativo", domain: "administrative" },
+  { type: "executive", title: "Executivo do período", domain: "Visão Geral" },
+  { type: "academic", title: "Acadêmico do ciclo", domain: "Acadêmico" },
+  { type: "offer", title: "Oferta e Territórios", domain: "Oferta e Territórios" },
+  { type: "social", title: "Impacto Social", domain: "Impacto Social" },
+  { type: "financial", title: "Movimentação Financeira", domain: "Financeiro" },
+  { type: "administrative", title: "Administrativo", domain: "Administrativo" },
 ] as const;
 
 export const REPORT_MIME: Record<"json" | "csv" | "pdf" | "xlsx", string> = {
@@ -43,6 +44,7 @@ function envelope(title: string, payload: unknown) {
     institution: BRAND.legalName,
     brand: BRAND.shortName,
     period: p.meta?.filters ?? {},
+    periodLabel: formatFiltersHuman(p.meta?.filters),
     generatedAt: typeof p.meta?.generatedAt === "string" ? p.meta.generatedAt : undefined,
     dataAsOf: typeof p.meta?.dataAsOf === "string" ? p.meta.dataAsOf : undefined,
     formulaVersion: typeof p.meta?.formulaVersion === "string" ? p.meta.formulaVersion : undefined,
@@ -52,7 +54,7 @@ function envelope(title: string, payload: unknown) {
     quality: p.meta?.quality ?? [],
     caveats: p.qualityNotes ?? [],
     pagination: { page: 1, pageSize: 1, total: 1 },
-    disclaimer: "Geração sob demanda. Nenhum snapshot persistido nesta fase. Sem dados pessoais nominais.",
+    disclaimer: "Geração sob demanda. Sem dados pessoais nominais. Movimentação paga não é saldo bancário.",
   };
 }
 

@@ -37,7 +37,7 @@ describe("PDF e XLSX", () => {
     alerts: [],
     quality: [],
     caveats: [],
-    disclaimer: "sem snapshot",
+    disclaimer: "sem PII",
   };
 
   it("PDF começa com %PDF", async () => {

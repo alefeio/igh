@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# evidências locais de homologação (binários grandes)
+/tmp/homologacao-1c/

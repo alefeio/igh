@@ -10,8 +10,11 @@ import {
 import {
   aggregateOpportunityRates,
   computeOpportunityRates,
+  countServedUniqueStudents,
   countUnjustifiedStreakEligible,
   hasStarted,
+  isExecutiveAttendanceReliable,
+  reconcileConfirmedNonStart,
   type AttendanceMarkRow,
 } from "@/lib/diretor/metrics/attendance-formulas";
 import { metricCard } from "@/lib/diretor/metrics/metric-card";
@@ -37,9 +40,14 @@ export type AcademicBundle = {
       completedStarted: number | null;
       completionStartedRate: number | null;
       nonStartRateAmongConfirmed: number | null;
+      confirmedNotStarted: number;
+      startedAmongConfirmed: number;
       cancelAfterStartUntyped: number;
     };
-    attendance: ReturnType<typeof aggregateOpportunityRates>;
+    attendance: ReturnType<typeof aggregateOpportunityRates> & {
+      executiveReliable: boolean;
+      quality: "ok" | "partial" | "unavailable";
+    };
     suspensions: number;
     criticalAbsenceRisk: number;
     servedUnique: number;
@@ -131,7 +139,7 @@ async function loadAcademicUncached(
   const sessionQuality = assessSessionQuality(sessions, scope.dataAsOf);
   if (sessionQuality.pastNotReleasedCount > 0) {
     qualityNotes.push(
-      `${sessionQuality.pastNotReleasedCount} sessão(ões) passadas ainda em SCHEDULED — excluídas dos cálculos.`,
+      `${sessionQuality.pastNotReleasedCount} sessão(ões) já ocorridas ainda não foram liberadas e ficam de fora da frequência.`,
     );
     quality.push({ domain: "academic", status: "partial", note: "Há sessões passadas não liberadas." });
   }
@@ -183,10 +191,10 @@ async function loadAcademicUncached(
   const opportunityRows = [];
   let criticalAbsenceRisk = 0;
   let startedCount = 0;
+  let startedAmongConfirmed = 0;
   let cancelAfterStart = 0;
   let startedInClosed = 0;
   let completedStartedInClosed = 0;
-  const servedStudents = new Set<string>();
   const closedCgIds = new Set(classGroups.filter((g) => g.status === "ENCERRADA").map((g) => g.id));
 
   for (const e of enrollments) {
@@ -196,7 +204,7 @@ async function loadAcademicUncached(
     const started = hasStarted(entry, sessions, attMap, scope.dataAsOf);
     if (started) {
       startedCount += 1;
-      servedStudents.add(e.studentId);
+      if (!e.isPreEnrollment) startedAmongConfirmed += 1;
       if (closedCgIds.has(e.classGroupId)) {
         startedInClosed += 1;
         if (e.status === "COMPLETED") completedStartedInClosed += 1;
@@ -209,36 +217,27 @@ async function loadAcademicUncached(
     }
   }
 
+  const servedUnique = countServedUniqueStudents(enrollments, sessions, attendanceByEnrollment, scope.dataAsOf);
+  const { notStarted: confirmedNotStarted, rate: nonStartAmongConfirmed } = reconcileConfirmedNonStart(
+    confirmed,
+    startedAmongConfirmed,
+  );
+
   const attendanceAgg = aggregateOpportunityRates(opportunityRows);
+  const attendanceReliable = isExecutiveAttendanceReliable(attendanceAgg.callCompletenessRate);
   if (attendanceAgg.unmarkedCount > 0) {
     qualityNotes.push(
-      `Chamada incompleta: ${attendanceAgg.unmarkedCount} oportunidade(s) sem lançamento; completude ${attendanceAgg.callCompletenessRate ?? 0}%.`,
+      `Frequência provisória: apenas ${attendanceAgg.callCompletenessRate ?? 0}% das oportunidades de chamada estão preenchidas (${attendanceAgg.unmarkedCount} sem lançamento).`,
     );
-    quality.push({ domain: "academic", status: "partial", note: "Há oportunidades sem registro de presença/falta." });
+    quality.push({
+      domain: "academic",
+      status: "partial",
+      note: "A frequência ainda não tem cobertura suficiente de chamada para leitura executiva definitiva.",
+    });
   }
 
   const completionStartedRate =
     closedCgIds.size === 0 ? null : pctOrNull(completedStartedInClosed, startedInClosed);
-  const nonStartAmongConfirmed =
-    confirmed > 0
-      ? pctOrNull(
-          enrollments.filter(
-            (e) =>
-              !e.isPreEnrollment &&
-              !hasStarted(
-                {
-                  id: e.id,
-                  classGroupId: e.classGroupId,
-                  enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt,
-                },
-                sessions,
-                attendanceByEnrollment.get(e.id) ?? new Map(),
-                scope.dataAsOf,
-              ),
-          ).length,
-          confirmed,
-        )
-      : null;
 
   const byCourseMap = new Map<
     string,
@@ -267,15 +266,22 @@ async function loadAcademicUncached(
     metricCard("acad.attrition.risk.critical_absences", criticalAbsenceRisk, { quality: "ok", href: hrefAcad }),
     metricCard("acad.attendance.present_rate", attendanceAgg.presentRate, {
       quality:
-        attendanceAgg.quality === "unavailable"
+        attendanceAgg.presentRate == null
           ? "unavailable"
-          : attendanceAgg.quality === "partial" || sessionQuality.pastNotReleasedCount > 0
+          : !attendanceReliable || sessionQuality.pastNotReleasedCount > 0
             ? "partial"
             : "ok",
-      unavailableReason: attendanceAgg.presentRate == null ? "Sem oportunidades elegíveis (LIBERADA)" : null,
+      unavailableReason: attendanceAgg.presentRate == null ? "Sem oportunidades de chamada no recorte" : null,
       href: hrefAcad,
+      explanation: attendanceReliable
+        ? "Percentual de presenças entre as oportunidades de chamada já ocorridas e liberadas."
+        : "Valor preliminar: a chamada ainda está incompleta (abaixo de 90% de preenchimento).",
     }),
-    metricCard("ben.served_unique", servedStudents.size, { quality: "ok", href: hrefAcad }),
+    metricCard("ben.served_unique", servedUnique, {
+      quality: "ok",
+      href: hrefAcad,
+      explanation: "Pessoas distintas com pelo menos uma presença em aula elegível no recorte.",
+    }),
   ];
   if (completionStartedRate != null) {
     kpis.push(metricCard("acad.completion.started_rate", completionStartedRate, { quality: "ok", href: hrefAcad }));
@@ -290,7 +296,7 @@ async function loadAcademicUncached(
       domain: "academic",
       severity: "critical",
       title: "Risco crítico por faltas",
-      fact: `${criticalAbsenceRisk} matrícula(s) ACTIVE/SUSPENDED com streak ≥${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT}.`,
+      fact: `${criticalAbsenceRisk} matrícula(s) ativas ou suspensas no limite de faltas consecutivas sem justificativa.`,
       value: criticalAbsenceRisk,
       denominator: "matrículas vinculadas no recorte",
       period: scope.cycleLabel,
@@ -298,7 +304,7 @@ async function loadAcademicUncached(
       suggestedDecision: "Solicitar plano de recuperação de frequência à coordenação.",
       metricId: "acad.attrition.risk.critical_absences",
       href: hrefPrio,
-      source: "regra streak canônica (sessões LIBERADA)",
+      source: "frequência em aulas liberadas",
       status: "não acompanhado pelo sistema",
       operationalOwner: "não acompanhado pelo sistema",
     });
@@ -311,14 +317,14 @@ async function loadAcademicUncached(
       domain: "academic",
       severity: "attention",
       title: "Matrículas suspensas",
-      fact: `${suspensions} matrícula(s) SUSPENDED.`,
+      fact: `${suspensions} matrícula(s) suspensas.`,
       value: suspensions,
       period: scope.cycleLabel,
       impact: "Interrupção temporária da frequência.",
       suggestedDecision: "Acompanhar retorno às aulas.",
       metricId: "acad.suspension.count",
       href: hrefAcad,
-      source: "Enrollment.status",
+      source: "cadastro de matrículas",
       status: "não acompanhado pelo sistema",
     });
   }
@@ -330,13 +336,13 @@ async function loadAcademicUncached(
       domain: "academic",
       severity: "attention",
       title: "Qualidade: sessões passadas não liberadas",
-      fact: `${sessionQuality.pastNotReleasedCount} sessão(ões) SCHEDULED com data ≤ dataAsOf.`,
+      fact: `${sessionQuality.pastNotReleasedCount} sessão(ões) já ocorridas ainda não foram liberadas para frequência.`,
       value: sessionQuality.pastNotReleasedCount,
       period: scope.cycleLabel,
       impact: "Frequência subestimada ou qualidade parcial.",
       suggestedDecision: "Pedir liberação/lançamento de frequência.",
       href: hrefAcad,
-      source: "ClassSession.status",
+      source: "agenda de aulas",
       status: "não acompanhado pelo sistema",
     });
   }
@@ -348,14 +354,14 @@ async function loadAcademicUncached(
       domain: "academic",
       severity: "info",
       title: "Cancelamentos após o início — motivo não tipado",
-      fact: `${cancelAfterStart} matrícula(s) CANCELLED com presença elegível.`,
+      fact: `${cancelAfterStart} matrícula(s) canceladas após o aluno já ter frequentado.`,
       value: cancelAfterStart,
       period: scope.cycleLabel,
       impact: "Sinal de saída sem classificação de evasão.",
       suggestedDecision: "Tratar como sinal parcial até existir motivo estruturado.",
       metricId: "acad.cancel.after_start_untyped",
       href: hrefAcad,
-      source: "Enrollment + presença",
+      source: "matrículas e frequência",
       status: "não acompanhado pelo sistema",
     });
   }
@@ -377,15 +383,26 @@ async function loadAcademicUncached(
         preEnrollments,
         confirmed,
         started: startedCount,
+        startedAmongConfirmed,
+        confirmedNotStarted,
         completedStarted: closedCgIds.size === 0 ? null : completedStartedInClosed,
         completionStartedRate,
         nonStartRateAmongConfirmed: nonStartAmongConfirmed,
         cancelAfterStartUntyped: cancelAfterStart,
       },
-      attendance: attendanceAgg,
+      attendance: {
+        ...attendanceAgg,
+        executiveReliable: attendanceReliable,
+        quality:
+          attendanceAgg.presentRate == null
+            ? "unavailable"
+            : attendanceReliable
+              ? "ok"
+              : "partial",
+      },
       suspensions,
       criticalAbsenceRisk,
-      servedUnique: servedStudents.size,
+      servedUnique,
       byCourse,
     },
     alerts,

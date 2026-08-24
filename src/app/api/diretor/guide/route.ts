@@ -20,12 +20,12 @@ export async function GET() {
         {
           term: "Matrícula vs pessoa atendida",
           definition:
-            "Matrícula é o vínculo em uma turma. Pessoa atendida é o studentId com pelo menos uma presença em sessão elegível. Uma pessoa pode ter várias matrículas.",
+            "Matrícula é o vínculo em uma turma. Pessoa atendida é quem teve pelo menos uma presença em aula no recorte. Uma pessoa pode ter várias matrículas.",
         },
         {
           term: "Risco crítico por faltas",
           definition:
-            "Matrículas ainda vinculadas (ACTIVE/SUSPENDED) com streak ≥4 faltas consecutivas sem justificativa. Não é evasão confirmada.",
+            "Matrículas ativas ou suspensas com quatro ou mais faltas consecutivas sem justificativa. Não é evasão confirmada.",
         },
         {
           term: "Evasão confirmada",
@@ -35,7 +35,7 @@ export async function GET() {
         {
           term: "Frequência",
           definition:
-            "Taxas sobre oportunidades elegíveis (aluno × sessão LIBERADA, ≤ dataAsOf, após a entrada). Chamada sem lançamento não vira falta automática.",
+            "Taxas sobre aulas já liberadas, até a data de atualização dos dados, após a entrada do aluno. Chamada sem lançamento não vira falta automática.",
         },
         {
           term: "Conclusão",
@@ -43,17 +43,17 @@ export async function GET() {
         },
         {
           term: "Ocupação atual",
-          definition: "Vagas ocupadas agora (ACTIVE+SUSPENDED) sobre capacidade. Não é ocupação no primeiro dia.",
+          definition: "Vagas ocupadas agora (matrículas ativas ou suspensas) sobre a capacidade. Não é a ocupação do primeiro dia.",
         },
         {
           term: "Lançamentos pagos vs saldo bancário",
           definition:
-            "Receitas/despesas pagas usam paidAt. Isso não é saldo, caixa nem disponibilidade financeira.",
+            "Receitas e despesas pagas usam a data do pagamento. Isso não é saldo, caixa nem disponibilidade financeira.",
         },
         {
-          term: "Idade do lançamento em aberto vs vencimento",
+          term: "Tempo em aberto do lançamento",
           definition:
-            "idadeEmAberto = dataAsOf − entryDate. Mede há quanto tempo o registro está aberto. O sistema não tem campo dueDate; não chame isso de vencido ou inadimplência.",
+            "Há quanto tempo o registro está aberto, da data do lançamento até a atualização dos dados. O sistema não registra vencimento; não chame isso de atraso ou inadimplência.",
         },
         {
           term: "Alcance social vs impacto de longo prazo",
@@ -66,13 +66,13 @@ export async function GET() {
             "Zero é quantidade medida. Indisponível é ausência de modelo ou dado. Parcial indica fórmula calculada com lacunas (ex.: chamada incompleta).",
         },
         {
-          term: "Data de referência (dataAsOf)",
+          term: "Data de atualização dos dados",
           definition: "Instante usado para decidir o que já ocorreu. Não é a data de geração do arquivo.",
         },
         {
           term: "Projetos e convênios",
           definition:
-            "Não há cadastro institucional. PaymentAgreement da Gerência é kanban de pagamento de pessoas, não convênio. A página informa indisponibilidade — não um portfólio zerado.",
+            "Não há cadastro institucional de projetos. Os acordos de pagamento da gerência não são convênios. A página informa indisponibilidade — não um portfólio zerado.",
         },
       ],
     });

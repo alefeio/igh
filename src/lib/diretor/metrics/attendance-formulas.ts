@@ -164,6 +164,45 @@ export function hasStarted(
   return false;
 }
 
+/** Pessoas distintas (studentId) com pelo menos uma presença em sessão elegível. */
+export function countServedUniqueStudents(
+  enrollments: Array<{
+    id: string;
+    studentId: string;
+    classGroupId: string;
+    enrolledAt: Date;
+    enrollmentConfirmedAt: Date | null;
+  }>,
+  sessions: SessionLike[],
+  attendanceByEnrollment: Map<string, Map<string, AttendanceMarkRow>>,
+  dataAsOf: Date,
+): number {
+  const ids = new Set<string>();
+  for (const e of enrollments) {
+    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+    if (hasStarted(entry, sessions, attendanceByEnrollment.get(e.id) ?? new Map(), dataAsOf)) {
+      ids.add(e.studentId);
+    }
+  }
+  return ids.size;
+}
+
+export function reconcileConfirmedNonStart(confirmed: number, startedAmongConfirmed: number): {
+  notStarted: number;
+  rate: number | null;
+} {
+  if (confirmed < 0 || startedAmongConfirmed < 0) return { notStarted: 0, rate: null };
+  const notStarted = Math.max(0, confirmed - startedAmongConfirmed);
+  return { notStarted, rate: rate(notStarted, confirmed) };
+}
+
+/** Completude mínima para apresentar frequência como indicador executivo confiável. */
+export const EXECUTIVE_CALL_COMPLETENESS_THRESHOLD = 90;
+
+export function isExecutiveAttendanceReliable(callCompletenessRate: number | null): boolean {
+  return callCompletenessRate != null && callCompletenessRate >= EXECUTIVE_CALL_COMPLETENESS_THRESHOLD;
+}
+
 export function classifyCriticalAbsenceRisk(params: {
   status: string;
   streak: number;

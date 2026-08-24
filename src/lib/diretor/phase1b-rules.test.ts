@@ -133,6 +133,6 @@ describe("independência dos loaders", () => {
     expect(t).not.toMatch(/prisma\./);
     expect(t).toMatch(/createAuditLog/);
     expect(t).toMatch(/diff: \{ type: input.type, format: input.format, generatedAt/);
-    expect(t).toMatch(/Nenhum snapshot persistido/);
+    expect(t).toMatch(/Sem dados pessoais nominais/);
   });
 });

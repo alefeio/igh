@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import Link from "next/link";
-import { Suspense } from "react";
 
 import {
   DirectorPeriodControls,
@@ -10,25 +9,28 @@ import {
   useDirectorApiQuery,
   useFetchJson,
 } from "@/components/diretor/DirectorScopeControls";
+import { DataQualityPanel } from "@/components/diretor/DataQualityPanel";
 import { MetricCard } from "@/components/diretor/MetricCard";
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
+import { formatUpdatedAt } from "@/lib/diretor/ui-labels";
 
 type OverviewData = {
   meta: {
     dataAsOf: string;
     generatedAt: string;
-    quality: Array<{ domain: string; status: string; note?: string }>;
     filters: { execCompetence?: string; cycleLabel?: string };
   };
   cycleLabel: string;
   cycles: Array<{ id: string; label: string; isCurrent: boolean }>;
   domainStatus?: Array<{ domain: string; status: string; note?: string }>;
+  dataQuality?: Array<{ domain?: string; title?: string; fact?: string; status?: string; note?: string }>;
   kpis: Array<{
     metricId: string;
     label: string;
     value: number | string | null;
     unit?: string;
     formula: string;
+    explanation?: string;
     quality: string;
     unavailableReason?: string | null;
     href?: string;
@@ -41,34 +43,28 @@ type OverviewData = {
     href: string;
     severity: string;
   }>;
-  qualityNotes: string[];
-  links: Record<string, string>;
 };
 
 function OverviewInner() {
   const qs = useDirectorApiQuery(["scope", "cycleId", "execCompetence"]);
-  const { data, error, loading, load } = useFetchJson<OverviewData>(
-    `/api/diretor/overview?${qs}`,
-  );
+  const { data, error, loading, load } = useFetchJson<OverviewData>(`/api/diretor/overview?${qs}`);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const competence = data?.meta.filters.execCompetence;
 
   return (
     <PanelPageStack>
       <DashboardHero
         eyebrow="Diretoria — Visão Geral"
         title="Como está a instituição agora?"
-        description="Até seis indicadores e cinco alertas. Ciclo acadêmico e competência financeira são filtros independentes. O painel legado em /dashboard permanece até autorização do redirect."
+        description="Indicadores e alertas do recorte escolhido. Ciclo acadêmico e competência financeira são filtros independentes."
         rightSlot={
           <div className="flex flex-col items-end gap-2">
-            <DirectorScopeControls
-              cycles={data?.cycles ?? []}
-              loading={loading}
-              onRefresh={() => void load()}
-            />
-            <DirectorPeriodControls mode="execCompetence" loading={loading} />
+            <DirectorScopeControls cycles={data?.cycles ?? []} loading={loading} onRefresh={() => void load()} />
+            <DirectorPeriodControls mode="execCompetence" loading={loading} fallbackMonth={competence} />
           </div>
         }
       />
@@ -81,53 +77,17 @@ function OverviewInner() {
           <p className="text-sm text-[var(--text-muted)]">
             Recorte: <strong>{data.cycleLabel}</strong>
             {" · "}
-            dataAsOf{" "}
-            {new Date(data.meta.dataAsOf).toLocaleString("pt-BR", {
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-            {" · "}
-            gerado{" "}
-            {new Date(data.meta.generatedAt).toLocaleString("pt-BR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            Dados atualizados em {formatUpdatedAt(data.meta.dataAsOf)}
           </p>
 
-          {data.qualityNotes.length > 0 ? (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-              <strong>Qualidade dos dados:</strong>
-              <ul className="mt-1 list-disc pl-5">
-                {data.qualityNotes.map((n) => (
-                  <li key={n}>{n}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          <DataQualityPanel
+            items={[
+              ...(data.dataQuality ?? []),
+              ...(data.domainStatus ?? []).map((d) => ({ domain: d.domain, status: d.status, note: d.note })),
+            ]}
+          />
 
-          {data.domainStatus && data.domainStatus.some((d) => d.status !== "ok") ? (
-            <p className="text-xs text-[var(--text-muted)]">
-              Falha parcial:{" "}
-              {data.domainStatus
-                .filter((d) => d.status !== "ok")
-                .map((d) => `${d.domain} (${d.status})`)
-                .join(" · ")}
-            </p>
-          ) : null}
-
-          <nav className="flex flex-wrap gap-2 text-sm" aria-label="Páginas temáticas">
-            {Object.entries(data.links)
-              .filter(([k]) => k !== "legacyDashboard")
-              .map(([k, href]) => (
-                <Link key={k} href={href} className="rounded-md border border-[var(--card-border)] px-2 py-1">
-                  {k}
-                </Link>
-              ))}
-          </nav>
-
-          <section aria-label="KPIs">
+          <section aria-label="Indicadores">
             <h2 className="mb-3 text-lg font-bold">Indicadores do recorte</h2>
             {data.kpis.length === 0 ? (
               <p className="text-sm text-[var(--text-muted)]">Nenhum indicador calculável neste recorte.</p>
@@ -143,7 +103,7 @@ function OverviewInner() {
           <section aria-label="Alertas críticos">
             <div className="mb-3 flex items-end justify-between gap-2">
               <h2 className="text-lg font-bold">Alertas críticos</h2>
-              <Link href={data.links.priorities} className="text-sm font-semibold text-[var(--igh-primary)]">
+              <Link href="/diretor/prioridades" className="text-sm font-semibold text-[var(--igh-primary)]">
                 Ver prioridades →
               </Link>
             </div>

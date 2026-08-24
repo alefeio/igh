@@ -1,10 +1,9 @@
 import "server-only";
 
-import { Prisma } from "@/generated/prisma/client";
-
 import { CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT } from "@/lib/enrollment-attendance-streak";
 import { cachedDirector } from "@/lib/diretor/cache";
 import {
+  countServedUniqueStudents,
   countUnjustifiedStreakEligible,
   hasStarted,
   type AttendanceMarkRow,
@@ -36,135 +35,85 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
   }
 
   const asOf = scope.dataAsOf;
-  const classGroups = await prisma.classGroup.findMany({
-    where: { id: { in: cgIds } },
-    select: { id: true, status: true },
-  });
-  const closed = new Set(classGroups.filter((g) => g.status === "ENCERRADA").map((g) => g.id));
-
-  const [servedRows, pastNotReleased, riskEnrollments] = await Promise.all([
-    prisma.$queryRaw<Array<{ n: bigint }>>`
-      SELECT COUNT(*)::bigint AS n FROM (
-        SELECT DISTINCT e."studentId"
-        FROM "SessionAttendance" sa
-        INNER JOIN "Enrollment" e ON e.id = sa."enrollmentId"
-        INNER JOIN "ClassSession" cs ON cs.id = sa."classSessionId"
-        WHERE sa.present = true
-          AND e."classGroupId"::text IN (${Prisma.join(cgIds)})
-          AND cs.status = 'LIBERADA'
-          AND cs."sessionDate" <= ${asOf}
-          AND cs."sessionDate" >= DATE(COALESCE(e."enrollmentConfirmedAt", e."enrolledAt"))
-      ) t
-    `,
-    prisma.classSession.count({
-      where: { classGroupId: { in: cgIds }, status: "SCHEDULED", sessionDate: { lte: asOf } },
+  const [classGroups, enrollments, sessionsRaw] = await Promise.all([
+    prisma.classGroup.findMany({
+      where: { id: { in: cgIds } },
+      select: { id: true, status: true },
     }),
     prisma.enrollment.findMany({
-      where: { classGroupId: { in: cgIds }, status: { in: ["ACTIVE", "SUSPENDED"] } },
+      where: { classGroupId: { in: cgIds } },
       select: {
         id: true,
+        studentId: true,
         classGroupId: true,
         status: true,
         enrolledAt: true,
         enrollmentConfirmedAt: true,
       },
+    }),
+    prisma.classSession.findMany({
+      where: { classGroupId: { in: cgIds } },
+      select: { id: true, classGroupId: true, status: true, sessionDate: true, startTime: true },
     }),
   ]);
 
-  const servedUnique = Number(servedRows[0]?.n ?? 0);
-  if (pastNotReleased > 0) {
-    qualityNotes.push(`${pastNotReleased} sessão(ões) passadas ainda em SCHEDULED.`);
-    quality.push({ domain: "academic", status: "partial", note: "Há sessões passadas não liberadas." });
+  const sessions: SessionLike[] = sessionsRaw.map((s) => ({
+    id: s.id,
+    classGroupId: s.classGroupId,
+    status: s.status,
+    sessionDate: s.sessionDate,
+    startTime: s.startTime,
+  }));
+  const q = assessSessionQuality(sessions, asOf);
+  if (q.pastNotReleasedCount > 0) {
+    qualityNotes.push(
+      `${q.pastNotReleasedCount} sessão(ões) já ocorridas ainda não foram liberadas e ficam de fora da frequência.`,
+    );
+    quality.push({
+      domain: "academic",
+      status: "partial",
+      note: "Há sessões já ocorridas que ainda não foram liberadas.",
+    });
   }
 
-  let criticalAbsenceRisk = 0;
-  if (riskEnrollments.length > 0) {
-    const riskCg = [...new Set(riskEnrollments.map((e) => e.classGroupId))];
-    const sessionsRaw = await prisma.classSession.findMany({
-      where: { classGroupId: { in: riskCg }, status: { in: ["LIBERADA", "SCHEDULED"] } },
-      select: { id: true, classGroupId: true, status: true, sessionDate: true, startTime: true },
-    });
-    const sessions: SessionLike[] = sessionsRaw.map((s) => ({
-      id: s.id,
-      classGroupId: s.classGroupId,
-      status: s.status,
-      sessionDate: s.sessionDate,
-      startTime: s.startTime,
-    }));
-    const q = assessSessionQuality(sessions, asOf);
-    if (q.pastNotReleasedCount > 0 && quality.every((x) => x.note !== "Há sessões passadas não liberadas.")) {
-      quality.push({ domain: "academic", status: "partial", note: "Há sessões passadas não liberadas." });
-    }
-    const att = await prisma.sessionAttendance.findMany({
-      where: { enrollmentId: { in: riskEnrollments.map((e) => e.id) } },
-      select: { enrollmentId: true, classSessionId: true, present: true, absenceJustification: true },
-    });
-    const attByEnr = new Map<string, Map<string, AttendanceMarkRow>>();
-    for (const row of att) {
-      let m = attByEnr.get(row.enrollmentId);
-      if (!m) {
-        m = new Map();
-        attByEnr.set(row.enrollmentId, m);
-      }
-      m.set(row.classSessionId, {
-        classSessionId: row.classSessionId,
-        present: row.present,
-        absenceJustification: row.absenceJustification,
-      });
-    }
-    for (const e of riskEnrollments) {
-      const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
-      const streak = countUnjustifiedStreakEligible(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf);
-      if (streak >= CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT) criticalAbsenceRisk += 1;
-    }
-  }
-
-  let completionStartedRate: number | null = null;
-  if (closed.size > 0) {
-    const closedIds = [...closed];
-    const closedEnr = await prisma.enrollment.findMany({
-      where: { classGroupId: { in: closedIds } },
-      select: {
-        id: true,
-        classGroupId: true,
-        status: true,
-        enrolledAt: true,
-        enrollmentConfirmedAt: true,
-      },
-    });
-    const closedSessions = await prisma.classSession.findMany({
-      where: { classGroupId: { in: closedIds }, status: "LIBERADA" },
-      select: { id: true, classGroupId: true, status: true, sessionDate: true, startTime: true },
-    });
-    const sessions: SessionLike[] = closedSessions.map((s) => ({
-      id: s.id,
-      classGroupId: s.classGroupId,
-      status: s.status,
-      sessionDate: s.sessionDate,
-      startTime: s.startTime,
-    }));
-    const present = closedEnr.length
+  const attendance =
+    enrollments.length && sessions.length
       ? await prisma.sessionAttendance.findMany({
-          where: { present: true, enrollmentId: { in: closedEnr.map((e) => e.id) } },
-          select: { enrollmentId: true, classSessionId: true },
+          where: { enrollmentId: { in: enrollments.map((e) => e.id) } },
+          select: { enrollmentId: true, classSessionId: true, present: true, absenceJustification: true },
         })
       : [];
-    const attByEnr = new Map<string, Map<string, AttendanceMarkRow>>();
-    for (const row of present) {
-      let m = attByEnr.get(row.enrollmentId);
-      if (!m) {
-        m = new Map();
-        attByEnr.set(row.enrollmentId, m);
-      }
-      m.set(row.classSessionId, {
-        classSessionId: row.classSessionId,
-        present: true,
-        absenceJustification: null,
-      });
+  const attByEnr = new Map<string, Map<string, AttendanceMarkRow>>();
+  for (const row of attendance) {
+    let m = attByEnr.get(row.enrollmentId);
+    if (!m) {
+      m = new Map();
+      attByEnr.set(row.enrollmentId, m);
     }
+    m.set(row.classSessionId, {
+      classSessionId: row.classSessionId,
+      present: row.present,
+      absenceJustification: row.absenceJustification,
+    });
+  }
+
+  const servedUnique = countServedUniqueStudents(enrollments, sessions, attByEnr, asOf);
+
+  let criticalAbsenceRisk = 0;
+  for (const e of enrollments) {
+    if (e.status !== "ACTIVE" && e.status !== "SUSPENDED") continue;
+    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+    const streak = countUnjustifiedStreakEligible(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf);
+    if (streak >= CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT) criticalAbsenceRisk += 1;
+  }
+
+  const closed = new Set(classGroups.filter((g) => g.status === "ENCERRADA").map((g) => g.id));
+  let completionStartedRate: number | null = null;
+  if (closed.size > 0) {
     let startedInClosed = 0;
     let completedStarted = 0;
-    for (const e of closedEnr) {
+    for (const e of enrollments) {
+      if (!closed.has(e.classGroupId)) continue;
       const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
       if (!hasStarted(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf)) continue;
       startedInClosed += 1;
@@ -186,7 +135,7 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
 }
 
 export async function loadAcademicExecutiveFacts(scope: ScopeResolution, viewer: "DIRECTOR" | "MASTER") {
-  return cachedDirector(["facts-academic", scope.scope, scope.cycleId, viewer], () =>
+  return cachedDirector(["facts-academic-v2", scope.scope, scope.cycleId, viewer], () =>
     loadAcademicFactsUncached(scope),
   );
 }

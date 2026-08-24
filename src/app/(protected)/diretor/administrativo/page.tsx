@@ -54,7 +54,7 @@ function Inner() {
             <MetricCard label="Estoque zerado" value={data.inventory.zero} quality="ok" />
             <MetricCard label="Abaixo do mínimo" value={data.inventory.belowMin} quality="ok" />
             <MetricCard label="Sem movimentação 90d" value={data.inventory.stale} quality="ok" />
-            <MetricCard label="Falhas de e-mail (outbox)" value={data.comms.failedOutbox} quality="ok" />
+            <MetricCard label="Falhas de e-mail" value={data.comms.failedOutbox} quality="ok" />
           </div>
           <p className="text-sm">
             Folha: {data.people.payroll.status ?? "indisponível"} · vale-refeição confirmados {data.people.mealTickets.confirmed} / pendentes{" "}

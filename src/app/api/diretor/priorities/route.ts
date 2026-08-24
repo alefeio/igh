@@ -52,6 +52,8 @@ export async function GET(request: Request) {
       administrative: by.administrative?.ok ? (by.administrative.value as AdministrativeExecutiveFacts) : undefined,
       projects: by.projects?.ok ? (by.projects.value as ProjectExecutiveFacts) : undefined,
     });
+    const structural = alerts.filter((a) => a.id === "proj-unavailable");
+    alerts = alerts.filter((a) => a.id !== "proj-unavailable");
     if (q.severity !== "all") alerts = alerts.filter((a) => a.severity === q.severity);
     if (q.domain !== "all") alerts = alerts.filter((a) => a.domain === q.domain);
 
@@ -73,7 +75,10 @@ export async function GET(request: Request) {
       cycleLabel: scope.cycleLabel,
       cycles: scope.cycles,
       alerts,
-      qualityNotes: settled.filter((s) => !s.ok).map((s) => s.error),
+      qualityNotes: [
+        ...settled.filter((s) => !s.ok).map((s) => s.error),
+        ...structural.map((a) => a.fact),
+      ],
     });
   } catch (e) {
     return directorApiError(e);

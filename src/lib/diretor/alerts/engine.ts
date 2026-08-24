@@ -44,13 +44,13 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       domain: "academic",
       severity: "critical",
       title: "Risco crítico por faltas consecutivas",
-      fact: `${pack.academic.criticalAbsenceRisk} matrícula(s) ACTIVE/SUSPENDED no limite de cancelamento por faltas.`,
+      fact: `${pack.academic.criticalAbsenceRisk} matrícula(s) ativas ou suspensas no limite de faltas consecutivas sem justificativa.`,
       value: pack.academic.criticalAbsenceRisk,
       period: pack.academic.periodLabel,
       impact: "Risco de desligamento automático por frequência.",
       suggestedDecision: "Priorizar acompanhamento pedagógico das turmas com esses casos.",
       href: "/diretor/academico",
-      source: "Enrollment + SessionAttendance (fatos executivos)",
+      source: "frequência nas aulas",
       status: "não acompanhado pelo sistema",
     });
   }
@@ -69,7 +69,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       impact: "Capacidade ociosa no recorte.",
       suggestedDecision: "Rever oferta e demanda com a coordenação.",
       href: "/diretor/oferta-territorios",
-      source: "ClassGroup occupancy (fatos executivos)",
+      source: "ocupação das turmas",
       status: "não acompanhado pelo sistema",
     });
   }
@@ -102,7 +102,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       domain: "administrative",
       severity: "attention",
       title: "Contratos com fim de vigência anterior à data de referência",
-      fact: `${pack.administrative.contractsExpired} contrato(s) ATIVO com endDate anterior a dataAsOf.`,
+      fact: `${pack.administrative.contractsExpired} contrato(s) ativos com data de término anterior à atualização dos dados.`,
       value: pack.administrative.contractsExpired,
       period: "estoque",
       impact: "Vínculos sem vigência formal no cadastro.",
@@ -165,7 +165,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       impact: "Acompanhamento de vigência e metas de convênio não é possível neste sistema.",
       suggestedDecision: "Tratar a página Projetos como estado estrutural, não como zero de portfólio.",
       href: "/diretor/projetos-convenios",
-      source: "ausência de model institucional",
+      source: "cadastro institucional",
       status: "não acompanhado pelo sistema",
     });
   }

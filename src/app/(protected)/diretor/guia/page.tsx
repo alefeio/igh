@@ -35,14 +35,14 @@ function Inner() {
       <DashboardHero
         eyebrow="Guia do Diretor"
         title="Como interpretar os indicadores"
-        description="Gerado a partir do catálogo tipado no código (mesmas fórmulas das páginas e APIs)."
+        description="Explica as leituras da área da Direção. O menu «Como usar o sistema» (outros perfis) ensina a operar o cadastro; este guia interpreta os números executivos."
       />
       {loading && !data ? <p className="text-sm">Carregando…</p> : null}
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
       {data ? (
         <>
           <p className="text-sm text-[var(--text-muted)]">
-            Versão das fórmulas: <strong>{data.meta.formulaVersion}</strong>
+            Versão das definições: <strong>{data.meta.formulaVersion}</strong>
           </p>
           <section>
             <h2 className="mb-3 text-lg font-bold">Glossário</h2>
@@ -56,33 +56,22 @@ function Inner() {
             </dl>
           </section>
           <section>
-            <h2 className="mb-3 text-lg font-bold">Catálogo (Fase 1A)</h2>
+            <h2 className="mb-3 text-lg font-bold">Indicadores</h2>
             <div className="space-y-3">
               {data.metrics.map((m) => (
-                <article
-                  key={m.metricId}
-                  className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 text-sm"
-                >
-                  <h3 className="font-bold">
-                    {m.name}{" "}
-                    <span className="font-mono text-xs font-normal text-[var(--text-muted)]">
-                      {m.metricId}
-                    </span>
-                  </h3>
+                <article key={m.metricId} className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 text-sm">
+                  <h3 className="font-bold">{m.name}</h3>
                   <p className="mt-1 text-[var(--text-secondary)]">{m.description}</p>
-                  <p className="mt-2">
-                    <strong>Fórmula:</strong> {m.formula}
-                  </p>
-                  <p>
-                    <strong>Numerador:</strong> {m.numerator}
-                  </p>
-                  <p>
-                    <strong>Denominador:</strong> {m.denominator}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    v{m.formulaVersion} · {m.period} · fonte: {m.source} · página: {m.page}
-                    {m.qualityNotes ? ` · ${m.qualityNotes}` : ""}
-                  </p>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer font-medium">Como este indicador é calculado?</summary>
+                    <p className="mt-1">{m.formula}</p>
+                    <p>Numerador: {m.numerator}</p>
+                    <p>Denominador: {m.denominator}</p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {m.period}
+                      {m.qualityNotes ? ` · ${m.qualityNotes}` : ""}
+                    </p>
+                  </details>
                 </article>
               ))}
             </div>

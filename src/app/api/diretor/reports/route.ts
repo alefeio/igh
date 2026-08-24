@@ -16,12 +16,10 @@ export async function GET() {
         viewer,
       },
       catalog: REPORT_CATALOG,
-      formats: ["json", "csv", "pdf", "xlsx"],
+      formats: ["pdf", "xlsx", "csv", "json"],
       notes: [
-        "Geração sob demanda, sem snapshot.",
-        "Geração sob demanda, sem snapshot. Arquivo devolvido diretamente (não em envelope JSON).",
-        "PDF/XLSX usam pdf-lib e exceljs já existentes no projeto.",
-        "Não há relatório de portfólio de projetos enquanto o cadastro institucional não existir.",
+        "Gere relatórios consolidados com os mesmos indicadores apresentados na área da Direção. Escolha o período e o formato desejado.",
+        "Os arquivos seguem os filtros de ciclo e competência selecionados. Não há relatório de portfólio de projetos enquanto o cadastro institucional não existir.",
       ],
     });
   } catch (e) {

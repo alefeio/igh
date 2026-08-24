@@ -71,7 +71,7 @@ const ITEMS: Item[] = [
   },
   {
     href: "/diretor",
-    label: "Visão Geral (Direção)",
+    label: "Visão Geral",
     roles: DIRECTOR_AREA,
     category: "Direção",
   },
@@ -420,6 +420,9 @@ export function Sidebar({
     /** Overlay de Gerência em /users (papel-base diferente) também vê o menu Gerência. */
     const allowedByGerenciaOverlay = i.category === "Gerência" && user.isAdminManager === true;
     if (!allowedByRole && !allowedByGerenciaOverlay) return false;
+    if (user.role === "DIRECTOR") {
+      if (i.href === "/dashboard" || i.href === "/onboarding") return false;
+    }
     if (i.requiresEmployee && !user.hasEmployeeProfile) return false;
     if (i.employeePositions?.length) {
       if (!user.employeePosition || !i.employeePositions.includes(user.employeePosition)) {

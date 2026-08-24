@@ -72,6 +72,13 @@ export const OPEN_AGE_BUCKET_LABEL: Record<OpenAgeBucket, string> = {
   d91_plus: "Itens em aberto há mais de 90 dias",
 };
 
+export const OPEN_AGE_CHART_LABEL: Record<OpenAgeBucket, string> = {
+  d0_30: "Até 30 dias",
+  d31_60: "31 a 60 dias",
+  d61_90: "61 a 90 dias",
+  d91_plus: "Mais de 90 dias",
+};
+
 export function groupSum(
   rows: Array<{ key: string; amountCents: number }>,
 ): Array<{ key: string; amountCents: number }> {

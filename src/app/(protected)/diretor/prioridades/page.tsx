@@ -9,6 +9,7 @@ import {
   useFetchJson,
 } from "@/components/diretor/DirectorScopeControls";
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
+import { domainLabel, formatUpdatedAt, severityLabel } from "@/lib/diretor/ui-labels";
 
 type PrioritiesData = {
   meta: { dataAsOf: string; generatedAt: string };
@@ -46,7 +47,7 @@ function Inner() {
       <DashboardHero
         eyebrow="Prioridades"
         title="O que exige atenção da Direção?"
-        description="Alertas derivados (sem persistência nesta fase). Sem botões de providência."
+        description="O que exige decisão agora, a partir dos indicadores das páginas temáticas."
         rightSlot={
           <DirectorScopeControls
             cycles={data?.cycles ?? []}
@@ -59,8 +60,7 @@ function Inner() {
       {data ? (
         <>
           <p className="text-sm text-[var(--text-muted)]">
-            Recorte: <strong>{data.cycleLabel}</strong> · dataAsOf{" "}
-            {new Date(data.meta.dataAsOf).toLocaleString("pt-BR")}
+            Recorte: <strong>{data.cycleLabel}</strong> · Dados atualizados em {formatUpdatedAt(data.meta.dataAsOf)}
           </p>
           {data.alerts.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">Nenhum alerta no recorte.</p>
@@ -72,9 +72,9 @@ function Inner() {
                   className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4"
                 >
                   <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                    <span>{a.severity}</span>
+                    <span>{severityLabel(a.severity)}</span>
                     <span>·</span>
-                    <span>{a.domain}</span>
+                    <span>{domainLabel(a.domain)}</span>
                   </div>
                   <h3 className="mt-1 text-base font-bold">{a.title}</h3>
                   <p className="mt-1 text-sm"><strong>Fato:</strong> {a.fact}</p>
@@ -84,7 +84,7 @@ function Inner() {
                     <p className="mt-2 text-sm font-medium">Decisão sugerida: {a.suggestedDecision}</p>
                   ) : null}
                   <p className="mt-2 text-xs text-[var(--text-muted)]">
-                    Fonte: {a.source}
+                    Origem: {a.source}
                     {a.status ? ` · Situação: ${a.status}` : ""}
                     {a.operationalOwner ? ` · Responsável: ${a.operationalOwner}` : ""}
                   </p>

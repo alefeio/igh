@@ -10,6 +10,7 @@ export function metricCard(
     href?: string;
     labelOverride?: string;
     formulaVersion?: string;
+    explanation?: string;
   },
 ): MetricValueDto {
   const def = getMetricDefinition(metricId);
@@ -23,6 +24,7 @@ export function metricCard(
     formulaVersion: opts.formulaVersion ?? def?.formulaVersion ?? FORMULA_VERSION_1C,
     formula: def?.formula ?? "",
     denominator: def?.denominator,
+    explanation: opts.explanation,
     href: opts.href,
   };
 }

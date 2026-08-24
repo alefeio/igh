@@ -10,6 +10,7 @@ export const metricValueSchema = z.object({
   formulaVersion: z.string(),
   formula: z.string(),
   denominator: z.string().optional(),
+  explanation: z.string().optional(),
   href: z.string().optional(),
 });
 

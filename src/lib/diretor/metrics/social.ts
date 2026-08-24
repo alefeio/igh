@@ -7,6 +7,7 @@ import {
   type SessionLike,
 } from "@/lib/diretor/eligible-sessions";
 import { hasStarted } from "@/lib/diretor/metrics/attendance-formulas";
+import { countServedUniqueStudents } from "@/lib/diretor/metrics/attendance-formulas";
 import { metricCard } from "@/lib/diretor/metrics/metric-card";
 import {
   classifyNewVsRecurrent,
@@ -30,6 +31,7 @@ export type SocialBundle = {
   reach: {
     confirmedUnique: number;
     servedUnique: number;
+    servedInCalendarPeriod?: number;
     newServed: number;
     recurrentServed: number;
     multiCourseServed: number;
@@ -135,6 +137,19 @@ async function loadSocialUncached(
     m.set(row.classSessionId, { classSessionId: row.classSessionId, present: true, absenceJustification: null });
   }
 
+  const servedUnique = countServedUniqueStudents(
+    enrollments.map((e) => ({
+      id: e.id,
+      studentId: e.studentId,
+      classGroupId: e.classGroupId,
+      enrolledAt: e.enrolledAt,
+      enrollmentConfirmedAt: e.enrollmentConfirmedAt,
+    })),
+    sessions,
+    attByEnr,
+    asOf,
+  );
+
   const confirmedUnique = new Set(enrollments.filter((e) => !e.isPreEnrollment).map((e) => e.studentId));
   const served = new Set<string>();
   const completers = new Set<string>();
@@ -149,7 +164,7 @@ async function loadSocialUncached(
       return t >= period.from.getTime() && t <= period.to.getTime();
     });
     if (hasStarted(entry, periodSessions, attMap, asOf)) {
-      served.add(e.studentId);
+      served.add(e.studentId); // alcance no intervalo de calendário (novos/recorrentes), não o KPI canônico do ciclo
       const g = cgById.get(e.classGroupId);
       const name =
         g?.poloLocation?.polo?.name?.trim() ||
@@ -225,7 +240,8 @@ async function loadSocialUncached(
   const href = "/diretor/impacto-social";
   const kpis: MetricValueDto[] = [
     metricCard("soc.confirmed_unique", confirmedUnique.size, { quality: "ok", href }),
-    metricCard("soc.served_unique", served.size, { quality: "ok", href }),
+    metricCard("soc.served_unique", servedUnique, { quality: "ok", href }),
+    metricCard("ben.served_unique", servedUnique, { quality: "ok", href }),
     metricCard("soc.computers_donated", computersDonated, { quality: computersTarget == null ? "partial" : "ok", href }),
   ];
 
@@ -266,7 +282,8 @@ async function loadSocialUncached(
       "Meta de pessoas (AnnualGoal.peopleTarget) e atendidos únicos usam definições ainda não equivalentes. Exibidos separadamente, sem percentual de execução e sem alerta de atraso.",
     reach: {
       confirmedUnique: confirmedUnique.size,
-      servedUnique: served.size,
+      servedUnique,
+      servedInCalendarPeriod: served.size,
       newServed: newIds.length,
       recurrentServed: recurrentIds.length,
       multiCourseServed: multiCourseIds.length,

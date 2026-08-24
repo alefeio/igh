@@ -25,18 +25,7 @@ export async function GET(request: Request) {
       alerts: overview.alerts,
       qualityNotes: overview.qualityNotes,
       domainStatus: overview.domainStatus,
-      links: {
-        priorities: "/diretor/prioridades",
-        academic: "/diretor/academico",
-        offer: "/diretor/oferta-territorios",
-        social: "/diretor/impacto-social",
-        financial: "/diretor/financeiro",
-        projects: "/diretor/projetos-convenios",
-        administrative: "/diretor/administrativo",
-        reports: "/diretor/relatorios",
-        guide: "/diretor/guia",
-        legacyDashboard: "/dashboard",
-      },
+      dataQuality: overview.dataQuality,
     });
   } catch (e) {
     return directorApiError(e);

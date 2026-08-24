@@ -1,36 +1,43 @@
 # Checklist de homologação visual — Diretor Fase 1C
 
-Preenchimento pelo responsável. Sem sessão autenticada segura nesta entrega, a homologação **não** está marcada como concluída.
+Redirect **desligado**. Sem sessão autenticada nesta entrega automática, células abaixo ficam para o responsável.
 
-Ambiente: ________________  Data: ________  Papel testado: DIRECTOR / MASTER
+Pastas de evidência local (não versionar binários): `tmp/homologacao-1c/`
 
-## Viewports
+URLs: `/diretor`, `/diretor/prioridades`, `/diretor/academico`, `/diretor/oferta-territorios`, `/diretor/impacto-social`, `/diretor/financeiro`, `/diretor/administrativo`, `/diretor/projetos-convenios`, `/diretor/relatorios`, `/diretor/guia`, `/dashboard`
 
-| Página | 390 px | 768 px | 1366 px | Observações |
-| --- | --- | --- | --- | --- |
-| Visão Geral `/diretor` | ☐ | ☐ | ☐ | |
-| Prioridades | ☐ | ☐ | ☐ | |
-| Acadêmico | ☐ | ☐ | ☐ | |
-| Oferta e Territórios | ☐ | ☐ | ☐ | |
-| Impacto Social | ☐ | ☐ | ☐ | |
-| Financeiro | ☐ | ☐ | ☐ | Sem “vencido” |
-| Administrativo | ☐ | ☐ | ☐ | |
-| Projetos (indisponível) | ☐ | ☐ | ☐ | |
-| Relatórios | ☐ | ☐ | ☐ | JSON/CSV/PDF/XLSX |
-| Guia | ☐ | ☐ | ☐ | |
+| Rota | Perfil | Viewport | Filtros | Gráficos | Tabela | Estados | Resultado | Observação |
+| ---- | ------ | -------: | ------- | -------- | ------ | ------- | --------- | ---------- |
+| /diretor | DIRECTOR | 390 | ciclo + competência | n/a (sem gráficos completos) | n/a | carregar/vazio/parcial | ☐ | máx. 6 KPIs / 5 alertas |
+| /diretor | DIRECTOR | 768 | ciclo + competência | n/a | n/a | | ☐ | |
+| /diretor | DIRECTOR | 1366 | ciclo + competência | n/a | n/a | | ☐ | |
+| /diretor | MASTER | 1366 | | n/a | n/a | banner preview | ☐ | não redireciona de /dashboard |
+| /diretor/prioridades | DIRECTOR | 390 | | n/a | lista de alertas | vazio | ☐ | sem botões de conclusão |
+| /diretor/prioridades | DIRECTOR | 768 | | n/a | | | ☐ | |
+| /diretor/prioridades | DIRECTOR | 1366 | | n/a | | | ☐ | |
+| /diretor/academico | DIRECTOR | 390 | ciclo | título/unidade/período | equivalente | | ☐ | |
+| /diretor/academico | DIRECTOR | 768 | | | | | ☐ | |
+| /diretor/academico | DIRECTOR | 1366 | | | | | ☐ | |
+| /diretor/oferta-territorios | DIRECTOR | 390 | | | | | ☐ | |
+| /diretor/oferta-territorios | DIRECTOR | 768 | | | | | ☐ | |
+| /diretor/oferta-territorios | DIRECTOR | 1366 | | | | | ☐ | |
+| /diretor/impacto-social | DIRECTOR | 390 | | | LGPD &lt;5 | | ☐ | |
+| /diretor/impacto-social | DIRECTOR | 768 | | | | | ☐ | |
+| /diretor/impacto-social | DIRECTOR | 1366 | | | | | ☐ | |
+| /diretor/financeiro | DIRECTOR | 390 | competência | idade em aberto | | | ☐ | sem “vencido” |
+| /diretor/financeiro | DIRECTOR | 768 | | | | | ☐ | |
+| /diretor/financeiro | DIRECTOR | 1366 | | | | | ☐ | |
+| /diretor/administrativo | DIRECTOR | 390 | | | | | ☐ | |
+| /diretor/administrativo | DIRECTOR | 768 | | | | | ☐ | |
+| /diretor/administrativo | DIRECTOR | 1366 | | | | | ☐ | |
+| /diretor/projetos-convenios | DIRECTOR | 390 | | n/a | n/a | indisponível | ☐ | não é zero de portfólio |
+| /diretor/projetos-convenios | MASTER | 1366 | | n/a | n/a | banner | ☐ | |
+| /diretor/relatorios | DIRECTOR | 390 | | n/a | n/a | download blob | ☐ | PDF/XLSX/CSV/JSON |
+| /diretor/relatorios | DIRECTOR | 768 | | n/a | n/a | | ☐ | |
+| /diretor/relatorios | DIRECTOR | 1366 | | n/a | n/a | | ☐ | |
+| /diretor/guia | DIRECTOR | 1366 | | n/a | n/a | | ☐ | alinhado ao catálogo |
+| /dashboard | DIRECTOR | 1366 | | legado | | banner 1C | ☐ | flag false = sem redirect |
+| /dashboard | MASTER | 1366 | | legado | | | ☐ | sem redirect para /diretor |
 
-## Itens transversais
-
-- [ ] Menu e navegação `/diretor/*`
-- [ ] Banner de preview Master (somente MASTER)
-- [ ] Filtros de ciclo e competência preservados nos cards
-- [ ] Contraste e teclado (foco visível, gráficos com tabela equivalente)
-- [ ] Estados: carregando, vazio, indisponível, qualidade parcial, falha parcial, erro
-- [ ] Grupo LGPD `<5` quando aplicável
-- [ ] Relatórios baixam como arquivo (não JSON envelope) com MIME correto
-- [ ] Redirect `DIRECTOR_DASHBOARD_V2_ENABLED` permanece `false` até autorização
-
-## Decisão
-
-- Homologação visual autenticada: ☐ aprovada  ☐ reprovada  ☐ pendente
-- Autorização de redirect: ☐ não (padrão)  ☐ autorizar em reunião posterior
+Homologação visual autenticada: ☐ pendente (responsável)
+Autorização de redirect: ☐ não
