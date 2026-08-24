@@ -28,7 +28,12 @@ type Data = {
     paidOutCents: number;
     netPaidCents: number;
   };
-  apAr: { apCents: number; arCents: number; overdueCents: number; aging: Array<{ bucket: string; amountCents: number }> };
+  apAr: {
+    apCents: number;
+    arCents: number;
+    openAge91PlusCents?: number;
+    aging: Array<{ bucket: string; label?: string; amountCents: number }>;
+  };
   byCategory: Array<{ name: string; kind: string; amountCents: number }>;
   byNature: Array<{ nature: string; amountCents: number }>;
   monthlyPaid: Array<{ month: string; paidInCents: number; paidOutCents: number }>;
@@ -82,9 +87,14 @@ function Inner() {
               quality="ok"
               formula="receitas pagas − despesas pagas"
             />
-            <MetricCard label="Vencidos" value={formatCentsBRL(data.apAr.overdueCents)} quality="ok" formula="abertos vencidos (entryDate)" />
-            <MetricCard label="Contas a pagar" value={formatCentsBRL(data.apAr.apCents)} quality="ok" />
-            <MetricCard label="Contas a receber" value={formatCentsBRL(data.apAr.arCents)} quality="ok" />
+            <MetricCard label="Lançamentos a pagar em aberto" value={formatCentsBRL(data.apAr.apCents)} quality="ok" />
+            <MetricCard label="Lançamentos a receber em aberto" value={formatCentsBRL(data.apAr.arCents)} quality="ok" />
+            <MetricCard
+              label="Em aberto há mais de 90 dias"
+              value={formatCentsBRL(data.apAr.openAge91PlusCents ?? 0)}
+              quality="ok"
+              formula="idadeEmAberto = dataAsOf − entryDate; não é vencimento"
+            />
           </div>
           <ChartWithTable
             title="Receitas recebidas × despesas pagas por mês — a movimentação paga está equilibrada?"
@@ -199,8 +209,8 @@ function Inner() {
             </div>
           </ChartWithTable>
           <ChartWithTable
-            title="Contas em aberto por faixa de vencimento — o que já deveria ter sido liquidado?"
-            formula="estoque aberto; vencimento = entryDate"
+            title="Tempo em aberto desde o lançamento — quais registros estão abertos há mais tempo?"
+            formula="idadeEmAberto = dataAsOf − entryDate (não é atraso)"
             table={
               <table className="w-full text-sm">
                 <thead>
@@ -212,7 +222,7 @@ function Inner() {
                 <tbody>
                   {data.apAr.aging.map((a) => (
                     <tr key={a.bucket}>
-                      <td>{a.bucket}</td>
+                      <td>{a.label ?? a.bucket}</td>
                       <td className="tabular-nums">{formatCentsBRL(a.amountCents)}</td>
                     </tr>
                   ))}

@@ -49,7 +49,7 @@ function Inner() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard label="Colaboradores ativos" value={data.people.activeEmployees} quality="ok" />
             <MetricCard label="Docs pendentes" value={data.people.pendingDocuments} quality="ok" />
-            <MetricCard label="Contratos vencidos" value={data.people.contractsExpired} quality="ok" />
+            <MetricCard label="Contratos com vigência encerrada" value={data.people.contractsExpired} quality="ok" />
             <MetricCard label="A vencer 30/60/90" value={`${data.people.contractsD30}/${data.people.contractsD60}/${data.people.contractsD90}`} quality="ok" />
             <MetricCard label="Estoque zerado" value={data.inventory.zero} quality="ok" />
             <MetricCard label="Abaixo do mínimo" value={data.inventory.belowMin} quality="ok" />

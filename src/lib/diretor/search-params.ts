@@ -80,7 +80,7 @@ export const reportsQuerySchema = z.object({
 
 export const reportsGenerateSchema = z.object({
   type: z.enum(["executive", "academic", "offer", "social", "financial", "administrative"]),
-  format: z.enum(["json", "csv"]).default("json"),
+  format: z.enum(["json", "csv", "pdf", "xlsx"]).default("json"),
   scope: directorScopeSchema.optional(),
   cycleId: uuidOpt,
   competence: ym,

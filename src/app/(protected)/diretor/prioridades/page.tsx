@@ -20,6 +20,8 @@ type PrioritiesData = {
     severity: string;
     title: string;
     fact: string;
+    impact?: string;
+    period?: string;
     suggestedDecision?: string;
     href: string;
     source: string;
@@ -75,7 +77,9 @@ function Inner() {
                     <span>{a.domain}</span>
                   </div>
                   <h3 className="mt-1 text-base font-bold">{a.title}</h3>
-                  <p className="mt-1 text-sm">{a.fact}</p>
+                  <p className="mt-1 text-sm"><strong>Fato:</strong> {a.fact}</p>
+                  {a.impact ? <p className="mt-1 text-sm"><strong>Impacto:</strong> {a.impact}</p> : null}
+                  {a.period ? <p className="mt-1 text-xs text-[var(--text-muted)]">Período: {a.period}</p> : null}
                   {a.suggestedDecision ? (
                     <p className="mt-2 text-sm font-medium">Decisão sugerida: {a.suggestedDecision}</p>
                   ) : null}

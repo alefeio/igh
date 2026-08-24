@@ -19,29 +19,45 @@ function Inner() {
     void load();
   }, [load]);
 
-  async function generate(type: string, format: "json" | "csv") {
+  async function generate(type: string, format: "json" | "csv" | "pdf" | "xlsx") {
     setMsg("Gerando…");
     const res = await fetch("/api/diretor/reports/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, format }),
     });
-    const json = await res.json();
-    if (!res.ok || !json.ok) {
-      setMsg(json?.error?.message ?? "Falha na geração");
+    if (!res.ok) {
+      let message = "Falha na geração";
+      try {
+        const json = await res.json();
+        message = json?.error?.message ?? message;
+      } catch {
+        /* binary error */
+      }
+      setMsg(message);
       return;
     }
-    const blob = new Blob([json.data.body], { type: format === "csv" ? "text/csv;charset=utf-8" : "application/json" });
+    const blob = await res.blob();
+    const cd = res.headers.get("content-disposition") ?? "";
+    const match = /filename="([^"]+)"/.exec(cd);
+    const filename = match?.[1] ?? `diretor-${type}.${format}`;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = json.data.filename;
+    a.download = filename;
     a.click();
-    setMsg(`Gerado ${json.data.filename} (sem snapshot).`);
+    URL.revokeObjectURL(a.href);
+    setMsg(`Gerado ${filename} (sem snapshot).`);
   }
+
+  const formats = (data?.formats ?? ["json", "csv", "pdf", "xlsx"]) as Array<"json" | "csv" | "pdf" | "xlsx">;
 
   return (
     <PanelPageStack>
-      <DashboardHero eyebrow="Relatórios" title="Gerar um recorte sob demanda?" />
+      <DashboardHero
+        eyebrow="Relatórios"
+        title="Qual recorte documentar agora?"
+        description="JSON, CSV, PDF e XLSX sob demanda. Sem snapshot. Sem lista nominal."
+      />
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
       {data?.notes.map((n) => (
         <p key={n} className="text-sm text-[var(--text-muted)]">
@@ -54,13 +70,12 @@ function Inner() {
           <li key={r.type} className="rounded-xl border p-4">
             <p className="font-semibold">{r.title}</p>
             <p className="text-xs text-[var(--text-muted)]">{r.domain}</p>
-            <div className="mt-3 flex gap-2">
-              <Button size="sm" onClick={() => void generate(r.type, "json")}>
-                JSON
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => void generate(r.type, "csv")}>
-                CSV
-              </Button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {formats.map((f) => (
+                <Button key={f} size="sm" variant={f === "pdf" ? "primary" : "secondary"} onClick={() => void generate(r.type, f)}>
+                  {f.toUpperCase()}
+                </Button>
+              ))}
             </div>
           </li>
         ))}

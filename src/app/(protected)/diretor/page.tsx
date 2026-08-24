@@ -58,9 +58,9 @@ function OverviewInner() {
   return (
     <PanelPageStack>
       <DashboardHero
-        eyebrow="Diretoria — Visão Geral (Fase 1B)"
+        eyebrow="Diretoria — Visão Geral"
         title="Como está a instituição agora?"
-        description="Resumo executivo. Filtro de ciclo acadêmico e competência financeira são independentes. Dashboard legado permanece até validação da substituição."
+        description="Até seis indicadores e cinco alertas. Ciclo acadêmico e competência financeira são filtros independentes. O painel legado em /dashboard permanece até autorização do redirect."
         rightSlot={
           <div className="flex flex-col items-end gap-2">
             <DirectorScopeControls
@@ -129,11 +129,15 @@ function OverviewInner() {
 
           <section aria-label="KPIs">
             <h2 className="mb-3 text-lg font-bold">Indicadores do recorte</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {data.kpis.map((k) => (
-                <MetricCard key={k.metricId} {...k} />
-              ))}
-            </div>
+            {data.kpis.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">Nenhum indicador calculável neste recorte.</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {data.kpis.map((k) => (
+                  <MetricCard key={k.metricId} {...k} />
+                ))}
+              </div>
+            )}
           </section>
 
           <section aria-label="Alertas críticos">
@@ -157,7 +161,7 @@ function OverviewInner() {
                     <p className="font-semibold">{a.title}</p>
                     <p className="mt-1">{a.fact}</p>
                     {a.suggestedDecision ? (
-                      <p className="mt-2 text-xs font-medium">Decisão: {a.suggestedDecision}</p>
+                      <p className="mt-2 text-xs font-medium">Decisão sugerida: {a.suggestedDecision}</p>
                     ) : null}
                     <Link href={a.href} className="mt-2 inline-block text-xs font-semibold underline">
                       Abrir contexto

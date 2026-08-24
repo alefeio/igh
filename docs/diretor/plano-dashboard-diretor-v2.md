@@ -175,9 +175,48 @@ Viabilidade por indicador: ver `matriz-cobertura-dados.md`.
 
 Ver §0. Shell `/diretor`, catálogo, sessões canônicas, overview/prioridades/acadêmico/oferta/guia, testes, medição vs monolito, fallback antigo.
 
-### Fase 1B — Completar Fase 1 (após 1A)
+### Fase 1B — Completar Fase 1 (implementada; gate técnico neste ciclo)
 
-Financeiro, administrativo, impacto social, projetos (com disclaimer), relatórios sob demanda, guia enriquecido; ainda sem migrations novas.
+Financeiro, administrativo, impacto social, projetos (indisponibilidade estrutural), relatórios JSON/CSV sob demanda, overview com falha parcial. Sem redirect, sem PDF/XLSX nativos, sem snapshots, sem migrations.
+
+### Fase 1C — Homologação e cutover controlado (não iniciada neste gate)
+
+Somente:
+
+- homologação visual autenticada;
+- benchmark HTTP/TTFB;
+- otimização final dos summaries;
+- PDF e XLSX, se aprovados;
+- atualização do Guia e onboarding;
+- preparação e ativação controlada do redirect `/dashboard` → `/diretor`;
+- estratégia de rollback;
+- depreciação gradual do monólito.
+
+- **Redirect:** `DIRECTOR_DASHBOARD_V2_ENABLED=true` só para o papel `DIRECTOR` de `/dashboard` → `/diretor`. Padrão **desligado**. Master não é redirecionado. Rollback: remover a variável ou `false`. Sem loop: `/diretor` nunca aponta de volta a `/dashboard`.
+
+### Fase 2 — Histórico e gestão por resultados
+
+- Histórico de status da matrícula;
+- motivo estruturado de saída;
+- snapshots mensais;
+- ciclo de vida dos alertas;
+- intervenções contra evasão;
+- cadastro de projetos e convênios institucionais;
+- histórico de equipamentos.
+
+### Fase 3 — Inteligência financeira
+
+- orçamento;
+- fonte de recurso;
+- centro de custo;
+- rateio;
+- previsão;
+- disponibilidade financeira;
+- custo por resultado.
+
+### Fase 4 — Resultados sociais de longo prazo
+
+Acompanhamento de egressos e resultados sociais de longo prazo.
 
 ### Fase 1 — Separação de páginas com dados existentes (visão completa = 1A+1B)
 
@@ -187,26 +226,8 @@ Financeiro, administrativo, impacto social, projetos (com disclaimer), relatóri
 - Evitar migrations salvo correção indispensável aprovada.
 - **Aceite:** cada página carrega só seu domínio; filtros independentes; Visão Geral ≤6 KPIs / ≤5 alertas; Diretor sem acesso Gerência; zero ≠ indisponível.
 
-### Fase 2 — Histórico e gestão por resultados
-
-- Histórico de status de matrícula e/ou motivo estruturado de saída.
-- Intervenções contra evasão (registro).
-- Ampliar metas além de `AnnualGoal` anual genérico (vínculos projeto/polo/período) **ou** novo model se `AnnualGoal` for insuficiente.
-- Histórico de status de equipamento (se necessário ao fluxo real).
-- Snapshots de indicadores / relatório mensal imutável.
-- **Aceite:** retenção/coorte e evasão confirmada com denominadores defensáveis; relatórios com data de referência congelada.
-
-### Fase 3 — Inteligência financeira
-
-- Orçamento, fontes, livre/vinculado, centro de custo, rateio, previsão, meses de reserva, custo por resultado.
-- **Aceite:** indicadores financeiros avançados só aparecem quando campos existirem; nomes contábeis corretos.
-
-### Fase 4 — Resultados sociais
-
-- Diagnóstico × avaliação final; acompanhamento 30/90/180 dias; emprego/renda/continuidade; satisfação parceiros/empregadores.
-- **Aceite:** coleta definida (responsável, instrumento, LGPD); sem causalidade declarada sem método.
-
 ### Fase 5 — Alertas preditivos
+
 
 - Somente com histórico suficiente e validação local.
 - Não rotular regras simples como IA.
@@ -311,3 +332,23 @@ Financeiro completo, administrativo, impacto social completo, projetos/convênio
 
 ### Fase 1B (implementada)
 Loaders independentes; financeiro (entryDate vs paidAt); administrativo; impacto (alcance); projetos informativo; relatórios JSON/CSV; overview com falha parcial. Sem redirect definitivo de `/dashboard`.
+
+### Homologação visual autenticada (obrigatória antes do redirect; não bloqueia o gate técnico 1B)
+
+Não há bypass de autenticação. Sem sessão local segura, o responsável preenche a checklist:
+
+| Rota | Perfil testado | Viewport | Resultado (OK/NOK) | Problema encontrado | Severidade | Evidência | Status da correção |
+|------|----------------|----------|--------------------|---------------------|------------|-----------|--------------------|
+| `/diretor` | DIRECTOR | desktop | | | | | pendente |
+| `/diretor` | MASTER | desktop | | | | | pendente |
+| `/diretor/prioridades` | DIRECTOR | desktop | | | | | pendente |
+| `/diretor/academico` | DIRECTOR | desktop | | | | | pendente |
+| `/diretor/oferta-territorios` | DIRECTOR | desktop | | | | | pendente |
+| `/diretor/impacto-social` | DIRECTOR | desktop | | | | | pendente |
+| `/diretor/financeiro` | DIRECTOR | desktop | | | | | pendente |
+| `/diretor/projetos-convenios` | DIRECTOR | desktop | | | | | pendente |
+| `/diretor/administrativo` | DIRECTOR | desktop | | | | | pendente |
+| `/diretor/relatorios` | DIRECTOR | desktop | | | | | pendente |
+| `/diretor/guia` | DIRECTOR | desktop | | | | | pendente |
+| mesmas rotas | DIRECTOR | mobile | | | | | pendente |
+

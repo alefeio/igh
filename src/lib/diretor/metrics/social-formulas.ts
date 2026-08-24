@@ -4,6 +4,11 @@ export function uniqueIds(ids: string[]): string[] {
   return [...new Set(ids)];
 }
 
+/**
+ * Novo: primeira presença elegível da pessoa ocorreu no período.
+ * Recorrente: atendida no período e já tinha presença elegível antes do início.
+ * Duas matrículas no mesmo período não tornam a pessoa recorrente.
+ */
 export function classifyNewVsRecurrent(params: {
   servedIds: string[];
   previouslyServedIds: string[];
@@ -16,6 +21,15 @@ export function classifyNewVsRecurrent(params: {
     else newIds.push(id);
   }
   return { newIds, recurrentIds };
+}
+
+/** Indicador separado: mais de um curso/turma no recorte. Não altera novo/recorrente. */
+export function multiCourseStudentIds(enrollmentsByStudent: Map<string, Set<string>>): string[] {
+  const ids: string[] = [];
+  for (const [studentId, courses] of enrollmentsByStudent) {
+    if (courses.size > 1) ids.push(studentId);
+  }
+  return ids;
 }
 
 /** Meta de pessoas não é comparável a “atendidos únicos” sem definição institucional. */

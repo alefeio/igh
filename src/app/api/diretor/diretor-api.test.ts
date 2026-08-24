@@ -132,11 +132,82 @@ vi.mock("@/lib/diretor/metrics/projects", () => ({
 }));
 vi.mock("@/lib/diretor/reports/generate", () => ({
   REPORT_CATALOG: [{ type: "executive", title: "Executivo do período", domain: "overview" }],
-  generateDirectorReport: vi.fn(async () => ({
-    format: "json",
-    filename: "diretor-executive.json",
-    body: "{}",
+  generateDirectorReport: vi.fn(async (input: { type: string; format: string }) => ({
+    format: input.format,
+    filename: `diretor-${input.type}.${input.format}`,
+    mime:
+      input.format === "csv"
+        ? "text/csv; charset=utf-8"
+        : input.format === "pdf"
+          ? "application/pdf"
+          : input.format === "xlsx"
+            ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            : "application/json",
+    body: input.format === "csv" ? "campo;valor\r\n'=CMD;ok" : input.format === "pdf" ? "%PDF-1.4" : input.format === "xlsx" ? "PK" : "{}",
     report: { title: "Executivo", institution: "IGH", generatedAt: "x", dataAsOf: "y" },
+  })),
+}));
+
+vi.mock("@/lib/diretor/facts/academic", () => ({
+  loadAcademicExecutiveFacts: vi.fn(async () => ({
+    servedUnique: 0,
+    criticalAbsenceRisk: 0,
+    completionStartedRate: null,
+    periodLabel: "c",
+    quality: [{ domain: "academic", status: "ok" }],
+    qualityNotes: [],
+  })),
+}));
+vi.mock("@/lib/diretor/facts/offer", () => ({
+  loadOfferExecutiveFacts: vi.fn(async () => ({
+    occupancyPercent: 50,
+    emptyClasses: 0,
+    below30: 0,
+    waitlist: 0,
+    periodLabel: "c",
+    quality: [{ domain: "offer", status: "ok" }],
+    qualityNotes: [],
+  })),
+}));
+vi.mock("@/lib/diretor/facts/financial", () => ({
+  loadFinancialExecutiveFacts: vi.fn(async () => ({
+    netPaidCents: 0,
+    apCents: 0,
+    arCents: 0,
+    openAge91PlusCents: 0,
+    periodLabel: "c",
+    quality: [{ domain: "financial", status: "ok" }],
+    qualityNotes: [],
+  })),
+}));
+vi.mock("@/lib/diretor/facts/social", () => ({
+  loadSocialExecutiveFacts: vi.fn(async () => ({
+    computersDonated: 0,
+    computersTarget: null,
+    computersProgressPct: null,
+    periodLabel: "2026",
+    quality: [{ domain: "social", status: "ok" }],
+    qualityNotes: [],
+  })),
+}));
+vi.mock("@/lib/diretor/facts/administrative", () => ({
+  loadAdministrativeExecutiveFacts: vi.fn(async () => ({
+    contractsExpired: 0,
+    pendingDocuments: 0,
+    inventoryZero: 0,
+    inventoryBelowMin: 0,
+    stockCritical: 0,
+    periodLabel: "e",
+    quality: [{ domain: "administrative", status: "ok" }],
+    qualityNotes: [],
+  })),
+}));
+vi.mock("@/lib/diretor/facts/projects", () => ({
+  loadProjectExecutiveFacts: vi.fn(async () => ({
+    unavailable: true,
+    periodLabel: "2026",
+    quality: [{ domain: "projects", status: "unavailable" }],
+    qualityNotes: [],
   })),
 }));
 
@@ -152,6 +223,7 @@ import { GET as getGenerate, POST as postGenerate } from "@/app/api/diretor/repo
 import { GET as getSocial, POST as postSocial } from "@/app/api/diretor/social-impact/route";
 import { GET as getAdmin, POST as postAdmin } from "@/app/api/diretor/administrative/route";
 import { GET as getProjects, POST as postProjects } from "@/app/api/diretor/projects/route";
+import { academicQuerySchema, financialQuerySchema } from "@/lib/diretor/search-params";
 
 const requireDirectorReadMock = vi.mocked(requireDirectorRead);
 
@@ -310,8 +382,110 @@ describe("APIs diretor — autorização e contrato", () => {
       }),
     );
     expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/application\/json/);
+    expect(res.headers.get("content-disposition")).toMatch(/diretor-executive.json/);
     const json = await res.json();
-    expect(json.data.filename).toContain("executive");
-    assertNoPii(json.data);
+    assertNoPii(json);
+  });
+
+  it("1B APIs 401/403/405 e generate headers/tipo inválido", async () => {
+    const directorUser = {
+      id: "u1",
+      name: "Dir",
+      email: "d@x.com",
+      role: "DIRECTOR",
+      isActive: true,
+      mustChangePassword: false,
+      viewer: "DIRECTOR",
+    } as never;
+    const routes401 = [
+      () => getSocial(new Request("http://localhost/api/diretor/social-impact")),
+      () => getFinancial(new Request("http://localhost/api/diretor/financial")),
+      () => getProjects(new Request("http://localhost/api/diretor/projects")),
+      () => getAdmin(new Request("http://localhost/api/diretor/administrative")),
+      () => getReports(),
+      () =>
+        postGenerate(
+          new Request("http://localhost/api/diretor/reports/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "executive", format: "json" }),
+          }),
+        ),
+    ];
+    for (const fn of routes401) {
+      requireDirectorReadMock.mockRejectedValueOnce(new Error("UNAUTHENTICATED"));
+      expect((await fn()).status).toBe(401);
+      requireDirectorReadMock.mockRejectedValueOnce(new Error("FORBIDDEN"));
+      expect((await fn()).status).toBe(403);
+    }
+
+    requireDirectorReadMock.mockResolvedValue(directorUser);
+    expect((await postSocial()).status).toBe(405);
+    expect((await postFinancial()).status).toBe(405);
+    expect((await postProjects()).status).toBe(405);
+    expect((await postAdmin()).status).toBe(405);
+
+    requireDirectorReadMock.mockResolvedValue(directorUser);
+    const badType = await postGenerate(
+      new Request("http://localhost/api/diretor/reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "pdf-secret", format: "json" }),
+      }),
+    );
+    expect(badType.status).toBe(400);
+
+    requireDirectorReadMock.mockResolvedValue(directorUser);
+    const csv = await postGenerate(
+      new Request("http://localhost/api/diretor/reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "executive", format: "csv" }),
+      }),
+    );
+    expect(csv.status).toBe(200);
+    expect(csv.headers.get("content-type")).toMatch(/text\/csv/);
+    expect(csv.headers.get("content-disposition")).toMatch(/attachment; filename="diretor-executive.csv"/);
+    const csvText = await csv.text();
+    assertNoPii(csvText);
+
+    requireDirectorReadMock.mockResolvedValue(directorUser);
+    const pdf = await postGenerate(
+      new Request("http://localhost/api/diretor/reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "executive", format: "pdf" }),
+      }),
+    );
+    expect(pdf.headers.get("content-type")).toMatch(/application\/pdf/);
+    expect(pdf.headers.get("content-disposition")).toMatch(/diretor-executive.pdf/);
+    expect(await pdf.text()).toMatch(/^%PDF/);
+
+    requireDirectorReadMock.mockResolvedValue(directorUser);
+    const xlsx = await postGenerate(
+      new Request("http://localhost/api/diretor/reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "executive", format: "xlsx" }),
+      }),
+    );
+    expect(xlsx.headers.get("content-type")).toMatch(/spreadsheetml/);
+    expect(xlsx.headers.get("content-disposition")).toMatch(/diretor-executive.xlsx/);
+
+    requireDirectorReadMock.mockResolvedValue(directorUser);
+    for (const fn of [
+      () => getSocial(new Request("http://localhost/api/diretor/social-impact")),
+      () => getFinancial(new Request("http://localhost/api/diretor/financial")),
+      () => getProjects(new Request("http://localhost/api/diretor/projects")),
+      () => getAdmin(new Request("http://localhost/api/diretor/administrative")),
+    ]) {
+      const res = await fn();
+      expect(res.status).toBe(200);
+      assertNoPii(await res.json());
+    }
+
+    expect(Object.keys(financialQuerySchema.shape)).not.toContain("cycleId");
+    expect(Object.keys(academicQuerySchema.shape)).not.toContain("competence");
   });
 });

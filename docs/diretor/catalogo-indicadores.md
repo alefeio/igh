@@ -287,3 +287,7 @@ Oportunidade elegível **sem** `SessionAttendance`:
 - streak operacional: sessão sem lançamento é **ignorada** (não incrementa nem zera).
 
 Versão das fórmulas implementadas na 1A: `1A.0.0`.
+Versão 1B: `1B.0.0` (financeiro por `entryDate`/`paidAt`; vencimento operacional = `entryDate` na ausência de `dueDate`; impacto social novo/recorrente por primeira presença elegível).
+
+Roadmap: **1C** = homologação visual, TTFB HTTP, summaries, PDF/XLSX se aprovados, redirect/rollback — sem snapshots nem models novos. **Fase 2** histórico/matrícula/alertas/projetos institucionais. **Fase 3** orçamento/rateio. **Fase 4** egressos.
+

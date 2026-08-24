@@ -18,6 +18,7 @@ export type MetricDefinition = {
 
 export const FORMULA_VERSION_1A = "1A.0.0";
 export const FORMULA_VERSION_1B = "1B.0.0";
+export const FORMULA_VERSION_1C = "1C.0.0";
 
 export const DIRECTOR_METRICS_1A: Record<string, MetricDefinition> = {
   "offer.occupancy.current": {
@@ -311,8 +312,8 @@ export const DIRECTOR_METRICS_1B: Record<string, MetricDefinition> = {
   },
   "fin.ap": {
     metricId: "fin.ap",
-    name: "Contas a pagar",
-    description: "SAIDA em EM_ABERTO ou PENDENTE (estoque atual).",
+    name: "Lançamentos a pagar em aberto",
+    description: "SAIDA em EM_ABERTO ou PENDENTE. Não é conta vencida.",
     formulaVersion: FORMULA_VERSION_1B,
     formula: "Σ amountCents SAIDA aberta",
     numerator: "centavos",
@@ -326,8 +327,8 @@ export const DIRECTOR_METRICS_1B: Record<string, MetricDefinition> = {
   },
   "fin.ar": {
     metricId: "fin.ar",
-    name: "Contas a receber",
-    description: "ENTRADA em EM_ABERTO ou PENDENTE.",
+    name: "Lançamentos a receber em aberto",
+    description: "ENTRADA em EM_ABERTO ou PENDENTE. Não é inadimplência.",
     formulaVersion: FORMULA_VERSION_1B,
     formula: "Σ amountCents ENTRADA aberta",
     numerator: "centavos",
@@ -338,21 +339,6 @@ export const DIRECTOR_METRICS_1B: Record<string, MetricDefinition> = {
     source: "FinancialEntry",
     page: "financeiro",
     desirable: "target",
-  },
-  "fin.overdue": {
-    metricId: "fin.overdue",
-    name: "Valores vencidos",
-    description: "Abertos com status PENDENTE ou entryDate < dataAsOf.",
-    formulaVersion: FORMULA_VERSION_1B,
-    formula: "Σ amountCents vencidos",
-    numerator: "centavos",
-    denominator: "—",
-    unit: "centavos",
-    period: "estoque em dataAsOf",
-    qualityNotes: "Usa vencimento = entryDate.",
-    source: "FinancialEntry",
-    page: "financeiro",
-    desirable: "down",
   },
   "soc.confirmed_unique": {
     metricId: "soc.confirmed_unique",
@@ -416,7 +402,7 @@ export const DIRECTOR_METRICS_1B: Record<string, MetricDefinition> = {
   },
   "adm.contracts.expired": {
     metricId: "adm.contracts.expired",
-    name: "Contratos vencidos",
+    name: "Contratos com vigência encerrada na data de referência",
     description: "EmployeeContract ATIVO com endDate < dataAsOf.",
     formulaVersion: FORMULA_VERSION_1B,
     formula: "count(endDate < dataAsOf)",
@@ -446,10 +432,60 @@ export const DIRECTOR_METRICS_1B: Record<string, MetricDefinition> = {
   },
 };
 
+export const DIRECTOR_METRICS_1C: Record<string, MetricDefinition> = {
+  "fin.open.age_91": {
+    metricId: "fin.open.age_91",
+    name: "Lançamentos em aberto há mais de 90 dias",
+    description:
+      "Soma em centavos de lançamentos EM_ABERTO/PENDENTE com idadeEmAberto = dataAsOf − entryDate > 90. Não é vencimento: o schema não possui dueDate.",
+    formulaVersion: FORMULA_VERSION_1C,
+    formula: "Σ amountCents abertos com (dataAsOf − entryDate) > 90 dias",
+    numerator: "centavos",
+    denominator: "—",
+    unit: "centavos",
+    period: "estoque em dataAsOf",
+    qualityNotes: "Idade do registro em aberto, não atraso.",
+    source: "FinancialEntry.entryDate + paymentStatus",
+    page: "financeiro",
+    desirable: "down",
+  },
+  "fin.ap": {
+    metricId: "fin.ap",
+    name: "Lançamentos a pagar em aberto",
+    description: "SAIDA em EM_ABERTO ou PENDENTE. Não afirma vencimento.",
+    formulaVersion: FORMULA_VERSION_1C,
+    formula: "Σ amountCents SAIDA aberta",
+    numerator: "centavos",
+    denominator: "—",
+    unit: "centavos",
+    period: "estoque em dataAsOf",
+    qualityNotes: "Idade em aberto ≠ atraso. Sem dueDate.",
+    source: "FinancialEntry",
+    page: "financeiro",
+    desirable: "down",
+  },
+  "fin.ar": {
+    metricId: "fin.ar",
+    name: "Lançamentos a receber em aberto",
+    description: "ENTRADA em EM_ABERTO ou PENDENTE. Não é inadimplência.",
+    formulaVersion: FORMULA_VERSION_1C,
+    formula: "Σ amountCents ENTRADA aberta",
+    numerator: "centavos",
+    denominator: "—",
+    unit: "centavos",
+    period: "estoque em dataAsOf",
+    qualityNotes: "Sem dueDate no schema.",
+    source: "FinancialEntry",
+    page: "financeiro",
+    desirable: "target",
+  },
+};
+
 export function getMetricDefinition(metricId: string): MetricDefinition | undefined {
-  return DIRECTOR_METRICS_1B[metricId] ?? DIRECTOR_METRICS_1A[metricId];
+  return DIRECTOR_METRICS_1C[metricId] ?? DIRECTOR_METRICS_1B[metricId] ?? DIRECTOR_METRICS_1A[metricId];
 }
 
 export function listMetricsForGuide(): MetricDefinition[] {
-  return [...Object.values(DIRECTOR_METRICS_1A), ...Object.values(DIRECTOR_METRICS_1B)];
+  const merged = { ...DIRECTOR_METRICS_1A, ...DIRECTOR_METRICS_1B, ...DIRECTOR_METRICS_1C };
+  return Object.values(merged);
 }

@@ -241,24 +241,24 @@ export const ONBOARDING_GUIDES: Record<UserRole, { title: string; contentRich: s
 
   DIRECTOR: {
     title: "Como usar o sistema — Diretor",
-    contentRich: `<h2>Visão geral do perfil Diretor</h2>
-<p>O <strong>Diretor</strong> usa <strong>apenas o dashboard executivo</strong> para tomar decisões: alertas, prioridades, ocupação, frequência, evasão e um resumo institucional. <strong>Não há menu de Gerência</strong> nem acesso a criar, editar ou excluir registros operacionais.</p>
-<p>Somente o <strong>Master</strong> cria e gerencia contas com este perfil.</p>
+    contentRich: `<h2>Área executiva em várias páginas</h2>
+<p>O <strong>Diretor</strong> acompanha a instituição em <strong>/diretor</strong>: Visão Geral, Prioridades, Acadêmico, Oferta, Impacto Social, Financeiro, Projetos, Administrativo, Relatórios e Guia. É somente leitura. Não há menu de Gerência.</p>
+<p>O painel antigo em /dashboard permanece como fallback enquanto o redirect não for autorizado. Master pode pré-visualizar /diretor sem impersonar.</p>
 
-<h2>Início</h2>
-<h3>Página Inicial</h3>
-<p>Comece por <strong>Prioridades agora</strong> (alertas com orientação de decisão). Em seguida veja os indicadores-chave, a evolução semanal e os sinais da operação administrativa. Filtre por <strong>ciclo atual</strong>, <strong>relatório geral</strong> ou <strong>outro ciclo</strong>.</p>
-<h3>Como usar o sistema</h3>
-<p>Esta página.</p>
-
-<h2>O que este perfil não faz</h2>
-<p>Não acessa as páginas da Gerência (colaboradores, financeiro, folha, almoxarifado, doações etc.). A execução fica com a Gerência Administrativa; o Diretor acompanha pelos alertas e números consolidados do painel.</p>
+<h2>Como ler os números</h2>
+<ul>
+<li><strong>Matrícula</strong> não é a mesma coisa que <strong>pessoa atendida</strong> (presença elegível).</li>
+<li><strong>Risco por faltas</strong> não é evasão confirmada.</li>
+<li><strong>Lançamentos pagos</strong> não são saldo bancário.</li>
+<li><strong>Tempo em aberto desde o lançamento</strong> não é vencimento: não há data de vencimento no cadastro.</li>
+<li><strong>Zero</strong> é quantidade medida; <strong>indisponível</strong> é falta de cadastro (ex.: projetos).</li>
+</ul>
 
 <h2>Boas práticas</h2>
 <ul>
-<li>Trate primeiro os alertas em âmbar: evasão (4 faltas), ocupação crítica, folha e documentos pendentes.</li>
-<li>Frequência considera apenas aulas já ocorridas.</li>
-<li>Peça encaminhamento à equipe a partir da orientação “Decisão” de cada alerta.</li>
+<li>Comece pela Visão Geral e pelos alertas; abra a página temática pelo link do card.</li>
+<li>Use o ciclo só para o acadêmico; use competência no financeiro.</li>
+<li>Gere relatórios sob demanda (JSON, CSV, PDF, XLSX) quando precisar documentar um recorte — nada é gravado como snapshot.</li>
 </ul>`,
   },
 

@@ -88,6 +88,17 @@ export async function loadProjects(filters: ProjectsFilters, viewer: "DIRECTOR" 
 }
 
 export async function summarizeProjects(filters: ProjectsFilters, viewer: "DIRECTOR" | "MASTER") {
-  const b = await loadProjects(filters, viewer);
-  return { unavailable: true as const, year: b.meta.filters.year, quality: b.meta.quality };
+  void viewer;
+  return cachedDirector(["projects-summary", filters.year], async () => ({
+    unavailable: true as const,
+    year: filters.year ?? String(new Date().getUTCFullYear()),
+    quality: [
+      {
+        domain: "projects",
+        status: "unavailable" as const,
+        note: "Cadastro de projetos/convênios institucionais inexistente.",
+      },
+    ],
+    qualityNotes: ["Portfólio de projetos não modelado — nenhum zero exibido como quantidade real."],
+  }));
 }

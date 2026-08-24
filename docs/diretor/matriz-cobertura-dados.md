@@ -163,14 +163,17 @@ Fontes principais auditadas: `prisma/schema.prisma`, `src/lib/director-dashboard
 
 | Item | Situação | Ação |
 |------|----------|------|
-| Export sob demanda | DERIVÁVEL | Fase 1 PDF/Excel read-only |
-| Snapshot imutável | NOVO_MODELO | Fase 2 `IndicatorSnapshot` / `DirectorReport` |
+| Export sob demanda | DERIVÁVEL | Fase 1B JSON/CSV; PDF/XLSX só na Fase 1C se aprovados |
+| Snapshot imutável | NOVO_MODELO | Fase 2 `IndicatorSnapshot` / `DirectorReport` (fora da 1C) |
 | Catálogo de indicadores no código | NOVO (código, não DB) | Fase 1 módulo TS compartilhado |
 | Histórico execução cron | NOVO_MODELO | Fase 2 |
 | EnrollmentStatusHistory | NOVO_MODELO | Fase 2 |
 | Motivo saída | NOVO_MODELO | Fase 2 |
 | Orçamento / fonte / CC | NOVO_MODELO | Fase 3 |
 | EgressoFollowUp | NOVO_MODELO + NOVA_COLETA | Fase 4 |
+
+**Fase 1C não inclui** models novos nem migrations (`InstitutionalProject`, `GrantAgreement`, orçamento, snapshots persistentes).
+
 
 ---
 

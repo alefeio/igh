@@ -96,8 +96,8 @@ GET /api/diretor/financial
 GET /api/diretor/projects
 GET /api/diretor/administrative
 GET /api/diretor/reports                # lista / metadados
-POST /api/diretor/reports/generate     # read-only generation (sem mutar domínio operacional)
-GET /api/diretor/reports/[id]          # snapshot (Fase 2)
+POST /api/diretor/reports/generate     # JSON/CSV sob demanda (sem snapshot; PDF/XLSX só na Fase 1C se aprovados)
+GET /api/diretor/reports/[id]          # snapshot persistente (Fase 2 — fora da 1C)
 GET /api/diretor/guide                 # catálogo serializado para UI do guia
 ```
 
@@ -395,3 +395,12 @@ Cache: `cachedDirector` com chave por domínio e filtros. Relatórios: JSON/CSV 
 `InstitutionalProject` (previsto): nome, vigência, financiador, metas, orçamento, responsáveis, status, prestação de contas.
 
 `GrantAgreement` (previsto): vínculo a projeto, financiador, período, valores acordados — **não** usar `PaymentAgreement` (Kanban de colaboradores).
+
+**Fase 1C (após homologação técnica 1B):** homologação visual autenticada; benchmark HTTP/TTFB; otimização final dos summaries; PDF/XLSX se aprovados; Guia/onboarding; redirect controlado + rollback; depreciação gradual do monólito. **Não** incluir na 1C: `IndicatorSnapshot`, `DirectorReport` persistente, `InstitutionalProject`, `GrantAgreement`, orçamento, models novos, migrations.
+
+**Fase 2:** histórico de status da matrícula; motivo estruturado de saída; snapshots mensais; ciclo de vida dos alertas; intervenções contra evasão; cadastro de projetos e convênios; histórico de equipamentos.
+
+**Fase 3:** orçamento; fonte de recurso; centro de custo; rateio; previsão; disponibilidade financeira; custo por resultado.
+
+**Fase 4:** acompanhamento de egressos e resultados sociais de longo prazo.
+

@@ -1,14 +1,14 @@
 import "server-only";
 
-import { FORMULA_VERSION_1B } from "@/lib/diretor/catalog/definitions";
+import { FORMULA_VERSION_1B, FORMULA_VERSION_1C } from "@/lib/diretor/catalog/definitions";
 import { cachedDirector } from "@/lib/diretor/cache";
 import { metricCard } from "@/lib/diretor/metrics/metric-card";
 import {
-  agingBucket,
-  isOverdue,
   isOpenPayableOrReceivable,
   isPaidWithoutPaidAt,
   netPaidMovementCents,
+  openAgeBucket,
+  OPEN_AGE_BUCKET_LABEL,
   paidInPeriod,
   postedInPeriod,
   sumCents,
@@ -41,8 +41,8 @@ export type FinancialBundle = {
   apAr: {
     apCents: number;
     arCents: number;
-    overdueCents: number;
-    aging: Array<{ bucket: string; amountCents: number }>;
+    aging: Array<{ bucket: string; label: string; amountCents: number }>;
+    openAge91PlusCents: number;
   };
   byCategory: Array<{ name: string; kind: string; amountCents: number }>;
   byNature: Array<{ nature: string; amountCents: number }>;
@@ -62,7 +62,7 @@ export type FinancialBundle = {
 
 export type FinancialSummary = {
   netPaidCents: number;
-  overdueCents: number;
+  openAge91PlusCents: number;
   qualityNotes: string[];
   quality: ResponseMetaDto["quality"];
   alerts: DerivedAlertDto[];
@@ -134,7 +134,7 @@ async function loadFinancialUncached(
   const open = rows.filter((r) => isOpenPayableOrReceivable(r.paymentStatus));
   const ap = open.filter((r) => r.kind === "SAIDA");
   const ar = open.filter((r) => r.kind === "ENTRADA");
-  const overdue = open.filter((r) => isOverdue(r, asOf));
+  const age91 = open.filter((r) => openAgeBucket(r.entryDate, asOf) === "d91_plus");
 
   const paidNoDate = rows.filter(isPaidWithoutPaidAt).length;
   const noCategory = posted.filter((r) => !r.categoryId).length;
@@ -186,7 +186,7 @@ async function loadFinancialUncached(
 
   const agingMap = new Map<string, number>();
   for (const r of open) {
-    const b = agingBucket(r.entryDate, asOf);
+    const b = openAgeBucket(r.entryDate, asOf);
     agingMap.set(b, (agingMap.get(b) ?? 0) + r.amountCents);
   }
 
@@ -213,26 +213,26 @@ async function loadFinancialUncached(
     metricCard("fin.posted.out", postedOutCents, { quality: "ok", href }),
     metricCard("fin.paid.out", paidOutCents, { quality: paidNoDate ? "partial" : "ok", href }),
     metricCard("fin.net.paid", netPaidCents, { quality: "ok", href }),
-    metricCard("fin.overdue", sumCents(overdue), { quality: "ok", href }),
+    metricCard("fin.open.age_91", sumCents(age91), { quality: "ok", href }),
   ];
 
   const alerts: DerivedAlertDto[] = [];
-  const overdueCents = sumCents(overdue);
-  if (overdueCents > 0) {
+  const openAge91PlusCents = sumCents(age91);
+  if (openAge91PlusCents > 0) {
     alerts.push({
-      id: "fin-overdue",
-      ruleId: "fin.overdue_open",
-      ruleVersion: FORMULA_VERSION_1B,
+      id: "fin-open-age-90",
+      ruleId: "fin.open_age_91",
+      ruleVersion: FORMULA_VERSION_1C,
       domain: "financial",
       severity: "attention",
-      title: "Pagamentos ou recebimentos vencidos",
-      fact: `${overdueCents} centavos em lançamentos abertos vencidos (critério entryDate / PENDENTE).`,
-      value: overdueCents,
+      title: "Lançamentos em aberto há mais de 90 dias",
+      fact: `Existem lançamentos em aberto há mais de 90 dias (${openAge91PlusCents} centavos). Decisão sugerida: solicitar à equipe financeira a revisão da situação desses registros.`,
+      value: openAge91PlusCents,
       period: period.label,
-      impact: "Obrigações ou recebíveis em atraso.",
-      suggestedDecision: "Priorizar regularização dos vencidos com a gerência.",
+      impact: "Idade elevada do registro em aberto — não significa vencimento (não há dueDate).",
+      suggestedDecision: "Solicitar à equipe financeira a revisão da situação desses registros.",
       href,
-      source: "FinancialEntry.paymentStatus + entryDate",
+      source: "FinancialEntry.entryDate (idade em aberto)",
       status: "não acompanhado pelo sistema",
     });
   }
@@ -262,7 +262,7 @@ async function loadFinancialUncached(
       dataAsOf: asOf.toISOString(),
       filters: { ...filters, periodFrom: period.from.toISOString(), periodTo: period.to.toISOString(), dateBasisPosted: "entryDate", dateBasisPaid: "paidAt" },
       quality,
-      formulaVersion: FORMULA_VERSION_1B,
+      formulaVersion: FORMULA_VERSION_1C,
       viewer,
     },
     kpis,
@@ -272,8 +272,12 @@ async function loadFinancialUncached(
     apAr: {
       apCents: sumCents(ap),
       arCents: sumCents(ar),
-      overdueCents,
-      aging: [...agingMap.entries()].map(([bucket, amountCents]) => ({ bucket, amountCents })),
+      openAge91PlusCents,
+      aging: [...agingMap.entries()].map(([bucket, amountCents]) => ({
+        bucket,
+        label: OPEN_AGE_BUCKET_LABEL[bucket as keyof typeof OPEN_AGE_BUCKET_LABEL] ?? bucket,
+        amountCents,
+      })),
     },
     byCategory: [...byCatMap.values()],
     byNature: [...byNatureMap.entries()].map(([nature, amountCents]) => ({ nature, amountCents })),
@@ -311,7 +315,7 @@ export async function summarizeFinancial(
   const b = await loadFinancial(filters, viewer);
   return {
     netPaidCents: b.movement.netPaidCents,
-    overdueCents: b.apAr.overdueCents,
+    openAge91PlusCents: b.apAr.openAge91PlusCents,
     qualityNotes: b.qualityNotes,
     quality: b.meta.quality,
     alerts: b.alerts,

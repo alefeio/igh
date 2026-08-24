@@ -7,9 +7,8 @@ import { metricCard } from "@/lib/diretor/metrics/metric-card";
 import {
   contractHorizon,
   daysSince,
-  isBelowMinStock,
+  inventoryStockBand,
   isStaleMovement,
-  isZeroStock,
 } from "@/lib/diretor/metrics/admin-formulas";
 import { resolvePeriod } from "@/lib/diretor/period";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
@@ -33,6 +32,7 @@ export type AdministrativeBundle = {
   inventory: {
     belowMin: number;
     zero: number;
+    aboveMin: number;
     stale: number;
     byCategory: Array<{ category: string; items: number; quantity: number }>;
   };
@@ -110,6 +110,7 @@ async function loadAdministrativeUncached(
   });
   let belowMin = 0;
   let zero = 0;
+  let aboveMin = 0;
   let stale = 0;
   const catMap = new Map<string, { items: number; quantity: number; belowMin: number; zero: number }>();
   for (const it of items) {
@@ -117,12 +118,15 @@ async function loadAdministrativeUncached(
     const cur = catMap.get(cat) ?? { items: 0, quantity: 0, belowMin: 0, zero: 0 };
     cur.items += 1;
     cur.quantity += it.quantityOnHand;
-    if (isZeroStock(it.quantityOnHand)) {
+    const band = inventoryStockBand(it.quantityOnHand, it.minStock);
+    if (band === "zero") {
       zero += 1;
       cur.zero += 1;
-    } else if (isBelowMinStock(it.quantityOnHand, it.minStock)) {
+    } else if (band === "at_or_below_min") {
       belowMin += 1;
       cur.belowMin += 1;
+    } else {
+      aboveMin += 1;
     }
     const last = it.movements[0]?.createdAt ?? null;
     if (isStaleMovement(last, asOf, 90)) stale += 1;
@@ -153,15 +157,14 @@ async function loadAdministrativeUncached(
     select: { createdAt: true },
   });
 
-  const commsByDay = await prisma.emailOutbox.groupBy({
-    by: ["createdAt"],
+  const failedRows = await prisma.emailOutbox.findMany({
     where: { status: "FAILED", createdAt: { gte: period.from, lte: period.to } },
-    _count: { id: true },
+    select: { createdAt: true },
   });
   const commsMap = new Map<string, number>();
-  for (const r of commsByDay) {
+  for (const r of failedRows) {
     const d = r.createdAt.toISOString().slice(0, 10);
-    commsMap.set(d, (commsMap.get(d) ?? 0) + r._count.id);
+    commsMap.set(d, (commsMap.get(d) ?? 0) + 1);
   }
 
   if (quality.length === 0) quality.push({ domain: "administrative", status: "ok" });
@@ -175,7 +178,7 @@ async function loadAdministrativeUncached(
       ruleVersion: FORMULA_VERSION_1B,
       domain: "administrative",
       severity: "attention",
-      title: "Contratos vencidos",
+      title: "Contratos com vigência encerrada na data de referência",
       fact: `${contractsExpired} contrato(s) ATIVO com endDate anterior a dataAsOf.`,
       value: contractsExpired,
       period: "estoque",
@@ -295,6 +298,7 @@ async function loadAdministrativeUncached(
     inventory: {
       belowMin,
       zero,
+      aboveMin,
       stale,
       byCategory: [...catMap.entries()].map(([category, v]) => ({
         category,

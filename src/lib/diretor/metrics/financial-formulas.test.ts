@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  isOverdue,
+  isOpenPayableOrReceivable,
   isPaidWithoutPaidAt,
   netPaidMovementCents,
+  openAgeBucket,
+  openAgeDays,
   paidInPeriod,
   postedInPeriod,
   sumCents,
@@ -28,7 +30,7 @@ function row(p: Partial<FinRow>): FinRow {
   };
 }
 
-describe("fórmulas financeiras", () => {
+describe("fórmulas financeiras 1C", () => {
   it("soma em centavos sem perda", () => {
     expect(sumCents([{ amountCents: 199 }, { amountCents: 1 }])).toBe(200);
   });
@@ -52,13 +54,31 @@ describe("fórmulas financeiras", () => {
   it("deletedAt é excluído", () => {
     const r = row({ deletedAt: new Date() });
     expect(postedInPeriod(r, from, to)).toBe(false);
-    expect(paidInPeriod(r, from, to)).toBe(false);
   });
 
-  it("vencido PENDENTE", () => {
-    expect(
-      isOverdue(row({ paymentStatus: "PENDENTE", entryDate: new Date("2026-08-01") }), new Date("2026-08-20")),
-    ).toBe(true);
+  it("lançamento em aberto não depende de paidAt", () => {
+    const r = row({ paymentStatus: "EM_ABERTO", paidAt: null });
+    expect(isOpenPayableOrReceivable(r.paymentStatus)).toBe(true);
+  });
+
+  it("idade em aberto = dataAsOf − entryDate (não é vencimento)", () => {
+    const asOf = new Date("2026-08-20T00:00:00.000Z");
+    expect(openAgeDays(new Date("2026-08-10T00:00:00.000Z"), asOf)).toBe(10);
+  });
+
+  it("buckets de idade exclusivos sem a_vencer", () => {
+    const asOf = new Date("2026-08-31T00:00:00.000Z");
+    expect(openAgeBucket(new Date("2026-08-20T00:00:00.000Z"), asOf)).toBe("d0_30");
+    expect(openAgeBucket(new Date("2026-07-20T00:00:00.000Z"), asOf)).toBe("d31_60");
+    expect(openAgeBucket(new Date("2026-06-20T00:00:00.000Z"), asOf)).toBe("d61_90");
+    expect(openAgeBucket(new Date("2026-05-01T00:00:00.000Z"), asOf)).toBe("d91_plus");
+    expect(openAgeBucket(new Date("2026-09-10T00:00:00.000Z"), asOf)).toBe("d0_30");
+  });
+
+  it("módulo não exporta isOverdue nem a_vencer", async () => {
+    const mod = await import("@/lib/diretor/metrics/financial-formulas");
+    expect("isOverdue" in mod).toBe(false);
+    expect("agingBucket" in mod).toBe(false);
   });
 
   it("movimentação líquida", () => {

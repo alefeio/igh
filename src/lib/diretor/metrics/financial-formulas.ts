@@ -1,4 +1,4 @@
-/** Fórmulas financeiras em centavos. Não misturar entryDate com paidAt. */
+/** Fórmulas financeiras em centavos. Não misturar entryDate com paidAt. Sem dueDate no schema. */
 
 export type FinKind = "ENTRADA" | "SAIDA";
 export type FinStatus = "EM_ABERTO" | "PAGO" | "PENDENTE";
@@ -50,21 +50,27 @@ export function isOpenPayableOrReceivable(status: FinStatus): boolean {
   return status === "EM_ABERTO" || status === "PENDENTE";
 }
 
-/** Vencido: PENDENTE ou EM_ABERTO com entryDate (vencimento) < asOf. */
-export function isOverdue(row: Pick<FinRow, "paymentStatus" | "entryDate" | "deletedAt">, asOf: Date): boolean {
-  if (row.deletedAt) return false;
-  if (row.paymentStatus === "PAGO") return false;
-  if (row.paymentStatus === "PENDENTE") return true;
-  return row.entryDate.getTime() < asOf.getTime();
+/** Idade em aberto = dataAsOf − entryDate. Não é atraso nem vencimento. */
+export function openAgeDays(entryDate: Date, asOf: Date): number {
+  return Math.floor((asOf.getTime() - entryDate.getTime()) / 86400000);
 }
 
-export function agingBucket(entryDate: Date, asOf: Date): "a_vencer" | "0_30" | "31_60" | "61_plus" {
-  const days = Math.floor((asOf.getTime() - entryDate.getTime()) / 86400000);
-  if (days < 0) return "a_vencer";
-  if (days <= 30) return "0_30";
-  if (days <= 60) return "31_60";
-  return "61_plus";
+export type OpenAgeBucket = "d0_30" | "d31_60" | "d61_90" | "d91_plus";
+
+export function openAgeBucket(entryDate: Date, asOf: Date): OpenAgeBucket {
+  const days = Math.max(0, openAgeDays(entryDate, asOf));
+  if (days <= 30) return "d0_30";
+  if (days <= 60) return "d31_60";
+  if (days <= 90) return "d61_90";
+  return "d91_plus";
 }
+
+export const OPEN_AGE_BUCKET_LABEL: Record<OpenAgeBucket, string> = {
+  d0_30: "Itens em aberto há até 30 dias",
+  d31_60: "Itens em aberto há 31–60 dias",
+  d61_90: "Itens em aberto há 61–90 dias",
+  d91_plus: "Itens em aberto há mais de 90 dias",
+};
 
 export function groupSum(
   rows: Array<{ key: string; amountCents: number }>,

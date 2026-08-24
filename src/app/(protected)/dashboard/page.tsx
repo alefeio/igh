@@ -1139,12 +1139,16 @@ export default async function DashboardPage() {
     redirect("/enrollments");
   }
   if (user.role === "DIRECTOR") {
+    const { isDirectorDashboardV2Enabled } = await import("@/lib/diretor/dashboard-v2-flag");
+    if (isDirectorDashboardV2Enabled()) {
+      redirect("/diretor");
+    }
     return (
       <div className="flex flex-col gap-4">
         <div className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
           Nova área executiva em validação:{" "}
           <Link href="/diretor" className="font-semibold underline">
-            abrir /diretor (Fase 1B)
+            abrir /diretor (Fase 1C)
           </Link>
           . Este painel legado permanece como fallback até o redirect definitivo.
         </div>

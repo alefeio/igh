@@ -19,6 +19,21 @@ export function isZeroStock(quantityOnHand: number): boolean {
   return quantityOnHand <= 0;
 }
 
+/** Acima do mínimo (ou sem mínimo informado). Mutuamente exclusivo com zerado e abaixo/no mínimo. */
+export function isAboveMinStock(quantityOnHand: number, minStock: number): boolean {
+  if (isZeroStock(quantityOnHand) || isBelowMinStock(quantityOnHand, minStock)) return false;
+  return true;
+}
+
+export function inventoryStockBand(
+  quantityOnHand: number,
+  minStock: number,
+): "zero" | "at_or_below_min" | "above_min" {
+  if (isZeroStock(quantityOnHand)) return "zero";
+  if (isBelowMinStock(quantityOnHand, minStock)) return "at_or_below_min";
+  return "above_min";
+}
+
 export function isStaleMovement(lastMovementAt: Date | null, asOf: Date, days = 90): boolean {
   if (!lastMovementAt) return true;
   return asOf.getTime() - lastMovementAt.getTime() > days * 86400000;

@@ -16,10 +16,11 @@ export async function GET() {
         viewer,
       },
       catalog: REPORT_CATALOG,
-      formats: ["json", "csv"],
+      formats: ["json", "csv", "pdf", "xlsx"],
       notes: [
         "Geração sob demanda, sem snapshot.",
-        "PDF/XLSX nativos não são gerados neste endpoint: o projeto já possui pdf-lib e exceljs, mas a entrega 1B usa JSON e CSV confiáveis já existentes (csv-export).",
+        "Geração sob demanda, sem snapshot. Arquivo devolvido diretamente (não em envelope JSON).",
+        "PDF/XLSX usam pdf-lib e exceljs já existentes no projeto.",
         "Não há relatório de portfólio de projetos enquanto o cadastro institucional não existir.",
       ],
     });

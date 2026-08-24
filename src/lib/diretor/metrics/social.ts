@@ -1,6 +1,6 @@
 import "server-only";
 
-import { FORMULA_VERSION_1B } from "@/lib/diretor/catalog/definitions";
+import { FORMULA_VERSION_1C } from "@/lib/diretor/catalog/definitions";
 import { cachedDirector } from "@/lib/diretor/cache";
 import {
   assessSessionQuality,
@@ -12,6 +12,7 @@ import {
   classifyNewVsRecurrent,
   computersProgress,
   lgpdCount,
+  multiCourseStudentIds,
   peopleGoalComparable,
 } from "@/lib/diretor/metrics/social-formulas";
 import { resolveDirectorScope } from "@/lib/diretor/load-scope";
@@ -31,6 +32,7 @@ export type SocialBundle = {
     servedUnique: number;
     newServed: number;
     recurrentServed: number;
+    multiCourseServed: number;
     completersUnique: number;
     certificatesIssued: number;
     territories: Array<{ name: string; served: number | string }>;
@@ -137,7 +139,6 @@ async function loadSocialUncached(
   const served = new Set<string>();
   const completers = new Set<string>();
   const terrServed = new Map<string, Set<string>>();
-  const sessionById = new Map(sessions.map((s) => [s.id, s]));
   const cgById = new Map(classGroups.map((g) => [g.id, g]));
 
   for (const e of enrollments) {
@@ -163,18 +164,30 @@ async function loadSocialUncached(
   }
 
   const previouslyServed = new Set<string>();
-  for (const e of enrollments) {
-    const attMap = attByEnr.get(e.id);
-    if (!attMap) continue;
-    for (const [sid] of attMap) {
-      const s = sessionById.get(sid);
-      if (s && s.sessionDate.getTime() < period.from.getTime()) previouslyServed.add(e.studentId);
-    }
+  if (served.size > 0) {
+    const prior = await prisma.sessionAttendance.findMany({
+      where: {
+        present: true,
+        enrollment: { studentId: { in: [...served] } },
+        classSession: { status: "LIBERADA", sessionDate: { lt: period.from } },
+      },
+      select: { enrollment: { select: { studentId: true } } },
+    });
+    for (const row of prior) previouslyServed.add(row.enrollment.studentId);
   }
   const { newIds, recurrentIds } = classifyNewVsRecurrent({
     servedIds: [...served],
     previouslyServedIds: [...previouslyServed],
   });
+
+  const courseByStudent = new Map<string, Set<string>>();
+  for (const e of enrollments) {
+    if (!served.has(e.studentId)) continue;
+    const set = courseByStudent.get(e.studentId) ?? new Set();
+    set.add(e.classGroupId);
+    courseByStudent.set(e.studentId, set);
+  }
+  const multiCourseIds = multiCourseStudentIds(courseByStudent);
 
   const certificatesIssued = enrollments.filter(
     (e) => e.certificateIssuedAt && e.certificateIssuedAt >= period.from && e.certificateIssuedAt <= period.to,
@@ -221,7 +234,7 @@ async function loadSocialUncached(
     alerts.push({
       id: "soc-computers-goal",
       ruleId: "soc.computers_below_target",
-      ruleVersion: FORMULA_VERSION_1B,
+      ruleVersion: FORMULA_VERSION_1C,
       domain: "social",
       severity: "info",
       title: "Meta de computadores ainda não atingida",
@@ -243,7 +256,7 @@ async function loadSocialUncached(
       dataAsOf: asOf.toISOString(),
       filters: { ...filters, cycleLabel: scope.cycleLabel, periodFrom: period.from.toISOString(), periodTo: period.to.toISOString() },
       quality,
-      formulaVersion: FORMULA_VERSION_1B,
+      formulaVersion: FORMULA_VERSION_1C,
       viewer,
     },
     kpis,
@@ -256,6 +269,7 @@ async function loadSocialUncached(
       servedUnique: served.size,
       newServed: newIds.length,
       recurrentServed: recurrentIds.length,
+      multiCourseServed: multiCourseIds.length,
       completersUnique: completers.size,
       certificatesIssued,
       territories: [...terrServed.entries()].map(([name, set]) => ({ name, served: lgpdCount(set.size) })),
@@ -301,4 +315,33 @@ export async function summarizeSocial(filters: SocialFilters, viewer: "DIRECTOR"
     qualityNotes: b.qualityNotes,
     alerts: b.alerts,
   };
+}
+
+/** Cards da home: equipamentos vs meta, sem recarregar frequência/listas temáticas. */
+export async function summarizeSocialOverview(viewer: "DIRECTOR" | "MASTER", asOf = new Date()) {
+  return cachedDirector(["social-overview", viewer], async () => {
+    const year = asOf.getUTCFullYear();
+    const yb = yearBounds(year);
+    const donations = await prisma.donation.findMany({
+      where: { deletedAt: null, status: "CONFIRMADA", donatedAt: { gte: yb.from, lte: yb.to } },
+      select: { kitsCount: true },
+    });
+    const computersDonated = donations.reduce((a, d) => a + (d.kitsCount || 0), 0);
+    const goal = await prisma.annualGoal.findUnique({ where: { year } });
+    const computersTarget = goal?.computersTarget ?? null;
+    const computersProgressPct = computersProgress(computersDonated, computersTarget ?? 0);
+    const qualityNotes = peopleGoalComparable()
+      ? []
+      : [
+          "A meta AnnualGoal.peopleTarget não está comprovadamente na mesma definição de “atendidos únicos”; percentual de execução não é calculado.",
+        ];
+    return {
+      computersDonated,
+      computersTarget,
+      computersProgressPct,
+      quality: [{ domain: "social", status: "ok" as const }],
+      qualityNotes,
+      alerts: [] as SocialBundle["alerts"],
+    };
+  });
 }

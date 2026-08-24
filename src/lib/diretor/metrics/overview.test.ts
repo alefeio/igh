@@ -1,34 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 vi.mock("server-only", () => ({}));
 
-vi.mock("@/lib/diretor/metrics/academic", () => ({
-  summarizeAcademic: vi.fn(),
-}));
-vi.mock("@/lib/diretor/metrics/offer", () => ({
-  summarizeOffer: vi.fn(),
-}));
-vi.mock("@/lib/diretor/metrics/financial", () => ({
-  summarizeFinancial: vi.fn(),
-}));
-vi.mock("@/lib/diretor/metrics/social", () => ({
-  summarizeSocial: vi.fn(),
-}));
-vi.mock("@/lib/diretor/metrics/administrative", () => ({
-  summarizeAdministrative: vi.fn(),
-}));
+vi.mock("@/lib/diretor/facts/academic", () => ({ loadAcademicExecutiveFacts: vi.fn() }));
+vi.mock("@/lib/diretor/facts/offer", () => ({ loadOfferExecutiveFacts: vi.fn() }));
+vi.mock("@/lib/diretor/facts/financial", () => ({ loadFinancialExecutiveFacts: vi.fn() }));
+vi.mock("@/lib/diretor/facts/social", () => ({ loadSocialExecutiveFacts: vi.fn() }));
+vi.mock("@/lib/diretor/facts/administrative", () => ({ loadAdministrativeExecutiveFacts: vi.fn() }));
+vi.mock("@/lib/diretor/facts/projects", () => ({ loadProjectExecutiveFacts: vi.fn() }));
 vi.mock("@/lib/employees", () => ({
   formatCentsBRL: (n: number) => `R$ ${(n / 100).toFixed(2)}`,
 }));
 
-import { summarizeAcademic } from "@/lib/diretor/metrics/academic";
-import { summarizeAdministrative } from "@/lib/diretor/metrics/administrative";
-import { summarizeFinancial } from "@/lib/diretor/metrics/financial";
-import { summarizeOffer } from "@/lib/diretor/metrics/offer";
-import { summarizeSocial } from "@/lib/diretor/metrics/social";
+import { loadAcademicExecutiveFacts } from "@/lib/diretor/facts/academic";
+import { loadOfferExecutiveFacts } from "@/lib/diretor/facts/offer";
+import { loadFinancialExecutiveFacts } from "@/lib/diretor/facts/financial";
+import { loadSocialExecutiveFacts } from "@/lib/diretor/facts/social";
+import { loadAdministrativeExecutiveFacts } from "@/lib/diretor/facts/administrative";
+import { loadProjectExecutiveFacts } from "@/lib/diretor/facts/projects";
 import { loadOverviewSummaries } from "@/lib/diretor/metrics/overview";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 
 const scope = {
   scope: "current" as const,
@@ -39,64 +31,79 @@ const scope = {
   dataAsOf: new Date("2026-08-21T12:00:00.000Z"),
 };
 
-describe("overview summaries", () => {
+const q = [{ domain: "x", status: "ok" as const }];
+
+describe("overview facts", () => {
   beforeEach(() => {
-    vi.mocked(summarizeAcademic).mockReset();
-    vi.mocked(summarizeOffer).mockReset();
-    vi.mocked(summarizeFinancial).mockReset();
-    vi.mocked(summarizeSocial).mockReset();
-    vi.mocked(summarizeAdministrative).mockReset();
+    vi.mocked(loadAcademicExecutiveFacts).mockReset();
+    vi.mocked(loadOfferExecutiveFacts).mockReset();
+    vi.mocked(loadFinancialExecutiveFacts).mockReset();
+    vi.mocked(loadSocialExecutiveFacts).mockReset();
+    vi.mocked(loadAdministrativeExecutiveFacts).mockReset();
+    vi.mocked(loadProjectExecutiveFacts).mockReset();
   });
 
   it("tolera falha parcial de um domínio", async () => {
-    vi.mocked(summarizeAcademic).mockRejectedValue(new Error("boom"));
-    vi.mocked(summarizeOffer).mockResolvedValue({
+    vi.mocked(loadAcademicExecutiveFacts).mockRejectedValue(new Error("boom"));
+    vi.mocked(loadOfferExecutiveFacts).mockResolvedValue({
       occupancyPercent: 50,
-      waitlist: 0,
       emptyClasses: 0,
       below30: 0,
+      waitlist: 0,
+      periodLabel: "c",
       quality: [{ domain: "offer", status: "ok" }],
       qualityNotes: [],
-      alerts: [],
     });
-    vi.mocked(summarizeFinancial).mockResolvedValue({
+    vi.mocked(loadFinancialExecutiveFacts).mockResolvedValue({
       netPaidCents: 100,
-      overdueCents: 0,
-      qualityNotes: [],
+      apCents: 0,
+      arCents: 0,
+      openAge91PlusCents: 0,
+      periodLabel: "c",
       quality: [{ domain: "financial", status: "ok" }],
-      alerts: [],
+      qualityNotes: [],
     });
-    vi.mocked(summarizeSocial).mockResolvedValue({
-      servedUnique: 7,
+    vi.mocked(loadSocialExecutiveFacts).mockResolvedValue({
       computersDonated: 1,
       computersTarget: 10,
       computersProgressPct: 10,
-      quality: [{ domain: "social", status: "ok" }],
+      periodLabel: "2026",
+      quality: q,
       qualityNotes: [],
-      alerts: [],
     });
-    vi.mocked(summarizeAdministrative).mockResolvedValue({
+    vi.mocked(loadAdministrativeExecutiveFacts).mockResolvedValue({
       contractsExpired: 0,
       pendingDocuments: 0,
+      inventoryZero: 0,
+      inventoryBelowMin: 0,
       stockCritical: 0,
+      periodLabel: "e",
       quality: [{ domain: "administrative", status: "ok" }],
       qualityNotes: [],
-      alerts: [],
+    });
+    vi.mocked(loadProjectExecutiveFacts).mockResolvedValue({
+      unavailable: true,
+      periodLabel: "2026",
+      quality: [{ domain: "projects", status: "unavailable", note: "inexistente" }],
+      qualityNotes: [],
     });
 
     const r = await loadOverviewSummaries({ scope, viewer: "DIRECTOR" });
     expect(r.domainStatus.some((d) => d.domain === "academic" && d.status === "unavailable")).toBe(true);
-    expect(r.kpis.length).toBeGreaterThan(0);
-    expect(r.kpis.some((k) => k.metricId === "soc.served_unique")).toBe(true);
+    expect(r.kpis.some((k) => k.metricId === "offer.occupancy.current")).toBe(true);
+    expect(r.domainStatus.some((d) => d.domain === "projects" && d.status === "unavailable")).toBe(true);
     expect(JSON.stringify(r)).not.toMatch(/cpf/i);
+    expect(JSON.stringify(r)).not.toMatch(/vencid/i);
   });
 });
 
-describe("overview não usa payload monolítico", () => {
-  it("não importa loadAcademicOfferBundle nem loadAcademic completo", () => {
+describe("overview 1C", () => {
+  it("usa fatos executivos e não loaders temáticos", () => {
     const t = readFileSync(path.join(process.cwd(), "src/lib/diretor/metrics/overview.ts"), "utf8");
-    expect(t).not.toMatch(/loadAcademicOfferBundle/);
+    expect(t).toMatch(/loadAcademicExecutiveFacts/);
+    expect(t).toMatch(/alertsFromExecutiveFacts/);
     expect(t).not.toMatch(/loadAcademic\(/);
-    expect(t).toMatch(/summarizeAcademic/);
+    expect(t).not.toMatch(/summarizeAcademic/);
+    expect(t).not.toMatch(/loadAcademicOfferBundle/);
   });
 });

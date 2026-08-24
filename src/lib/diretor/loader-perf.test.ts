@@ -1,11 +1,16 @@
-import { config as loadEnv } from "dotenv";
+import { existsSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-
-loadEnv();
 
 vi.mock("server-only", () => ({}));
 
-const enabled = process.env.RUN_DIRECTOR_PERF === "1";
+const prismaReady = existsSync("node_modules/.prisma/client/index.js") || existsSync("node_modules/.prisma/client/default.js");
+const enabled = process.env.RUN_DIRECTOR_PERF === "1" && prismaReady;
+
+function p95(samples: number[]): number {
+  const sorted = [...samples].sort((a, b) => a - b);
+  const idx = Math.max(0, Math.ceil(sorted.length * 0.95) - 1);
+  return Math.round(sorted[idx] * 10) / 10;
+}
 
 async function timed<T>(label: string, fn: () => Promise<T>, runs: number) {
   const samples: number[] = [];
@@ -23,12 +28,11 @@ async function timed<T>(label: string, fn: () => Promise<T>, runs: number) {
   return {
     coldMs: Math.round(samples[0] * 10) / 10,
     medianMs: Math.round(sorted[Math.floor(sorted.length / 2)] * 10) / 10,
+    p95Ms: p95(samples),
     warmMedianMs:
       samples.length > 1
         ? Math.round(
-            ([...samples.slice(1)].sort((a, b) => a - b)[
-              Math.floor((samples.length - 1) / 2)
-            ] ?? 0) * 10,
+            ([...samples.slice(1)].sort((a, b) => a - b)[Math.floor((samples.length - 1) / 2)] ?? 0) * 10,
           ) / 10
         : Math.round(samples[0] * 10) / 10,
     samples: samples.map((s) => Math.round(s * 10) / 10),
@@ -37,87 +41,126 @@ async function timed<T>(label: string, fn: () => Promise<T>, runs: number) {
   };
 }
 
-describe.skipIf(!enabled)("diretor loader performance (DB)", () => {
+describe.skipIf(!enabled)("diretor loader performance 1C (DB)", () => {
   it(
-    "mede tamanhos e tempos (legado 3x + bundle 10x)",
+    "mede tempo de processamento dos loaders (não TTFB) em todos os domínios 1C",
     async () => {
       const { resolveDirectorScope } = await import("@/lib/diretor/load-scope");
-      const { loadAcademicOfferBundle } = await import("@/lib/diretor/metrics/academic-offer");
       const { getDirectorDashboardData } = await import("@/lib/director-dashboard-data");
+      const { loadOverviewSummaries } = await import("@/lib/diretor/metrics/overview");
+      const { loadAcademic } = await import("@/lib/diretor/metrics/academic");
+      const { loadOffer } = await import("@/lib/diretor/metrics/offer");
+      const { loadSocialImpact } = await import("@/lib/diretor/metrics/social");
+      const { loadFinancial } = await import("@/lib/diretor/metrics/financial");
+      const { loadProjects } = await import("@/lib/diretor/metrics/projects");
+      const { loadAdministrative } = await import("@/lib/diretor/metrics/administrative");
+      const { loadAcademicExecutiveFacts } = await import("@/lib/diretor/facts/academic");
+      const { loadOfferExecutiveFacts } = await import("@/lib/diretor/facts/offer");
+      const { loadFinancialExecutiveFacts } = await import("@/lib/diretor/facts/financial");
+      const { loadSocialExecutiveFacts } = await import("@/lib/diretor/facts/social");
+      const { loadAdministrativeExecutiveFacts } = await import("@/lib/diretor/facts/administrative");
+      const { loadProjectExecutiveFacts } = await import("@/lib/diretor/facts/projects");
+      const { alertsFromExecutiveFacts } = await import("@/lib/diretor/alerts/engine");
+      const { REPORT_CATALOG } = await import("@/lib/diretor/reports/generate");
+      const { defaultCompetence } = await import("@/lib/diretor/period");
 
       const scope = await resolveDirectorScope({ scope: "current" });
+      const competence = defaultCompetence(scope.dataAsOf);
+      const viewer = "DIRECTOR" as const;
+      const runs = 10;
+      const legacyRuns = Number(process.env.DIRECTOR_PERF_LEGACY_RUNS ?? 3);
+      const asOf = scope.dataAsOf;
 
-      console.log("[perf] aquecimento bundle...");
-      await loadAcademicOfferBundle(scope, {}, "DIRECTOR");
+      console.log("[perf] ciclo", scope.cycleLabel, "turmas", scope.classGroupIds.length, "dataAsOf", asOf.toISOString());
 
-      // Legado: 3 execuções (cada ~1–2 min no ambiente atual). Mediana de 3 + cold documentados.
-      const legacy = await timed("legacy", () => getDirectorDashboardData({ scope: "current" }), 3);
-      const bundle = await timed("bundle1A", () => loadAcademicOfferBundle(scope, {}, "DIRECTOR"), 10);
+      const legacy = await timed("legacy", () => getDirectorDashboardData({ scope: "current" }), legacyRuns);
+      const overview = await timed("overview", () => loadOverviewSummaries({ scope, viewer }), runs);
+      const academic = await timed("academic", () => loadAcademic(scope, {}, viewer), runs);
+      const offer = await timed("offer-territories", () => loadOffer(scope, {}, viewer), runs);
+      const social = await timed("social-impact", () => loadSocialImpact({}, viewer), runs);
+      const financial = await timed("financial", () => loadFinancial({ competence }, viewer), runs);
+      const projects = await timed("projects", () => loadProjects({}, viewer), runs);
+      const administrative = await timed("administrative", () => loadAdministrative({ competence }, viewer), runs);
+      const reportsCatalog = await timed("reports-catalog", async () => ({ catalog: REPORT_CATALOG }), runs);
 
-      const full = bundle.last!;
-      const overviewPayload = {
-        meta: full.meta,
-        kpis: full.kpis.slice(0, 6),
-        alerts: full.alerts.filter((a) => a.severity === "critical").slice(0, 5),
-        qualityNotes: full.qualityNotes,
-      };
-      const overviewBytes = Buffer.byteLength(JSON.stringify(overviewPayload), "utf8");
-      const academicBytes = Buffer.byteLength(JSON.stringify(full.academic), "utf8");
-      const offerBytes = Buffer.byteLength(JSON.stringify(full.offer), "utf8");
-      const prioritiesBytes = Buffer.byteLength(JSON.stringify(full.alerts), "utf8");
-      const thematicSum = overviewBytes + academicBytes + offerBytes + prioritiesBytes;
+      const sAcad = await timed("facts.academic", () => loadAcademicExecutiveFacts(scope, viewer), runs);
+      const sOffer = await timed("facts.offer", () => loadOfferExecutiveFacts(scope, viewer), runs);
+      const sFin = await timed("facts.financial", () => loadFinancialExecutiveFacts({ competence }, viewer, asOf), runs);
+      const sSocial = await timed("facts.social", () => loadSocialExecutiveFacts(viewer, asOf), runs);
+      const sAdmin = await timed("facts.admin", () => loadAdministrativeExecutiveFacts(viewer, asOf), runs);
+      const sProj = await timed("facts.projects", () => loadProjectExecutiveFacts(viewer), runs);
+      const sAlerts = await timed(
+        "overview.alerts-engine",
+        async () =>
+          alertsFromExecutiveFacts({
+            academic: await loadAcademicExecutiveFacts(scope, viewer),
+            offer: await loadOfferExecutiveFacts(scope, viewer),
+            financial: await loadFinancialExecutiveFacts({ competence }, viewer, asOf),
+            social: await loadSocialExecutiveFacts(viewer, asOf),
+            administrative: await loadAdministrativeExecutiveFacts(viewer, asOf),
+            projects: await loadProjectExecutiveFacts(viewer),
+          }),
+        runs,
+      );
 
-      // Mediana de tamanho do overview em 10 serializações (payload estável)
-      const overviewSizeSamples: number[] = [];
-      for (let i = 0; i < 10; i++) {
-        overviewSizeSamples.push(Buffer.byteLength(JSON.stringify(overviewPayload), "utf8"));
-      }
+      const priorities = await timed(
+        "priorities",
+        async () =>
+          alertsFromExecutiveFacts({
+            academic: await loadAcademicExecutiveFacts(scope, viewer),
+            offer: await loadOfferExecutiveFacts(scope, viewer),
+            financial: await loadFinancialExecutiveFacts({ competence }, viewer, asOf),
+            social: await loadSocialExecutiveFacts(viewer, asOf),
+            administrative: await loadAdministrativeExecutiveFacts(viewer, asOf),
+            projects: await loadProjectExecutiveFacts(viewer),
+          }),
+        runs,
+      );
+
+      const pack = (r: Awaited<ReturnType<typeof timed>>) => ({
+        coldMs: r.coldMs,
+        medianMs: r.medianMs,
+        p95Ms: r.p95Ms,
+        warmMedianMs: r.warmMedianMs,
+        bytes: r.bytes,
+        samples: r.samples,
+        label: "tempo de processamento dos loaders (não TTFB)",
+      });
 
       const report = {
+        metricKind: "loader_processing_time",
         classGroups: scope.classGroupIds.length,
         cycleLabel: scope.cycleLabel,
-        methodology: {
-          legacyRuns: 3,
-          bundleRuns: 10,
-          note:
-            "Legado ~100s/run no banco remoto; mediana temporal do legado com n=3. Bundle 1A com n=10. Tamanhos medidos no payload real.",
+        dataAsOf: asOf.toISOString(),
+        competence,
+        runs,
+        legacyRuns,
+        domains: {
+          legacy: pack(legacy),
+          overview: pack(overview),
+          priorities: pack(priorities),
+          academic: pack(academic),
+          "offer-territories": pack(offer),
+          "social-impact": pack(social),
+          financial: pack(financial),
+          projects: pack(projects),
+          administrative: pack(administrative),
+          reports: pack(reportsCatalog),
         },
-        legacy: {
-          coldMs: legacy.coldMs,
-          warmMedianMs: legacy.warmMedianMs,
-          medianMs: legacy.medianMs,
-          bytes: legacy.bytes,
-          samples: legacy.samples,
+        overviewDecomposition: {
+          academic: pack(sAcad),
+          offer: pack(sOffer),
+          social: pack(sSocial),
+          financial: pack(sFin),
+          administrative: pack(sAdmin),
+          projects: pack(sProj),
+          alertsEngine: pack(sAlerts),
         },
-        bundle1A: {
-          coldMs: bundle.coldMs,
-          warmMedianMs: bundle.warmMedianMs,
-          medianMs: bundle.medianMs,
-          bytesFull: bundle.bytes,
-          samples: bundle.samples,
-        },
-        payloads: {
-          overviewBytes,
-          overviewBytesMedianOf10: overviewSizeSamples[5],
-          academicBytes,
-          offerBytes,
-          prioritiesBytes,
-          thematicSumBytes: thematicSum,
-        },
-        overviewVsLegacyReductionPct:
-          legacy.bytes > 0
-            ? Math.round((1 - overviewBytes / legacy.bytes) * 1000) / 10
-            : null,
-        thematicSumVsLegacyPct:
-          legacy.bytes > 0
-            ? Math.round((thematicSum / legacy.bytes) * 1000) / 10
-            : null,
       };
-
-      console.log("[perf-report]", JSON.stringify(report));
-      expect(overviewBytes).toBeLessThan(legacy.bytes);
-      expect(legacy.bytes).toBeGreaterThan(0);
+      console.log("[perf-report-1c]", JSON.stringify(report));
+      expect(overview.bytes).toBeLessThan(legacy.bytes);
+      expect(overview.medianMs).toBeGreaterThan(0);
     },
-    900_000,
+    5_400_000,
   );
 });
