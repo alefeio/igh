@@ -19,6 +19,7 @@ export type MetricDefinition = {
 export const FORMULA_VERSION_1A = "1A.0.0";
 export const FORMULA_VERSION_1B = "1B.0.0";
 export const FORMULA_VERSION_1C = "1C.0.0";
+export const EXECUTIVE_METHODOLOGY_LABEL = "Metodologia dos indicadores — versão 1.0";
 
 export const DIRECTOR_METRICS_1A: Record<string, MetricDefinition> = {
   "offer.occupancy.current": {
@@ -162,7 +163,7 @@ export const DIRECTOR_METRICS_1A: Record<string, MetricDefinition> = {
     description:
       "Matrículas ACTIVE/SUSPENDED com streak ≥4 faltas consecutivas sem justificativa (limite de cancelamento).",
     formulaVersion: FORMULA_VERSION_1A,
-    formula: "count(vinculados com streak≥CANCEL_LIMIT)",
+    formula: "Quantidade de matrículas ativas ou suspensas com quatro faltas consecutivas sem justificativa, sem sessão desconhecida entre elas.",
     numerator: "matrículas em risco",
     denominator: "—",
     unit: "matrículas",

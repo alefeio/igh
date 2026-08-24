@@ -235,7 +235,7 @@ async function loadFinancialUncached(
       suggestedDecision: "Solicitar à equipe financeira a revisão da situação desses registros.",
       href,
       source: "lançamentos financeiros",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (payrollMonth && payrollMonth.lines.some((l) => l.paymentStatus === "PENDENTE")) {
@@ -254,7 +254,7 @@ async function loadFinancialUncached(
       suggestedDecision: "Acompanhar fechamento/pagamento da folha.",
       href,
       source: "folha de pagamento",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 

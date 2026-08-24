@@ -231,7 +231,7 @@ async function loadOfferUncached(
       metricId: "offer.low_occupancy.classes",
       href: hrefOffer,
       source: "ocupação atual (ACTIVE+SUSPENDED ÷ capacity)",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (totalWaitlist > 0 && occupancyPercent != null && occupancyPercent >= 100) {
@@ -250,7 +250,7 @@ async function loadOfferUncached(
       metricId: "offer.waitlist.count",
       href: hrefOffer,
       source: "EnrollmentWaitlist WAITING",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 

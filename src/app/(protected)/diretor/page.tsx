@@ -43,6 +43,14 @@ type OverviewData = {
     href: string;
     severity: string;
   }>;
+  watchAlerts?: Array<{
+    id: string;
+    title: string;
+    fact: string;
+    suggestedDecision?: string;
+    href: string;
+    severity: string;
+  }>;
 };
 
 function OverviewInner() {
@@ -130,6 +138,23 @@ function OverviewInner() {
               </ul>
             )}
           </section>
+
+          {(data.watchAlerts?.length ?? 0) > 0 ? (
+            <section aria-label="Acompanhamentos">
+              <h2 className="mb-3 text-lg font-bold">Acompanhamentos</h2>
+              <ul className="grid gap-3 md:grid-cols-2">
+                {(data.watchAlerts ?? []).map((a) => (
+                  <li key={a.id} className="rounded-lg border border-[var(--card-border)] px-4 py-3 text-sm">
+                    <p className="font-semibold">{a.title}</p>
+                    <p className="mt-1">{a.fact}</p>
+                    <Link href={a.href} className="mt-2 inline-block text-xs font-semibold underline">
+                      Abrir contexto
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </>
       ) : null}
     </PanelPageStack>

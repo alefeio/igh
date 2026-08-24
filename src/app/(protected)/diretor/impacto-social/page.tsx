@@ -9,9 +9,11 @@ import { ChartWithTable, MetricCard } from "@/components/diretor/MetricCard";
 import { DirectorDataStamp } from "@/components/diretor/DirectorDataStamp";
 
 type Data = {
-  meta: { dataAsOf: string; filters: { cycleLabel?: string } };
+  meta: { dataAsOf: string; filters: { cycleLabel?: string; from?: string; to?: string; periodPreset?: string } };
   disclaimerLongTerm: string;
   peopleGoalNote: string;
+  territoryNote?: string;
+  callCompletenessRate?: number | null;
   reach: {
     confirmedUnique: number;
     servedUnique: number;
@@ -51,7 +53,13 @@ function Inner() {
         description="Alcance, entregas e produtos no período. Não mede causalidade de impacto. Alunos e instituições donatárias não são somados."
         rightSlot={
           <div className="flex flex-col gap-2">
-            <DirectorPeriodControls mode="range" loading={loading} onRefresh={() => void load()} />
+            <DirectorPeriodControls
+              mode="range"
+              loading={loading}
+              onRefresh={() => void load()}
+              fallbackFrom={data?.meta.filters.from}
+              fallbackTo={data?.meta.filters.to}
+            />
             <DirectorScopeControls cycles={[]} loading={loading} />
           </div>
         }
@@ -61,32 +69,54 @@ function Inner() {
         <>
           <DirectorDataStamp dataAsOf={data.meta.dataAsOf} />
           <p className="text-sm text-[var(--text-muted)]">
+            Período dos novos e recorrentes: {data.meta.filters.periodPreset ?? "Ano atual"} (
+            {data.meta.filters.from ?? "—"} → {data.meta.filters.to ?? "—"}).
+          </p>
+          <p className="text-sm text-[var(--text-muted)]">
             Atendidos únicos usam o ciclo acadêmico e a mesma regra da Visão Geral e do Acadêmico. Novos e recorrentes
             usam o período de calendário selecionado — não compare esses totais como se fossem o mesmo recorte.
           </p>
           <p className="rounded-lg border px-4 py-3 text-sm">{data.disclaimerLongTerm}</p>
           <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">{data.peopleGoalNote}</p>
+          {data.territoryNote ? (
+            <p className="rounded-lg border px-4 py-3 text-sm">{data.territoryNote}</p>
+          ) : null}
+          {(() => {
+            const presencePartial =
+              data.callCompletenessRate != null && data.callCompletenessRate < 90;
+            const completeness =
+              data.callCompletenessRate != null ? `${data.callCompletenessRate}% das chamadas preenchidas` : null;
+            const pq = presencePartial ? "partial" : "ok";
+            return (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <MetricCard label="Pessoas confirmadas únicas" value={data.reach.confirmedUnique} quality="ok" />
             <MetricCard
               label="Atendidos únicos (ciclo acadêmico)"
-              value={data.reach.servedUnique}
-              quality="ok"
-              explanation="Pessoas distintas com presença no ciclo — mesma função da Visão Geral e do Acadêmico."
+              value={
+                presencePartial
+                  ? `${data.reach.servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`
+                  : data.reach.servedUnique
+              }
+              quality={pq}
+              explanation={
+                presencePartial
+                  ? `Ao menos ${data.reach.servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. ${completeness ?? ""} Não é alcance definitivo.`
+                  : "Pessoas distintas com presença no ciclo — mesma função da Visão Geral e do Acadêmico."
+              }
             />
             <MetricCard
               label="Novos atendidos (período de calendário)"
               value={data.reach.newServed}
-              quality="ok"
+              quality={pq}
               explanation="Primeira presença no intervalo de datas selecionado. Recorte diferente do total do ciclo."
             />
             <MetricCard
               label="Recorrentes (período de calendário)"
               value={data.reach.recurrentServed}
-              quality="ok"
+              quality={pq}
               explanation="Já haviam sido atendidos antes do intervalo de datas selecionado."
             />
-            <MetricCard label="Concluintes únicos" value={data.reach.completersUnique} quality="ok" />
+            <MetricCard label="Concluintes únicos" value={data.reach.completersUnique} quality={pq} />
             <MetricCard label="Certificados emitidos" value={data.reach.certificatesIssued} quality="ok" />
             <MetricCard label="Equipamentos doados" value={data.donations.computersDonated} quality="ok" />
             <MetricCard
@@ -103,6 +133,8 @@ function Inner() {
             <MetricCard label="Instituições donatárias" value={data.donations.donatarias} quality="ok" />
             <MetricCard label="Visitas técnicas" value={data.donations.visits} quality="ok" />
           </div>
+            );
+          })()}
           <ChartWithTable
             title="Novos × recorrentes — o atendimento é de entrada ou de continuidade?"
             table={

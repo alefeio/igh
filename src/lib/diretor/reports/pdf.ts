@@ -5,9 +5,20 @@ import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 
 import { BRAND } from "@/lib/brand";
+import { EXECUTIVE_METHODOLOGY_LABEL } from "@/lib/diretor/catalog/definitions";
+import { pdfBarWidth, resolvePdfBar } from "@/lib/diretor/reports/pdf-bars";
 import { formatDataConsideredUntil, formatFiltersHuman, formatUpdatedAtFriendly, friendlyDataStamp, qualityStatusLabel } from "@/lib/diretor/ui-labels";
 
-type Kpi = { label: string; value: unknown; quality?: string; unit?: string };
+type Kpi = {
+  label: string;
+  value: unknown;
+  quality?: string;
+  unit?: string;
+  currentValue?: number | null;
+  targetValue?: number | null;
+  percentage?: number | null;
+  formattedValue?: string;
+};
 type Alert = { title?: string; fact?: string; suggestedDecision?: string; severity?: string };
 type QualityItem = { domain?: string; status?: string; note?: string };
 
@@ -36,20 +47,8 @@ function asText(v: unknown): string {
   return String(v);
 }
 
-function looksLikePercent(k: Kpi): boolean {
-  if (k.unit === "%") return true;
-  if (typeof k.value === "number" && k.value <= 100 && /ocupa|frequ|conclus|meta|%/i.test(k.label)) return true;
-  return typeof k.value === "string" && String(k.value).includes("%");
-}
-
 function looksLikeMoney(k: Kpi): boolean {
   return typeof k.value === "string" && String(k.value).includes("R$");
-}
-
-function numericValue(k: Kpi): number | null {
-  if (typeof k.value === "number") return k.value;
-  const n = Number(String(k.value).replace(/[^\d,-]/g, "").replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(n) ? n : null;
 }
 
 export async function buildDirectorPdf(report: Report): Promise<Uint8Array> {
@@ -78,7 +77,7 @@ export async function buildDirectorPdf(report: Report): Promise<Uint8Array> {
       const p = pages[i];
       p.drawLine({ start: { x: 40, y: 42 }, end: { x: 555, y: 42 }, thickness: 0.5, color: rgb(0.8, 0.82, 0.85) });
       p.drawText(`${BRAND.shortName} — ${BRAND.legalName}`, { x: 40, y: 28, size: 8, font, color: MUTED });
-      p.drawText(`Fórmulas ${asText(report.formulaVersion)}  ·  pág. ${i + 1} de ${pages.length}`, {
+      p.drawText(`${EXECUTIVE_METHODOLOGY_LABEL}  ·  pág. ${i + 1} de ${pages.length}`, {
         x: 330,
         y: 28,
         size: 8,
@@ -142,47 +141,50 @@ export async function buildDirectorPdf(report: Report): Promise<Uint8Array> {
     ensure(36);
     page.drawRectangle({ x: 40, y: y - 22, width: 515, height: 32, color: rgb(0.95, 0.96, 0.98) });
     page.drawText(k.label.slice(0, 70), { x: 48, y: y - 4, size: 8, font, color: MUTED });
-    page.drawText(asText(k.value).slice(0, 42), { x: 48, y: y - 18, size: 11, font: bold, color: NAVY });
+    page.drawText(asText(k.formattedValue ?? k.value).slice(0, 42), { x: 48, y: y - 18, size: 11, font: bold, color: NAVY });
     y -= 40;
   }
 
-  const counts = kpis.filter((k) => !looksLikePercent(k) && !looksLikeMoney(k) && numericValue(k) != null);
-  const percents = kpis.filter((k) => looksLikePercent(k) && numericValue(k) != null);
-  if (counts.length >= 2) {
+  const countBars = kpis
+    .filter((k) => k.unit !== "%" && !looksLikeMoney(k) && k.percentage == null)
+    .map((k) => resolvePdfBar(k, "count"))
+    .filter((b) => b.kind === "count" && b.plot != null);
+  const percentBars = kpis
+    .filter((k) => k.unit === "%" || k.percentage != null)
+    .map((k) => resolvePdfBar(k, "percent"))
+    .filter((b) => b.kind === "percent");
+
+  if (countBars.length >= 2) {
     y -= 4;
     draw("Pessoas e volumes (mesma unidade: quantidade)", 11, true, NAVY);
-    drawBars(
-      page,
-      counts.map((k) => ({ label: k.label, n: numericValue(k) ?? 0 })),
-      40,
-      y,
-      font,
-    );
-    y -= 18 + counts.length * 16;
+    y = drawTypedBars(page, countBars, 40, y, font, "count");
   }
-  if (percents.length >= 1) {
-    ensure(40 + percents.length * 16);
+  if (percentBars.length >= 1) {
+    const need = 28 + percentBars.length * 16;
+    ensure(need);
     draw("Percentuais (eixo de 0 a 100)", 11, true, NAVY);
-    drawBars(
-      page,
-      percents.map((k) => ({ label: k.label, n: numericValue(k) ?? 0 })),
-      40,
-      y,
-      font,
-      100,
-    );
-    y -= 18 + percents.length * 16;
+    y = drawTypedBars(page, percentBars, 40, y, font, "percent");
   }
 
-  const alerts = (report.alerts ?? report.indicators?.alerts ?? []).slice(0, 6);
+  const allAlerts = report.alerts ?? report.indicators?.alerts ?? [];
+  const decisionAlerts = allAlerts.filter((a) => a.severity !== "info").slice(0, 6);
+  const infoAlerts = allAlerts.filter((a) => a.severity === "info").slice(0, 4);
   ensure(40);
   draw("Alertas e decisões sugeridas", 13, true, NAVY);
-  if (alerts.length === 0) draw("Nenhum alerta decisório neste recorte.");
-  for (const a of alerts) {
+  if (decisionAlerts.length === 0) draw("Nenhum alerta decisório neste recorte.");
+  for (const a of decisionAlerts) {
     draw(asText(a.title), 10, true, AMBER);
     draw(asText(a.fact), 9);
     if (a.suggestedDecision) draw(`Decisão sugerida: ${a.suggestedDecision}`, 9);
     y -= 4;
+  }
+  if (infoAlerts.length > 0) {
+    draw("Acompanhamentos", 12, true, NAVY);
+    for (const a of infoAlerts) {
+      draw(asText(a.title), 10, true, MUTED);
+      draw(asText(a.fact), 9);
+      y -= 2;
+    }
   }
 
   const finKpi = kpis.find((k) => /líquid|pago|financeiro|receb/i.test(k.label));
@@ -194,9 +196,15 @@ export async function buildDirectorPdf(report: Report): Promise<Uint8Array> {
     y -= 16;
   }
 
-  ensure(50);
-  draw("Qualidade dos dados", 13, true, NAVY);
   const quality = Array.isArray(report.quality) ? report.quality : [];
+  const caveats = report.caveats ?? [];
+  const qualityNeed = 36 + Math.max(1, quality.length + caveats.length + 1) * 16;
+  if (y - qualityNeed < 56) {
+    page = doc.addPage([595, 842]);
+    pages.push(page);
+    y = 800;
+  }
+  draw("Qualidade dos dados", 13, true, NAVY);
   if (quality.length === 0) draw("Qualidade sem apontamentos.");
   for (const q of quality) {
     draw(
@@ -204,7 +212,8 @@ export async function buildDirectorPdf(report: Report): Promise<Uint8Array> {
       9,
     );
   }
-  for (const c of report.caveats ?? []) draw(`• ${c}`, 9);
+  for (const c of caveats) draw(`• ${c}`, 9);
+  draw(`Dados técnicos: versão das fórmulas ${asText(report.formulaVersion)}`, 8);
 
   footer();
   return doc.save();
@@ -238,20 +247,29 @@ function wrap(text: string, font: PDFFont, size: number, max: number): string[] 
   return lines.slice(0, 8);
 }
 
-function drawBars(
+function drawTypedBars(
   page: PDFPage,
-  items: Array<{ label: string; n: number }>,
+  items: Array<{ label: string; plot: number | null; display: string }>,
   x: number,
   top: number,
   font: PDFFont,
-  maxHint?: number,
-) {
-  const max = Math.max(1, maxHint ?? Math.max(...items.map((i) => i.n), 1));
+  axis: "percent" | "count",
+): number {
+  const max = axis === "percent" ? 100 : Math.max(...items.map((i) => i.plot ?? 0), 1);
   let y = top;
   for (const it of items.slice(0, 4)) {
-    const w = Math.max(6, (it.n / max) * 280);
-    page.drawRectangle({ x, y: y - 10, width: w, height: 10, color: rgb(0.12, 0.35, 0.55) });
-    page.drawText(`${it.label.slice(0, 28)}: ${it.n}`, { x: x + 290, y: y - 9, size: 8, font, color: MUTED });
+    const w = pdfBarWidth(it.plot, max, 280);
+    if (w != null && w > 0) {
+      page.drawRectangle({ x, y: y - 10, width: w, height: 10, color: rgb(0.12, 0.35, 0.55) });
+    }
+    page.drawText(`${it.label.slice(0, 28)}: ${it.display}`.slice(0, 42), {
+      x: x + 290,
+      y: y - 9,
+      size: 8,
+      font,
+      color: MUTED,
+    });
     y -= 16;
   }
+  return y;
 }

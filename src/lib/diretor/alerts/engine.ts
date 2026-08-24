@@ -17,9 +17,10 @@ export function collectDirectorAlerts(groups: Array<DerivedAlertDto[] | undefine
 }
 
 export function topPriorityAlerts(alerts: DerivedAlertDto[], max = 5): DerivedAlertDto[] {
-  const crit = alerts.filter((a) => a.severity === "critical");
+  const actionable = alerts.filter((a) => a.severity === "critical" || a.severity === "attention");
+  const crit = actionable.filter((a) => a.severity === "critical");
   if (crit.length >= max) return crit.slice(0, max);
-  return [...crit, ...alerts.filter((a) => a.severity !== "critical")].slice(0, max);
+  return [...crit, ...actionable.filter((a) => a.severity === "attention")].slice(0, max);
 }
 
 export type ExecutiveFactsPack = {
@@ -44,14 +45,16 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       domain: "academic",
       severity: "critical",
       title: "Risco crítico por faltas consecutivas",
-      fact: `${pack.academic.criticalAbsenceRisk} matrícula(s) ativas ou suspensas no limite de faltas consecutivas sem justificativa.`,
+      fact: pack.academic.attendanceReliable
+        ? `${pack.academic.criticalAbsenceRisk} matrícula(s) ativas ou suspensas no limite de faltas consecutivas sem justificativa.`
+        : `${pack.academic.criticalAbsenceRisk} caso(s) identificados nos registros disponíveis — leitura parcial.`,
       value: pack.academic.criticalAbsenceRisk,
       period: pack.academic.periodLabel,
       impact: "Risco de desligamento automático por frequência.",
       suggestedDecision: "Priorizar acompanhamento pedagógico das turmas com esses casos.",
       href: "/diretor/academico",
       source: "frequência nas aulas",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 
@@ -70,7 +73,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       suggestedDecision: "Rever oferta e demanda com a coordenação.",
       href: "/diretor/oferta-territorios",
       source: "ocupação das turmas",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 
@@ -90,7 +93,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
         "Solicitar à equipe financeira a revisão da situação desses registros.",
       href: "/diretor/financeiro",
       source: "FinancialEntry.entryDate (idade em aberto)",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 
@@ -109,7 +112,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       suggestedDecision: "Regularizar renovação ou encerramento com a gerência de pessoas.",
       href: "/diretor/administrativo",
       source: "EmployeeContract.endDate",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 
@@ -128,7 +131,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       suggestedDecision: "Reposição dos itens críticos.",
       href: "/diretor/administrativo",
       source: "InventoryItem",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 
@@ -147,8 +150,8 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       impact: "Entrega de equipamentos abaixo da meta anual.",
       suggestedDecision: "Acompanhar doações restantes no ano.",
       href: "/diretor/impacto-social",
-      source: "Donation CONFIRMADA × AnnualGoal",
-      status: "não acompanhado pelo sistema",
+      source: "Doações confirmadas e meta anual",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 
@@ -166,7 +169,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       suggestedDecision: "Tratar a página Projetos como estado estrutural, não como zero de portfólio.",
       href: "/diretor/projetos-convenios",
       source: "cadastro institucional",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 

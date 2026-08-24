@@ -4,6 +4,8 @@ export type AcademicExecutiveFacts = {
   servedUnique: number;
   criticalAbsenceRisk: number;
   completionStartedRate: number | null;
+  callCompletenessRate: number | null;
+  attendanceReliable: boolean;
   periodLabel: string;
   quality: ResponseMetaDto["quality"];
   qualityNotes: string[];

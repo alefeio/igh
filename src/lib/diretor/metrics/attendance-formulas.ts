@@ -1,6 +1,7 @@
 import { isUnjustifiedAbsence } from "@/lib/enrollment-attendance-streak";
 import {
   filterEligibleSessionsForEnrollment,
+  filterOccurredSessionsForEnrollment,
   type EnrollmentEntryLike,
   type SessionLike,
 } from "@/lib/diretor/eligible-sessions";
@@ -51,7 +52,8 @@ function qualityFrom(opportunities: number, unmarkedCount: number): OpportunityR
  *   mas **não** é convertida em falta justificada/não justificada.
  * - Completude da chamada = marcadas ÷ oportunidades.
  * - Qualidade = partial quando unmarkedCount > 0.
- * - Streak ignora sessões sem lançamento (não incrementa nem zera o streak).
+ * - Streak: sessão desconhecida (não liberada ou sem lançamento) interrompe a comprovação
+ *   de continuidade; não é presença nem falta.
  */
 export function computeOpportunityRates(
   enrollment: EnrollmentEntryLike,
@@ -126,24 +128,19 @@ export function aggregateOpportunityRates(rows: OpportunityRates[]): Opportunity
   };
 }
 
-/** Streak de faltas não justificadas nas sessões elegíveis (mais recente → antiga). */
+/** Streak comprovado de faltas não justificadas (mais recente → antiga). Lacuna desconhecida interrompe. */
 export function countUnjustifiedStreakEligible(
   enrollment: EnrollmentEntryLike,
   sessions: SessionLike[],
   attendanceBySessionId: Map<string, AttendanceMarkRow>,
   dataAsOf: Date,
 ): number {
-  const newestFirst = filterEligibleSessionsForEnrollment(
-    sessions,
-    enrollment,
-    dataAsOf,
-    "desc",
-  );
+  const newestFirst = filterOccurredSessionsForEnrollment(sessions, enrollment, dataAsOf, "desc");
   let streak = 0;
   for (const s of newestFirst) {
     const row = attendanceBySessionId.get(s.id);
-    // Chamada incompleta: não incrementa e não interrompe (mesmo critério operacional).
-    if (!row) continue;
+    const unknown = s.status !== "LIBERADA" || !row;
+    if (unknown) break;
     if (isUnjustifiedAbsence(row)) streak += 1;
     else break;
   }
@@ -212,6 +209,10 @@ export const INCOMPLETE_CALL_ALERT = {
 /** Abaixo do limiar: não alimentar alertas nem comparações executivas de frequência. */
 export function shouldEmitExecutiveAttendanceAlerts(callCompletenessRate: number | null): boolean {
   return isExecutiveAttendanceReliable(callCompletenessRate);
+}
+
+export function presenceDependentQuality(reliable: boolean): "ok" | "partial" {
+  return reliable ? "ok" : "partial";
 }
 
 export function classifyCriticalAbsenceRisk(params: {

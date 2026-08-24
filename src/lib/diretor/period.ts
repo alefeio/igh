@@ -74,3 +74,12 @@ export function yearBounds(year: number): { from: Date; to: Date } {
     to: new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999)),
   };
 }
+
+export function toIsoDateUtc(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** Ano civil até a data de referência (UTC), para De/Até visíveis. */
+export function yearToDateIso(asOf = new Date()): { from: string; to: string } {
+  return { from: `${asOf.getUTCFullYear()}-01-01`, to: toIsoDateUtc(asOf) };
+}

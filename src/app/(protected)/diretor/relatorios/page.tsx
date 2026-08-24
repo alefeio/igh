@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { DashboardHero, PanelPageStack } from "@/components/dashboard/DashboardUI";
 import { Button } from "@/components/ui/Button";
@@ -15,16 +16,25 @@ type Catalog = {
   catalog: Array<{ type: string; title: string; domain: string }>;
   formats: string[];
   notes: string[];
+  defaultCompetence?: string;
+  meta?: { filters?: { competence?: string } };
 };
 
 function Inner() {
   const qs = useDirectorApiQuery(["scope", "cycleId", "competence", "from", "to"]);
+  const search = useSearchParams();
   const { data, error, load } = useFetchJson<Catalog>("/api/diretor/reports");
   const [msg, setMsg] = useState<string | null>(null);
   const [showJson, setShowJson] = useState(false);
   useEffect(() => {
     void load();
   }, [load]);
+
+  const competence = search.get("competence") || data?.defaultCompetence || data?.meta?.filters?.competence || "";
+  const cycle = search.get("cycleId") || search.get("scope") || "ciclo atual";
+  const from = search.get("from");
+  const to = search.get("to");
+  const periodLabel = from && to ? `${from} → ${to}` : "não informado (usa competência quando aplicável)";
 
   async function generate(type: string, format: "json" | "csv" | "pdf" | "xlsx") {
     setMsg("Gerando…");
@@ -37,7 +47,7 @@ function Inner() {
         format,
         scope: params.get("scope") || undefined,
         cycleId: params.get("cycleId") || undefined,
-        competence: params.get("competence") || undefined,
+        competence: params.get("competence") || competence || undefined,
         from: params.get("from") || undefined,
         to: params.get("to") || undefined,
       }),
@@ -74,11 +84,21 @@ function Inner() {
         rightSlot={
           <div className="flex flex-col items-end gap-2">
             <DirectorScopeControls cycles={[]} loading={false} />
-            <DirectorPeriodControls mode="competence" />
+            <DirectorPeriodControls mode="competence" fallbackMonth={competence} />
           </div>
         }
       />
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+      <div className="rounded-lg border border-[var(--card-border)] px-4 py-3 text-sm">
+        <p className="font-semibold">Filtros que serão usados no download</p>
+        <ul className="mt-1 grid gap-1 sm:grid-cols-2">
+          <li>Ciclo: {cycle}</li>
+          <li>Competência: {competence || "—"}</li>
+          <li>Período: {periodLabel}</li>
+          <li>Instituição: IGH / INAC (marca do sistema)</li>
+          <li>Formatos: PDF, Excel e CSV</li>
+        </ul>
+      </div>
       {data?.notes.map((n) => (
         <p key={n} className="text-sm text-[var(--text-muted)]">
           {n}

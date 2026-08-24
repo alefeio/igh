@@ -23,6 +23,7 @@ export async function GET(request: Request) {
       cycles: scope.cycles,
       kpis: overview.kpis,
       alerts: overview.alerts,
+      watchAlerts: overview.watchAlerts,
       qualityNotes: overview.qualityNotes,
       domainStatus: overview.domainStatus,
       dataQuality: overview.dataQuality,

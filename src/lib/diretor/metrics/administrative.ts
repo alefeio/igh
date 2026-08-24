@@ -186,7 +186,7 @@ async function loadAdministrativeUncached(
       suggestedDecision: "Regularizar renovação ou encerramento.",
       href,
       source: "EmployeeContract.endDate",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (contractsD30 > 0) {
@@ -204,7 +204,7 @@ async function loadAdministrativeUncached(
       suggestedDecision: "Antecipar renovação.",
       href,
       source: "EmployeeContract.endDate",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (pendingDocuments > 0) {
@@ -222,7 +222,7 @@ async function loadAdministrativeUncached(
       suggestedDecision: "Solicitar pendências à gerência de pessoas.",
       href,
       source: "EmployeeDocument + requiredDocumentsFor",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (zero + belowMin > 0) {
@@ -240,7 +240,7 @@ async function loadAdministrativeUncached(
       suggestedDecision: "Reposição dos itens críticos.",
       href,
       source: "InventoryItem.quantityOnHand/minStock",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (failedOutbox + affectedRecipients > 0) {
@@ -258,7 +258,7 @@ async function loadAdministrativeUncached(
       suggestedDecision: "Reprocessar filas e revisar campanhas com falha.",
       href,
       source: "EmailOutbox FAILED + EmailCampaignRecipient (agregado)",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 

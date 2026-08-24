@@ -11,13 +11,17 @@ export function metricCard(
     labelOverride?: string;
     formulaVersion?: string;
     explanation?: string;
+    currentValue?: number | null;
+    targetValue?: number | null;
+    percentage?: number | null;
+    formattedValue?: string;
   },
 ): MetricValueDto {
   const def = getMetricDefinition(metricId);
   return {
     metricId,
     label: opts.labelOverride ?? def?.name ?? metricId,
-    value,
+    value: opts.formattedValue ?? value,
     unit: def?.unit,
     unavailableReason: opts.unavailableReason ?? null,
     quality: opts.quality,
@@ -26,5 +30,9 @@ export function metricCard(
     denominator: def?.denominator,
     explanation: opts.explanation,
     href: opts.href,
+    currentValue: opts.currentValue,
+    targetValue: opts.targetValue,
+    percentage: opts.percentage,
+    formattedValue: opts.formattedValue,
   };
 }

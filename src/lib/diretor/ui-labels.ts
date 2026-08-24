@@ -21,7 +21,7 @@ export const SEVERITY_LABEL: Record<string, string> = {
 
 export const QUALITY_STATUS_LABEL: Record<string, string> = {
   ok: "Completo",
-  partial: "Incompleto",
+  partial: "Leitura parcial",
   unavailable: "Indisponível",
   estimated: "Estimado",
 };

@@ -91,20 +91,24 @@ export function DirectorPeriodControls({
   onRefresh,
   mode,
   fallbackMonth,
+  fallbackFrom,
+  fallbackTo,
 }: {
   loading?: boolean;
   onRefresh?: () => void;
   mode: "competence" | "range" | "year" | "execCompetence";
   /** Competência usada pela API quando a URL ainda não tem o parâmetro. */
   fallbackMonth?: string;
+  fallbackFrom?: string;
+  fallbackTo?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
   const competence = search.get("competence") || fallbackMonth || "";
   const execCompetence = search.get("execCompetence") || fallbackMonth || "";
-  const from = search.get("from") ?? "";
-  const to = search.get("to") ?? "";
+  const from = search.get("from") || fallbackFrom || "";
+  const to = search.get("to") || fallbackTo || "";
   const year = search.get("year") ?? "";
 
   const setParams = useCallback(

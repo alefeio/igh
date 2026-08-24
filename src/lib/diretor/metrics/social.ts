@@ -6,8 +6,14 @@ import {
   assessSessionQuality,
   type SessionLike,
 } from "@/lib/diretor/eligible-sessions";
-import { hasStarted } from "@/lib/diretor/metrics/attendance-formulas";
-import { countServedUniqueStudents } from "@/lib/diretor/metrics/attendance-formulas";
+import {
+  aggregateOpportunityRates,
+  computeOpportunityRates,
+  countServedUniqueStudents,
+  hasStarted,
+  isExecutiveAttendanceReliable,
+  presenceDependentQuality,
+} from "@/lib/diretor/metrics/attendance-formulas";
 import { metricCard } from "@/lib/diretor/metrics/metric-card";
 import {
   classifyNewVsRecurrent,
@@ -17,7 +23,7 @@ import {
   peopleGoalComparable,
 } from "@/lib/diretor/metrics/social-formulas";
 import { resolveDirectorScope } from "@/lib/diretor/load-scope";
-import { resolvePeriod, yearBounds } from "@/lib/diretor/period";
+import { resolvePeriod, yearBounds, yearToDateIso, toIsoDateUtc } from "@/lib/diretor/period";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
 import { prisma } from "@/lib/prisma";
 
@@ -53,6 +59,8 @@ export type SocialBundle = {
   };
   alerts: DerivedAlertDto[];
   qualityNotes: string[];
+  territoryNote: string;
+  callCompletenessRate: number | null;
 };
 
 async function loadSocialUncached(
@@ -60,7 +68,12 @@ async function loadSocialUncached(
   viewer: "DIRECTOR" | "MASTER",
   asOf = new Date(),
 ): Promise<SocialBundle> {
-  const period = resolvePeriod({ from: filters.from, to: filters.to, asOf });
+  const ytd = yearToDateIso(asOf);
+  const period = resolvePeriod({
+    from: filters.from ?? ytd.from,
+    to: filters.to ?? ytd.to,
+    asOf,
+  });
   const scope = await resolveDirectorScope({
     scope: filters.cycleId ? "cycle" : "current",
     cycleId: filters.cycleId,
@@ -119,12 +132,11 @@ async function loadSocialUncached(
 
   const attendance =
     enrollments.length && sessions.length
-      ? await prisma.sessionAttendance.findMany({
+      ?       await prisma.sessionAttendance.findMany({
           where: {
             enrollmentId: { in: enrollments.map((e) => e.id) },
-            present: true,
           },
-          select: { enrollmentId: true, classSessionId: true },
+          select: { enrollmentId: true, classSessionId: true, present: true, absenceJustification: true },
         })
       : [];
   const attByEnr = new Map<string, Map<string, { classSessionId: string; present: boolean; absenceJustification: string | null }>>();
@@ -134,7 +146,11 @@ async function loadSocialUncached(
       m = new Map();
       attByEnr.set(row.enrollmentId, m);
     }
-    m.set(row.classSessionId, { classSessionId: row.classSessionId, present: true, absenceJustification: null });
+    m.set(row.classSessionId, {
+      classSessionId: row.classSessionId,
+      present: row.present,
+      absenceJustification: row.absenceJustification,
+    });
   }
 
   const servedUnique = countServedUniqueStudents(
@@ -232,17 +248,60 @@ async function loadSocialUncached(
 
   if (!peopleGoalComparable()) {
     qualityNotes.push(
-      "A meta AnnualGoal.peopleTarget não está comprovadamente na mesma definição de “atendidos únicos”; percentual de execução não é calculado.",
+      "A meta anual de pessoas e o indicador de alunos atendidos ainda utilizam definições diferentes. Por isso, são apresentados separadamente.",
     );
+  }
+
+  const opportunityRows = enrollments.map((e) => {
+    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+    return computeOpportunityRates(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf);
+  });
+  const attendanceAgg = aggregateOpportunityRates(opportunityRows);
+  const attendanceReliable = isExecutiveAttendanceReliable(attendanceAgg.callCompletenessRate);
+  const pq = presenceDependentQuality(attendanceReliable);
+  const completenessNote =
+    attendanceAgg.callCompletenessRate != null ? `${attendanceAgg.callCompletenessRate}% das chamadas preenchidas` : null;
+  if (!attendanceReliable && attendanceAgg.callCompletenessRate != null) {
+    qualityNotes.push(`${completenessNote}. Indicadores de presença no Impacto Social são leitura parcial.`);
+    if (!quality.some((x) => x.domain === "social" && x.status === "partial")) {
+      quality.push({
+        domain: "social",
+        status: "partial",
+        note: "Indicadores essenciais de atendimento dependem de chamadas incompletas.",
+      });
+    }
   }
   if (quality.length === 0) quality.push({ domain: "social", status: "ok" });
 
   const href = "/diretor/impacto-social";
   const kpis: MetricValueDto[] = [
     metricCard("soc.confirmed_unique", confirmedUnique.size, { quality: "ok", href }),
-    metricCard("soc.served_unique", servedUnique, { quality: "ok", href }),
-    metricCard("ben.served_unique", servedUnique, { quality: "ok", href }),
-    metricCard("soc.computers_donated", computersDonated, { quality: computersTarget == null ? "partial" : "ok", href }),
+    metricCard("soc.served_unique", servedUnique, {
+      quality: pq,
+      href,
+      formattedValue: `${servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`,
+      currentValue: servedUnique,
+      explanation: attendanceReliable
+        ? "Pessoas distintas com presença no ciclo."
+        : `Ao menos ${servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. ${completenessNote ?? ""}`,
+    }),
+    metricCard("ben.served_unique", servedUnique, {
+      quality: pq,
+      href,
+      formattedValue: `${servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`,
+      currentValue: servedUnique,
+    }),
+    metricCard("soc.computers_donated", computersDonated, {
+      quality: computersTarget == null ? "partial" : "ok",
+      href,
+      currentValue: computersDonated,
+      targetValue: computersTarget,
+      percentage: progress,
+      formattedValue:
+        computersTarget != null
+          ? `${computersDonated.toLocaleString("pt-BR")} de ${computersTarget.toLocaleString("pt-BR")}${progress != null ? ` — ${progress}%` : ""}`
+          : computersDonated.toLocaleString("pt-BR"),
+    }),
   ];
 
   const alerts: DerivedAlertDto[] = [];
@@ -261,8 +320,8 @@ async function loadSocialUncached(
       impact: "Entrega de equipamentos abaixo da meta anual.",
       suggestedDecision: "Acompanhar doações restantes no ano.",
       href,
-      source: "Donation.kitsCount × AnnualGoal.computersTarget",
-      status: "não acompanhado pelo sistema",
+      source: "Doações confirmadas e meta anual",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 
@@ -270,7 +329,13 @@ async function loadSocialUncached(
     meta: {
       generatedAt: new Date().toISOString(),
       dataAsOf: asOf.toISOString(),
-      filters: { ...filters, cycleLabel: scope.cycleLabel, periodFrom: period.from.toISOString(), periodTo: period.to.toISOString() },
+      filters: {
+        ...filters,
+        from: toIsoDateUtc(period.from),
+        to: toIsoDateUtc(period.to),
+        cycleLabel: scope.cycleLabel,
+        periodPreset: "Ano atual",
+      },
       quality,
       formulaVersion: FORMULA_VERSION_1C,
       viewer,
@@ -279,7 +344,7 @@ async function loadSocialUncached(
     disclaimerLongTerm:
       "Resultados de longo prazo — emprego, renda e acompanhamento de egressos ainda não são coletados pelo sistema.",
     peopleGoalNote:
-      "Meta de pessoas (AnnualGoal.peopleTarget) e atendidos únicos usam definições ainda não equivalentes. Exibidos separadamente, sem percentual de execução e sem alerta de atraso.",
+      "A meta anual de pessoas e o indicador de alunos atendidos ainda utilizam definições diferentes. Por isso, são apresentados separadamente.",
     reach: {
       confirmedUnique: confirmedUnique.size,
       servedUnique,
@@ -311,12 +376,15 @@ async function loadSocialUncached(
     },
     alerts,
     qualityNotes,
+    territoryNote:
+      "Uma mesma pessoa pode ser contabilizada em mais de um território; não some as linhas para obter o total institucional.",
+    callCompletenessRate: attendanceAgg.callCompletenessRate,
   };
 }
 
 export async function loadSocialImpact(filters: SocialFilters, viewer: "DIRECTOR" | "MASTER") {
   return cachedDirector(
-    ["social", filters.from, filters.to, filters.cycleId, filters.poloId, filters.courseId, viewer],
+    ["social-v2", filters.from, filters.to, filters.cycleId, filters.poloId, filters.courseId, viewer],
     () => loadSocialUncached(filters, viewer),
   );
 }
@@ -350,7 +418,7 @@ export async function summarizeSocialOverview(viewer: "DIRECTOR" | "MASTER", asO
     const qualityNotes = peopleGoalComparable()
       ? []
       : [
-          "A meta AnnualGoal.peopleTarget não está comprovadamente na mesma definição de “atendidos únicos”; percentual de execução não é calculado.",
+          "A meta anual de pessoas e o indicador de alunos atendidos ainda utilizam definições diferentes. Por isso, são apresentados separadamente.",
         ];
     return {
       computersDonated,

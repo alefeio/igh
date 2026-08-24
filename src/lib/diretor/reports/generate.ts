@@ -11,6 +11,7 @@ import { loadOffer } from "@/lib/diretor/metrics/offer";
 import { loadOverviewSummaries } from "@/lib/diretor/metrics/overview";
 import { loadSocialImpact } from "@/lib/diretor/metrics/social";
 import { resolveDirectorScope } from "@/lib/diretor/load-scope";
+import { defaultCompetence } from "@/lib/diretor/period";
 import { buildDirectorPdf } from "@/lib/diretor/reports/pdf";
 import { buildDirectorXlsx } from "@/lib/diretor/reports/xlsx";
 import type { reportsGenerateSchema } from "@/lib/diretor/search-params";
@@ -48,6 +49,7 @@ function envelope(title: string, payload: unknown) {
     generatedAt: typeof p.meta?.generatedAt === "string" ? p.meta.generatedAt : undefined,
     dataAsOf: typeof p.meta?.dataAsOf === "string" ? p.meta.dataAsOf : undefined,
     formulaVersion: typeof p.meta?.formulaVersion === "string" ? p.meta.formulaVersion : undefined,
+    methodologyLabel: "Metodologia dos indicadores — versão 1.0",
     indicators: payload as { kpis?: Array<{ metricId?: string; label: string; value: unknown; formula?: string; quality?: string }> },
     alerts: (p.alerts ?? []) as Array<{ title?: string; fact?: string; suggestedDecision?: string; domain?: string; severity?: string }>,
     kpis: p.kpis,
@@ -68,11 +70,12 @@ export async function generateDirectorReport(
     cycleId: input.cycleId,
   });
 
+  const competence = input.competence ?? defaultCompetence();
   let raw: unknown;
   let title = "";
   switch (input.type) {
     case "executive":
-      raw = await loadOverviewSummaries({ scope, viewer, execCompetence: input.competence });
+      raw = await loadOverviewSummaries({ scope, viewer, execCompetence: competence });
       title = "Relatório executivo do período";
       break;
     case "academic":
@@ -88,11 +91,11 @@ export async function generateDirectorReport(
       title = "Relatório de impacto social (alcance e entregas)";
       break;
     case "financial":
-      raw = await loadFinancial({ competence: input.competence, from: input.from, to: input.to }, viewer);
+      raw = await loadFinancial({ competence, from: input.from, to: input.to }, viewer);
       title = "Relatório de movimentação financeira";
       break;
     case "administrative":
-      raw = await loadAdministrative({ competence: input.competence, from: input.from, to: input.to }, viewer);
+      raw = await loadAdministrative({ competence, from: input.from, to: input.to }, viewer);
       title = "Relatório administrativo";
       break;
     default:
@@ -111,10 +114,7 @@ export async function generateDirectorReport(
   const filename = safeReportFilename(input.type, input.format);
   const mime = REPORT_MIME[input.format];
   if (input.format === "csv") {
-    const csv = rowsToCsvSemicolon(
-      ["campo", "valor"],
-      flattenPairs(report).map(([k, v]) => [k, v]),
-    );
+    const csv = rowsToCsvSemicolon(["campo", "valor"], csvPairs(report));
     return { format: "csv" as const, filename, mime, body: csv, report };
   }
   if (input.format === "pdf") {
@@ -128,13 +128,31 @@ export async function generateDirectorReport(
   return { format: "json" as const, filename, mime, body: JSON.stringify(report), report };
 }
 
-function flattenPairs(obj: unknown, prefix = ""): Array<[string, string]> {
-  if (obj == null) return [[prefix || "valor", ""]];
-  if (typeof obj !== "object") return [[prefix, String(obj)]];
-  if (Array.isArray(obj)) {
-    return obj.flatMap((item, i) => flattenPairs(item, `${prefix}[${i}]`));
+function csvPairs(report: ReturnType<typeof envelope>): Array<[string, string]> {
+  const rows: Array<[string, string]> = [
+    ["titulo", report.title],
+    ["periodo", report.periodLabel ?? ""],
+    ["gerado_em", report.generatedAt ?? ""],
+    ["dados_ate", report.dataAsOf ?? ""],
+    ["versao_formulas", report.formulaVersion ?? ""],
+  ];
+  const kpis = report.indicators?.kpis ?? [];
+  for (const k of kpis) {
+    const rec = k as {
+      label: string;
+      value: unknown;
+      quality?: string;
+      currentValue?: number | null;
+      percentage?: number | null;
+    };
+    rows.push([`indicador.${rec.label}`, String(rec.currentValue ?? rec.value ?? "")]);
+    rows.push([`indicador.${rec.label}.qualidade`, rec.quality ?? ""]);
+    if (rec.percentage != null) rows.push([`indicador.${rec.label}.percentual`, String(rec.percentage)]);
   }
-  return Object.entries(obj as Record<string, unknown>).flatMap(([k, v]) =>
-    flattenPairs(v, prefix ? `${prefix}.${k}` : k),
-  );
+  const quality = Array.isArray(report.quality) ? report.quality : [];
+  for (const q of quality) {
+    const item = q as { domain?: string; status?: string; note?: string };
+    rows.push([`qualidade.${item.domain ?? "geral"}`, `${item.status ?? ""}${item.note ? ` — ${item.note}` : ""}`]);
+  }
+  return rows;
 }

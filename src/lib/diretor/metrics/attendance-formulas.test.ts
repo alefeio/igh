@@ -106,14 +106,84 @@ describe("frequência — oportunidades", () => {
     expect(streak).toBe(3);
   });
 
-  it("chamada incompleta no meio não zera nem incrementa streak", () => {
+  it("chamada incompleta no meio interrompe o streak comprovado", () => {
     const att = new Map([
       ["s1", { classSessionId: "s1", present: false, absenceJustification: null }],
       // s2 sem registro
       ["s3", { classSessionId: "s3", present: false, absenceJustification: null }],
     ]);
-    // newest first: s3 F, s2 unmarked (skip), s1 F → streak continua
-    expect(countUnjustifiedStreakEligible(enrollment, sessions, att, dataAsOf)).toBe(2);
+    expect(countUnjustifiedStreakEligible(enrollment, sessions, att, dataAsOf)).toBe(1);
+  });
+});
+
+describe("streak com sessões desconhecidas", () => {
+  const s4 = session({ id: "s4", status: "LIBERADA", sessionDate: new Date("2026-08-20T00:00:00.000Z") });
+  const four = [
+    session({ id: "s1", status: "LIBERADA", sessionDate: new Date("2026-08-05T00:00:00.000Z") }),
+    session({ id: "s2", status: "LIBERADA", sessionDate: new Date("2026-08-12T00:00:00.000Z") }),
+    session({ id: "s3", status: "LIBERADA", sessionDate: new Date("2026-08-19T00:00:00.000Z") }),
+    s4,
+  ];
+  const F = (id: string): [string, { classSessionId: string; present: boolean; absenceJustification: string | null }] => [
+    id,
+    { classSessionId: id, present: false, absenceJustification: null },
+  ];
+  const P = (id: string): [string, { classSessionId: string; present: boolean; absenceJustification: string | null }] => [
+    id,
+    { classSessionId: id, present: true, absenceJustification: null },
+  ];
+
+  it("quatro faltas liberadas realmente consecutivas", () => {
+    const att = new Map([F("s1"), F("s2"), F("s3"), F("s4")]);
+    expect(countUnjustifiedStreakEligible(enrollment, four, att, dataAsOf)).toBe(4);
+  });
+
+  it("duas faltas, sessão não liberada e mais duas faltas não são um único streak", () => {
+    const mixed = [
+      session({ id: "s1", status: "LIBERADA", sessionDate: new Date("2026-08-05T00:00:00.000Z") }),
+      session({ id: "s2", status: "LIBERADA", sessionDate: new Date("2026-08-12T00:00:00.000Z") }),
+      session({ id: "s3", status: "SCHEDULED", sessionDate: new Date("2026-08-19T00:00:00.000Z") }),
+      s4,
+      session({ id: "s5", status: "LIBERADA", sessionDate: new Date("2026-08-21T00:00:00.000Z") }),
+    ];
+    const att = new Map([F("s1"), F("s2"), F("s4"), F("s5")]);
+    expect(countUnjustifiedStreakEligible(enrollment, mixed, att, dataAsOf)).toBe(2);
+  });
+
+  it("sessão desconhecida que posteriormente vira presença zera o streak", () => {
+    const mixed = [
+      ...sessions,
+      session({ id: "sx", status: "LIBERADA", sessionDate: new Date("2026-08-20T00:00:00.000Z") }),
+    ];
+    const attUnknown = new Map([F("s1"), F("s2")]);
+    expect(countUnjustifiedStreakEligible(enrollment, mixed, attUnknown, dataAsOf)).toBe(0);
+    const attPresent = new Map([F("s1"), F("s2"), P("sx")]);
+    expect(countUnjustifiedStreakEligible(enrollment, mixed, attPresent, dataAsOf)).toBe(0);
+  });
+
+  it("sessão desconhecida que posteriormente vira falta entra no streak", () => {
+    const mixed = [
+      session({ id: "s1", status: "LIBERADA", sessionDate: new Date("2026-08-05T00:00:00.000Z") }),
+      session({ id: "sx", status: "SCHEDULED", sessionDate: new Date("2026-08-12T00:00:00.000Z") }),
+    ];
+    expect(countUnjustifiedStreakEligible(enrollment, mixed, new Map([F("s1")]), dataAsOf)).toBe(0);
+    const released = [
+      session({ id: "s1", status: "LIBERADA", sessionDate: new Date("2026-08-05T00:00:00.000Z") }),
+      session({ id: "sx", status: "LIBERADA", sessionDate: new Date("2026-08-12T00:00:00.000Z") }),
+    ];
+    expect(countUnjustifiedStreakEligible(enrollment, released, new Map([F("s1"), F("sx")]), dataAsOf)).toBe(2);
+  });
+
+  it("múltiplas lacunas: só o trecho mais recente sem gap conta", () => {
+    const many = [
+      session({ id: "a", status: "LIBERADA", sessionDate: new Date("2026-08-01T00:00:00.000Z") }),
+      session({ id: "b", status: "SCHEDULED", sessionDate: new Date("2026-08-05T00:00:00.000Z") }),
+      session({ id: "c", status: "LIBERADA", sessionDate: new Date("2026-08-12T00:00:00.000Z") }),
+      session({ id: "d", status: "SCHEDULED", sessionDate: new Date("2026-08-15T00:00:00.000Z") }),
+      session({ id: "e", status: "LIBERADA", sessionDate: new Date("2026-08-19T00:00:00.000Z") }),
+    ];
+    const att = new Map([F("a"), F("c"), F("e")]);
+    expect(countUnjustifiedStreakEligible(enrollment, many, att, dataAsOf)).toBe(1);
   });
 });
 

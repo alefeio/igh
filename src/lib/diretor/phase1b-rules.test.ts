@@ -92,7 +92,7 @@ describe("engine de alertas", () => {
       ],
     ]);
     expect(topPriorityAlerts(list, 1)[0].id).toBe("c");
-    expect(list[0].operationalOwner ?? "não acompanhado pelo sistema").toBe("não acompanhado pelo sistema");
+    expect(list[0].operationalOwner ?? "Acompanhamento operacional ainda não registrado.").toBe("Acompanhamento operacional ainda não registrado.");
   });
 });
 

@@ -36,6 +36,7 @@ type AcademicData = {
       completionStartedRate: number | null;
       nonStartRateAmongConfirmed: number | null;
       cancelAfterStartUntyped: number;
+      attendanceReliable?: boolean;
     };
     attendance: {
       opportunities: number;
@@ -109,8 +110,12 @@ function Inner() {
             <MetricCard
               label="Risco crítico por faltas"
               value={data.academic.criticalAbsenceRisk}
-              explanation="Matrículas ativas ou suspensas com quatro ou mais faltas consecutivas sem justificativa."
-              quality="ok"
+              explanation={
+                attendanceProvisional
+                  ? `Casos identificados nos registros disponíveis — leitura parcial. ${completenessLabel ?? ""}`
+                  : "Matrículas ativas ou suspensas com quatro ou mais faltas consecutivas sem justificativa, sem sessão desconhecida entre elas."
+              }
+              quality={attendanceProvisional ? "partial" : "ok"}
             />
             <MetricCard
               label={attendanceProvisional ? "Frequência provisória" : "Frequência (presença)"}
@@ -140,26 +145,54 @@ function Inner() {
             />
             <MetricCard
               label="Atendidos únicos"
-              value={data.academic.servedUnique}
-              explanation="Pessoas distintas com pelo menos uma presença em aula no recorte."
-              quality="ok"
+              value={
+                attendanceProvisional
+                  ? `${data.academic.servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`
+                  : data.academic.servedUnique
+              }
+              explanation={
+                attendanceProvisional
+                  ? `Ao menos ${data.academic.servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. ${completenessLabel ?? ""} Leitura parcial — não é alcance institucional definitivo.`
+                  : "Pessoas distintas com pelo menos uma presença em aula no recorte."
+              }
+              quality={attendanceProvisional ? "partial" : "ok"}
             />
             <MetricCard
               label="Conclusão (quem iniciou)"
               value={data.academic.funnel.completionStartedRate}
               unit="%"
-              explanation="Entre quem já frequentou, em turmas encerradas."
-              quality={data.academic.funnel.completionStartedRate == null ? "unavailable" : "ok"}
+              explanation={
+                attendanceProvisional
+                  ? `Entre quem já frequentou, em turmas encerradas. ${completenessLabel ?? ""} Leitura parcial.`
+                  : "Entre quem já frequentou, em turmas encerradas."
+              }
+              quality={
+                data.academic.funnel.completionStartedRate == null
+                  ? "unavailable"
+                  : attendanceProvisional
+                    ? "partial"
+                    : "ok"
+              }
               unavailableReason={
                 data.academic.funnel.completionStartedRate == null ? "Sem coorte encerrada no recorte" : null
               }
             />
             <MetricCard
-              label="Não início (confirmados)"
+              label={attendanceProvisional ? "Início ainda não comprovado nos registros" : "Não início (confirmados)"}
               value={data.academic.funnel.nonStartRateAmongConfirmed}
               unit="%"
-              explanation={`Confirmados ${f?.confirmed ?? 0} − iniciaram ${startedAmong} = não iniciaram ${f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}. Taxa = não iniciaram ÷ confirmados.`}
-              quality={data.academic.funnel.nonStartRateAmongConfirmed == null ? "unavailable" : "ok"}
+              explanation={
+                attendanceProvisional
+                  ? `Confirmadas ${f?.confirmed ?? 0}; iniciaram com presença registrada ${startedAmong}; sem início comprovado ${f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}. Percentual provisório. Este percentual pode diminuir após a regularização das chamadas. Não use para alerta executivo, comparação de desempenho ou conclusão sobre abandono.`
+                  : `Confirmados ${f?.confirmed ?? 0} − iniciaram ${startedAmong} = não iniciaram ${f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}. Taxa = não iniciaram ÷ confirmados.`
+              }
+              quality={
+                data.academic.funnel.nonStartRateAmongConfirmed == null
+                  ? "unavailable"
+                  : attendanceProvisional
+                    ? "partial"
+                    : "ok"
+              }
               unavailableReason={data.academic.funnel.nonStartRateAmongConfirmed == null ? "Sem confirmados" : null}
             />
             <MetricCard
@@ -172,9 +205,25 @@ function Inner() {
               label="Faltas não justificadas"
               value={att?.unjustifiedRate ?? null}
               unit="%"
-              explanation="Faltas sem justificativa sobre as oportunidades de aula já liberadas."
-              quality={att?.unjustifiedRate == null ? "unavailable" : "ok"}
+              explanation={
+                attendanceProvisional
+                  ? `Leitura provisória. ${completenessLabel ?? ""}. Não use para comparação ou alerta conclusivo.`
+                  : "Faltas sem justificativa sobre as oportunidades de aula já liberadas."
+              }
+              quality={att?.unjustifiedRate == null ? "unavailable" : attendanceProvisional ? "partial" : "ok"}
               unavailableReason={att?.unjustifiedRate == null ? "Sem aulas elegíveis no recorte" : null}
+            />
+            <MetricCard
+              label="Faltas justificadas"
+              value={att?.justifiedRate ?? null}
+              unit="%"
+              explanation={
+                attendanceProvisional
+                  ? `Leitura provisória. ${completenessLabel ?? ""}.`
+                  : "Faltas justificadas sobre as oportunidades de aula já liberadas."
+              }
+              quality={att?.justifiedRate == null ? "unavailable" : attendanceProvisional ? "partial" : "ok"}
+              unavailableReason={att?.justifiedRate == null ? "Sem aulas elegíveis no recorte" : null}
             />
             <MetricCard
               label="Pré-matrículas atuais"
@@ -190,11 +239,22 @@ function Inner() {
               Recorte só de matrículas confirmadas — não mistura pessoas atendidas nem pré-matrículas.
             </p>
             <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-              <li>Confirmados: {f?.confirmed ?? 0}</li>
-              <li>Iniciaram entre os confirmados: {startedAmong}</li>
-              <li>Não iniciaram: {f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}</li>
-              <li>Percentual de não início: {f?.nonStartRateAmongConfirmed ?? "—"}%</li>
+              <li>Confirmadas: {f?.confirmed ?? 0}</li>
+              <li>Iniciaram com presença registrada: {startedAmong}</li>
+              <li>
+                {attendanceProvisional ? "Sem início comprovado" : "Não iniciaram"}:{" "}
+                {f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}
+              </li>
+              <li>
+                Percentual {attendanceProvisional ? "provisório" : "de não início"}:{" "}
+                {f?.nonStartRateAmongConfirmed ?? "—"}%
+              </li>
             </ul>
+            {attendanceProvisional ? (
+              <p className="mt-2 text-amber-800 dark:text-amber-300">
+                Este percentual pode diminuir após a regularização das chamadas.
+              </p>
+            ) : null}
           </details>
 
           <ChartWithTable
@@ -228,7 +288,7 @@ function Inner() {
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="valor" name="Pessoas / matrículas" fill="#0284c7" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="valor" name="Matrículas confirmadas" fill="#0284c7" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

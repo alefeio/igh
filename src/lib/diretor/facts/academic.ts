@@ -3,9 +3,12 @@ import "server-only";
 import { CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT } from "@/lib/enrollment-attendance-streak";
 import { cachedDirector } from "@/lib/diretor/cache";
 import {
+  aggregateOpportunityRates,
+  computeOpportunityRates,
   countServedUniqueStudents,
   countUnjustifiedStreakEligible,
   hasStarted,
+  isExecutiveAttendanceReliable,
   type AttendanceMarkRow,
 } from "@/lib/diretor/metrics/attendance-formulas";
 import type { SessionLike } from "@/lib/diretor/eligible-sessions";
@@ -28,6 +31,8 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
       servedUnique: 0,
       criticalAbsenceRisk: 0,
       completionStartedRate: null,
+      callCompletenessRate: null,
+      attendanceReliable: false,
       periodLabel: scope.cycleLabel,
       quality: [{ domain: "academic", status: "unavailable", note: "Nenhuma turma no recorte." }],
       qualityNotes: ["Nenhuma turma no recorte."],
@@ -99,6 +104,21 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
 
   const servedUnique = countServedUniqueStudents(enrollments, sessions, attByEnr, asOf);
 
+  const opportunityRows = enrollments.map((e) => {
+    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+    return computeOpportunityRates(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf);
+  });
+  const attendanceAgg = aggregateOpportunityRates(opportunityRows);
+  const attendanceReliable = isExecutiveAttendanceReliable(attendanceAgg.callCompletenessRate);
+  if (!attendanceReliable && attendanceAgg.callCompletenessRate != null) {
+    qualityNotes.push(`${attendanceAgg.callCompletenessRate}% das chamadas preenchidas.`);
+    quality.push({
+      domain: "academic",
+      status: "partial",
+      note: "Indicadores de presença são leitura parcial: a completude das chamadas está abaixo de 90%.",
+    });
+  }
+
   let criticalAbsenceRisk = 0;
   for (const e of enrollments) {
     if (e.status !== "ACTIVE" && e.status !== "SUSPENDED") continue;
@@ -128,6 +148,8 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
     servedUnique,
     criticalAbsenceRisk,
     completionStartedRate,
+    callCompletenessRate: attendanceAgg.callCompletenessRate,
+    attendanceReliable,
     periodLabel: scope.cycleLabel,
     quality,
     qualityNotes,
@@ -135,7 +157,7 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
 }
 
 export async function loadAcademicExecutiveFacts(scope: ScopeResolution, viewer: "DIRECTOR" | "MASTER") {
-  return cachedDirector(["facts-academic-v2", scope.scope, scope.cycleId, viewer], () =>
+  return cachedDirector(["facts-academic-v3", scope.scope, scope.cycleId, viewer], () =>
     loadAcademicFactsUncached(scope),
   );
 }

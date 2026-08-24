@@ -12,6 +12,10 @@ export const metricValueSchema = z.object({
   denominator: z.string().optional(),
   explanation: z.string().optional(),
   href: z.string().optional(),
+  currentValue: z.number().nullable().optional(),
+  targetValue: z.number().nullable().optional(),
+  percentage: z.number().nullable().optional(),
+  formattedValue: z.string().optional(),
 });
 
 export const qualityFlagSchema = z.object({
@@ -55,10 +59,11 @@ export const derivedAlertSchema = z.object({
   metricId: z.string().optional(),
   href: z.string(),
   source: z.string(),
-  operationalOwner: z.literal("não acompanhado pelo sistema").optional(),
-  status: z.literal("não acompanhado pelo sistema").optional(),
+  operationalOwner: z.string().optional(),
+  status: z.string().optional(),
 });
 
 export type MetricValueDto = z.infer<typeof metricValueSchema>;
 export type ResponseMetaDto = z.infer<typeof responseMetaSchema>;
 export type DerivedAlertDto = z.infer<typeof derivedAlertSchema>;
+export const OPERATIONAL_FOLLOWUP = "Acompanhamento operacional ainda não registrado.";

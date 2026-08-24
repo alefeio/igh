@@ -112,6 +112,35 @@ export function filterEligibleSessionsForEnrollment(
   return filtered;
 }
 
+/** Sessão já ocorreu em relação a dataAsOf e não está cancelada (liberada ou ainda não liberada). */
+export function isSessionOccurred(session: SessionLike, dataAsOf: Date): boolean {
+  if (session.status === "CANCELED") return false;
+  return sessionInstant(session).getTime() <= dataAsOf.getTime();
+}
+
+/**
+ * Sessões já ocorridas da turma para o aluno (inclui não liberadas).
+ * Usado no streak: lacuna desconhecida não pode ser ignorada.
+ */
+export function filterOccurredSessionsForEnrollment(
+  sessions: SessionLike[],
+  enrollment: EnrollmentEntryLike,
+  dataAsOf: Date,
+  order: "asc" | "desc" = "asc",
+): SessionLike[] {
+  const entryMs = enrollment.enteredAt.getTime();
+  const filtered = sessions.filter((s) => {
+    if (s.classGroupId !== enrollment.classGroupId) return false;
+    if (!isSessionOccurred(s, dataAsOf)) return false;
+    return sessionInstant(s).getTime() >= entryMs;
+  });
+  filtered.sort((a, b) => {
+    const da = sessionInstant(a).getTime() - sessionInstant(b).getTime();
+    return order === "asc" ? da : -da;
+  });
+  return filtered;
+}
+
 export function filterEligibleSessionsForClassGroup(
   sessions: SessionLike[],
   classGroupId: string,

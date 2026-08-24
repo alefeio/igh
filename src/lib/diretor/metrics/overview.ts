@@ -21,6 +21,7 @@ import type {
 } from "@/lib/diretor/facts/types";
 import type { ScopeResolution } from "@/lib/diretor/load-scope";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
+import { presenceDependentQuality } from "@/lib/diretor/metrics/attendance-formulas";
 import { domainLabel } from "@/lib/diretor/ui-labels";
 import { formatCentsBRL } from "@/lib/employees";
 
@@ -28,6 +29,7 @@ export type OverviewBundle = {
   meta: ResponseMetaDto;
   kpis: MetricValueDto[];
   alerts: DerivedAlertDto[];
+  watchAlerts: DerivedAlertDto[];
   qualityNotes: string[];
   domainStatus: Array<{ domain: string; status: "ok" | "partial" | "unavailable"; note?: string }>;
   dataQuality: Array<{ title: string; fact: string; domain: string }>;
@@ -83,27 +85,49 @@ export async function loadOverviewSummaries(opts: {
   const projects = by.projects?.ok ? (by.projects.value as ProjectExecutiveFacts) : undefined;
 
   if (acad) {
+    const pq = presenceDependentQuality(acad.attendanceReliable);
+    const servedLabel = acad.attendanceReliable
+      ? acad.servedUnique
+      : `${acad.servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`;
     kpis.push(
       metricCard("ben.served_unique", acad.servedUnique, {
-        quality: "ok",
+        quality: pq,
         href: "/diretor/academico",
-        explanation: "Pessoas distintas com pelo menos uma presença em aula no recorte.",
+        formattedValue: typeof servedLabel === "string" ? servedLabel : undefined,
+        currentValue: acad.servedUnique,
+        explanation: acad.attendanceReliable
+          ? "Pessoas distintas com pelo menos uma presença em aula no recorte."
+          : `Ao menos ${acad.servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. Não é alcance institucional definitivo.`,
       }),
     );
     if (acad.completionStartedRate != null) {
       kpis.push(
-        metricCard("acad.completion.started_rate", acad.completionStartedRate, { quality: "ok", href: "/diretor/academico" }),
+        metricCard("acad.completion.started_rate", acad.completionStartedRate, {
+          quality: pq,
+          href: "/diretor/academico",
+          percentage: acad.completionStartedRate,
+        }),
       );
     }
     kpis.push(
       metricCard("acad.attrition.risk.critical_absences", acad.criticalAbsenceRisk, {
-        quality: "ok",
+        quality: pq,
         href: "/diretor/academico",
+        explanation: acad.attendanceReliable
+          ? undefined
+          : "Casos identificados nos registros disponíveis — leitura parcial.",
       }),
     );
   }
   if (offer?.occupancyPercent != null) {
-    kpis.push(metricCard("offer.occupancy.current", offer.occupancyPercent, { quality: "ok", href: "/diretor/oferta-territorios" }));
+    kpis.push(
+      metricCard("offer.occupancy.current", offer.occupancyPercent, {
+        quality: "ok",
+        href: "/diretor/oferta-territorios",
+        percentage: offer.occupancyPercent,
+        currentValue: offer.occupancyPercent,
+      }),
+    );
   }
   if (social) {
     const donated = social.computersDonated;
@@ -114,11 +138,15 @@ export async function loadOverviewSummaries(opts: {
         ? `${donated.toLocaleString("pt-BR")} de ${target.toLocaleString("pt-BR")}${pct != null ? ` — ${pct}%` : ""}`
         : donated.toLocaleString("pt-BR");
     kpis.push(
-      metricCard("soc.computers_donated", display, {
+      metricCard("soc.computers_donated", donated, {
         quality: target == null ? "partial" : "ok",
         href: "/diretor/impacto-social",
         labelOverride: "Equipamentos doados vs meta",
         explanation: "Doações confirmadas no ano comparadas à meta de equipamentos.",
+        currentValue: donated,
+        targetValue: target,
+        percentage: pct,
+        formattedValue: display,
       }),
     );
   }
@@ -147,10 +175,9 @@ export async function loadOverviewSummaries(opts: {
     projects,
   });
   const structural = derived.filter((a) => a.id === "proj-unavailable");
-  const alerts = topPriorityAlerts(
-    derived.filter((a) => a.id !== "proj-unavailable"),
-    5,
-  );
+  const decision = derived.filter((a) => a.id !== "proj-unavailable" && a.severity !== "info");
+  const watch = derived.filter((a) => a.id !== "proj-unavailable" && a.severity === "info");
+  const alerts = topPriorityAlerts(decision, 5);
   const dataQuality: OverviewBundle["dataQuality"] = [
     ...structural.map((a) => ({ title: a.title, fact: a.fact, domain: a.domain })),
     ...domainStatus
@@ -179,6 +206,7 @@ export async function loadOverviewSummaries(opts: {
     },
     kpis: kpis.slice(0, 6),
     alerts,
+    watchAlerts: watch,
     qualityNotes,
     domainStatus,
     dataQuality,

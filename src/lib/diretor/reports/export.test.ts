@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import ExcelJS from "exceljs";
 
 vi.mock("server-only", () => ({}));
 
@@ -45,14 +46,37 @@ describe("PDF e XLSX", () => {
     expect(Buffer.from(bytes).subarray(0, 4).toString()).toBe("%PDF");
   });
 
-  it("XLSX é zip e trata fórmula como texto", async () => {
+  it("XLSX é zip, data formatada e sem 58 fantasma nas definições", async () => {
     const buf = await buildDirectorXlsx({
       ...report,
+      generatedAt: "2026-08-23T12:00:00.000Z",
+      formulaVersion: "1C.0.0",
       indicators: {
-        kpis: [{ label: "x", value: "=CMD()", metricId: "t", formula: "f", quality: "ok" }],
+        kpis: [
+          {
+            label: "Equipamentos",
+            value: "0 de 1.000 — 0%",
+            metricId: "soc.computers_donated",
+            formula: "doações",
+            quality: "ok",
+            currentValue: 0,
+            targetValue: 1000,
+            percentage: 0,
+            formattedValue: "0 de 1.000 — 0%",
+          },
+        ],
       },
     });
     expect(buf[0]).toBe(0x50);
-    expect(buf[1]).toBe(0x4b);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf as never);
+    const def = wb.getWorksheet("Definições");
+    const blob = JSON.stringify(def?.getSheetValues());
+    expect(blob).not.toMatch(/(^|[^0-9])58([^0-9]|$)/);
+    expect(def?.getCell("A2").value).not.toBe(58);
+    const last = def?.lastRow?.number ?? 0;
+    expect(String(def?.getCell(last, 1).value)).toBe("metadata.formula_version");
+    const resumo = wb.getWorksheet("Resumo");
+    expect(resumo?.getCell("B5").value).toBeInstanceOf(Date);
   });
 });

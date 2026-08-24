@@ -18,6 +18,10 @@ type Kpi = {
   quality?: string;
   unit?: string;
   explanation?: string;
+  currentValue?: number | null;
+  targetValue?: number | null;
+  percentage?: number | null;
+  formattedValue?: string;
 };
 
 type Alert = { title?: string; fact?: string; domain?: string; severity?: string; suggestedDecision?: string };
@@ -26,15 +30,6 @@ type QualityItem = { domain?: string; status?: string; note?: string };
 function asText(value: unknown): string {
   if (value == null) return "";
   return neutralizeCsvFormula(String(value));
-}
-
-function parsePercent(value: unknown, unit?: string): number | null {
-  if (unit === "%" && typeof value === "number") return value / 100;
-  if (typeof value === "string" && value.includes("%")) {
-    const n = Number(value.replace("%", "").replace(",", ".").trim());
-    return Number.isFinite(n) ? n / 100 : null;
-  }
-  return null;
 }
 
 function parseMoneyReais(value: unknown, metricId?: string): number | null {
@@ -50,9 +45,12 @@ function parseMoneyReais(value: unknown, metricId?: string): number | null {
   return null;
 }
 
-function parseCount(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  return null;
+function writeHeaderFill(ws: ExcelJS.Worksheet, row: number, cols: number, navy: string) {
+  for (let c = 1; c <= cols; c++) {
+    const cell = ws.getCell(row, c);
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: navy } };
+  }
 }
 
 export async function buildDirectorXlsx(report: {
@@ -76,7 +74,14 @@ export async function buildDirectorXlsx(report: {
   const quality = Array.isArray(report.quality) ? report.quality : [];
 
   const resumo = wb.addWorksheet("Resumo", {
-    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+    pageSetup: {
+      paperSize: 9,
+      orientation: "landscape",
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 1,
+      printArea: "A1:C40",
+    },
   });
   resumo.views = [{ state: "frozen", ySplit: 1, showGridLines: false }];
   resumo.getColumn(1).width = 36;
@@ -86,39 +91,53 @@ export async function buildDirectorXlsx(report: {
   resumo.getCell("A1").value = `${BRAND.shortName} — ${BRAND.legalName}`;
   resumo.getCell("A1").font = { bold: true, color: { argb: "FFFFFFFF" }, size: 14 };
   resumo.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: navy } };
-  resumo.getRow(2).values = ["Relatório", report.title];
-  resumo.getRow(3).values = ["Filtros", report.periodLabel || formatFiltersHuman(report.period)];
-  resumo.getRow(4).values = [
-    "Dados considerados até",
-    typeof report.dataAsOf === "string" ? formatInstantPtBr(report.dataAsOf) : asText(report.dataAsOf),
-  ];
-  resumo.getRow(5).values = ["Gerado em", asText(report.generatedAt)];
-  resumo.getRow(6).values = ["Síntese", "Indicadores da área da Direção, sem dados pessoais nominais."];
-  resumo.getRow(8).values = ["Indicador", "Valor", "Qualidade"];
-  resumo.getRow(8).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  resumo.getRow(8).fill = { type: "pattern", pattern: "solid", fgColor: { argb: navy } };
+  resumo.getCell("A2").value = "Relatório";
+  resumo.getCell("B2").value = report.title;
+  resumo.getCell("A3").value = "Filtros";
+  resumo.getCell("B3").value = report.periodLabel || formatFiltersHuman(report.period);
+  resumo.getCell("A4").value = "Dados considerados até";
+  resumo.getCell("B4").value =
+    typeof report.dataAsOf === "string" ? formatInstantPtBr(report.dataAsOf) : asText(report.dataAsOf);
+  resumo.getCell("A5").value = "Gerado em";
+  if (typeof report.generatedAt === "string" && !Number.isNaN(Date.parse(report.generatedAt))) {
+    resumo.getCell("B5").value = new Date(report.generatedAt);
+    resumo.getCell("B5").numFmt = "dd/mm/yyyy hh:mm";
+  } else {
+    resumo.getCell("B5").value = asText(report.generatedAt);
+  }
+  resumo.getCell("A6").value = "Síntese";
+  resumo.getCell("B6").value = "Indicadores da área da Direção, sem dados pessoais nominais.";
+  resumo.getCell("A8").value = "Indicador";
+  resumo.getCell("B8").value = "Valor";
+  resumo.getCell("C8").value = "Qualidade";
+  writeHeaderFill(resumo, 8, 3, navy);
   let r = 9;
   for (const k of kpis.slice(0, 8)) {
-    const money = parseMoneyReais(k.value, k.metricId);
-    const pct = parsePercent(k.value, k.unit);
-    const count = money == null && pct == null ? parseCount(k.value) : null;
+    const money = parseMoneyReais(typeof k.value === "string" ? k.value : null, k.metricId);
     resumo.getCell(r, 1).value = k.label;
     const cell = resumo.getCell(r, 2);
     if (money != null) {
       cell.value = money;
       cell.numFmt = '"R$" #,##0.00';
-    } else if (pct != null) {
-      cell.value = pct;
+    } else if (typeof k.value === "number" && k.metricId?.startsWith("fin.")) {
+      cell.value = k.value / 100;
+      cell.numFmt = '"R$" #,##0.00';
+    } else if (k.percentage != null && Number.isFinite(k.percentage)) {
+      cell.value = k.percentage / 100;
       cell.numFmt = "0.0%";
-    } else if (count != null) {
-      cell.value = count;
+    } else if (k.currentValue != null && Number.isFinite(k.currentValue) && k.unit !== "%") {
+      cell.value = k.currentValue;
       cell.numFmt = "#,##0";
+    } else if (typeof k.value === "number" && Number.isFinite(k.value)) {
+      cell.value = k.unit === "%" ? k.value / 100 : k.value;
+      cell.numFmt = k.unit === "%" ? "0.0%" : "#,##0";
     } else {
-      cell.value = asText(k.value);
+      cell.value = asText(k.formattedValue ?? k.value);
     }
     resumo.getCell(r, 3).value = qualityStatusLabel(k.quality ?? "ok");
     r += 1;
   }
+  const lastKpi = r - 1;
   r += 1;
   resumo.getCell(r, 1).value = "Principais alertas";
   resumo.getCell(r, 1).font = { bold: true };
@@ -142,52 +161,92 @@ export async function buildDirectorXlsx(report: {
   resumo.getCell(r, 2).value = asText(report.disclaimer);
   resumo.getCell(r, 1).alignment = { wrapText: true };
   resumo.getCell(r, 2).alignment = { wrapText: true };
+  resumo.autoFilter = { from: { row: 8, column: 1 }, to: { row: Math.max(8, lastKpi), column: 3 } };
+  resumo.pageSetup.printArea = `A1:C${r}`;
 
-  const ind = wb.addWorksheet("Indicadores");
-  ind.views = [{ state: "frozen", ySplit: 1 }];
-  ind.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 4 } };
-  ind.addRow(["Indicador", "Valor", "Qualidade", "Como é calculado"]);
-  ind.getRow(1).font = { bold: true };
+  const ind = wb.addWorksheet("Indicadores", {
+    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+  });
+  ind.views = [{ state: "frozen", ySplit: 1, showGridLines: false }];
+  ind.addRow(["Indicador", "Realizado", "Meta", "Percentual", "Qualidade", "Como é calculado", "Apresentação"]);
+  writeHeaderFill(ind, 1, 7, navy);
+  ind.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 7 } };
   for (const k of kpis) {
-    const money = parseMoneyReais(k.value, k.metricId);
-    const pct = parsePercent(k.value, k.unit);
-    const count = money == null && pct == null ? parseCount(k.value) : null;
-    const row = ind.addRow([k.label, null, qualityStatusLabel(k.quality ?? "ok"), asText(k.explanation || k.formula)]);
+    const money = parseMoneyReais(typeof k.value === "string" ? k.value : null, k.metricId);
+    const row = ind.addRow([
+      k.label,
+      null,
+      k.targetValue ?? null,
+      null,
+      qualityStatusLabel(k.quality ?? "ok"),
+      asText(k.explanation || k.formula),
+      asText(k.formattedValue ?? (typeof k.value === "string" ? k.value : "")),
+    ]);
     if (money != null) {
       row.getCell(2).value = money;
       row.getCell(2).numFmt = '"R$" #,##0.00';
-    } else if (pct != null) {
-      row.getCell(2).value = pct;
-      row.getCell(2).numFmt = "0.0%";
-    } else if (count != null) {
-      row.getCell(2).value = count;
+    } else if (typeof k.value === "number" && k.metricId?.startsWith("fin.")) {
+      row.getCell(2).value = k.value / 100;
+      row.getCell(2).numFmt = '"R$" #,##0.00';
+    } else if (k.currentValue != null && Number.isFinite(k.currentValue)) {
+      row.getCell(2).value = k.unit === "%" ? k.currentValue / 100 : k.currentValue;
+      row.getCell(2).numFmt = k.unit === "%" ? "0.0%" : "#,##0";
+    } else if (typeof k.value === "number" && Number.isFinite(k.value)) {
+      row.getCell(2).value = k.unit === "%" ? k.value / 100 : k.value;
+      row.getCell(2).numFmt = k.unit === "%" ? "0.0%" : "#,##0";
     } else {
       row.getCell(2).value = asText(k.value);
     }
+    if (k.percentage != null && Number.isFinite(k.percentage)) {
+      row.getCell(4).value = k.percentage / 100;
+      row.getCell(4).numFmt = "0.0%";
+    }
+    if (k.targetValue != null && Number.isFinite(k.targetValue)) {
+      row.getCell(3).value = k.targetValue;
+      row.getCell(3).numFmt = "#,##0";
+    }
   }
   ind.columns.forEach((c) => {
-    c.width = 36;
+    c.width = 22;
     c.alignment = { wrapText: true, vertical: "top" };
   });
+  ind.pageSetup.printArea = `A1:G${Math.max(1, kpis.length + 1)}`;
 
-  const alerts = wb.addWorksheet("Alertas");
-  alerts.views = [{ state: "frozen", ySplit: 1 }];
-  alerts.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 4 } };
-  alerts.addRow(["Alerta", "Tema", "Severidade", "Fato"]);
-  alerts.getRow(1).font = { bold: true };
+  const alerts = wb.addWorksheet("Alertas", {
+    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+  });
+  alerts.views = [{ state: "frozen", ySplit: 1, showGridLines: false }];
+  alerts.addRow(["Alerta", "Tema", "Severidade", "Fato", "Decisão sugerida"]);
+  writeHeaderFill(alerts, 1, 5, navy);
+  alerts.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 5 } };
+  const sevFill: Record<string, string> = {
+    critical: "FECACA",
+    attention: "FDE68A",
+    info: "DBEAFE",
+  };
   for (const a of report.alerts ?? []) {
-    alerts.addRow([asText(a.title), domainLabel(a.domain ?? ""), severityLabel(a.severity ?? ""), asText(a.fact)]);
+    const row = alerts.addRow([
+      asText(a.title),
+      domainLabel(a.domain ?? ""),
+      severityLabel(a.severity ?? ""),
+      asText(a.fact),
+      asText(a.suggestedDecision),
+    ]);
+    const fill = sevFill[a.severity ?? ""] ?? "FFFFFF";
+    row.getCell(3).fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
   }
   alerts.columns.forEach((c) => {
-    c.width = 32;
+    c.width = 28;
     c.alignment = { wrapText: true };
   });
 
-  const qual = wb.addWorksheet("Qualidade");
-  qual.views = [{ state: "frozen", ySplit: 1 }];
-  qual.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 4 } };
+  const qual = wb.addWorksheet("Qualidade", {
+    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+  });
+  qual.views = [{ state: "frozen", ySplit: 1, showGridLines: false }];
   qual.addRow(["Domínio", "Situação", "Observação", "Impacto na leitura"]);
-  qual.getRow(1).font = { bold: true };
+  writeHeaderFill(qual, 1, 4, navy);
+  qual.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 4 } };
   for (const q of quality) {
     const status = qualityStatusLabel(q.status ?? "ok");
     const impact =
@@ -206,15 +265,17 @@ export async function buildDirectorXlsx(report: {
     c.alignment = { wrapText: true };
   });
 
-  const def = wb.addWorksheet("Definições");
-  def.views = [{ state: "frozen", ySplit: 1 }];
+  const def = wb.addWorksheet("Definições", {
+    pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+  });
+  def.views = [{ state: "frozen", ySplit: 1, showGridLines: false }];
+  def.addRow(["Identificador", "Indicador", "Valor"]);
+  writeHeaderFill(def, 1, 3, navy);
   def.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 3 } };
-  def.addRow(["Identificador técnico", "Indicador", "Fórmula"]);
-  def.getRow(1).font = { bold: true };
   for (const k of kpis) {
     def.addRow([asText(k.metricId), k.label, asText(k.formula)]);
   }
-  def.addRow(["", "Versão das fórmulas", asText(report.formulaVersion)]);
+  def.addRow(["metadata.formula_version", "Versão da metodologia", asText(report.formulaVersion)]);
   def.columns.forEach((c) => {
     c.width = 40;
     c.alignment = { wrapText: true };

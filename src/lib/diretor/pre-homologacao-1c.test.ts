@@ -58,7 +58,7 @@ describe("pre-homologação 1C — atendidos e carimbo", () => {
     expect(r.rate).toBe(Math.round((r.notStarted / confirmed) * 1000) / 10);
     const ui = src("src/app/(protected)/diretor/academico/page.tsx");
     expect(ui).toContain("Reconciliação do não início (matrículas confirmadas)");
-    expect(ui).toContain("Iniciaram entre os confirmados");
+    expect(ui).toContain("Iniciaram com presença registrada");
   });
 
   it("carimbo executivo usa fuso institucional e não expõe nome técnico", () => {

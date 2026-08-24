@@ -15,6 +15,7 @@ import {
   hasStarted,
   isExecutiveAttendanceReliable,
   INCOMPLETE_CALL_ALERT,
+  presenceDependentQuality,
   shouldEmitExecutiveAttendanceAlerts,
   reconcileConfirmedNonStart,
   type AttendanceMarkRow,
@@ -45,6 +46,7 @@ export type AcademicBundle = {
       confirmedNotStarted: number;
       startedAmongConfirmed: number;
       cancelAfterStartUntyped: number;
+      attendanceReliable?: boolean;
     };
     attendance: ReturnType<typeof aggregateOpportunityRates> & {
       executiveReliable: boolean;
@@ -271,8 +273,18 @@ async function loadAcademicUncached(
   const hrefAcad = buildDirectorHref("/diretor/academico", filterQs);
   const hrefPrio = buildDirectorHref("/diretor/prioridades", filterQs);
 
+  const pq = presenceDependentQuality(attendanceReliable);
+  const completenessNote =
+    attendanceAgg.callCompletenessRate != null ? `${attendanceAgg.callCompletenessRate}% das chamadas preenchidas` : null;
+
   const kpis: MetricValueDto[] = [
-    metricCard("acad.attrition.risk.critical_absences", criticalAbsenceRisk, { quality: "ok", href: hrefAcad }),
+    metricCard("acad.attrition.risk.critical_absences", criticalAbsenceRisk, {
+      quality: pq,
+      href: hrefAcad,
+      explanation: attendanceReliable
+        ? "Matrículas ativas ou suspensas com quatro faltas consecutivas comprovadas."
+        : "Casos identificados nos registros disponíveis — leitura parcial.",
+    }),
     metricCard("acad.attendance.present_rate", attendanceAgg.presentRate, {
       quality:
         attendanceAgg.presentRate == null
@@ -284,16 +296,45 @@ async function loadAcademicUncached(
       href: hrefAcad,
       explanation: attendanceReliable
         ? "Percentual de presenças entre as oportunidades de chamada já ocorridas e liberadas."
-        : "Valor preliminar: a chamada ainda está incompleta (abaixo de 90% de preenchimento).",
+        : `Frequência provisória. ${completenessNote ?? ""}. Não use para meta nem síntese conclusiva.`,
+      percentage: attendanceAgg.presentRate,
     }),
     metricCard("ben.served_unique", servedUnique, {
-      quality: "ok",
+      quality: pq,
       href: hrefAcad,
-      explanation: "Pessoas distintas com pelo menos uma presença em aula elegível no recorte.",
+      formattedValue: `${servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`,
+      currentValue: servedUnique,
+      explanation: attendanceReliable
+        ? "Pessoas distintas com pelo menos uma presença em aula no recorte."
+        : `Ao menos ${servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. ${completenessNote ?? ""}`,
+    }),
+    metricCard("acad.attendance.justified_rate", attendanceAgg.justifiedRate, {
+      quality: attendanceAgg.justifiedRate == null ? "unavailable" : pq,
+      unavailableReason: attendanceAgg.justifiedRate == null ? "Sem oportunidades de chamada no recorte" : null,
+      href: hrefAcad,
+      percentage: attendanceAgg.justifiedRate,
+      explanation: attendanceReliable
+        ? "Faltas justificadas sobre as oportunidades de aula já liberadas."
+        : `Leitura provisória. ${completenessNote ?? ""}.`,
+    }),
+    metricCard("acad.attendance.unjustified_rate", attendanceAgg.unjustifiedRate, {
+      quality: attendanceAgg.unjustifiedRate == null ? "unavailable" : pq,
+      unavailableReason: attendanceAgg.unjustifiedRate == null ? "Sem oportunidades de chamada no recorte" : null,
+      href: hrefAcad,
+      percentage: attendanceAgg.unjustifiedRate,
+      explanation: attendanceReliable
+        ? "Faltas sem justificativa sobre as oportunidades de aula já liberadas."
+        : `Leitura provisória. ${completenessNote ?? ""}. Não use para comparação conclusiva.`,
     }),
   ];
   if (completionStartedRate != null) {
-    kpis.push(metricCard("acad.completion.started_rate", completionStartedRate, { quality: "ok", href: hrefAcad }));
+    kpis.push(
+      metricCard("acad.completion.started_rate", completionStartedRate, {
+        quality: pq,
+        href: hrefAcad,
+        percentage: completionStartedRate,
+      }),
+    );
   }
 
   const alerts: DerivedAlertDto[] = [];
@@ -312,7 +353,7 @@ async function loadAcademicUncached(
       suggestedDecision: INCOMPLETE_CALL_ALERT.suggestedDecision,
       href: hrefAcad,
       source: "completude das chamadas",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (criticalAbsenceRisk > 0) {
@@ -323,7 +364,9 @@ async function loadAcademicUncached(
       domain: "academic",
       severity: "critical",
       title: "Risco crítico por faltas",
-      fact: `${criticalAbsenceRisk} matrícula(s) ativas ou suspensas no limite de faltas consecutivas sem justificativa.`,
+      fact: attendanceReliable
+        ? `${criticalAbsenceRisk} matrícula(s) ativas ou suspensas no limite de faltas consecutivas sem justificativa.`
+        : `${criticalAbsenceRisk} caso(s) identificados nos registros disponíveis — leitura parcial.`,
       value: criticalAbsenceRisk,
       denominator: "matrículas vinculadas no recorte",
       period: scope.cycleLabel,
@@ -332,8 +375,8 @@ async function loadAcademicUncached(
       metricId: "acad.attrition.risk.critical_absences",
       href: hrefPrio,
       source: "frequência em aulas liberadas",
-      status: "não acompanhado pelo sistema",
-      operationalOwner: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
+      operationalOwner: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (suspensions > 0) {
@@ -352,7 +395,7 @@ async function loadAcademicUncached(
       metricId: "acad.suspension.count",
       href: hrefAcad,
       source: "cadastro de matrículas",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (sessionQuality.pastNotReleasedCount > 0) {
@@ -370,7 +413,7 @@ async function loadAcademicUncached(
       suggestedDecision: "Pedir liberação/lançamento de frequência.",
       href: hrefAcad,
       source: "agenda de aulas",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (cancelAfterStart > 0) {
@@ -389,7 +432,7 @@ async function loadAcademicUncached(
       metricId: "acad.cancel.after_start_untyped",
       href: hrefAcad,
       source: "matrículas e frequência",
-      status: "não acompanhado pelo sistema",
+      status: "Acompanhamento operacional ainda não registrado.",
     });
   }
 
@@ -416,6 +459,7 @@ async function loadAcademicUncached(
         completionStartedRate,
         nonStartRateAmongConfirmed: nonStartAmongConfirmed,
         cancelAfterStartUntyped: cancelAfterStart,
+        attendanceReliable,
       },
       attendance: {
         ...attendanceAgg,
@@ -443,7 +487,7 @@ export async function loadAcademic(
   viewer: "DIRECTOR" | "MASTER",
 ): Promise<AcademicBundle> {
   return cachedDirector(
-    ["academic", scope.scope, scope.cycleId, filters.courseId, filters.classGroupId, filters.poloId, viewer],
+    ["academic", scope.scope, scope.cycleId, filters.courseId, filters.classGroupId, filters.poloId, viewer, "v4"],
     () => loadAcademicUncached(scope, filters, viewer),
   );
 }
