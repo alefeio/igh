@@ -839,16 +839,32 @@ export default function EnrollmentsPage() {
 
   /** Mantém todos os professores ativos no gráfico, inclusive os que ficaram com zero no recorte. */
   const teachersToDisplay = useMemo(() => {
+    const poloTeacherIds = new Set<string>();
+    if (isPoloCoordinator) {
+      for (const cg of allClassGroups) {
+        if (cg.teacherId) poloTeacherIds.add(cg.teacherId);
+        if (cg.teacher?.id) poloTeacherIds.add(cg.teacher.id);
+        for (const id of cg.teacherIds ?? []) poloTeacherIds.add(id);
+      }
+    }
+    const inPolo = (t: Teacher) => !isPoloCoordinator || poloTeacherIds.has(t.id);
+
     if (allTeachers.length > 0) {
-      return [...allTeachers].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+      return allTeachers.filter(inPolo).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     }
     const seen = new Map<string, Teacher>();
     for (const e of filteredItems) {
       const t = e.classGroup.teacher;
-      if (t && !seen.has(t.id)) seen.set(t.id, t);
+      if (t && !seen.has(t.id) && inPolo(t)) seen.set(t.id, t);
+    }
+    if (isPoloCoordinator) {
+      for (const cg of allClassGroups) {
+        const t = cg.teacher;
+        if (t && !seen.has(t.id) && inPolo(t)) seen.set(t.id, t);
+      }
     }
     return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  }, [allTeachers, filteredItems]);
+  }, [allTeachers, filteredItems, isPoloCoordinator, allClassGroups]);
 
   const occupiedCountByClassGroup = useMemo(() => {
     const m = new Map<string, number>();
@@ -1836,7 +1852,11 @@ export default function EnrollmentsPage() {
             variant="elevated"
           >
               {teachersToDisplay.length === 0 ? (
-                <p className="text-sm text-[var(--text-secondary)]">Nenhum professor cadastrado.</p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {isPoloCoordinator
+                    ? "Nenhum professor nas turmas dos seus polos."
+                    : "Nenhum professor cadastrado."}
+                </p>
               ) : (
                 <>
                   {teacherChartData.length > 0 && (

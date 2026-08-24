@@ -12,6 +12,8 @@ import {
 } from "@/lib/schedule";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import { classGroupTeacherAccessWhere, syncClassGroupTeachers, validateTeacherIds } from "@/lib/class-group-teachers";
+import { pickCurrentCycle } from "@/lib/cycles";
+import { poloCoordinatorCreateClassGroupError } from "@/lib/polo-coordinator-class-group-create";
 import {
   buildClassGroupWhereForPoloCoordinator,
   poloCoordinatorOwnsPoloLocation,
@@ -142,15 +144,33 @@ export async function POST(request: Request) {
     resolvedLocation = poloLoc.name;
   }
 
-  const [cycle, course] = await Promise.all([
+  const [cycle, course, allCycles] = await Promise.all([
     prisma.cycle.findUnique({
       where: { id: cycleId },
       select: { id: true },
     }),
-    prisma.course.findUnique({ where: { id: courseId }, select: { id: true, workloadHours: true } })]);
+    prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, name: true, workloadHours: true },
+    }),
+    user.role === "POLO_COORDINATOR"
+      ? prisma.cycle.findMany({ select: { id: true, cycle: true, year: true } })
+      : Promise.resolve([]),
+  ]);
 
   if (!cycle) return jsonErr("INVALID_CYCLE", "Ciclo inválido.", 400);
   if (!course) return jsonErr("INVALID_COURSE", "Curso inválido.", 400);
+
+  if (user.role === "POLO_COORDINATOR") {
+    const current = pickCurrentCycle(allCycles);
+    const restriction = poloCoordinatorCreateClassGroupError({
+      cycleId,
+      currentCycleId: current?.id ?? null,
+      course,
+      isExternal,
+    });
+    if (restriction) return jsonErr("VALIDATION_ERROR", restriction, 400);
+  }
 
   const normalizedLocation = resolvedLocation;
   const locationFilter =

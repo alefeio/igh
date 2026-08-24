@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
-import { DEFAULT_CYCLE_ID } from "@/lib/cycles";
+import { DEFAULT_CYCLE_ID, pickCurrentCycle } from "@/lib/cycles";
+import { isPoloCoordinatorIntroInformaticaCourse } from "@/lib/polo-coordinator-class-group-create";
 
 function apiErrorMessage(json: ApiResponse<unknown> | null, fallback: string): string {
   if (json && !json.ok) return json.error.message;
@@ -307,6 +308,17 @@ export default function ClassGroupsPage() {
   );
   const courseHasWorkload = selectedCourse != null && (selectedCourse.workloadHours ?? 0) > 0;
 
+  const restrictPoloCreate = isPoloCoordinator && !editing;
+  const formCycleOptions = useMemo(() => {
+    if (!restrictPoloCreate) return cycles;
+    const current = pickCurrentCycle(cycles);
+    return current ? cycles.filter((c) => c.id === current.id) : [];
+  }, [restrictPoloCreate, cycles]);
+  const formCourseOptions = useMemo(() => {
+    if (!restrictPoloCreate) return courses;
+    return courses.filter((c) => isPoloCoordinatorIntroInformaticaCourse(c));
+  }, [restrictPoloCreate, courses]);
+
   const canSubmit = useMemo(() => {
     const base =
       cycleId.length > 0 &&
@@ -385,7 +397,18 @@ export default function ClassGroupsPage() {
 
   function openCreate() {
     resetForm();
-    if (isPoloCoordinator && poloLocationOptions.length === 1) {
+    if (isPoloCoordinator) {
+      const current = pickCurrentCycle(cycles);
+      if (current) setCycleId(current.id);
+      const intro = courses.find((c) => isPoloCoordinatorIntroInformaticaCourse(c));
+      if (intro) setCourseId(intro.id);
+      setIsExternal(true);
+      if (poloLocationOptions.length === 1) {
+        const only = poloLocationOptions[0]!;
+        setPoloLocationId(only.id);
+        setLocation(only.name);
+      }
+    } else if (poloLocationOptions.length === 1) {
       const only = poloLocationOptions[0]!;
       setPoloLocationId(only.id);
       setLocation(only.name);
@@ -2003,9 +2026,10 @@ export default function ClassGroupsPage() {
                 value={cycleId}
                 onChange={(e) => setCycleId(e.target.value)}
                 required
+                disabled={restrictPoloCreate && formCycleOptions.length <= 1}
               >
                 <option value="">Selecione...</option>
-                {cycles.map((c) => (
+                {formCycleOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {`Ciclo ${c.cycle} / ${c.year}`}{c.isVisibleForEnrollments ? "" : " (oculto)"}
                   </option>
@@ -2023,9 +2047,11 @@ export default function ClassGroupsPage() {
                 className="theme-input h-10 w-full rounded-md border px-3 text-sm outline-none focus:border-[var(--igh-primary)]"
                 value={courseId}
                 onChange={(e) => setCourseId(e.target.value)}
+                required
+                disabled={restrictPoloCreate && formCourseOptions.length <= 1}
               >
                 <option value="">Selecione...</option>
-                {courses.map((c) => (
+                {formCourseOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                     {c.workloadHours != null && c.workloadHours > 0
@@ -2035,11 +2061,16 @@ export default function ClassGroupsPage() {
                 ))}
               </select>
             </div>
-            {courseId && !courseHasWorkload && !editing && (
+            {restrictPoloCreate && formCourseOptions.length === 0 ? (
+              <p className="mt-1 text-sm text-amber-600">
+                Não há curso cadastrado como Introdução à Informática (10h). Peça ao administrador para cadastrá-lo.
+              </p>
+            ) : null}
+            {courseId && !courseHasWorkload && !editing ? (
               <p className="mt-1 text-sm text-amber-600">
                 Este curso não tem carga horária. Para criar a turma e gerar as aulas, edite o curso em <strong>Cursos</strong> e preencha o campo &quot;Carga horária&quot; (em horas).
               </p>
-            )}
+            ) : null}
           </div>
           <div>
             <label className="text-sm font-medium">Professor(es)</label>
@@ -2192,6 +2223,7 @@ export default function ClassGroupsPage() {
                 </p>
               </div>
               <div className="inline-flex rounded-md border border-[var(--card-border)] p-0.5">
+                {restrictPoloCreate ? null : (
                 <button
                   type="button"
                   onClick={() => setIsExternal(false)}
@@ -2203,6 +2235,7 @@ export default function ClassGroupsPage() {
                 >
                   Interna
                 </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsExternal(true)}

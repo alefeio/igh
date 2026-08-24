@@ -122,3 +122,21 @@ export async function poloCoordinatorOwnsEnrollment(
   });
   return !!row;
 }
+
+/** Professores (titular ou adicional) das turmas dos polos que o usuário coordena. */
+export async function getTeacherIdsForPoloCoordinator(userId: string): Promise<string[]> {
+  const poloWhere = await buildClassGroupWhereForPoloCoordinator(userId);
+  const groups = await prisma.classGroup.findMany({
+    where: poloWhere,
+    select: {
+      teacherId: true,
+      classGroupTeachers: { select: { teacherId: true } },
+    },
+  });
+  const ids = new Set<string>();
+  for (const g of groups) {
+    ids.add(g.teacherId);
+    for (const row of g.classGroupTeachers) ids.add(row.teacherId);
+  }
+  return [...ids];
+}

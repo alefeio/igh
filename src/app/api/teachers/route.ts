@@ -9,9 +9,10 @@ import { getUnitsByTeacherId } from "@/lib/teacher-units";
 import { generateTempPassword } from "@/lib/password";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateProfessorWelcome, templateAddedAsProfessor } from "@/lib/email/templates";
+import { getTeacherIdsForPoloCoordinator } from "@/lib/polo-coordinator-scope";
 
 export async function GET(request: Request) {
-  await requireRole(["MASTER", "ADMIN", "POLO_COORDINATOR"]);
+  const user = await requireRole(["MASTER", "ADMIN", "POLO_COORDINATOR"]);
 
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get("status") ?? "active"; // active | inactive | all
@@ -23,8 +24,13 @@ export async function GET(request: Request) {
         ? { deletedAt: { not: null } }
         : {};
 
+  const poloTeacherFilter =
+    user.role === "POLO_COORDINATOR"
+      ? { id: { in: await getTeacherIdsForPoloCoordinator(user.id) } }
+      : {};
+
   const teachersRaw = await prisma.teacher.findMany({
-    where,
+    where: { ...where, ...poloTeacherFilter },
     orderBy: { createdAt: "desc" },
     include: {
       user: { select: { birthDate: true, whatsapp: true } },
