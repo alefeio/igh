@@ -1612,6 +1612,7 @@ model FinancialEntry {
   polo                 Polo?                    @relation(fields: [poloId], references: [id], onDelete: SetNull)
   responsibleUser      User?                    @relation("FinancialEntryResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
   createdByUser        User?                    @relation("FinancialEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  attachments          FinancialEntryAttachment[]
   donations            Donation[]
   employeeInvoiceSubmissions EmployeeInvoiceSubmission[]
   driverLogs           EmployeeDriverLog[]
@@ -1623,6 +1624,21 @@ model FinancialEntry {
   @@index([kind, expenseNature, entryDate])
   @@index([categoryId])
   @@index([poloId])
+}
+
+/// * Arquivo anexado a um lançamento (fatura, comprovante, etc.).
+model FinancialEntryAttachment {
+  id               String         @id @default(uuid())
+  financialEntryId String
+  url              String
+  publicId         String?
+  fileName         String?
+  /// * Nome identificável do que o arquivo representa.
+  description      String
+  createdAt        DateTime       @default(now())
+  entry            FinancialEntry @relation(fields: [financialEntryId], references: [id], onDelete: Cascade)
+
+  @@index([financialEntryId, createdAt])
 }
 
 /// * Item do almoxarifado / estoque patrimonial.

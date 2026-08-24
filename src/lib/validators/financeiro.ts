@@ -73,6 +73,16 @@ const optionalHttps = z
   .nullable()
   .optional();
 
+const financialAttachmentItemSchema = z.object({
+  url: z
+    .string()
+    .url("URL inválida")
+    .refine((u) => u.startsWith("https://"), "URL deve ser HTTPS"),
+  publicId: optionalText,
+  fileName: optionalText,
+  description: z.string().trim().min(1, "Informe o que é o anexo").max(180),
+});
+
 export const createFinancialCategorySchema = z.object({
   name: z.string().trim().min(2, "Nome é obrigatório"),
   kind: kindEnum,
@@ -105,6 +115,7 @@ export const createFinancialEntrySchema = z
     attachmentUrl: optionalHttps,
     attachmentPublicId: optionalText,
     attachmentFileName: optionalText,
+    attachments: z.array(financialAttachmentItemSchema).max(10).optional(),
     expenseNature: z.enum(["FIXA", "VARIAVEL"]).nullable().optional(),
   })
   .superRefine((data, ctx) => {
@@ -146,6 +157,7 @@ export const updateFinancialEntrySchema = z
     attachmentUrl: optionalHttps,
     attachmentPublicId: optionalText,
     attachmentFileName: optionalText,
+    attachments: z.array(financialAttachmentItemSchema).max(10).optional(),
     expenseNature: z.enum(["FIXA", "VARIAVEL"]).nullable().optional(),
   })
   .superRefine((data, ctx) => {

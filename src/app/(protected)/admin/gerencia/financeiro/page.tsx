@@ -33,9 +33,11 @@ import {
   formatEntryDate,
   paymentStatusBadgeTone,
   responsibleLabel,
+  type FinancialAttachmentView,
   type FinancialCategoryView,
   type FinancialEntryView,
 } from "@/lib/financeiro";
+import { MAX_FINANCIAL_ATTACHMENTS } from "@/lib/financeiro-attachments";
 import { brazilTodayIsoDate, isPastDueDate } from "@/lib/financeiro-payment-shared";
 import type {
   FinancialEntryKind,
@@ -104,6 +106,20 @@ type MeiInvoice = {
   } | null;
 };
 
+type FormAttachment = {
+  key: string;
+  id?: string;
+  url: string;
+  publicId: string;
+  fileName: string;
+  description: string;
+};
+
+type PreviewTarget = {
+  entryId: string;
+  attachment: FinancialAttachmentView;
+};
+
 type EntryForm = {
   kind: FinancialEntryKind;
   description: string;
@@ -120,9 +136,7 @@ type EntryForm = {
   invoiceNumber: string;
   supplier: string;
   notes: string;
-  attachmentUrl: string;
-  attachmentPublicId: string;
-  attachmentFileName: string;
+  attachments: FormAttachment[];
   expenseNature: FinancialExpenseNature | "";
 };
 
@@ -148,11 +162,43 @@ function emptyForm(): EntryForm {
     invoiceNumber: "",
     supplier: "",
     notes: "",
-    attachmentUrl: "",
-    attachmentPublicId: "",
-    attachmentFileName: "",
+    attachments: [],
     expenseNature: "VARIAVEL",
   };
+}
+
+function toFormAttachments(entry: FinancialEntryView): FormAttachment[] {
+  const list =
+    entry.attachments && entry.attachments.length > 0
+      ? entry.attachments
+      : entry.attachmentUrl
+        ? [
+            {
+              id: "legacy",
+              url: entry.attachmentUrl,
+              publicId: entry.attachmentPublicId,
+              fileName: entry.attachmentFileName,
+              description: entry.attachmentFileName || "Anexo",
+            },
+          ]
+        : [];
+  return list.map((a) => ({
+    key: a.id,
+    id: a.id,
+    url: a.url,
+    publicId: a.publicId ?? "",
+    fileName: a.fileName ?? "",
+    description: a.description,
+  }));
+}
+
+function payloadAttachments(attachments: FormAttachment[]) {
+  return attachments.map((a) => ({
+    url: a.url,
+    publicId: a.publicId || null,
+    fileName: a.fileName || null,
+    description: a.description.trim() || a.fileName || "Anexo",
+  }));
 }
 
 function attachmentPreviewKind(fileName?: string | null, url?: string | null): "pdf" | "image" | "other" {
@@ -229,7 +275,8 @@ export default function FinanceiroPage() {
   const [meiLoading, setMeiLoading] = useState(false);
   const [meiInvoices, setMeiInvoices] = useState<MeiInvoice[]>([]);
 
-  const [previewEntry, setPreviewEntry] = useState<FinancialEntryView | null>(null);
+  const [preview, setPreview] = useState<PreviewTarget | null>(null);
+  const [attachmentLabel, setAttachmentLabel] = useState("");
 
   const [catOpen, setCatOpen] = useState(false);
   const [catName, setCatName] = useState("");
@@ -374,6 +421,7 @@ export default function FinanceiroPage() {
 
   function openCreate(kind: FinancialEntryKind = "SAIDA") {
     setEditing(null);
+    setAttachmentLabel("");
     setForm({
       ...emptyForm(),
       kind,
@@ -385,6 +433,7 @@ export default function FinanceiroPage() {
 
   function openEdit(entry: FinancialEntryView) {
     setEditing(entry);
+    setAttachmentLabel("");
     clearSuggestion();
     setForm({
       kind: entry.kind,
@@ -401,9 +450,7 @@ export default function FinanceiroPage() {
       invoiceNumber: entry.invoiceNumber ?? "",
       supplier: entry.supplier ?? "",
       notes: entry.notes ?? "",
-      attachmentUrl: entry.attachmentUrl ?? "",
-      attachmentPublicId: entry.attachmentPublicId ?? "",
-      attachmentFileName: entry.attachmentFileName ?? "",
+      attachments: toFormAttachments(entry),
       expenseNature: entry.kind === "SAIDA" ? (entry.expenseNature ?? "VARIAVEL") : "",
     });
     setFormOpen(true);
@@ -423,9 +470,17 @@ export default function FinanceiroPage() {
       responsibleName: nome,
       supplier: nome,
       notes: inv.notes ?? "",
-      attachmentUrl: inv.pdfUrl ?? "",
-      attachmentPublicId: inv.pdfPublicId ?? "",
-      attachmentFileName: inv.pdfUrl ? `nota-mei-${competencia.replace("/", "-")}.pdf` : "",
+      attachments: inv.pdfUrl
+        ? [
+            {
+              key: `mei-${inv.id}`,
+              url: inv.pdfUrl,
+              publicId: inv.pdfPublicId ?? "",
+              fileName: `nota-mei-${competencia.replace("/", "-")}.pdf`,
+              description: "Nota MEI",
+            },
+          ]
+        : [],
     });
     setTab("fluxo");
     setFormOpen(true);
@@ -515,6 +570,11 @@ export default function FinanceiroPage() {
   }
 
   async function uploadAttachment(file: File) {
+    if (form.attachments.length >= MAX_FINANCIAL_ATTACHMENTS) {
+      toast.push("error", `No máximo ${MAX_FINANCIAL_ATTACHMENTS} anexos por lançamento.`);
+      return;
+    }
+    const description = attachmentLabel.trim() || file.name;
     setUploading(true);
     try {
       const signRes = await fetch(GERENCIA_UPLOAD_SIGNATURE, { method: "POST" });
@@ -536,10 +596,18 @@ export default function FinanceiroPage() {
       const fileName = cloud.originalFilename ?? file.name;
       setForm((prev) => ({
         ...prev,
-        attachmentUrl: cloud.url!,
-        attachmentPublicId: cloud.publicId,
-        attachmentFileName: fileName,
+        attachments: [
+          ...prev.attachments,
+          {
+            key: `${Date.now()}-${fileName}`,
+            url: cloud.url!,
+            publicId: cloud.publicId,
+            fileName,
+            description,
+          },
+        ],
       }));
+      setAttachmentLabel("");
       toast.push("success", "Anexo enviado.");
       void readInvoice(cloud.url!, fileName);
     } catch {
@@ -576,9 +644,7 @@ export default function FinanceiroPage() {
             invoiceNumber: form.invoiceNumber,
             supplier: form.supplier,
             notes: form.notes,
-            attachmentUrl: form.attachmentUrl || null,
-            attachmentPublicId: form.attachmentPublicId || null,
-            attachmentFileName: form.attachmentFileName || null,
+            attachments: payloadAttachments(form.attachments),
             expenseNature: form.kind === "SAIDA" ? form.expenseNature || "VARIAVEL" : null,
           }
         : {
@@ -595,9 +661,7 @@ export default function FinanceiroPage() {
             invoiceNumber: form.invoiceNumber,
             supplier: form.supplier,
             notes: form.notes,
-            attachmentUrl: form.attachmentUrl || null,
-            attachmentPublicId: form.attachmentPublicId || null,
-            attachmentFileName: form.attachmentFileName || null,
+            attachments: payloadAttachments(form.attachments),
             expenseNature: form.kind === "SAIDA" ? form.expenseNature || "VARIAVEL" : null,
           };
       const res = await fetch(
@@ -1536,27 +1600,49 @@ export default function FinanceiroPage() {
                       <Td>{e.category?.name ?? "—"}</Td>
                       <Td>{responsibleLabel(e)}</Td>
                       <Td>
-                        {e.attachmentUrl ? (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              className="text-sm text-[var(--igh-primary)] hover:underline"
-                              onClick={() => setPreviewEntry(e)}
-                            >
-                              Abrir
-                            </button>
-                            <a
-                              href={`/api/admin/gerencia/financeiro/lancamentos/${e.id}/anexo?download=1`}
-                              className="inline-flex rounded p-1 text-[var(--text-muted)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)]"
-                              title="Baixar anexo"
-                              aria-label={`Baixar ${e.attachmentFileName || "anexo"}`}
-                            >
-                              <Download className="h-4 w-4" aria-hidden />
-                            </a>
-                          </div>
-                        ) : (
-                          "—"
-                        )}
+                        {(() => {
+                          const files =
+                            e.attachments && e.attachments.length > 0
+                              ? e.attachments
+                              : e.attachmentUrl
+                                ? [
+                                    {
+                                      id: "legacy",
+                                      url: e.attachmentUrl,
+                                      publicId: e.attachmentPublicId,
+                                      fileName: e.attachmentFileName,
+                                      description: e.attachmentFileName || "Anexo",
+                                    },
+                                  ]
+                                : [];
+                          if (files.length === 0) return "—";
+                          return (
+                            <div className="flex flex-col gap-1">
+                              {files.map((a) => {
+                                const qs = a.id && a.id !== "legacy" ? `id=${encodeURIComponent(a.id)}&` : "";
+                                return (
+                                  <div key={a.id} className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      className="text-left text-sm text-[var(--igh-primary)] hover:underline"
+                                      onClick={() => setPreview({ entryId: e.id, attachment: a })}
+                                    >
+                                      {a.description}
+                                    </button>
+                                    <a
+                                      href={`/api/admin/gerencia/financeiro/lancamentos/${e.id}/anexo?${qs}download=1`}
+                                      className="inline-flex rounded p-1 text-[var(--text-muted)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)]"
+                                      title={`Baixar ${a.description}`}
+                                      aria-label={`Baixar ${a.description}`}
+                                    >
+                                      <Download className="h-4 w-4" aria-hidden />
+                                    </a>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </Td>
                       <Td>
                         <div className="flex flex-wrap gap-1.5">
@@ -1650,22 +1736,30 @@ export default function FinanceiroPage() {
       )}
 
       <Modal
-        open={previewEntry != null}
-        title={previewEntry?.attachmentFileName || "Anexo"}
-        onClose={() => setPreviewEntry(null)}
+        open={preview != null}
+        title={preview?.attachment.description || preview?.attachment.fileName || "Anexo"}
+        onClose={() => setPreview(null)}
         size="large"
       >
-        {previewEntry?.attachmentUrl ? (
-          attachmentPreviewKind(previewEntry.attachmentFileName, previewEntry.attachmentUrl) === "image" ? (
+        {preview ? (
+          attachmentPreviewKind(preview.attachment.fileName, preview.attachment.url) === "image" ? (
             <img
-              src={`/api/admin/gerencia/financeiro/lancamentos/${previewEntry.id}/anexo`}
-              alt={previewEntry.attachmentFileName || "Anexo"}
+              src={`/api/admin/gerencia/financeiro/lancamentos/${preview.entryId}/anexo${
+                preview.attachment.id && preview.attachment.id !== "legacy"
+                  ? `?id=${encodeURIComponent(preview.attachment.id)}`
+                  : ""
+              }`}
+              alt={preview.attachment.description || preview.attachment.fileName || "Anexo"}
               className="mx-auto max-h-[75vh] w-auto max-w-full rounded-md"
             />
           ) : (
             <iframe
-              title={previewEntry.attachmentFileName || "Anexo"}
-              src={`/api/admin/gerencia/financeiro/lancamentos/${previewEntry.id}/anexo`}
+              title={preview.attachment.description || preview.attachment.fileName || "Anexo"}
+              src={`/api/admin/gerencia/financeiro/lancamentos/${preview.entryId}/anexo${
+                preview.attachment.id && preview.attachment.id !== "legacy"
+                  ? `?id=${encodeURIComponent(preview.attachment.id)}`
+                  : ""
+              }`}
               className="h-[75vh] w-full rounded-md border border-[var(--card-border)] bg-white"
             />
           )
@@ -1931,54 +2025,90 @@ export default function FinanceiroPage() {
 
           <div className="space-y-2">
             <p className="text-sm text-[var(--text-muted)]">
-              Anexo da nota (PDF ou imagem) — após o envio, o sistema tenta ler valor, fornecedor, nº e
-              data de vencimento.
+              Anexos (PDF ou imagem) — fatura, comprovante etc. Informe o que cada arquivo é e envie um a um.
+              Após o envio, o sistema tenta ler valor, fornecedor, nº e data de vencimento.
             </p>
-            {form.attachmentUrl ? (
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <a
-                  href={form.attachmentUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[var(--igh-primary)] hover:underline"
-                >
-                  {form.attachmentFileName || "Arquivo anexado"}
-                </a>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={readingInvoice}
-                  onClick={() => void readInvoice(form.attachmentUrl, form.attachmentFileName)}
-                >
-                  {readingInvoice ? "Lendo…" : "Ler nota de novo"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setForm((prev) => ({
-                      ...prev,
-                      attachmentUrl: "",
-                      attachmentPublicId: "",
-                      attachmentFileName: "",
-                    }));
-                    clearSuggestion();
+            {form.attachments.length > 0 ? (
+              <ul className="space-y-2">
+                {form.attachments.map((a) => (
+                  <li
+                    key={a.key}
+                    className="flex flex-col gap-2 rounded-md border border-[var(--card-border)] p-2 sm:flex-row sm:items-center"
+                  >
+                    <Input
+                      className="sm:max-w-xs"
+                      value={a.description}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setForm((prev) => ({
+                          ...prev,
+                          attachments: prev.attachments.map((item) =>
+                            item.key === a.key ? { ...item, description: value } : item,
+                          ),
+                        }));
+                      }}
+                      placeholder="O que é este arquivo"
+                      aria-label={`Descrição de ${a.fileName || "anexo"}`}
+                    />
+                    <a
+                      href={a.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate text-sm text-[var(--igh-primary)] hover:underline"
+                    >
+                      {a.fileName || "Arquivo"}
+                    </a>
+                    <div className="flex flex-wrap gap-1 sm:ml-auto">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={readingInvoice}
+                        onClick={() => void readInvoice(a.url, a.fileName)}
+                      >
+                        {readingInvoice ? "Lendo…" : "Ler nota"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setForm((prev) => ({
+                            ...prev,
+                            attachments: prev.attachments.filter((item) => item.key !== a.key),
+                          }));
+                        }}
+                      >
+                        Remover
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {form.attachments.length < MAX_FINANCIAL_ATTACHMENTS ? (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="block min-w-0 flex-1 text-sm">
+                  <span className="text-[var(--text-muted)]">Descrição do próximo arquivo</span>
+                  <Input
+                    className="mt-1"
+                    value={attachmentLabel}
+                    onChange={(e) => setAttachmentLabel(e.target.value)}
+                    placeholder="Ex.: Fatura, comprovante de pagamento"
+                  />
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,image/jpeg,image/png,image/webp"
+                  disabled={uploading || readingInvoice}
+                  className="text-sm"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) void uploadAttachment(file);
                   }}
-                >
-                  Remover
-                </Button>
+                />
               </div>
             ) : (
-              <input
-                type="file"
-                accept=".pdf,image/jpeg,image/png,image/webp"
-                disabled={uploading || readingInvoice}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (file) void uploadAttachment(file);
-                }}
-              />
+              <p className="text-xs text-[var(--text-muted)]">Limite de {MAX_FINANCIAL_ATTACHMENTS} anexos atingido.</p>
             )}
             {uploading ? <p className="text-sm text-[var(--text-muted)]">Enviando anexo…</p> : null}
             {readingInvoice ? <p className="text-sm text-[var(--text-muted)]">Lendo nota…</p> : null}

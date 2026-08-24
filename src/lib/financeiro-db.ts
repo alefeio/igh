@@ -1,6 +1,11 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
+import {
+  mergeFinancialAttachments,
+  primaryAttachmentFields,
+  type FinancialAttachmentInput,
+} from "@/lib/financeiro-attachments";
 import type { FinancialEntryView } from "@/lib/financeiro";
 import {
   addCalendarMonth,
@@ -19,6 +24,7 @@ export const financialEntryInclude = {
   polo: { select: { id: true, name: true } },
   responsibleUser: { select: { id: true, name: true, email: true } },
   createdByUser: { select: { id: true, name: true } },
+  attachments: { orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.FinancialEntryInclude;
 
 type EntryRow = Prisma.FinancialEntryGetPayload<{ include: typeof financialEntryInclude }>;
@@ -45,6 +51,11 @@ export function serializeFinancialEntry(row: EntryRow): FinancialEntryView {
     attachmentUrl: row.attachmentUrl,
     attachmentPublicId: row.attachmentPublicId,
     attachmentFileName: row.attachmentFileName,
+    attachments: mergeFinancialAttachments(row.attachments, {
+      attachmentUrl: row.attachmentUrl,
+      attachmentPublicId: row.attachmentPublicId,
+      attachmentFileName: row.attachmentFileName,
+    }),
     expenseNature: row.expenseNature,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -275,4 +286,24 @@ export async function summarizePaymentAlerts() {
   ]);
 
   return { dueSoonCount, dueTodayCount, overdueCount, dueSoonDays: FINANCIAL_DUE_SOON_DAYS };
+}
+
+export async function replaceFinancialAttachments(
+  entryId: string,
+  items: FinancialAttachmentInput[],
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+) {
+  await db.financialEntryAttachment.deleteMany({ where: { financialEntryId: entryId } });
+  if (items.length > 0) {
+    await db.financialEntryAttachment.createMany({
+      data: items.map((a) => ({
+        financialEntryId: entryId,
+        url: a.url,
+        publicId: a.publicId ?? null,
+        fileName: a.fileName ?? null,
+        description: a.description,
+      })),
+    });
+  }
+  return primaryAttachmentFields(items);
 }

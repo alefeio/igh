@@ -1,8 +1,10 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
+import { normalizeFinancialAttachmentInputs } from "@/lib/financeiro-attachments";
 import {
   financialEntryInclude,
+  replaceFinancialAttachments,
   serializeFinancialEntry,
 } from "@/lib/financeiro-db";
 import { resolveSaidaExpenseNature } from "@/lib/financeiro";
@@ -86,6 +88,28 @@ export async function PATCH(request: Request, ctx: Ctx) {
     expenseNatureUpdate = "VARIAVEL";
   }
 
+  let attachmentUrlUpdate: string | null | undefined = undefined;
+  let attachmentPublicIdUpdate: string | null | undefined = undefined;
+  let attachmentFileNameUpdate: string | null | undefined = undefined;
+
+  if (data.attachments !== undefined) {
+    const items = normalizeFinancialAttachmentInputs(data.attachments, {});
+    const primary = await replaceFinancialAttachments(id, items);
+    attachmentUrlUpdate = primary.attachmentUrl;
+    attachmentPublicIdUpdate = primary.attachmentPublicId;
+    attachmentFileNameUpdate = primary.attachmentFileName;
+  } else if (data.attachmentUrl !== undefined) {
+    const items = normalizeFinancialAttachmentInputs(undefined, {
+      attachmentUrl: data.attachmentUrl,
+      attachmentPublicId: data.attachmentPublicId,
+      attachmentFileName: data.attachmentFileName,
+    });
+    const primary = await replaceFinancialAttachments(id, items);
+    attachmentUrlUpdate = primary.attachmentUrl;
+    attachmentPublicIdUpdate = primary.attachmentPublicId;
+    attachmentFileNameUpdate = primary.attachmentFileName;
+  }
+
   const entry = await prisma.financialEntry.update({
     where: { id },
     data: {
@@ -103,9 +127,9 @@ export async function PATCH(request: Request, ctx: Ctx) {
       invoiceNumber: data.invoiceNumber === undefined ? undefined : data.invoiceNumber,
       supplier: data.supplier === undefined ? undefined : data.supplier,
       notes: data.notes === undefined ? undefined : data.notes,
-      attachmentUrl: data.attachmentUrl === undefined ? undefined : data.attachmentUrl,
-      attachmentPublicId: data.attachmentPublicId === undefined ? undefined : data.attachmentPublicId,
-      attachmentFileName: data.attachmentFileName === undefined ? undefined : data.attachmentFileName,
+      attachmentUrl: attachmentUrlUpdate,
+      attachmentPublicId: attachmentPublicIdUpdate,
+      attachmentFileName: attachmentFileNameUpdate,
       expenseNature: expenseNatureUpdate,
     },
     include: financialEntryInclude,

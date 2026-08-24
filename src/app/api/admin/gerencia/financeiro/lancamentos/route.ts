@@ -1,6 +1,7 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
+import { primaryAttachmentFields, normalizeFinancialAttachmentInputs } from "@/lib/financeiro-attachments";
 import {
   financialEntryInclude,
   financialEntryWhere,
@@ -98,6 +99,13 @@ export async function POST(request: Request) {
     alreadyPaid: data.alreadyPaid ?? (data.paymentStatus === "PAGO" ? true : data.paymentStatus === "PENDENTE" ? false : null),
   });
 
+  const attachments = normalizeFinancialAttachmentInputs(data.attachments, {
+    attachmentUrl: data.attachmentUrl,
+    attachmentPublicId: data.attachmentPublicId,
+    attachmentFileName: data.attachmentFileName,
+  });
+  const primary = primaryAttachmentFields(attachments);
+
   const entry = await prisma.financialEntry.create({
     data: {
       kind: data.kind,
@@ -114,11 +122,22 @@ export async function POST(request: Request) {
       invoiceNumber: data.invoiceNumber ?? null,
       supplier: data.supplier ?? null,
       notes: data.notes ?? null,
-      attachmentUrl: data.attachmentUrl ?? null,
-      attachmentPublicId: data.attachmentPublicId ?? null,
-      attachmentFileName: data.attachmentFileName ?? null,
+      attachmentUrl: primary.attachmentUrl,
+      attachmentPublicId: primary.attachmentPublicId,
+      attachmentFileName: primary.attachmentFileName,
       expenseNature: resolveSaidaExpenseNature(data.kind, data.expenseNature),
       createdByUserId: actor.id,
+      attachments:
+        attachments.length > 0
+          ? {
+              create: attachments.map((a) => ({
+                url: a.url,
+                publicId: a.publicId ?? null,
+                fileName: a.fileName ?? null,
+                description: a.description,
+              })),
+            }
+          : undefined,
     },
     include: financialEntryInclude,
   });

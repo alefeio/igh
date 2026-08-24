@@ -4,6 +4,7 @@ import type {
   FinancialPaymentMethod,
   FinancialPaymentStatus,
 } from "@/generated/prisma/client";
+import type { FinancialAttachmentView } from "@/lib/financeiro-attachments";
 import { formatCentsBRL } from "@/lib/employees";
 import {
   computeDueUrgency,
@@ -95,6 +96,7 @@ export type FinancialEntryView = {
   attachmentUrl: string | null;
   attachmentPublicId: string | null;
   attachmentFileName: string | null;
+  attachments: FinancialAttachmentView[];
   expenseNature: FinancialExpenseNature | null;
   createdAt: string;
   updatedAt: string;
@@ -139,4 +141,4 @@ export function paymentStatusBadgeTone(
 }
 
 export { computeDueUrgency, formatCentsBRL };
-export type { FinancialDueUrgency };
+export type { FinancialDueUrgency, FinancialAttachmentView };

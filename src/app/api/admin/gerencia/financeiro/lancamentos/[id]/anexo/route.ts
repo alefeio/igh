@@ -31,24 +31,52 @@ export async function GET(request: Request, ctx: Ctx) {
   }
 
   const { id } = await ctx.params;
-  const download = new URL(request.url).searchParams.get("download") === "1";
+  const search = new URL(request.url).searchParams;
+  const download = search.get("download") === "1";
+  const attachmentId = search.get("id");
 
-  const entry = await prisma.financialEntry.findFirst({
-    where: { id, deletedAt: null },
-    select: { attachmentUrl: true, attachmentFileName: true },
-  });
-  if (!entry?.attachmentUrl) {
+  let url: string | null = null;
+  let fileName: string | null = null;
+
+  if (attachmentId && attachmentId !== "legacy") {
+    const att = await prisma.financialEntryAttachment.findFirst({
+      where: { id: attachmentId, financialEntryId: id, entry: { deletedAt: null } },
+      select: { url: true, fileName: true, description: true },
+    });
+    if (!att) return jsonErr("NOT_FOUND", "Anexo não encontrado.", 404);
+    url = att.url;
+    fileName = att.fileName || att.description;
+  } else {
+    const child = await prisma.financialEntryAttachment.findFirst({
+      where: { financialEntryId: id, entry: { deletedAt: null } },
+      orderBy: { createdAt: "asc" },
+      select: { url: true, fileName: true, description: true },
+    });
+    if (child) {
+      url = child.url;
+      fileName = child.fileName || child.description;
+    } else {
+      const entry = await prisma.financialEntry.findFirst({
+        where: { id, deletedAt: null },
+        select: { attachmentUrl: true, attachmentFileName: true },
+      });
+      url = entry?.attachmentUrl ?? null;
+      fileName = entry?.attachmentFileName ?? null;
+    }
+  }
+
+  if (!url) {
     return jsonErr("NOT_FOUND", "Anexo não encontrado.", 404);
   }
 
-  const upstream = await fetch(entry.attachmentUrl, { cache: "no-store" });
+  const upstream = await fetch(url, { cache: "no-store" });
   if (!upstream.ok) {
     return jsonErr("FETCH_FAILED", "Não foi possível obter o anexo.", 502);
   }
 
   const buf = Buffer.from(await upstream.arrayBuffer());
-  const type = guessContentType(entry.attachmentFileName, upstream.headers.get("content-type"));
-  const filename = safeFileName(entry.attachmentFileName);
+  const type = guessContentType(fileName, upstream.headers.get("content-type"));
+  const filename = safeFileName(fileName);
 
   return new Response(buf, {
     headers: {

@@ -528,6 +528,18 @@ export async function markDriverLogSeen(input: {
           attachmentFileName: current.fileName,
           createdByUserId: input.actorId,
           expenseNature: "VARIAVEL",
+          attachments: current.fileUrl
+            ? {
+                create: [
+                  {
+                    url: current.fileUrl,
+                    publicId: current.filePublicId,
+                    fileName: current.fileName,
+                    description: current.fileName?.trim() || "Nota de serviço",
+                  },
+                ],
+              }
+            : undefined,
         },
         select: { id: true },
       });
@@ -591,6 +603,18 @@ export async function approveInvoiceSubmission(input: {
           attachmentFileName: current.fileName,
           createdByUserId: input.actorId,
           expenseNature: "FIXA",
+          attachments: current.fileUrl
+            ? {
+                create: [
+                  {
+                    url: current.fileUrl,
+                    publicId: current.filePublicId,
+                    fileName: current.fileName,
+                    description: current.fileName?.trim() || "Nota mensal",
+                  },
+                ],
+              }
+            : undefined,
         },
         select: { id: true },
       });
