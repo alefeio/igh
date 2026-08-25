@@ -20,7 +20,12 @@ export async function GET() {
         {
           term: "Matrícula vs pessoa atendida",
           definition:
-            "Matrícula é o vínculo em uma turma. Pessoa atendida é quem teve pelo menos uma presença em aula no recorte. Uma pessoa pode ter várias matrículas.",
+            "Matrícula é o vínculo em uma turma. Não se divide em pré-matrícula e confirmada: quem ainda não confirma no sistema assiste às aulas. Pessoa atendida é quem teve pelo menos uma presença no recorte.",
+        },
+        {
+          term: "Suspensão por faltas",
+          definition:
+            "Três faltas consecutivas sem justificativa levam à suspensão; a quarta, ao cancelamento. Suspensos entram nas métricas como alerta.",
         },
         {
           term: "Risco crítico por faltas",
@@ -39,7 +44,7 @@ export async function GET() {
         },
         {
           term: "Conclusão",
-          definition: "Entre quem iniciou ( ≥1 presença ) em turmas ENCERRADAS. Não usa todos os confirmados como denominador principal.",
+          definition: "Entre quem iniciou ( ≥1 presença ) em turmas ENCERRADAS. Não usa todas as matrículas como denominador principal.",
         },
         {
           term: "Ocupação atual",

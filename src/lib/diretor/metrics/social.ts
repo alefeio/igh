@@ -106,7 +106,6 @@ async function loadSocialUncached(
           studentId: true,
           classGroupId: true,
           status: true,
-          isPreEnrollment: true,
           enrolledAt: true,
           enrollmentConfirmedAt: true,
           certificateIssuedAt: true,
@@ -168,7 +167,7 @@ async function loadSocialUncached(
     asOf,
   );
 
-  const confirmedUnique = new Set(enrollments.filter((e) => !e.isPreEnrollment).map((e) => e.studentId));
+  const confirmedUnique = new Set(enrollments.map((e) => e.studentId));
   const served = new Set<string>();
   const completers = new Set<string>();
   const terrServed = new Map<string, Set<string>>();
@@ -277,7 +276,11 @@ async function loadSocialUncached(
 
   const href = "/diretor/impacto-social";
   const kpis: MetricValueDto[] = [
-    metricCard("soc.confirmed_unique", confirmedUnique.size, { quality: "ok", href }),
+    metricCard("soc.confirmed_unique", confirmedUnique.size, {
+      quality: "ok",
+      href,
+      explanation: "Pessoas distintas com matrícula no recorte. Não se separa pré-matrícula de confirmada.",
+    }),
     metricCard("soc.served_unique", servedUnique, {
       quality: pq,
       href,

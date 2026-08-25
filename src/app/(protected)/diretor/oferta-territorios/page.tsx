@@ -119,9 +119,9 @@ function Inner() {
               quality="ok"
             />
             <MetricCard
-              label="Demanda única (pré-matrícula e espera)"
+              label="Demanda única (lista de espera)"
               value={data.offer.demandUniqueCount}
-              explanation="Pessoas distintas em pré-matrícula ou na lista de espera."
+              explanation="Pessoas distintas na lista de espera. Pré-matrícula já conta como matrícula, não como demanda."
               quality="ok"
             />
             <MetricCard

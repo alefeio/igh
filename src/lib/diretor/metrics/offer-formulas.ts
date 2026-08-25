@@ -22,8 +22,8 @@ export function seatOfferAcceptRate(params: {
 }
 
 /**
- * Demanda candidata única: união de studentIds em pré-matrícula e waitlist WAITING.
- * Não soma a mesma pessoa duas vezes.
+ * Demanda candidata única: união de studentIds informados.
+ * Na visão da diretoria, pré-matrícula já é matrícula/vaga; a demanda de oferta usa só a lista de espera.
  */
 export function uniqueDemandStudentIds(params: {
   preEnrollmentStudentIds: string[];

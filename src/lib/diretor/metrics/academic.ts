@@ -1,6 +1,9 @@
 import "server-only";
 
-import { CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT } from "@/lib/enrollment-attendance-streak";
+import {
+  CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT,
+  CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT,
+} from "@/lib/enrollment-attendance-streak";
 import { FORMULA_VERSION_1A } from "@/lib/diretor/catalog/definitions";
 import { cachedDirector } from "@/lib/diretor/cache";
 import {
@@ -188,8 +191,10 @@ async function loadAcademicUncached(
     );
   }
 
+  // Visão da diretoria: não há coorte de “pré-matrícula” vs “confirmada”.
+  // Quem ainda não confirma no sistema assiste às aulas; todas contam como matrícula.
   const preEnrollments = enrollments.filter((e) => e.isPreEnrollment).length;
-  const confirmed = enrollments.filter((e) => !e.isPreEnrollment).length;
+  const confirmed = enrollments.length;
   const suspensions = enrollments.filter((e) => e.status === "SUSPENDED").length;
 
   const opportunityRows = [];
@@ -208,7 +213,7 @@ async function loadAcademicUncached(
     const started = hasStarted(entry, sessions, attMap, scope.dataAsOf);
     if (started) {
       startedCount += 1;
-      if (!e.isPreEnrollment) startedAmongConfirmed += 1;
+      startedAmongConfirmed += 1;
       if (closedCgIds.has(e.classGroupId)) {
         startedInClosed += 1;
         if (e.status === "COMPLETED") completedStartedInClosed += 1;
@@ -278,6 +283,17 @@ async function loadAcademicUncached(
     attendanceAgg.callCompletenessRate != null ? `${attendanceAgg.callCompletenessRate}% das chamadas preenchidas` : null;
 
   const kpis: MetricValueDto[] = [
+    metricCard("acad.enroll.confirmed", confirmed, {
+      quality: "ok",
+      href: hrefAcad,
+      explanation:
+        "Todas as matrículas do recorte. O sistema pode marcar confirmação, mas a diretoria trata o vínculo como matrícula mesmo sem essa confirmação.",
+    }),
+    metricCard("acad.suspension.count", suspensions, {
+      quality: "ok",
+      href: hrefAcad,
+      explanation: `${CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT} faltas consecutivas sem justificativa levam à suspensão; ${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT} ao cancelamento. Suspensos entram como alerta.`,
+    }),
     metricCard("acad.attrition.risk.critical_absences", criticalAbsenceRisk, {
       quality: pq,
       href: hrefAcad,
@@ -387,11 +403,11 @@ async function loadAcademicUncached(
       domain: "academic",
       severity: "attention",
       title: "Matrículas suspensas",
-      fact: `${suspensions} matrícula(s) suspensas.`,
+      fact: `${suspensions} matrícula(s) suspensas (${CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT} faltas consecutivas sem justificativa). A ${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT}ª falta leva ao cancelamento.`,
       value: suspensions,
       period: scope.cycleLabel,
-      impact: "Interrupção temporária da frequência.",
-      suggestedDecision: "Acompanhar retorno às aulas.",
+      impact: "Alerta de frequência: risco de cancelamento na próxima falta consecutiva sem justificativa.",
+      suggestedDecision: "Acompanhar retorno às aulas e o lançamento de frequência.",
       metricId: "acad.suspension.count",
       href: hrefAcad,
       source: "cadastro de matrículas",

@@ -89,7 +89,12 @@ function Inner() {
             const pq = presencePartial ? "partial" : "ok";
             return (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <MetricCard label="Pessoas confirmadas únicas" value={data.reach.confirmedUnique} quality="ok" />
+            <MetricCard
+              label="Pessoas únicas com matrícula"
+              value={data.reach.confirmedUnique}
+              quality="ok"
+              explanation="Pessoas distintas com matrícula no recorte. Não se separa pré-matrícula de confirmada."
+            />
             <MetricCard
               label="Atendidos únicos (ciclo acadêmico)"
               value={

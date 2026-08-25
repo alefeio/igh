@@ -71,7 +71,7 @@ function Inner() {
   const journeyChart = useMemo(() => {
     if (!f) return [];
     return [
-      { etapa: "Confirmadas", valor: f.confirmed },
+      { etapa: "Matrículas", valor: f.confirmed },
       { etapa: "Iniciaram", valor: f.startedAmongConfirmed ?? f.started },
       ...(f.completedStarted == null ? [] : [{ etapa: "Concluíram (turmas encerradas)", valor: f.completedStarted }]),
     ];
@@ -87,7 +87,7 @@ function Inner() {
       <DashboardHero
         eyebrow="Acadêmico"
         title="Os alunos entram, frequentam e concluem?"
-        description="Frequência considera aulas já liberadas. Risco por faltas consecutivas não é evasão confirmada."
+        description="Todas as matrículas entram na mesma leitura. Três faltas consecutivas sem justificativa levam à suspensão; a quarta, ao cancelamento."
         rightSlot={
           <DirectorScopeControls cycles={data?.cycles ?? []} loading={loading} onRefresh={() => void load()} />
         }
@@ -138,9 +138,15 @@ function Inner() {
               unavailableReason={att?.callCompletenessRate == null ? "Sem aulas elegíveis no recorte" : null}
             />
             <MetricCard
+              label="Matrículas"
+              value={f?.confirmed ?? 0}
+              explanation="Todos os vínculos do recorte. Quem ainda não confirmou no sistema também assiste às aulas."
+              quality="ok"
+            />
+            <MetricCard
               label="Suspensos"
               value={data.academic.suspensions}
-              explanation="Matrículas com situação suspensa no recorte."
+              explanation="Alerta: 3 faltas consecutivas sem justificativa levam à suspensão; 4 ao cancelamento."
               quality="ok"
             />
             <MetricCard
@@ -178,13 +184,13 @@ function Inner() {
               }
             />
             <MetricCard
-              label={attendanceProvisional ? "Início ainda não comprovado nos registros" : "Não início (confirmados)"}
+              label={attendanceProvisional ? "Início ainda não comprovado nos registros" : "Não início (matrículas)"}
               value={data.academic.funnel.nonStartRateAmongConfirmed}
               unit="%"
               explanation={
                 attendanceProvisional
-                  ? `Confirmadas ${f?.confirmed ?? 0}; iniciaram com presença registrada ${startedAmong}; sem início comprovado ${f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}. Percentual provisório. Este percentual pode diminuir após a regularização das chamadas. Não use para alerta executivo, comparação de desempenho ou conclusão sobre abandono.`
-                  : `Confirmados ${f?.confirmed ?? 0} − iniciaram ${startedAmong} = não iniciaram ${f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}. Taxa = não iniciaram ÷ confirmados.`
+                  ? `Matrículas ${f?.confirmed ?? 0}; iniciaram com presença registrada ${startedAmong}; sem início comprovado ${f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}. Percentual provisório. Este percentual pode diminuir após a regularização das chamadas. Não use para alerta executivo, comparação de desempenho ou conclusão sobre abandono.`
+                  : `Matrículas ${f?.confirmed ?? 0} − iniciaram ${startedAmong} = não iniciaram ${f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}. Taxa = não iniciaram ÷ matrículas.`
               }
               quality={
                 data.academic.funnel.nonStartRateAmongConfirmed == null
@@ -193,7 +199,7 @@ function Inner() {
                     ? "partial"
                     : "ok"
               }
-              unavailableReason={data.academic.funnel.nonStartRateAmongConfirmed == null ? "Sem confirmados" : null}
+              unavailableReason={data.academic.funnel.nonStartRateAmongConfirmed == null ? "Sem matrículas" : null}
             />
             <MetricCard
               label="Cancelamentos após o início"
@@ -225,21 +231,15 @@ function Inner() {
               quality={att?.justifiedRate == null ? "unavailable" : attendanceProvisional ? "partial" : "ok"}
               unavailableReason={att?.justifiedRate == null ? "Sem aulas elegíveis no recorte" : null}
             />
-            <MetricCard
-              label="Pré-matrículas atuais"
-              value={data.academic.funnel.preEnrollments}
-              explanation="Estoque atual de pré-matrículas. Não faz parte da mesma coorte acumulada das confirmadas."
-              quality="ok"
-            />
           </div>
 
           <details className="rounded-lg border border-[var(--card-border)] px-4 py-3 text-sm">
-            <summary className="cursor-pointer font-semibold">Reconciliação do não início (matrículas confirmadas)</summary>
+            <summary className="cursor-pointer font-semibold">Reconciliação do não início (matrículas)</summary>
             <p className="mt-2 text-[var(--text-muted)]">
-              Recorte só de matrículas confirmadas — não mistura pessoas atendidas nem pré-matrículas.
+              Recorte de todas as matrículas — não mistura pessoas atendidas. Não há coorte separada de pré-matrícula.
             </p>
             <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-              <li>Confirmadas: {f?.confirmed ?? 0}</li>
+              <li>Matrículas: {f?.confirmed ?? 0}</li>
               <li>Iniciaram com presença registrada: {startedAmong}</li>
               <li>
                 {attendanceProvisional ? "Sem início comprovado" : "Não iniciaram"}:{" "}
@@ -259,7 +259,7 @@ function Inner() {
 
           <ChartWithTable
             title="Situação da jornada no recorte"
-            description="As barras de confirmadas e iniciaram usam a mesma coorte de matrículas confirmadas. Pré-matrículas são estoque atual e não entram neste gráfico, para não sugerir conversão entre medidas de naturezas diferentes."
+            description="As barras de matrículas e iniciaram usam a mesma coorte. Todas as matrículas entram, inclusive quem ainda não confirmou no sistema."
             table={
               <table className="mt-2 w-full text-left text-sm">
                 <caption className="sr-only">Situação da jornada</caption>
@@ -288,7 +288,7 @@ function Inner() {
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="valor" name="Matrículas confirmadas" fill="#0284c7" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="valor" name="Matrículas" fill="#0284c7" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

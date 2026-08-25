@@ -50,14 +50,15 @@ describe("pre-homologação 1C — atendidos e carimbo", () => {
     expect(academic).toBe(social);
   });
 
-  it("não início reconcilia matrículas confirmadas sem misturar atendidos", () => {
+  it("não início reconcilia matrículas sem misturar atendidos", () => {
     const confirmed = 1739;
     const startedAmongConfirmed = 930;
     const r = reconcileConfirmedNonStart(confirmed, startedAmongConfirmed);
     expect(r.notStarted).toBe(confirmed - startedAmongConfirmed);
     expect(r.rate).toBe(Math.round((r.notStarted / confirmed) * 1000) / 10);
     const ui = src("src/app/(protected)/diretor/academico/page.tsx");
-    expect(ui).toContain("Reconciliação do não início (matrículas confirmadas)");
+    expect(ui).toContain("Reconciliação do não início (matrículas)");
+    expect(ui).not.toContain("Pré-matrículas atuais");
     expect(ui).toContain("Iniciaram com presença registrada");
   });
 

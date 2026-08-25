@@ -72,7 +72,7 @@ describe("homologação visual 1C — contratos", () => {
     expect(social).toContain('metricCard("ben.served_unique"');
   });
 
-  it("não início reconcilia confirmados − iniciaram", () => {
+  it("não início reconcilia matrículas − iniciaram", () => {
     const r = reconcileConfirmedNonStart(1739, 930);
     expect(r.notStarted).toBe(809);
     expect(r.rate).toBe(Math.round((809 / 1739) * 1000) / 10);
@@ -85,6 +85,8 @@ describe("homologação visual 1C — contratos", () => {
     expect(acad).toContain("Frequência provisória");
     expect(acad).toContain("Situação da jornada no recorte");
     expect(acad).not.toMatch(/title="Funil/);
+    expect(acad).not.toContain("Pré-matrículas atuais");
+    expect(acad).toContain('etapa: "Matrículas"');
   });
 
   it(

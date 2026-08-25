@@ -99,7 +99,7 @@ async function loadOfferUncached(
   const enrollments = cgIds.length
     ? await prisma.enrollment.findMany({
         where: { classGroupId: { in: cgIds } },
-        select: { studentId: true, classGroupId: true, status: true, isPreEnrollment: true },
+        select: { studentId: true, classGroupId: true, status: true },
       })
     : [];
 
@@ -159,7 +159,7 @@ async function loadOfferUncached(
   }
 
   const demandUnique = uniqueDemandStudentIds({
-    preEnrollmentStudentIds: enrollments.filter((e) => e.isPreEnrollment).map((e) => e.studentId),
+    preEnrollmentStudentIds: [],
     waitlistWaitingStudentIds: waitlistStudents.map((w) => w.studentId),
   });
 
