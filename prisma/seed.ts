@@ -9,14 +9,14 @@
  *   - $env:UPDATE_ONBOARDING_SEED="1"; npx prisma db seed   (PowerShell)
  *
  * Documentos legais (primeira versão): ver também `npm run seed:legal` ou o passo automático no seed abaixo.
- * Modelos oficiais da Gerência: `npm run seed:modelos` (ou SEED_SCOPE=modelos / incluso em `all`).
+ * Modelos oficiais da Gerência: `npm run seed:modelos` (IGH e INAC).
  *
  * Executar: npm run seed (ou npx prisma db seed)
  */
 import "./load-env";
 import { prisma } from "../src/lib/prisma";
 import { applyCyclesV1Seed } from "./seeds/apply-cycles-v1";
-import { applyDocumentTemplatesV1Seed } from "./seeds/apply-document-templates-v1";
+import { seedDocumentTemplatesIghAndInac } from "./seed-document-templates";
 import { applyEspacoMakerPageV1Seed } from "./seeds/apply-espaco-maker-page-v1";
 import { applyLegalDocumentsV1Seed } from "./seeds/apply-legal-documents-v1";
 import { ONBOARDING_GUIDES, ONBOARDING_ROLES_ORDER } from "./seeds/onboarding-guides";
@@ -86,7 +86,7 @@ async function main() {
   if (scope === "all" || scope === "cycles") await applyCyclesV1Seed(prisma);
   if (scope === "all" || scope === "legal") await applyLegalDocumentsV1Seed(prisma);
   if (scope === "all" || scope === "espaco-maker") await applyEspacoMakerPageV1Seed(prisma);
-  if (scope === "all" || scope === "modelos") await applyDocumentTemplatesV1Seed(prisma);
+  if (scope === "all" || scope === "modelos") await seedDocumentTemplatesIghAndInac({ requireInac: false });
   if (scope === "all" || scope === "onboarding") await seedOnboardingGuides();
 }
 

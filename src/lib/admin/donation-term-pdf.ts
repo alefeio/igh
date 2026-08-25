@@ -6,6 +6,8 @@ import path from "path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 
+import { isIghDonationTemplate, renderIghDonationTermPdf } from "@/lib/admin/donation-term-igh-pdf";
+
 const TEMPLATE_PATH = path.join(process.cwd(), "assets", "gerencia", "termo-doacao", "modelo.pdf");
 const FONT_REGULAR_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Regular.ttf");
 
@@ -57,11 +59,13 @@ export type OfficialDonationTermInput = {
     city?: string | null;
     state?: string | null;
     cep?: string | null;
+    zone?: string | null;
   };
   donatedAt?: Date | string | null;
   placeDateText?: string | null;
   kitsCount?: number | null;
   items?: Array<{ name: string; quantity: number }>;
+  templateTitle?: string | null;
 };
 
 function asDate(value: Date | string | null | undefined): Date {
@@ -224,6 +228,10 @@ function drawDonorBlock(page: PDFPage, donor: OfficialDonationTermInput["donor"]
 export async function renderOfficialDonationTermPdf(
   input: OfficialDonationTermInput,
 ): Promise<Uint8Array> {
+  if (isIghDonationTemplate(input.templateTitle) || onlyDigits(input.donor.document) === "08633366000100") {
+    return renderIghDonationTermPdf(input);
+  }
+
   if (!fs.existsSync(TEMPLATE_PATH)) {
     throw new Error("Modelo oficial do termo de doação não encontrado.");
   }

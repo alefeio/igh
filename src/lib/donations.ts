@@ -247,6 +247,7 @@ export async function confirmDonationSideEffects(opts: {
       placeDateText: donation.placeDateText,
       kitsCount: donation.kitsCount,
       items: donation.items,
+      templateTitle: template?.title,
     });
     const uploaded = await uploadGerenciaPdfBytes(
       bytes,

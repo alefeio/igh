@@ -156,7 +156,7 @@ export const DOCUMENT_TEMPLATES_V1: DocumentTemplateSeed[] = [
       "<table style=\"width:100%;border-collapse:collapse;border:1px solid #000\"><tr><td style=\"border:1px solid #000\">O objeto do presente TERMO é a DOAÇÃO, sem nenhum encargo, à DONATÁRIA do(s) seguinte(s) equipamento(s):</td></tr></table>",
       "<table style=\"width:100%;border-collapse:collapse;border:1px solid #000\">",
       "<tr><th style=\"border:1px solid #000;text-align:center\">Equipamentos</th><th style=\"border:1px solid #000;text-align:center\">Qtd</th></tr>",
-      "<tr><td colspan=\"2\" style=\"border:1px solid #000;white-space:pre-wrap\">{{doacao.itens_lista}}</td></tr>",
+      "<tr><td style=\"border:1px solid #000;text-align:center\">&nbsp;</td><td style=\"border:1px solid #000;text-align:center\">&nbsp;</td></tr>",
       "</table>",
       "<p style=\"text-align:center\"><strong>OBS: Os termos serão contabilizados somente preenchimento correto, com os dados devidamente completos e legíveis, sem exceção.</strong></p>",
       "<h2 style=\"text-align:center\">ACORDO</h2>",
