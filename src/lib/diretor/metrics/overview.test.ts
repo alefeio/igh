@@ -99,6 +99,17 @@ describe("overview facts", () => {
   it("marca Impacto Social como leitura parcial quando a completude das chamadas é < 90%", async () => {
     vi.mocked(loadAcademicExecutiveFacts).mockResolvedValue({
       servedUnique: 880,
+      enrollmentsInCycle: 100,
+      occupyingSeats: 80,
+      uniquePeople: 90,
+      suspensions: 2,
+      nearSuspension: 0,
+      streakThree: 0,
+      cancelled: 1,
+      cancelledKnownReason: 0,
+      cancelledUnknownReason: 1,
+      cancelledInferredAfterFour: 0,
+      unprocessedFourAbsences: 0,
       criticalAbsenceRisk: 2,
       completionStartedRate: null,
       callCompletenessRate: 64.5,

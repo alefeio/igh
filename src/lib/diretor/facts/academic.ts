@@ -1,6 +1,10 @@
 import "server-only";
 
-import { CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT } from "@/lib/enrollment-attendance-streak";
+import {
+  countAbsenceProgression,
+  directorEnrollmentEntry,
+  occupiesCurrentSeat,
+} from "@/lib/diretor/metrics/enrollment-formulas";
 import { cachedDirector } from "@/lib/diretor/cache";
 import {
   aggregateOpportunityRates,
@@ -29,6 +33,17 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
   if (cgIds.length === 0) {
     return {
       servedUnique: 0,
+      enrollmentsInCycle: 0,
+      occupyingSeats: 0,
+      uniquePeople: 0,
+      suspensions: 0,
+      nearSuspension: 0,
+      streakThree: 0,
+      cancelled: 0,
+      cancelledKnownReason: 0,
+      cancelledUnknownReason: 0,
+      cancelledInferredAfterFour: 0,
+      unprocessedFourAbsences: 0,
       criticalAbsenceRisk: 0,
       completionStartedRate: null,
       callCompletenessRate: null,
@@ -53,7 +68,6 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
         classGroupId: true,
         status: true,
         enrolledAt: true,
-        enrollmentConfirmedAt: true,
       },
     }),
     prisma.classSession.findMany({
@@ -105,7 +119,7 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
   const servedUnique = countServedUniqueStudents(enrollments, sessions, attByEnr, asOf);
 
   const opportunityRows = enrollments.map((e) => {
-    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+    const entry = directorEnrollmentEntry(e);
     return computeOpportunityRates(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf);
   });
   const attendanceAgg = aggregateOpportunityRates(opportunityRows);
@@ -119,13 +133,21 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
     });
   }
 
-  let criticalAbsenceRisk = 0;
-  for (const e of enrollments) {
-    if (e.status !== "ACTIVE" && e.status !== "SUSPENDED") continue;
-    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+  const occupyingSeats = enrollments.filter((e) => {
+    const g = classGroups.find((x) => x.id === e.classGroupId);
+    return g ? occupiesCurrentSeat({ enrollmentStatus: e.status, classGroupStatus: g.status }) : false;
+  }).length;
+  const uniquePeople = new Set(enrollments.map((e) => e.studentId)).size;
+  const progressionRows = enrollments.map((e) => {
+    const entry = directorEnrollmentEntry(e);
     const streak = countUnjustifiedStreakEligible(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf);
-    if (streak >= CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT) criticalAbsenceRisk += 1;
-  }
+    return { status: e.status, streak };
+  });
+  const prog = countAbsenceProgression(progressionRows);
+  const nearSuspension = attendanceReliable ? prog.streakTwo : 0;
+  const streakThree = attendanceReliable ? prog.streakThree : 0;
+  const unprocessedFourAbsences = attendanceReliable ? prog.unprocessedFour : 0;
+  const cancelledInferredAfterFour = attendanceReliable ? prog.cancelledInferredAfterFour : 0;
 
   const closed = new Set(classGroups.filter((g) => g.status === "ENCERRADA").map((g) => g.id));
   let completionStartedRate: number | null = null;
@@ -134,7 +156,7 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
     let completedStarted = 0;
     for (const e of enrollments) {
       if (!closed.has(e.classGroupId)) continue;
-      const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+      const entry = directorEnrollmentEntry(e);
       if (!hasStarted(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf)) continue;
       startedInClosed += 1;
       if (e.status === "COMPLETED") completedStarted += 1;
@@ -146,7 +168,18 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
 
   return {
     servedUnique,
-    criticalAbsenceRisk,
+    enrollmentsInCycle: enrollments.length,
+    occupyingSeats,
+    uniquePeople,
+    suspensions: prog.suspendedNow,
+    nearSuspension,
+    streakThree,
+    cancelled: prog.cancelledUnknownReason + prog.cancelledKnownReason,
+    cancelledKnownReason: prog.cancelledKnownReason,
+    cancelledUnknownReason: prog.cancelledUnknownReason,
+    cancelledInferredAfterFour,
+    unprocessedFourAbsences,
+    criticalAbsenceRisk: streakThree,
     completionStartedRate,
     callCompletenessRate: attendanceAgg.callCompletenessRate,
     attendanceReliable,
@@ -157,7 +190,7 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
 }
 
 export async function loadAcademicExecutiveFacts(scope: ScopeResolution, viewer: "DIRECTOR" | "MASTER") {
-  return cachedDirector(["facts-academic-v3", scope.scope, scope.cycleId, viewer], () =>
+  return cachedDirector(["facts-academic-v5", scope.scope, scope.cycleId, viewer], () =>
     loadAcademicFactsUncached(scope),
   );
 }

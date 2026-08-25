@@ -1,10 +1,6 @@
 import "server-only";
 
-import {
-  CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT,
-  CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT,
-} from "@/lib/enrollment-attendance-streak";
-import { FORMULA_VERSION_1A } from "@/lib/diretor/catalog/definitions";
+import { FORMULA_VERSION_1C } from "@/lib/diretor/catalog/definitions";
 import { cachedDirector } from "@/lib/diretor/cache";
 import {
   assessSessionQuality,
@@ -24,6 +20,15 @@ import {
   type AttendanceMarkRow,
 } from "@/lib/diretor/metrics/attendance-formulas";
 import { metricCard } from "@/lib/diretor/metrics/metric-card";
+import {
+  countAbsenceProgression,
+  directorEnrollmentEntry,
+  executivePresenceCount,
+  isCurrentClassGroup,
+  occupiesCurrentSeat,
+  CANCELLATION_PERIOD_UNAVAILABLE_REASON,
+  INFERRED_ABSENCE_CANCELLATION_COPY,
+} from "@/lib/diretor/metrics/enrollment-formulas";
 import { occupancyPercent as occupancyPct } from "@/lib/diretor/metrics/offer-formulas";
 import { buildDirectorHref } from "@/lib/diretor/search-params";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
@@ -40,15 +45,23 @@ export type AcademicBundle = {
   kpis: MetricValueDto[];
   academic: {
     funnel: {
-      preEnrollments: number;
-      confirmed: number;
+      enrollmentsInCycle: number;
+      occupyingSeats: number;
+      uniquePeople: number;
       started: number;
+      notStarted: number;
+      notStartedRate: number | null;
       completedStarted: number | null;
       completionStartedRate: number | null;
-      nonStartRateAmongConfirmed: number | null;
-      confirmedNotStarted: number;
-      startedAmongConfirmed: number;
+      cancelledStock: number;
+      cancelledKnownReason: number;
+      cancelledUnknownReason: number;
+      streakThree: number;
+      cancelledInferredAfterFour: number;
+      cancellationPeriodQuality: "unavailable";
       cancelAfterStartUntyped: number;
+      nearSuspension: number;
+      unprocessedFourAbsences: number;
       attendanceReliable?: boolean;
     };
     attendance: ReturnType<typeof aggregateOpportunityRates> & {
@@ -56,7 +69,14 @@ export type AcademicBundle = {
       quality: "ok" | "partial" | "unavailable";
     };
     suspensions: number;
+    nearSuspension: number;
+    streakThree: number;
     criticalAbsenceRisk: number;
+    cancelled: number;
+    cancelledKnownReason: number;
+    cancelledUnknownReason: number;
+    cancelledInferredAfterFour: number;
+    occupyingSeats: number;
     servedUnique: number;
     byCourse: Array<{
       courseId: string;
@@ -122,9 +142,7 @@ async function loadAcademicUncached(
           studentId: true,
           classGroupId: true,
           status: true,
-          isPreEnrollment: true,
           enrolledAt: true,
-          enrollmentConfirmedAt: true,
         },
       })
     : [];
@@ -182,55 +200,59 @@ async function loadAcademicUncached(
   }
 
   const occByCg = new Map<string, number>();
+  const cgById = new Map(classGroups.map((g) => [g.id, g]));
   for (const g of classGroups) {
     occByCg.set(
       g.id,
       enrollments.filter(
-        (e) => e.classGroupId === g.id && (e.status === "ACTIVE" || e.status === "SUSPENDED"),
+        (e) =>
+          e.classGroupId === g.id &&
+          occupiesCurrentSeat({ enrollmentStatus: e.status, classGroupStatus: g.status }),
       ).length,
     );
   }
 
-  // Visão da diretoria: não há coorte de “pré-matrícula” vs “confirmada”.
-  // Quem ainda não confirma no sistema assiste às aulas; todas contam como matrícula.
-  const preEnrollments = enrollments.filter((e) => e.isPreEnrollment).length;
-  const confirmed = enrollments.length;
-  const suspensions = enrollments.filter((e) => e.status === "SUSPENDED").length;
+  const enrollmentsInCycle = enrollments.length;
+  const occupyingSeats = enrollments.filter((e) => {
+    const g = cgById.get(e.classGroupId);
+    return g ? occupiesCurrentSeat({ enrollmentStatus: e.status, classGroupStatus: g.status }) : false;
+  }).length;
+  const uniquePeople = new Set(enrollments.map((e) => e.studentId)).size;
 
   const opportunityRows = [];
-  let criticalAbsenceRisk = 0;
   let startedCount = 0;
-  let startedAmongConfirmed = 0;
   let cancelAfterStart = 0;
   let startedInClosed = 0;
   let completedStartedInClosed = 0;
   const closedCgIds = new Set(classGroups.filter((g) => g.status === "ENCERRADA").map((g) => g.id));
+  const progressionRows: Array<{ status: string; streak: number }> = [];
 
   for (const e of enrollments) {
-    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+    const entry = directorEnrollmentEntry(e);
     const attMap = attendanceByEnrollment.get(e.id) ?? new Map();
     opportunityRows.push(computeOpportunityRates(entry, sessions, attMap, scope.dataAsOf));
     const started = hasStarted(entry, sessions, attMap, scope.dataAsOf);
     if (started) {
       startedCount += 1;
-      startedAmongConfirmed += 1;
       if (closedCgIds.has(e.classGroupId)) {
         startedInClosed += 1;
         if (e.status === "COMPLETED") completedStartedInClosed += 1;
       }
       if (e.status === "CANCELLED") cancelAfterStart += 1;
     }
-    if (e.status === "ACTIVE" || e.status === "SUSPENDED") {
-      const streak = countUnjustifiedStreakEligible(entry, sessions, attMap, scope.dataAsOf);
-      if (streak >= CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT) criticalAbsenceRisk += 1;
-    }
+    const streak = countUnjustifiedStreakEligible(entry, sessions, attMap, scope.dataAsOf);
+    progressionRows.push({ status: e.status, streak });
   }
+  const prog = countAbsenceProgression(progressionRows);
+  const suspensions = prog.suspendedNow;
+  const nearSuspension = prog.streakTwo;
+  const streakThree = prog.streakThree;
+  const unprocessedFourAbsences = prog.unprocessedFour;
+  const cancelled = prog.cancelledUnknownReason + prog.cancelledKnownReason;
+  const criticalAbsenceRisk = streakThree;
 
   const servedUnique = countServedUniqueStudents(enrollments, sessions, attendanceByEnrollment, scope.dataAsOf);
-  const { notStarted: confirmedNotStarted, rate: nonStartAmongConfirmed } = reconcileConfirmedNonStart(
-    confirmed,
-    startedAmongConfirmed,
-  );
+  const { notStarted, rate: notStartedRate } = reconcileConfirmedNonStart(enrollmentsInCycle, startedCount);
 
   const attendanceAgg = aggregateOpportunityRates(opportunityRows);
   const attendanceReliable = isExecutiveAttendanceReliable(attendanceAgg.callCompletenessRate);
@@ -260,6 +282,7 @@ async function loadAcademicUncached(
     { courseId: string; courseName: string; capacity: number; occupied: number }
   >();
   for (const g of classGroups) {
+    if (!isCurrentClassGroup(g.status)) continue;
     const cur = byCourseMap.get(g.courseId) ?? {
       courseId: g.courseId,
       courseName: g.course.name,
@@ -276,36 +299,73 @@ async function loadAcademicUncached(
   }));
 
   const hrefAcad = buildDirectorHref("/diretor/academico", filterQs);
-  const hrefPrio = buildDirectorHref("/diretor/prioridades", filterQs);
 
   const pq = presenceDependentQuality(attendanceReliable);
   const completenessNote =
     attendanceAgg.callCompletenessRate != null ? `${attendanceAgg.callCompletenessRate}% das chamadas preenchidas` : null;
 
+  const servedExec = executivePresenceCount(servedUnique, attendanceReliable);
+
   const kpis: MetricValueDto[] = [
-    metricCard("acad.enroll.confirmed", confirmed, {
+    metricCard("acad.enroll.cycle", enrollmentsInCycle, {
       quality: "ok",
       href: hrefAcad,
-      explanation:
-        "Todas as matrículas do recorte. O sistema pode marcar confirmação, mas a diretoria trata o vínculo como matrícula mesmo sem essa confirmação.",
+      explanation: "Todos os registros do ciclo. Canceladas e concluídas entram no histórico, não na ocupação atual.",
+    }),
+    metricCard("acad.enroll.occupying", occupyingSeats, {
+      quality: "ok",
+      href: hrefAcad,
+      explanation: "Ativas e suspensas em turmas vigentes. Canceladas e concluídas não ocupam vaga.",
+    }),
+    metricCard("acad.enroll.unique_people", uniquePeople, {
+      quality: "ok",
+      href: hrefAcad,
     }),
     metricCard("acad.suspension.count", suspensions, {
       quality: "ok",
       href: hrefAcad,
-      explanation: `${CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT} faltas consecutivas sem justificativa levam à suspensão; ${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT} ao cancelamento. Suspensos entram como alerta.`,
+      explanation: "Estoque atual com status suspenso. A causa não está registrada de forma estruturada.",
     }),
-    metricCard("acad.attrition.risk.critical_absences", criticalAbsenceRisk, {
-      quality: pq,
+    metricCard("acad.absence.near_suspension", attendanceReliable ? nearSuspension : null, {
+      quality: attendanceReliable ? "ok" : "unavailable",
+      unavailableReason: attendanceReliable ? null : "Chamadas incompletas — sequência de faltas não é leitura executiva.",
       href: hrefAcad,
-      explanation: attendanceReliable
-        ? "Matrículas ativas ou suspensas com quatro faltas consecutivas comprovadas."
-        : "Casos identificados nos registros disponíveis — leitura parcial.",
+      explanation: "Ativas com duas faltas consecutivas sem justificativa identificadas na chamada.",
+    }),
+    metricCard("acad.absence.streak_three", attendanceReliable ? streakThree : null, {
+      quality: attendanceReliable ? "ok" : "unavailable",
+      unavailableReason: attendanceReliable ? null : "Chamadas incompletas — sequência de faltas não é leitura executiva.",
+      href: hrefAcad,
+      explanation: "Três faltas consecutivas sem justificativa identificadas. Não afirma que o status suspenso tenha essa causa.",
+    }),
+    metricCard("acad.cancel.known_reason", 0, {
+      quality: "unavailable",
+      unavailableReason: "Motivo estruturado de cancelamento ainda não existe no cadastro.",
+      href: hrefAcad,
+    }),
+    metricCard("acad.cancel.unknown_reason", prog.cancelledUnknownReason, {
+      quality: "ok",
+      href: hrefAcad,
+      explanation: "Matrículas canceladas no recorte de turmas, sem motivo estruturado.",
+    }),
+    metricCard("acad.cancel.period", null, {
+      quality: "unavailable",
+      unavailableReason: CANCELLATION_PERIOD_UNAVAILABLE_REASON,
+      href: hrefAcad,
+    }),
+    metricCard("acad.attrition.risk.critical_absences", attendanceReliable ? streakThree : null, {
+      quality: attendanceReliable ? "ok" : "unavailable",
+      unavailableReason: attendanceReliable ? null : "Chamadas incompletas.",
+      href: hrefAcad,
+      explanation: "Casos com três faltas consecutivas identificadas — distinto do estoque de suspensos.",
     }),
     metricCard("acad.attendance.present_rate", attendanceAgg.presentRate, {
       quality:
-        attendanceAgg.presentRate == null
-          ? "unavailable"
-          : !attendanceReliable || sessionQuality.pastNotReleasedCount > 0
+        attendanceAgg.presentRate == null || !attendanceReliable
+          ? attendanceAgg.presentRate == null
+            ? "unavailable"
+            : "partial"
+          : sessionQuality.pastNotReleasedCount > 0
             ? "partial"
             : "ok",
       unavailableReason: attendanceAgg.presentRate == null ? "Sem oportunidades de chamada no recorte" : null,
@@ -315,14 +375,22 @@ async function loadAcademicUncached(
         : `Frequência provisória. ${completenessNote ?? ""}. Não use para meta nem síntese conclusiva.`,
       percentage: attendanceAgg.presentRate,
     }),
-    metricCard("ben.served_unique", servedUnique, {
-      quality: pq,
+    metricCard("ben.served_unique", servedExec.value, {
+      quality: servedExec.quality,
+      unavailableReason: servedExec.unavailableReason,
       href: hrefAcad,
-      formattedValue: `${servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`,
-      currentValue: servedUnique,
+      formattedValue:
+        servedExec.value == null
+          ? undefined
+          : attendanceReliable
+            ? undefined
+            : `${servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`,
+      currentValue: servedExec.value,
       explanation: attendanceReliable
         ? "Pessoas distintas com pelo menos uma presença em aula no recorte."
-        : `Ao menos ${servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. ${completenessNote ?? ""}`,
+        : servedExec.value == null
+          ? servedExec.unavailableReason ?? undefined
+          : `Ao menos ${servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. ${completenessNote ?? ""}`,
     }),
     metricCard("acad.attendance.justified_rate", attendanceAgg.justifiedRate, {
       quality: attendanceAgg.justifiedRate == null ? "unavailable" : pq,
@@ -358,7 +426,7 @@ async function loadAcademicUncached(
     alerts.push({
       id: "call-completeness-quality",
       ruleId: "acad.call_completeness_quality",
-      ruleVersion: FORMULA_VERSION_1A,
+      ruleVersion: FORMULA_VERSION_1C,
       domain: "academic",
       severity: "attention",
       title: INCOMPLETE_CALL_ALERT.title,
@@ -372,45 +440,80 @@ async function loadAcademicUncached(
       status: "Acompanhamento operacional ainda não registrado.",
     });
   }
-  if (criticalAbsenceRisk > 0) {
+  if (attendanceReliable && nearSuspension > 0) {
     alerts.push({
-      id: "critical-absences",
-      ruleId: "acad.critical_absence_streak",
-      ruleVersion: FORMULA_VERSION_1A,
+      id: "near-suspension",
+      ruleId: "acad.near_suspension",
+      ruleVersion: FORMULA_VERSION_1C,
       domain: "academic",
-      severity: "critical",
-      title: "Risco crítico por faltas",
-      fact: attendanceReliable
-        ? `${criticalAbsenceRisk} matrícula(s) ativas ou suspensas no limite de faltas consecutivas sem justificativa.`
-        : `${criticalAbsenceRisk} caso(s) identificados nos registros disponíveis — leitura parcial.`,
-      value: criticalAbsenceRisk,
-      denominator: "matrículas vinculadas no recorte",
+      severity: "attention",
+      title: "Alunos próximos da suspensão",
+      fact: `${nearSuspension} matrícula(s) ativa(s) com duas faltas consecutivas sem justificativa.`,
+      value: nearSuspension,
       period: scope.cycleLabel,
-      impact: "Risco de perda de vaga / desligamento por frequência.",
-      suggestedDecision: "Solicitar plano de recuperação de frequência à coordenação.",
-      metricId: "acad.attrition.risk.critical_absences",
-      href: hrefPrio,
+      impact: "Próxima falta consecutiva sem justificativa leva à suspensão.",
+      suggestedDecision: "Orientar a coordenação a realizar contato preventivo.",
+      metricId: "acad.absence.near_suspension",
+      href: hrefAcad,
       source: "frequência em aulas liberadas",
       status: "Acompanhamento operacional ainda não registrado.",
-      operationalOwner: "Acompanhamento operacional ainda não registrado.",
     });
   }
   if (suspensions > 0) {
     alerts.push({
       id: "suspensions",
       ruleId: "acad.suspensions",
-      ruleVersion: FORMULA_VERSION_1A,
+      ruleVersion: FORMULA_VERSION_1C,
       domain: "academic",
-      severity: "attention",
+      severity: "critical",
       title: "Matrículas suspensas",
-      fact: `${suspensions} matrícula(s) suspensas (${CONSECUTIVE_UNJUSTIFIED_ABSENCE_LIMIT} faltas consecutivas sem justificativa). A ${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT}ª falta leva ao cancelamento.`,
+      fact: `${suspensions} matrícula(s) com status suspenso. A causa não está registrada de forma estruturada.`,
       value: suspensions,
       period: scope.cycleLabel,
-      impact: "Alerta de frequência: risco de cancelamento na próxima falta consecutiva sem justificativa.",
-      suggestedDecision: "Acompanhar retorno às aulas e o lançamento de frequência.",
+      impact: "Estoque atual. Não afirma que a suspensão tenha sido causada por três faltas.",
+      suggestedDecision:
+        "Priorizar o acompanhamento operacional das matrículas suspensas antes da próxima aula.",
       metricId: "acad.suspension.count",
       href: hrefAcad,
       source: "cadastro de matrículas",
+      status: "Acompanhamento operacional ainda não registrado.",
+    });
+  }
+  if (attendanceReliable && streakThree > 0) {
+    alerts.push({
+      id: "streak-three",
+      ruleId: "acad.streak_three",
+      ruleVersion: FORMULA_VERSION_1C,
+      domain: "academic",
+      severity: "critical",
+      title: "Três faltas consecutivas identificadas",
+      fact: `${streakThree} matrícula(s) com três faltas consecutivas sem justificativa na chamada.`,
+      value: streakThree,
+      period: scope.cycleLabel,
+      impact: "Evidência de frequência, independente do status cadastral.",
+      suggestedDecision:
+        "Priorizar o acompanhamento antes da próxima aula, pois uma nova falta poderá cancelar a matrícula.",
+      metricId: "acad.absence.streak_three",
+      href: hrefAcad,
+      source: "frequência em aulas liberadas",
+      status: "Acompanhamento operacional ainda não registrado.",
+    });
+  }
+  if (attendanceReliable && unprocessedFourAbsences > 0) {
+    alerts.push({
+      id: "unprocessed-four-absences",
+      ruleId: "acad.unprocessed_four_absences",
+      ruleVersion: FORMULA_VERSION_1C,
+      domain: "academic",
+      severity: "attention",
+      title: "Cancelamento ainda não processado",
+      fact: `${unprocessedFourAbsences} matrícula(s) com quatro faltas consecutivas sem justificativa ainda não canceladas.`,
+      value: unprocessedFourAbsences,
+      period: scope.cycleLabel,
+      impact: "Inconsistência de processamento ou de qualidade dos dados.",
+      suggestedDecision: "Pedir à coordenação a conferência do processamento automático de frequência.",
+      href: hrefAcad,
+      source: "frequência e status da matrícula",
       status: "Acompanhamento operacional ainda não registrado.",
     });
   }
@@ -418,7 +521,7 @@ async function loadAcademicUncached(
     alerts.push({
       id: "sessions-quality",
       ruleId: "acad.sessions_not_released",
-      ruleVersion: FORMULA_VERSION_1A,
+      ruleVersion: FORMULA_VERSION_1C,
       domain: "academic",
       severity: "attention",
       title: "Qualidade: sessões passadas não liberadas",
@@ -432,22 +535,40 @@ async function loadAcademicUncached(
       status: "Acompanhamento operacional ainda não registrado.",
     });
   }
-  if (cancelAfterStart > 0) {
+  if (cancelled > 0) {
     alerts.push({
-      id: "cancel-after-start",
-      ruleId: "acad.cancel_after_start_untyped",
-      ruleVersion: FORMULA_VERSION_1A,
+      id: "cancellations-stock",
+      ruleId: "acad.cancellations_stock",
+      ruleVersion: FORMULA_VERSION_1C,
       domain: "academic",
       severity: "info",
-      title: "Cancelamentos após o início — motivo não tipado",
-      fact: `${cancelAfterStart} matrícula(s) canceladas após o aluno já ter frequentado.`,
-      value: cancelAfterStart,
+      title: "Matrículas canceladas no recorte",
+      fact: `${prog.cancelledUnknownReason} cancelamento(s) sem motivo estruturado. ${CANCELLATION_PERIOD_UNAVAILABLE_REASON}`,
+      value: cancelled,
       period: scope.cycleLabel,
-      impact: "Sinal de saída sem classificação de evasão.",
-      suggestedDecision: "Tratar como sinal parcial até existir motivo estruturado.",
-      metricId: "acad.cancel.after_start_untyped",
+      impact: "Estoque no recorte de turmas, não um fluxo datado do período.",
+      suggestedDecision: "Acompanhar o estoque até existir histórico de status.",
+      metricId: "acad.cancel.unknown_reason",
       href: hrefAcad,
-      source: "matrículas e frequência",
+      source: "cadastro de matrículas",
+      status: "Acompanhamento operacional ainda não registrado.",
+    });
+  }
+  if (attendanceReliable && prog.cancelledInferredAfterFour > 0) {
+    alerts.push({
+      id: "cancellations-inferred-four",
+      ruleId: "acad.cancellations_inferred_four",
+      ruleVersion: FORMULA_VERSION_1C,
+      domain: "academic",
+      severity: "info",
+      title: "Cancelamento após sequência de faltas",
+      fact: `${prog.cancelledInferredAfterFour} caso(s). ${INFERRED_ABSENCE_CANCELLATION_COPY}`,
+      value: prog.cancelledInferredAfterFour,
+      period: scope.cycleLabel,
+      impact: "Inferência pela chamada; não é motivo estruturado.",
+      suggestedDecision: "Não tratar como causa estruturada até o histórico da Fase 2A.",
+      href: hrefAcad,
+      source: "frequência e status da matrícula",
       status: "Acompanhamento operacional ainda não registrado.",
     });
   }
@@ -460,21 +581,29 @@ async function loadAcademicUncached(
       dataAsOf: scope.dataAsOf.toISOString(),
       filters: { scope: scope.scope, cycleId: scope.cycleId, cycleLabel: scope.cycleLabel, ...filters },
       quality,
-      formulaVersion: FORMULA_VERSION_1A,
+      formulaVersion: FORMULA_VERSION_1C,
       viewer,
     },
     kpis,
     academic: {
       funnel: {
-        preEnrollments,
-        confirmed,
+        enrollmentsInCycle,
+        occupyingSeats,
+        uniquePeople,
         started: startedCount,
-        startedAmongConfirmed,
-        confirmedNotStarted,
+        notStarted,
+        notStartedRate,
         completedStarted: closedCgIds.size === 0 ? null : completedStartedInClosed,
         completionStartedRate,
-        nonStartRateAmongConfirmed: nonStartAmongConfirmed,
+        cancelledStock: cancelled,
+        cancelledKnownReason: prog.cancelledKnownReason,
+        cancelledUnknownReason: prog.cancelledUnknownReason,
+        streakThree,
+        cancelledInferredAfterFour: prog.cancelledInferredAfterFour,
+        cancellationPeriodQuality: "unavailable",
         cancelAfterStartUntyped: cancelAfterStart,
+        nearSuspension,
+        unprocessedFourAbsences,
         attendanceReliable,
       },
       attendance: {
@@ -488,7 +617,14 @@ async function loadAcademicUncached(
               : "partial",
       },
       suspensions,
+      nearSuspension,
+      streakThree,
       criticalAbsenceRisk,
+      cancelled,
+      cancelledKnownReason: prog.cancelledKnownReason,
+      cancelledUnknownReason: prog.cancelledUnknownReason,
+      cancelledInferredAfterFour: prog.cancelledInferredAfterFour,
+      occupyingSeats,
       servedUnique,
       byCourse,
     },
@@ -503,7 +639,7 @@ export async function loadAcademic(
   viewer: "DIRECTOR" | "MASTER",
 ): Promise<AcademicBundle> {
   return cachedDirector(
-    ["academic", scope.scope, scope.cycleId, filters.courseId, filters.classGroupId, filters.poloId, viewer, "v4"],
+    ["academic", scope.scope, scope.cycleId, filters.courseId, filters.classGroupId, filters.poloId, viewer, "v5"],
     () => loadAcademicUncached(scope, filters, viewer),
   );
 }

@@ -17,7 +17,7 @@ describe("pre-homologação 1C — atendidos e carimbo", () => {
     expect(src("src/lib/diretor/facts/academic.ts")).toContain("countServedUniqueStudents");
     expect(src("src/lib/diretor/metrics/academic.ts")).toContain("countServedUniqueStudents");
     expect(src("src/lib/diretor/metrics/social.ts")).toContain("countServedUniqueStudents");
-    expect(src("src/lib/diretor/metrics/overview.ts")).toContain('metricCard("ben.served_unique", acad.servedUnique');
+    expect(src("src/lib/diretor/metrics/overview.ts")).toContain('metricCard("ben.served_unique", servedExec.value');
     expect(src("src/lib/diretor/metrics/social.ts")).toContain('metricCard("ben.served_unique"');
     expect(src("src/lib/diretor/metrics/overview.ts")).not.toMatch(/COUNT DISTINCT/);
   });
@@ -57,7 +57,7 @@ describe("pre-homologação 1C — atendidos e carimbo", () => {
     expect(r.notStarted).toBe(confirmed - startedAmongConfirmed);
     expect(r.rate).toBe(Math.round((r.notStarted / confirmed) * 1000) / 10);
     const ui = src("src/app/(protected)/diretor/academico/page.tsx");
-    expect(ui).toContain("Reconciliação do não início (matrículas)");
+    expect(ui).toContain("Reconciliação do início ainda não comprovado");
     expect(ui).not.toContain("Pré-matrículas atuais");
     expect(ui).toContain("Iniciaram com presença registrada");
   });

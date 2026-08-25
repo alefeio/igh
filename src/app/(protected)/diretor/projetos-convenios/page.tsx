@@ -49,7 +49,7 @@ function Inner() {
             {data.visitsSummary.inapta}
           </p>
           <p className="text-sm">
-            Doações confirmadas no ano (contexto, sem tabela completa): {data.donationsContext.confirmedCount} registros · {data.donationsContext.kits} kits.
+            Doações registradas no ano (contexto, sem tabela completa): {data.donationsContext.confirmedCount} registros · {data.donationsContext.kits} kits.
           </p>
           <p className="text-sm">
             <Link className="underline" href={data.links.social}>

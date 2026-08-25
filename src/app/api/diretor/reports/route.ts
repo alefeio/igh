@@ -14,7 +14,7 @@ export async function GET() {
         dataAsOf: new Date().toISOString(),
         filters: { competence, defaultCompetence: competence },
         quality: [{ domain: "overview", status: "ok" as const }],
-        formulaVersion: "1C.0.0",
+        formulaVersion: "1C.1.0",
         viewer,
       },
       catalog: REPORT_CATALOG,

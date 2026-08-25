@@ -121,7 +121,7 @@ function Inner() {
             <MetricCard
               label="Demanda única (lista de espera)"
               value={data.offer.demandUniqueCount}
-              explanation="Pessoas distintas na lista de espera. Pré-matrícula já conta como matrícula, não como demanda."
+              explanation="Pessoas distintas na lista de espera. Inscrições já registradas ocupam vaga e não entram como demanda."
               quality="ok"
             />
             <MetricCard

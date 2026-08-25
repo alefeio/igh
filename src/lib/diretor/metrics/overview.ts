@@ -22,6 +22,7 @@ import type {
 import type { ScopeResolution } from "@/lib/diretor/load-scope";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
 import { presenceDependentQuality, SOCIAL_PRESENCE_PARTIAL_NOTE } from "@/lib/diretor/metrics/attendance-formulas";
+import { executivePresenceCount } from "@/lib/diretor/metrics/enrollment-formulas";
 import { formatPtPercent } from "@/lib/diretor/reports/pdf-bars";
 import { domainLabel } from "@/lib/diretor/ui-labels";
 import { formatCentsBRL } from "@/lib/employees";
@@ -99,18 +100,56 @@ export async function loadOverviewSummaries(opts: {
 
   if (acad) {
     const pq = presenceDependentQuality(acad.attendanceReliable);
-    const servedLabel = acad.attendanceReliable
-      ? acad.servedUnique
-      : `${acad.servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`;
+    const servedExec = executivePresenceCount(acad.servedUnique, acad.attendanceReliable);
     kpis.push(
-      metricCard("ben.served_unique", acad.servedUnique, {
-        quality: pq,
+      metricCard("acad.enroll.cycle", acad.enrollmentsInCycle, {
+        quality: "ok",
+        href: "/diretor/academico",
+      }),
+      metricCard("acad.enroll.occupying", acad.occupyingSeats, {
+        quality: "ok",
+        href: "/diretor/academico",
+      }),
+      metricCard("acad.suspension.count", acad.suspensions, {
+        quality: "ok",
+        href: "/diretor/academico",
+      }),
+    );
+    if (acad.attendanceReliable && acad.nearSuspension > 0) {
+      kpis.push(
+        metricCard("acad.absence.near_suspension", acad.nearSuspension, {
+          quality: "ok",
+          href: "/diretor/academico",
+        }),
+      );
+    }
+    if (acad.attendanceReliable && acad.streakThree > 0) {
+      kpis.push(
+        metricCard("acad.absence.streak_three", acad.streakThree, {
+          quality: "ok",
+          href: "/diretor/academico",
+        }),
+      );
+    }
+    const servedLabel =
+      servedExec.value == null
+        ? null
+        : acad.attendanceReliable
+          ? acad.servedUnique
+          : `${acad.servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`;
+    kpis.push(
+      metricCard("ben.served_unique", servedExec.value, {
+        quality: servedExec.quality,
+        unavailableReason: servedExec.unavailableReason,
         href: "/diretor/academico",
         formattedValue: typeof servedLabel === "string" ? servedLabel : undefined,
-        currentValue: acad.servedUnique,
-        explanation: acad.attendanceReliable
-          ? "Pessoas distintas com pelo menos uma presença em aula no recorte."
-          : `Ao menos ${acad.servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. Não é alcance institucional definitivo.`,
+        currentValue: servedExec.value,
+        explanation:
+          servedExec.value == null
+            ? servedExec.unavailableReason ?? undefined
+            : acad.attendanceReliable
+              ? "Pessoas distintas com pelo menos uma presença em aula no recorte."
+              : `Ao menos ${acad.servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. Não é alcance institucional definitivo.`,
       }),
     );
     if (acad.completionStartedRate != null) {
@@ -122,15 +161,6 @@ export async function loadOverviewSummaries(opts: {
         }),
       );
     }
-    kpis.push(
-      metricCard("acad.attrition.risk.critical_absences", acad.criticalAbsenceRisk, {
-        quality: pq,
-        href: "/diretor/academico",
-        explanation: acad.attendanceReliable
-          ? undefined
-          : "Casos identificados nos registros disponíveis — leitura parcial.",
-      }),
-    );
   }
   if (offer?.occupancyPercent != null) {
     kpis.push(
@@ -156,7 +186,7 @@ export async function loadOverviewSummaries(opts: {
         quality: target == null ? "partial" : "ok",
         href: "/diretor/impacto-social",
         labelOverride: "Equipamentos doados vs meta",
-        explanation: "Doações confirmadas no ano comparadas à meta de equipamentos.",
+        explanation: "Doações registradas no ano comparadas à meta de equipamentos.",
         currentValue: donated,
         targetValue: target,
         percentage: pct,

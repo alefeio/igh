@@ -23,7 +23,7 @@ async function loadOfferFactsUncached(scope: ScopeResolution): Promise<OfferExec
   }
 
   const groups = await prisma.classGroup.findMany({
-    where: { id: { in: cgIds }, status: { not: "CANCELADA" } },
+    where: { id: { in: cgIds }, status: { in: ["ABERTA", "EM_ANDAMENTO"] } },
     select: { id: true, capacity: true },
   });
   const occRows = await prisma.enrollment.groupBy({
@@ -60,5 +60,5 @@ async function loadOfferFactsUncached(scope: ScopeResolution): Promise<OfferExec
 }
 
 export async function loadOfferExecutiveFacts(scope: ScopeResolution, viewer: "DIRECTOR" | "MASTER") {
-  return cachedDirector(["facts-offer", scope.scope, scope.cycleId, viewer], () => loadOfferFactsUncached(scope));
+  return cachedDirector(["facts-offer-v2", scope.scope, scope.cycleId, viewer], () => loadOfferFactsUncached(scope));
 }

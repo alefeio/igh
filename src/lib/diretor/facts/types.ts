@@ -2,6 +2,17 @@ import type { DerivedAlertDto, ResponseMetaDto } from "@/lib/diretor/schemas/com
 
 export type AcademicExecutiveFacts = {
   servedUnique: number;
+  enrollmentsInCycle: number;
+  occupyingSeats: number;
+  uniquePeople: number;
+  suspensions: number;
+  nearSuspension: number;
+  streakThree: number;
+  cancelled: number;
+  cancelledKnownReason: number;
+  cancelledUnknownReason: number;
+  cancelledInferredAfterFour: number;
+  unprocessedFourAbsences: number;
   criticalAbsenceRisk: number;
   completionStartedRate: number | null;
   callCompletenessRate: number | null;

@@ -15,7 +15,7 @@ type Data = {
   territoryNote?: string;
   callCompletenessRate?: number | null;
   reach: {
-    confirmedUnique: number;
+    enrolledUnique: number;
     servedUnique: number;
     newServed: number;
     recurrentServed: number;
@@ -91,9 +91,9 @@ function Inner() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <MetricCard
               label="Pessoas únicas com matrícula"
-              value={data.reach.confirmedUnique}
+              value={data.reach.enrolledUnique}
               quality="ok"
-              explanation="Pessoas distintas com matrícula no recorte. Não se separa pré-matrícula de confirmada."
+              explanation="Pessoas distintas com matrícula no recorte."
             />
             <MetricCard
               label="Atendidos únicos (ciclo acadêmico)"

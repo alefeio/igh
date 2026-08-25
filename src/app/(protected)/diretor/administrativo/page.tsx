@@ -59,7 +59,7 @@ function Inner() {
             <MetricCard label="Falhas de e-mail" value={data.comms.failedOutbox} quality="ok" />
           </div>
           <p className="text-sm">
-            Folha: {data.people.payroll.status ?? "indisponível"} · vale-refeição confirmados {data.people.mealTickets.confirmed} / pendentes{" "}
+            Folha: {data.people.payroll.status ?? "indisponível"} · vale-refeição lançados {data.people.mealTickets.confirmed} / pendentes{" "}
             {data.people.mealTickets.pending}. Destinatários afetados (agregado): {data.comms.affectedRecipients}. Idade da falha mais antiga:{" "}
             {data.comms.oldestFailureAgeDays ?? "n/d"} dia(s).
           </p>

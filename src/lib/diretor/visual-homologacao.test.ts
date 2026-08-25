@@ -65,7 +65,7 @@ describe("homologação visual 1C — contratos", () => {
     const acad = page("src/lib/diretor/facts/academic.ts");
     const acadFull = page("src/lib/diretor/metrics/academic.ts");
     const social = page("src/lib/diretor/metrics/social.ts");
-    expect(ov).toContain('metricCard("ben.served_unique", acad.servedUnique');
+    expect(ov).toContain('metricCard("ben.served_unique", servedExec.value');
     expect(acad).toContain("countServedUniqueStudents");
     expect(acadFull).toContain("countServedUniqueStudents");
     expect(social).toContain("countServedUniqueStudents");
@@ -86,7 +86,7 @@ describe("homologação visual 1C — contratos", () => {
     expect(acad).toContain("Situação da jornada no recorte");
     expect(acad).not.toMatch(/title="Funil/);
     expect(acad).not.toContain("Pré-matrículas atuais");
-    expect(acad).toContain('etapa: "Matrículas"');
+    expect(acad).toContain('etapa: "Matrículas no ciclo"');
   });
 
   it(

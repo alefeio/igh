@@ -1,4 +1,8 @@
 import { FORMULA_VERSION_1C } from "@/lib/diretor/catalog/definitions";
+import {
+  CANCELLATION_PERIOD_UNAVAILABLE_REASON,
+  INFERRED_ABSENCE_CANCELLATION_COPY,
+} from "@/lib/diretor/metrics/enrollment-formulas";
 import type { DerivedAlertDto } from "@/lib/diretor/schemas/common";
 import type { AdministrativeExecutiveFacts } from "@/lib/diretor/facts/types";
 import type { AcademicExecutiveFacts } from "@/lib/diretor/facts/types";
@@ -37,23 +41,117 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
   const out: DerivedAlertDto[] = [];
   const v = FORMULA_VERSION_1C;
 
-  if (pack.academic && pack.academic.criticalAbsenceRisk > 0) {
+  if (pack.academic && pack.academic.attendanceReliable && pack.academic.nearSuspension > 0) {
     out.push({
-      id: "acad-critical-absences",
-      ruleId: "acad.critical_absence_risk",
+      id: "acad-near-suspension",
+      ruleId: "acad.near_suspension",
+      ruleVersion: v,
+      domain: "academic",
+      severity: "attention",
+      title: "Alunos próximos da suspensão",
+      fact: `${pack.academic.nearSuspension} matrícula(s) ativa(s) com duas faltas consecutivas sem justificativa.`,
+      value: pack.academic.nearSuspension,
+      period: pack.academic.periodLabel,
+      impact: "Próxima falta consecutiva sem justificativa leva à suspensão.",
+      suggestedDecision: "Orientar a coordenação a realizar contato preventivo.",
+      href: "/diretor/academico",
+      source: "frequência nas aulas",
+      status: "Acompanhamento operacional ainda não registrado.",
+    });
+  }
+
+  if (pack.academic && pack.academic.suspensions > 0) {
+    out.push({
+      id: "acad-suspensions",
+      ruleId: "acad.suspensions",
       ruleVersion: v,
       domain: "academic",
       severity: "critical",
-      title: "Risco crítico por faltas consecutivas",
-      fact: pack.academic.attendanceReliable
-        ? `${pack.academic.criticalAbsenceRisk} matrícula(s) ativas ou suspensas no limite de faltas consecutivas sem justificativa.`
-        : `${pack.academic.criticalAbsenceRisk} caso(s) identificados nos registros disponíveis — leitura parcial.`,
-      value: pack.academic.criticalAbsenceRisk,
+      title: "Matrículas suspensas",
+      fact: `${pack.academic.suspensions} matrícula(s) com status suspenso. A causa não está registrada de forma estruturada.`,
+      value: pack.academic.suspensions,
       period: pack.academic.periodLabel,
-      impact: "Risco de desligamento automático por frequência.",
-      suggestedDecision: "Priorizar acompanhamento pedagógico das turmas com esses casos.",
+      impact: "Estoque atual. Não afirma que a suspensão tenha sido causada por três faltas.",
+      suggestedDecision: "Priorizar o acompanhamento operacional das matrículas suspensas antes da próxima aula.",
+      href: "/diretor/academico",
+      source: "cadastro de matrículas",
+      status: "Acompanhamento operacional ainda não registrado.",
+    });
+  }
+
+  if (pack.academic && pack.academic.attendanceReliable && pack.academic.streakThree > 0) {
+    out.push({
+      id: "acad-streak-three",
+      ruleId: "acad.streak_three",
+      ruleVersion: v,
+      domain: "academic",
+      severity: "critical",
+      title: "Três faltas consecutivas identificadas",
+      fact: `${pack.academic.streakThree} matrícula(s) com três faltas consecutivas sem justificativa na chamada.`,
+      value: pack.academic.streakThree,
+      period: pack.academic.periodLabel,
+      impact: "Evidência de frequência, independente do status cadastral.",
+      suggestedDecision:
+        "Priorizar o acompanhamento antes da próxima aula, pois uma nova falta poderá cancelar a matrícula.",
       href: "/diretor/academico",
       source: "frequência nas aulas",
+      status: "Acompanhamento operacional ainda não registrado.",
+    });
+  }
+
+  if (pack.academic && pack.academic.attendanceReliable && pack.academic.unprocessedFourAbsences > 0) {
+    out.push({
+      id: "acad-unprocessed-four",
+      ruleId: "acad.unprocessed_four_absences",
+      ruleVersion: v,
+      domain: "academic",
+      severity: "attention",
+      title: "Cancelamento ainda não processado",
+      fact: `${pack.academic.unprocessedFourAbsences} matrícula(s) com quatro faltas consecutivas sem justificativa ainda não canceladas.`,
+      value: pack.academic.unprocessedFourAbsences,
+      period: pack.academic.periodLabel,
+      impact: "Inconsistência de processamento ou de qualidade dos dados.",
+      suggestedDecision: "Pedir à coordenação a conferência do processamento automático de frequência.",
+      href: "/diretor/academico",
+      source: "frequência e status da matrícula",
+      status: "Acompanhamento operacional ainda não registrado.",
+    });
+  }
+
+  if (pack.academic && pack.academic.cancelled > 0) {
+    out.push({
+      id: "acad-cancellations-stock",
+      ruleId: "acad.cancellations_stock",
+      ruleVersion: v,
+      domain: "academic",
+      severity: "info",
+      title: "Matrículas canceladas no recorte",
+      fact: `${pack.academic.cancelledUnknownReason} cancelamento(s) sem motivo estruturado. ${CANCELLATION_PERIOD_UNAVAILABLE_REASON}`,
+      value: pack.academic.cancelled,
+      period: pack.academic.periodLabel,
+      impact: "Estoque no recorte de turmas, não um fluxo datado do período.",
+      suggestedDecision: "Acompanhar o estoque até existir histórico de status.",
+      href: "/diretor/academico",
+      source: "cadastro de matrículas",
+      status: "Acompanhamento operacional ainda não registrado.",
+    });
+  }
+
+  if (pack.academic && pack.academic.attendanceReliable && pack.academic.cancelledInferredAfterFour > 0) {
+    out.push({
+      id: "acad-cancellations-inferred-four",
+      ruleId: "acad.cancellations_inferred_four",
+      ruleVersion: v,
+      domain: "academic",
+      severity: "info",
+      title: "Cancelamento após sequência de faltas",
+      fact: `${pack.academic.cancelledInferredAfterFour} caso(s). ${INFERRED_ABSENCE_CANCELLATION_COPY}`,
+      value: pack.academic.cancelledInferredAfterFour,
+      period: pack.academic.periodLabel,
+      impact: "Inferência pela chamada; não é motivo estruturado.",
+      suggestedDecision: "Não tratar como causa estruturada até o histórico da Fase 2A.",
+      href: "/diretor/academico",
+      source: "frequência e status da matrícula",
       status: "Acompanhamento operacional ainda não registrado.",
     });
   }
@@ -150,7 +248,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       impact: "Entrega de equipamentos abaixo da meta anual.",
       suggestedDecision: "Acompanhar doações restantes no ano.",
       href: "/diretor/impacto-social",
-      source: "Doações confirmadas e meta anual",
+      source: "Doações registradas no ano e meta anual",
       status: "Acompanhamento operacional ainda não registrado.",
     });
   }

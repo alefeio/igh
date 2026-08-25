@@ -27,15 +27,23 @@ type AcademicData = {
   cycles: Array<{ id: string; label: string; isCurrent: boolean }>;
   academic: {
     funnel: {
-      preEnrollments: number;
-      confirmed: number;
+      enrollmentsInCycle: number;
+      occupyingSeats: number;
+      uniquePeople: number;
       started: number;
-      startedAmongConfirmed?: number;
-      confirmedNotStarted?: number;
+      notStarted: number;
+      notStartedRate: number | null;
       completedStarted: number | null;
       completionStartedRate: number | null;
-      nonStartRateAmongConfirmed: number | null;
+      cancelledStock: number;
+      cancelledKnownReason: number;
+      cancelledUnknownReason: number;
+      streakThree: number;
+      cancelledInferredAfterFour: number;
+      cancellationPeriodQuality: "unavailable";
       cancelAfterStartUntyped: number;
+      nearSuspension: number;
+      unprocessedFourAbsences: number;
       attendanceReliable?: boolean;
     };
     attendance: {
@@ -52,6 +60,11 @@ type AcademicData = {
       executiveReliable?: boolean;
     };
     suspensions: number;
+    streakThree?: number;
+    cancelledKnownReason?: number;
+    cancelledUnknownReason?: number;
+    cancelledInferredAfterFour?: number;
+    occupyingSeats?: number;
     criticalAbsenceRisk: number;
     servedUnique: number;
   };
@@ -67,13 +80,15 @@ function Inner() {
   }, [load]);
 
   const f = data?.academic.funnel;
-  const startedAmong = f?.startedAmongConfirmed ?? f?.started ?? 0;
+  const startedAmong = f?.started ?? 0;
   const journeyChart = useMemo(() => {
     if (!f) return [];
     return [
-      { etapa: "Matrículas", valor: f.confirmed },
-      { etapa: "Iniciaram", valor: f.startedAmongConfirmed ?? f.started },
+      { etapa: "Matrículas no ciclo", valor: f.enrollmentsInCycle },
+      { etapa: "Ocupando vaga", valor: f.occupyingSeats },
+      { etapa: "Iniciaram", valor: f.started },
       ...(f.completedStarted == null ? [] : [{ etapa: "Concluíram (turmas encerradas)", valor: f.completedStarted }]),
+      { etapa: "Canceladas no recorte", valor: f.cancelledStock },
     ];
   }, [f]);
 
@@ -87,7 +102,7 @@ function Inner() {
       <DashboardHero
         eyebrow="Acadêmico"
         title="Os alunos entram, frequentam e concluem?"
-        description="Todas as matrículas entram na mesma leitura. Três faltas consecutivas sem justificativa levam à suspensão; a quarta, ao cancelamento."
+        description="Matrículas do ciclo e ocupação atual são leituras distintas. Frequência e início dependem das chamadas."
         rightSlot={
           <DirectorScopeControls cycles={data?.cycles ?? []} loading={loading} onRefresh={() => void load()} />
         }
@@ -108,14 +123,73 @@ function Inner() {
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard
-              label="Risco crítico por faltas"
-              value={data.academic.criticalAbsenceRisk}
-              explanation={
-                attendanceProvisional
-                  ? `Casos identificados nos registros disponíveis — leitura parcial. ${completenessLabel ?? ""}`
-                  : "Matrículas ativas ou suspensas com quatro ou mais faltas consecutivas sem justificativa, sem sessão desconhecida entre elas."
-              }
-              quality={attendanceProvisional ? "partial" : "ok"}
+              label="Matrículas no ciclo"
+              value={f?.enrollmentsInCycle ?? 0}
+              explanation="Todos os registros do ciclo. Canceladas e concluídas entram no histórico."
+              quality="ok"
+            />
+            <MetricCard
+              label="Ocupando vaga"
+              value={f?.occupyingSeats ?? data.academic.occupyingSeats ?? 0}
+              explanation="Ativas e suspensas em turmas vigentes."
+              quality="ok"
+            />
+            <MetricCard
+              label="Pessoas únicas com matrícula"
+              value={f?.uniquePeople ?? 0}
+              quality="ok"
+            />
+            <MetricCard
+              label="Suspensos atuais"
+              value={data.academic.suspensions}
+              explanation="Status suspenso no cadastro. Não presume três faltas."
+              quality="ok"
+            />
+            <MetricCard
+              label="Duas faltas consecutivas"
+              value={attendanceProvisional ? null : (f?.nearSuspension ?? 0)}
+              explanation="Identificadas na chamada. Distinto do estoque de suspensos."
+              quality={attendanceProvisional ? "unavailable" : "ok"}
+              unavailableReason={attendanceProvisional ? "Chamadas incompletas" : null}
+            />
+            <MetricCard
+              label="Três faltas consecutivas"
+              value={attendanceProvisional ? null : (f?.streakThree ?? 0)}
+              explanation="Identificadas na chamada. Distinto do estoque de suspensos."
+              quality={attendanceProvisional ? "unavailable" : "ok"}
+              unavailableReason={attendanceProvisional ? "Chamadas incompletas" : null}
+            />
+            <MetricCard
+              label="Cancelamentos com motivo conhecido"
+              value={null}
+              quality="unavailable"
+              unavailableReason="Motivo estruturado ainda não existe no cadastro."
+            />
+            <MetricCard
+              label="Cancelamentos sem motivo identificado"
+              value={f?.cancelledUnknownReason ?? 0}
+              explanation="Estoque no recorte de turmas. Não é fluxo do período."
+              quality="ok"
+            />
+            <MetricCard
+              label="Cancelamentos no período"
+              value={null}
+              quality="unavailable"
+              unavailableReason="Não há data de cancelamento nem histórico de status. updatedAt não é usado como data do evento."
+            />
+            <MetricCard
+              label="Quatro faltas sem cancelamento processado"
+              value={attendanceProvisional ? null : (f?.unprocessedFourAbsences ?? 0)}
+              explanation="Inconsistência de processamento ou qualidade de dados."
+              quality={attendanceProvisional ? "unavailable" : "ok"}
+              unavailableReason={attendanceProvisional ? "Chamadas incompletas" : null}
+            />
+            <MetricCard
+              label="Cancelamento após sequência de faltas"
+              value={attendanceProvisional ? null : (f?.cancelledInferredAfterFour ?? 0)}
+              explanation="Cancelamento identificado após sequência de faltas — causa ainda não registrada de forma estruturada."
+              quality={attendanceProvisional ? "unavailable" : "ok"}
+              unavailableReason={attendanceProvisional ? "Chamadas incompletas" : null}
             />
             <MetricCard
               label={attendanceProvisional ? "Frequência provisória" : "Frequência (presença)"}
@@ -138,30 +212,33 @@ function Inner() {
               unavailableReason={att?.callCompletenessRate == null ? "Sem aulas elegíveis no recorte" : null}
             />
             <MetricCard
-              label="Matrículas"
-              value={f?.confirmed ?? 0}
-              explanation="Todos os vínculos do recorte. Quem ainda não confirmou no sistema também assiste às aulas."
-              quality="ok"
-            />
-            <MetricCard
-              label="Suspensos"
-              value={data.academic.suspensions}
-              explanation="Alerta: 3 faltas consecutivas sem justificativa levam à suspensão; 4 ao cancelamento."
-              quality="ok"
-            />
-            <MetricCard
               label="Atendidos únicos"
               value={
-                attendanceProvisional
-                  ? `${data.academic.servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`
-                  : data.academic.servedUnique
+                attendanceProvisional && data.academic.servedUnique === 0
+                  ? null
+                  : attendanceProvisional
+                    ? `${data.academic.servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`
+                    : data.academic.servedUnique
               }
               explanation={
-                attendanceProvisional
-                  ? `Ao menos ${data.academic.servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. ${completenessLabel ?? ""} Leitura parcial — não é alcance institucional definitivo.`
-                  : "Pessoas distintas com pelo menos uma presença em aula no recorte."
+                attendanceProvisional && data.academic.servedUnique === 0
+                  ? "Chamadas incompletas. Não interpretar a ausência de número como zero de alunos."
+                  : attendanceProvisional
+                    ? `Ao menos ${data.academic.servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. ${completenessLabel ?? ""} Leitura parcial.`
+                    : "Pessoas distintas com pelo menos uma presença em aula no recorte."
               }
-              quality={attendanceProvisional ? "partial" : "ok"}
+              quality={
+                attendanceProvisional && data.academic.servedUnique === 0
+                  ? "unavailable"
+                  : attendanceProvisional
+                    ? "partial"
+                    : "ok"
+              }
+              unavailableReason={
+                attendanceProvisional && data.academic.servedUnique === 0
+                  ? "Chamadas incompletas. Não interpretar a ausência de número como zero de alunos."
+                  : null
+              }
             />
             <MetricCard
               label="Conclusão (quem iniciou)"
@@ -184,28 +261,22 @@ function Inner() {
               }
             />
             <MetricCard
-              label={attendanceProvisional ? "Início ainda não comprovado nos registros" : "Não início (matrículas)"}
-              value={data.academic.funnel.nonStartRateAmongConfirmed}
+              label="Início ainda não comprovado"
+              value={attendanceProvisional && (f?.enrollmentsInCycle ?? 0) > 0 && startedAmong === 0 ? null : data.academic.funnel.notStartedRate}
               unit="%"
               explanation={
                 attendanceProvisional
-                  ? `Matrículas ${f?.confirmed ?? 0}; iniciaram com presença registrada ${startedAmong}; sem início comprovado ${f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}. Percentual provisório. Este percentual pode diminuir após a regularização das chamadas. Não use para alerta executivo, comparação de desempenho ou conclusão sobre abandono.`
-                  : `Matrículas ${f?.confirmed ?? 0} − iniciaram ${startedAmong} = não iniciaram ${f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}. Taxa = não iniciaram ÷ matrículas.`
+                  ? `Matrículas ${f?.enrollmentsInCycle ?? 0}; iniciaram ${startedAmong}; ainda sem presença ${f?.notStarted ?? 0}. Percentual provisório.`
+                  : `Matrículas ${f?.enrollmentsInCycle ?? 0} − iniciaram ${startedAmong} = ainda sem presença ${f?.notStarted ?? 0}.`
               }
               quality={
-                data.academic.funnel.nonStartRateAmongConfirmed == null
+                data.academic.funnel.notStartedRate == null
                   ? "unavailable"
                   : attendanceProvisional
                     ? "partial"
                     : "ok"
               }
-              unavailableReason={data.academic.funnel.nonStartRateAmongConfirmed == null ? "Sem matrículas" : null}
-            />
-            <MetricCard
-              label="Cancelamentos após o início"
-              value={data.academic.funnel.cancelAfterStartUntyped}
-              explanation="Matrículas canceladas depois de o aluno já ter frequentado, ainda sem motivo estruturado."
-              quality="partial"
+              unavailableReason={data.academic.funnel.notStartedRate == null ? "Sem matrículas" : null}
             />
             <MetricCard
               label="Faltas não justificadas"
@@ -234,20 +305,18 @@ function Inner() {
           </div>
 
           <details className="rounded-lg border border-[var(--card-border)] px-4 py-3 text-sm">
-            <summary className="cursor-pointer font-semibold">Reconciliação do não início (matrículas)</summary>
+            <summary className="cursor-pointer font-semibold">Reconciliação do início ainda não comprovado</summary>
             <p className="mt-2 text-[var(--text-muted)]">
-              Recorte de todas as matrículas — não mistura pessoas atendidas. Não há coorte separada de pré-matrícula.
+              Coorte de matrículas do ciclo, sem misturar pessoas atendidas.
             </p>
             <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-              <li>Matrículas: {f?.confirmed ?? 0}</li>
+              <li>Matrículas no ciclo: {f?.enrollmentsInCycle ?? 0}</li>
               <li>Iniciaram com presença registrada: {startedAmong}</li>
               <li>
-                {attendanceProvisional ? "Sem início comprovado" : "Não iniciaram"}:{" "}
-                {f?.confirmedNotStarted ?? Math.max(0, (f?.confirmed ?? 0) - startedAmong)}
+                {attendanceProvisional ? "Sem início comprovado" : "Ainda sem presença"}: {f?.notStarted ?? 0}
               </li>
               <li>
-                Percentual {attendanceProvisional ? "provisório" : "de não início"}:{" "}
-                {f?.nonStartRateAmongConfirmed ?? "—"}%
+                Percentual {attendanceProvisional ? "provisório" : ""}: {f?.notStartedRate ?? "—"}%
               </li>
             </ul>
             {attendanceProvisional ? (
@@ -259,7 +328,7 @@ function Inner() {
 
           <ChartWithTable
             title="Situação da jornada no recorte"
-            description="As barras de matrículas e iniciaram usam a mesma coorte. Todas as matrículas entram, inclusive quem ainda não confirmou no sistema."
+            description="Matrículas do ciclo, ocupação atual, início e cancelamentos. Ocupação não inclui canceladas nem concluídas."
             table={
               <table className="mt-2 w-full text-left text-sm">
                 <caption className="sr-only">Situação da jornada</caption>

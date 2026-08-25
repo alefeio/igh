@@ -168,7 +168,7 @@ export function countServedUniqueStudents(
     studentId: string;
     classGroupId: string;
     enrolledAt: Date;
-    enrollmentConfirmedAt: Date | null;
+    enrollmentConfirmedAt?: Date | null;
   }>,
   sessions: SessionLike[],
   attendanceByEnrollment: Map<string, Map<string, AttendanceMarkRow>>,
@@ -176,7 +176,7 @@ export function countServedUniqueStudents(
 ): number {
   const ids = new Set<string>();
   for (const e of enrollments) {
-    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrolledAt };
     if (hasStarted(entry, sessions, attendanceByEnrollment.get(e.id) ?? new Map(), dataAsOf)) {
       ids.add(e.studentId);
     }
@@ -184,13 +184,18 @@ export function countServedUniqueStudents(
   return ids.size;
 }
 
-export function reconcileConfirmedNonStart(confirmed: number, startedAmongConfirmed: number): {
+export function reconcileNonStart(enrollments: number, started: number): {
   notStarted: number;
   rate: number | null;
 } {
-  if (confirmed < 0 || startedAmongConfirmed < 0) return { notStarted: 0, rate: null };
-  const notStarted = Math.max(0, confirmed - startedAmongConfirmed);
-  return { notStarted, rate: rate(notStarted, confirmed) };
+  if (enrollments < 0 || started < 0) return { notStarted: 0, rate: null };
+  const notStarted = Math.max(0, enrollments - started);
+  return { notStarted, rate: rate(notStarted, enrollments) };
+}
+
+/** @deprecated 1C.1 — use reconcileNonStart */
+export function reconcileConfirmedNonStart(confirmed: number, startedAmongConfirmed: number) {
+  return reconcileNonStart(confirmed, startedAmongConfirmed);
 }
 
 /** Completude mínima para apresentar frequência como indicador executivo confiável. */
@@ -224,7 +229,7 @@ export function classifyCriticalAbsenceRisk(params: {
   cancelLimit: number;
 }): "none" | "critical_linked" {
   if (params.status !== "ACTIVE" && params.status !== "SUSPENDED") return "none";
-  if (params.streak >= params.cancelLimit) return "critical_linked";
+  if (params.streak >= 3 && params.streak < params.cancelLimit) return "critical_linked";
   return "none";
 }
 

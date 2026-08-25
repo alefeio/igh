@@ -188,27 +188,27 @@ describe("streak com sessões desconhecidas", () => {
 });
 
 describe("indicadores acadêmicos (regras)", () => {
-  it("streak 3 não é risco crítico / não é evasão", () => {
+  it("streak 3 em ativa é suspensão crítica", () => {
     expect(
       classifyCriticalAbsenceRisk({
         status: "ACTIVE",
         streak: 3,
         cancelLimit: CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT,
       }),
-    ).toBe("none");
+    ).toBe("critical_linked");
   });
 
-  it("streak 4 em vinculado gera risco crítico", () => {
+  it("streak 4 em vinculado não é classificado como risco de cancelamento nesta função", () => {
     expect(
       classifyCriticalAbsenceRisk({
         status: "SUSPENDED",
         streak: 4,
         cancelLimit: CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT,
       }),
-    ).toBe("critical_linked");
+    ).toBe("none");
   });
 
-  it("suspensão/risco não são evasão confirmada (função só classifica risco)", () => {
+  it("cancelada não entra como risco vinculado", () => {
     expect(
       classifyCriticalAbsenceRisk({
         status: "CANCELLED",

@@ -37,7 +37,7 @@ export type SocialBundle = {
   disclaimerLongTerm: string;
   peopleGoalNote: string;
   reach: {
-    confirmedUnique: number;
+    enrolledUnique: number;
     servedUnique: number;
     servedInCalendarPeriod?: number;
     newServed: number;
@@ -167,14 +167,14 @@ async function loadSocialUncached(
     asOf,
   );
 
-  const confirmedUnique = new Set(enrollments.map((e) => e.studentId));
+  const enrolledUnique = new Set(enrollments.map((e) => e.studentId));
   const served = new Set<string>();
   const completers = new Set<string>();
   const terrServed = new Map<string, Set<string>>();
   const cgById = new Map(classGroups.map((g) => [g.id, g]));
 
   for (const e of enrollments) {
-    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrolledAt };
     const attMap = attByEnr.get(e.id) ?? new Map();
     const periodSessions = sessions.filter((s) => {
       const t = s.sessionDate.getTime();
@@ -254,7 +254,7 @@ async function loadSocialUncached(
   }
 
   const opportunityRows = enrollments.map((e) => {
-    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrollmentConfirmedAt ?? e.enrolledAt };
+    const entry = { id: e.id, classGroupId: e.classGroupId, enteredAt: e.enrolledAt };
     return computeOpportunityRates(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf);
   });
   const attendanceAgg = aggregateOpportunityRates(opportunityRows);
@@ -276,10 +276,10 @@ async function loadSocialUncached(
 
   const href = "/diretor/impacto-social";
   const kpis: MetricValueDto[] = [
-    metricCard("soc.confirmed_unique", confirmedUnique.size, {
+    metricCard("soc.enrolled_unique", enrolledUnique.size, {
       quality: "ok",
       href,
-      explanation: "Pessoas distintas com matrícula no recorte. Não se separa pré-matrícula de confirmada.",
+      explanation: "Pessoas distintas com matrícula no recorte.",
     }),
     metricCard("soc.served_unique", servedUnique, {
       quality: pq,
@@ -325,7 +325,7 @@ async function loadSocialUncached(
       impact: "Entrega de equipamentos abaixo da meta anual.",
       suggestedDecision: "Acompanhar doações restantes no ano.",
       href,
-      source: "Doações confirmadas e meta anual",
+      source: "Doações registradas no ano e meta anual",
       status: "Acompanhamento operacional ainda não registrado.",
     });
   }
@@ -351,7 +351,7 @@ async function loadSocialUncached(
     peopleGoalNote:
       "A meta anual de pessoas e o indicador de alunos atendidos ainda utilizam definições diferentes. Por isso, são apresentados separadamente.",
     reach: {
-      confirmedUnique: confirmedUnique.size,
+      enrolledUnique: enrolledUnique.size,
       servedUnique,
       servedInCalendarPeriod: served.size,
       newServed: newIds.length,

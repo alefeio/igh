@@ -1,8 +1,9 @@
 import "server-only";
 
-import { FORMULA_VERSION_1A } from "@/lib/diretor/catalog/definitions";
+import { FORMULA_VERSION_1C } from "@/lib/diretor/catalog/definitions";
 import { cachedDirector } from "@/lib/diretor/cache";
 import { metricCard } from "@/lib/diretor/metrics/metric-card";
+import { occupiesCurrentSeat, isCurrentClassGroup } from "@/lib/diretor/metrics/enrollment-formulas";
 import {
   occupancyPercent as occupancyPct,
   seatOfferAcceptRate,
@@ -88,6 +89,7 @@ async function loadOfferUncached(
     select: {
       id: true,
       capacity: true,
+      status: true,
       location: true,
       courseId: true,
       course: { select: { id: true, name: true } },
@@ -145,8 +147,14 @@ async function loadOfferUncached(
   let full = 0;
   const occByCg = new Map<string, number>();
   for (const g of classGroups) {
+    if (!isCurrentClassGroup(g.status)) {
+      occByCg.set(g.id, 0);
+      continue;
+    }
     const occ = enrollments.filter(
-      (e) => e.classGroupId === g.id && (e.status === "ACTIVE" || e.status === "SUSPENDED"),
+      (e) =>
+        e.classGroupId === g.id &&
+        occupiesCurrentSeat({ enrollmentStatus: e.status, classGroupStatus: g.status }),
     ).length;
     occByCg.set(g.id, occ);
     capacity += g.capacity;
@@ -159,7 +167,6 @@ async function loadOfferUncached(
   }
 
   const demandUnique = uniqueDemandStudentIds({
-    preEnrollmentStudentIds: [],
     waitlistWaitingStudentIds: waitlistStudents.map((w) => w.studentId),
   });
 
@@ -168,6 +175,7 @@ async function loadOfferUncached(
     { courseId: string; courseName: string; capacity: number; occupied: number; waitlist: number }
   >();
   for (const g of classGroups) {
+    if (!isCurrentClassGroup(g.status)) continue;
     const cur = byCourseMap.get(g.courseId) ?? {
       courseId: g.courseId,
       courseName: g.course.name,
@@ -187,6 +195,7 @@ async function loadOfferUncached(
 
   const terrMap = new Map<string, { name: string; capacity: number; occupied: number; turmas: number }>();
   for (const g of classGroups) {
+    if (!isCurrentClassGroup(g.status)) continue;
     const name =
       g.poloLocation?.polo?.name?.trim() ||
       g.poloLocation?.name?.trim() ||
@@ -218,7 +227,7 @@ async function loadOfferUncached(
     alerts.push({
       id: "low-occupancy",
       ruleId: "offer.low_occupancy",
-      ruleVersion: FORMULA_VERSION_1A,
+      ruleVersion: FORMULA_VERSION_1C,
       domain: "offer",
       severity: "attention",
       title: "Ocupação crítica de turmas",
@@ -238,7 +247,7 @@ async function loadOfferUncached(
     alerts.push({
       id: "high-waitlist",
       ruleId: "offer.waitlist_full",
-      ruleVersion: FORMULA_VERSION_1A,
+      ruleVersion: FORMULA_VERSION_1C,
       domain: "offer",
       severity: "attention",
       title: "Espera elevada com turmas cheias",
@@ -269,7 +278,7 @@ async function loadOfferUncached(
       dataAsOf: scope.dataAsOf.toISOString(),
       filters: { scope: scope.scope, cycleId: scope.cycleId, cycleLabel: scope.cycleLabel, ...filters },
       quality,
-      formulaVersion: FORMULA_VERSION_1A,
+      formulaVersion: FORMULA_VERSION_1C,
       viewer,
     },
     kpis,

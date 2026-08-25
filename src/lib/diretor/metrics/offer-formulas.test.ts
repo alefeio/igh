@@ -23,9 +23,9 @@ describe("oferta — fórmulas", () => {
     expect(isLowOccupancyClass(20, 40)).toBe(false);
   });
 
-  it("deduplicação waitlist + pré-matrícula", () => {
+  it("deduplicação lista de espera e ids extras", () => {
     const r = uniqueDemandStudentIds({
-      preEnrollmentStudentIds: ["a", "b", "a"],
+      extraStudentIds: ["a", "b", "a"],
       waitlistWaitingStudentIds: ["b", "c"],
     });
     expect(r.uniqueCount).toBe(3);
