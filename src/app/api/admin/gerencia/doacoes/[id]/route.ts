@@ -4,6 +4,7 @@ import { createAuditLog } from "@/lib/audit";
 import { getKitComponentsFromCatalog } from "@/lib/equipment-catalog";
 import { expandDonationKitItems } from "@/lib/donation-kits";
 import {
+  archiveDonationRecord,
   donationInclude,
   resolveDonationItems,
   serializeDonation,
@@ -167,33 +168,25 @@ export async function DELETE(_request: Request, ctx: Ctx) {
   }
 
   const { id } = await ctx.params;
-  const existing = await prisma.donation.findFirst({
-    where: { id, deletedAt: null },
-    select: { id: true, status: true, inventoryPosted: true, financialEntryId: true },
-  });
-  if (!existing) return jsonErr("NOT_FOUND", "Doação não encontrada.", 404);
 
-  if (existing.status === "CONFIRMADA" && (existing.inventoryPosted || existing.financialEntryId)) {
-    return jsonErr(
-      "INVALID_STATE",
-      "Doação confirmada com estoque/financeiro lançado não pode ser excluída. Cancele apenas se ainda estiver em rascunho.",
-      400,
-    );
+  let archived;
+  try {
+    archived = await archiveDonationRecord({ donationId: id, actorId: actor.id });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "";
+    if (message === "NOT_FOUND") return jsonErr("NOT_FOUND", "Doação não encontrada.", 404);
+    throw e;
   }
-
-  await prisma.donation.update({
-    where: { id },
-    data: {
-      deletedAt: new Date(),
-      status: existing.status === "RASCUNHO" ? "CANCELADA" : existing.status,
-    },
-  });
 
   await createAuditLog({
     entityType: "Donation",
     entityId: id,
     action: "ARCHIVE",
-    diff: { previousStatus: existing.status },
+    diff: {
+      previousStatus: archived.previousStatus,
+      inventoryReversed: archived.inventoryReversed,
+      financialArchived: archived.financialArchived,
+    },
     performedByUserId: actor.id,
   });
 

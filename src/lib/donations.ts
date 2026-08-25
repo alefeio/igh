@@ -272,3 +272,48 @@ export async function confirmDonationSideEffects(opts: {
     include: donationInclude,
   });
 }
+
+/** Soft-delete (`deletedAt`). Estorna estoque e arquiva lançamento financeiro, se houver. */
+export async function archiveDonationRecord(opts: { donationId: string; actorId: string }) {
+  const donation = await prisma.donation.findFirst({
+    where: { id: opts.donationId, deletedAt: null },
+    include: { donataria: { select: { name: true } }, items: true },
+  });
+  if (!donation) throw new Error("NOT_FOUND");
+
+  if (donation.inventoryPosted) {
+    for (const item of donation.items) {
+      if (!item.inventoryItemId) continue;
+      await applyInventoryMovement({
+        itemId: item.inventoryItemId,
+        type: "ENTRADA",
+        quantity: item.quantity,
+        reason: `Estorno do termo de doação para ${donation.donataria.name}`,
+        donationId: donation.id,
+        createdByUserId: opts.actorId,
+      });
+    }
+  }
+
+  if (donation.financialEntryId) {
+    await prisma.financialEntry.updateMany({
+      where: { id: donation.financialEntryId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  await prisma.donation.update({
+    where: { id: donation.id },
+    data: {
+      deletedAt: new Date(),
+      status: "CANCELADA",
+      inventoryPosted: false,
+    },
+  });
+
+  return {
+    previousStatus: donation.status,
+    inventoryReversed: donation.inventoryPosted,
+    financialArchived: Boolean(donation.financialEntryId),
+  };
+}

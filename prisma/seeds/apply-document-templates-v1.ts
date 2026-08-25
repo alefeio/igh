@@ -12,7 +12,7 @@ export async function applyDocumentTemplatesV1Seed(db: PrismaClient) {
       select: { id: true },
     });
     if (existing) {
-      if (tpl.type === "TERMO_DOACAO" && tpl.title === "Termo de doação de equipamentos") {
+      if (tpl.type === "TERMO_DOACAO") {
         await db.documentTemplate.update({
           where: { id: existing.id },
           data: { contentRich: tpl.contentRich },

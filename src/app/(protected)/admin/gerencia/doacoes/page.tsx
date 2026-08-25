@@ -113,6 +113,7 @@ export default function DoacoesPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -363,15 +364,33 @@ export default function DoacoesPage() {
   }
 
   async function archiveDonation(d: DonationView) {
-    if (!confirm(`Excluir rascunho da doação para ${d.donataria.name}?`)) return;
-    const res = await fetch(`/api/admin/gerencia/doacoes/${d.id}`, { method: "DELETE" });
-    const json = (await res.json()) as ApiResponse<{ archived: boolean }>;
-    if (!res.ok || !json.ok) {
-      toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
+    const termLabel = d.termNumber != null ? `nº ${d.termNumber}` : "rascunho";
+    const extra =
+      d.status === "CONFIRMADA"
+        ? " O termo some da lista; estoque e lançamento financeiro vinculados serão estornados/arquivados."
+        : "";
+    if (
+      !confirm(
+        `Excluir o termo ${termLabel} para ${d.donataria.name}?${extra} Esta ação não pode ser desfeita com um clique.`,
+      )
+    ) {
       return;
     }
-    toast.push("success", "Doação removida.");
-    void load();
+    setDeletingId(d.id);
+    try {
+      const res = await fetch(`/api/admin/gerencia/doacoes/${d.id}`, { method: "DELETE" });
+      const json = (await res.json()) as ApiResponse<{ archived: boolean }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao excluir.");
+        return;
+      }
+      toast.push("success", "Termo excluído.");
+      void load();
+    } catch {
+      toast.push("error", "Falha ao excluir.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   const showItems = form.kind === "BENS" || form.kind === "MISTO";
@@ -521,11 +540,16 @@ export default function DoacoesPage() {
                         >
                           {confirmingId === d.id ? "Confirmando…" : "Confirmar"}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => void archiveDonation(d)}>
-                          Excluir
-                        </Button>
                       </>
                     ) : null}
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => void archiveDonation(d)}
+                      disabled={deletingId === d.id}
+                    >
+                      {deletingId === d.id ? "Excluindo…" : "Excluir"}
+                    </Button>
                   </div>
                 </Td>
               </tr>

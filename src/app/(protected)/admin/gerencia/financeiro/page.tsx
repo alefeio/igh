@@ -863,7 +863,7 @@ export default function FinanceiroPage() {
       Status: FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus],
       Valor: e.amountCents / 100,
       "Forma de pagamento": FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod],
-      "Destino / observação": e.notes ?? "",
+      Observação: e.notes ?? "",
       Responsável: responsibleLabel(e),
       Tipo: FINANCIAL_ENTRY_KIND_LABEL[e.kind],
       Natureza: displayExpenseNature(e.kind, e.expenseNature),
@@ -883,7 +883,7 @@ export default function FinanceiroPage() {
         Status: FINANCIAL_PAYMENT_STATUS_LABEL[e.paymentStatus],
         Valor: e.amountCents / 100,
         "Forma de pagamento": FINANCIAL_PAYMENT_METHOD_LABEL[e.paymentMethod],
-        "Destino / observação": e.notes ?? "",
+        Observação: e.notes ?? "",
         Responsável: responsibleLabel(e),
         Natureza: displayExpenseNature(e.kind, e.expenseNature),
       }));
@@ -936,7 +936,7 @@ export default function FinanceiroPage() {
       <h1>${title}</h1>
       <div class="meta">Período: ${prestacaoPeriodLabel} · ${list.length} lançamento(s)</div>
       <table><thead><tr>
-        <th>Descrição</th><th>Vencimento</th><th>Status</th><th>Natureza</th><th>Valor</th><th>Pagamento</th><th>Destino</th><th>Responsável</th>
+        <th>Descrição</th><th>Vencimento</th><th>Status</th><th>Natureza</th><th>Valor</th><th>Pagamento</th><th>Observação</th><th>Responsável</th>
       </tr></thead><tbody>${rowsHtml}</tbody></table>
       <div class="totais">Total: <strong>${formatCentsBRL(totalCents)}</strong></div>
       <script>window.onload=()=>window.print()</script>
@@ -966,7 +966,7 @@ export default function FinanceiroPage() {
             <Th>Natureza</Th>
             <Th>Valor</Th>
             <Th>Forma de pagamento</Th>
-            <Th>Destino / observação</Th>
+            <Th>Observação</Th>
             <Th>Responsável</Th>
             <Th>Ações</Th>
           </tr>
