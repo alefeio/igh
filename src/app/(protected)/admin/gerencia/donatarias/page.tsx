@@ -238,7 +238,7 @@ export default function DonatariasPage() {
           <thead>
             <tr>
               <Th>Nome</Th>
-              <Th>Contato</Th>
+              <Th>Responsável</Th>
               <Th>Cidade</Th>
               <Th>Zona</Th>
               <Th>Doações</Th>
@@ -310,7 +310,7 @@ export default function DonatariasPage() {
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm">Contato</span>
+            <span className="mb-1 block text-sm">Responsável</span>
             <Input
               value={form.contactName}
               onChange={(e) => setForm((f) => ({ ...f, contactName: e.target.value }))}
