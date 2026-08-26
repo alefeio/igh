@@ -48,12 +48,12 @@ const FONT_REGULAR_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-
 const FONT_BOLD_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Bold.ttf");
 const LOGO_SITE_FALLBACK = path.join(process.cwd(), "public", "images", "logo.png");
 const LOGO_IGH_FALLBACK = path.join(process.cwd(), "assets", "gerencia", "termo-doacao", "logo-igh.png");
-const LOGO_CPI = path.join(process.cwd(), "assets", "gerencia", "termo-doacao", "logo-cpi.png");
-const LOGO_BRASIL = path.join(process.cwd(), "assets", "gerencia", "termo-doacao", "logo-brasil.png");
+const LOGO_CPI = path.join(process.cwd(), "public", "images", "logo_CPI.png");
+const LOGO_BRASIL = path.join(process.cwd(), "public", "images", "logo_Governo.png");
 
 /** Altura alvo das logomarcas no rodapé (pt). */
 const LOGO_FOOTER_HEIGHT = 64;
-const LOGO_FOOTER_MAX_WIDTH = 185;
+const LOGO_FOOTER_MAX_WIDTH = 200;
 const LOGO_FOOTER_Y = 20;
 
 const BLACK = rgb(0, 0, 0);
@@ -212,6 +212,21 @@ async function embedImageBytes(doc: PDFDocument, bytes: Uint8Array): Promise<PDF
   return null;
 }
 
+/**
+ * PNG com alpha no pdf-lib às vezes cai como preto. Achata sobre branco
+ * para o rodapé do termo (papel branco) preservar texto preto e cores.
+ */
+async function flattenPngOnWhite(filePath: string): Promise<Uint8Array> {
+  const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+  const img = await loadImage(filePath);
+  const canvas = createCanvas(img.width, img.height);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, img.width, img.height);
+  ctx.drawImage(img, 0, 0);
+  return new Uint8Array(canvas.toBuffer("image/png"));
+}
+
 function resolveSiteLogoUrl(raw: string | null | undefined): string | null {
   const trimmed = raw?.trim();
   if (!trimmed) return null;
@@ -251,11 +266,22 @@ async function embedLocalImage(doc: PDFDocument, filePath: string): Promise<PDFI
   return embedded;
 }
 
+async function embedFooterLogo(doc: PDFDocument, filePath: string): Promise<PDFImage> {
+  try {
+    const flat = await flattenPngOnWhite(filePath);
+    const embedded = await embedImageBytes(doc, flat);
+    if (embedded) return embedded;
+  } catch {
+    /* tenta embutir o arquivo cru */
+  }
+  return embedLocalImage(doc, filePath);
+}
+
 async function embedLogos(doc: PDFDocument): Promise<{ site: PDFImage; cpi: PDFImage; brasil: PDFImage }> {
   return {
     site: await embedSiteLogo(doc),
-    cpi: await embedLocalImage(doc, LOGO_CPI),
-    brasil: await embedLocalImage(doc, LOGO_BRASIL),
+    cpi: await embedFooterLogo(doc, LOGO_CPI),
+    brasil: await embedFooterLogo(doc, LOGO_BRASIL),
   };
 }
 
