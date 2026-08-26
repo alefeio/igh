@@ -519,14 +519,25 @@ export default function DoacoesPage() {
                 <Td>
                   <div className="flex flex-wrap gap-1">
                     {d.pdfUrl ? (
-                      <a
-                        href={d.pdfUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex min-h-[36px] items-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1.5 text-xs font-medium sm:min-h-0"
-                      >
-                        PDF
-                      </a>
+                      <>
+                        <a
+                          href={d.pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-[36px] items-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1.5 text-xs font-medium sm:min-h-0"
+                        >
+                          Visualizar
+                        </a>
+                        <a
+                          href={d.pdfUrl}
+                          download={`termo-doacao-${d.termNumber != null ? d.termNumber : d.id}.pdf`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-[36px] items-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1.5 text-xs font-medium sm:min-h-0"
+                        >
+                          PDF
+                        </a>
+                      </>
                     ) : null}
                     {d.status === "RASCUNHO" ? (
                       <>
