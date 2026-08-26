@@ -114,6 +114,7 @@ export default function DoacoesPage() {
   const [saving, setSaving] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [previewDonation, setPreviewDonation] = useState<DonationView | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -520,19 +521,11 @@ export default function DoacoesPage() {
                   <div className="flex flex-wrap gap-1">
                     {d.pdfUrl ? (
                       <>
-                        <a
-                          href={d.pdfUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex min-h-[36px] items-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1.5 text-xs font-medium sm:min-h-0"
-                        >
+                        <Button size="sm" variant="secondary" onClick={() => setPreviewDonation(d)}>
                           Visualizar
-                        </a>
+                        </Button>
                         <a
-                          href={d.pdfUrl}
-                          download={`termo-doacao-${d.termNumber != null ? d.termNumber : d.id}.pdf`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href={`/api/admin/gerencia/doacoes/${d.id}/pdf?download=1`}
                           className="inline-flex min-h-[36px] items-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1.5 text-xs font-medium sm:min-h-0"
                         >
                           PDF
@@ -583,6 +576,29 @@ export default function DoacoesPage() {
           </tbody>
         </Table>
       </SectionCard>
+
+      <Modal
+        open={previewDonation != null}
+        title={
+          previewDonation?.termNumber != null
+            ? `Termo nº ${previewDonation.termNumber}`
+            : "Termo de doação"
+        }
+        onClose={() => setPreviewDonation(null)}
+        size="large"
+      >
+        {previewDonation ? (
+          <iframe
+            title={
+              previewDonation.termNumber != null
+                ? `Termo nº ${previewDonation.termNumber}`
+                : "Termo de doação"
+            }
+            src={`/api/admin/gerencia/doacoes/${previewDonation.id}/pdf`}
+            className="h-[75vh] w-full rounded-md border border-[var(--card-border)] bg-white"
+          />
+        ) : null}
+      </Modal>
 
       <Modal
         open={formOpen}
