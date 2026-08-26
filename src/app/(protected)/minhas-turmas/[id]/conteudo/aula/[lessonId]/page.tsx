@@ -199,11 +199,12 @@ export default function AulaConteudoPage() {
   const [passages, setPassages] = useState<LessonPassage[]>([]);
   const [savingPassage, setSavingPassage] = useState(false);
   const [removingPassageId, setRemovingPassageId] = useState<string | null>(null);
-  type ExerciseOption = { id: string; text: string };
+  type ExerciseOption = { id: string; text: string; imageUrl?: string | null };
   type LessonExercise = {
     id: string;
     order: number;
     question: string;
+    imageUrl?: string | null;
     answerJustification?: string | null;
     options: ExerciseOption[];
   };
@@ -2463,6 +2464,20 @@ export default function AulaConteudoPage() {
                           return (
                             <div key={ex.id} className="mb-6 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
                               <p className="mb-3 font-medium text-[var(--text-primary)]">{idx + 1}. {ex.question}</p>
+                              {ex.imageUrl ? (
+                                <a
+                                  href={ex.imageUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mb-3 block"
+                                >
+                                  <img
+                                    src={ex.imageUrl}
+                                    alt={`Imagem da questão ${idx + 1}`}
+                                    className="max-h-56 w-auto max-w-full rounded-lg border border-[var(--card-border)] object-contain"
+                                  />
+                                </a>
+                              ) : null}
                               <ul className="list-none space-y-2">
                                 {ex.options.map((opt) => {
                                   const isSelected = exerciseSelected[ex.id] === opt.id;
@@ -2471,7 +2486,7 @@ export default function AulaConteudoPage() {
                                   return (
                                   <li key={opt.id} className="list-none">
                                     <label
-                                      className={`flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm ${
+                                      className={`flex cursor-pointer items-start gap-2 rounded border px-3 py-2 text-sm ${
                                         showGreen
                                           ? "border-green-500 bg-green-50 dark:border-green-500 dark:bg-green-950/30"
                                           : showRed
@@ -2485,9 +2500,18 @@ export default function AulaConteudoPage() {
                                         checked={isSelected}
                                         onChange={() => setExerciseSelected((s) => ({ ...s, [ex.id]: opt.id }))}
                                         disabled={!!result}
-                                        className="h-4 w-4"
+                                        className="mt-0.5 h-4 w-4 shrink-0"
                                       />
-                                      <span>{opt.text}</span>
+                                      <span className="flex min-w-0 flex-1 flex-col gap-2">
+                                        <span>{opt.text}</span>
+                                        {opt.imageUrl ? (
+                                          <img
+                                            src={opt.imageUrl}
+                                            alt={`Imagem da opção ${opt.text}`}
+                                            className="max-h-32 w-auto max-w-full rounded border border-[var(--card-border)] object-contain"
+                                          />
+                                        ) : null}
+                                      </span>
                                     </label>
                                   </li>
                                   );

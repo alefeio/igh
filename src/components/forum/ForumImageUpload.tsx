@@ -17,6 +17,10 @@ type ForumImageUploadProps = {
   maxImages?: number;
   /** Rota POST para assinatura de upload (padrão: aluno). */
   uploadSignaturePath?: string;
+  /** Texto do botão de anexar (padrão: fórum). */
+  addLabel?: string;
+  /** Dica abaixo dos controles; `null` oculta. */
+  hint?: string | null;
 };
 
 export function ForumImageUpload({
@@ -25,6 +29,8 @@ export function ForumImageUpload({
   disabled = false,
   maxImages = MAX_FORUM_QUESTION_IMAGES,
   uploadSignaturePath = "/api/me/uploads/apimages-signature",
+  addLabel,
+  hint,
 }: ForumImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,18 +128,25 @@ export function ForumImageUpload({
           <input
             type="file"
             accept="image/*"
-            multiple
+            multiple={maxImages > 1}
             className="hidden"
             disabled={disabled || uploading}
             onChange={handleFiles}
           />
           <ImagePlus className="h-4 w-4 shrink-0" aria-hidden />
-          {uploading ? "Enviando fotos…" : "Adicionar fotos"}
+          {uploading
+            ? maxImages === 1
+              ? "Enviando…"
+              : "Enviando fotos…"
+            : addLabel ?? (maxImages === 1 ? "Adicionar imagem" : "Adicionar fotos")}
         </label>
       )}
-      <p className="text-xs text-[var(--text-muted)]">
-        Até {maxImages} fotos por publicação. {imageUrls.length > 0 ? `${imageUrls.length}/${maxImages} anexadas.` : ""}
-      </p>
+      {hint !== null && (
+        <p className="text-xs text-[var(--text-muted)]">
+          {hint ??
+            `Até ${maxImages} fotos por publicação. ${imageUrls.length > 0 ? `${imageUrls.length}/${maxImages} anexadas.` : ""}`}
+        </p>
+      )}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );

@@ -5,6 +5,32 @@ import { courseLessonExerciseSchema } from "@/lib/validators/courses";
 
 type Ctx = { params: Promise<{ id: string; moduleId: string; lessonId: string; exerciseId: string }> };
 
+function serializeExercise(ex: {
+  id: string;
+  lessonId: string;
+  order: number;
+  question: string;
+  imageUrl: string | null;
+  answerJustification: string | null;
+  options: { id: string; text: string; imageUrl: string | null; isCorrect: boolean; order: number }[];
+}) {
+  return {
+    id: ex.id,
+    lessonId: ex.lessonId,
+    order: ex.order,
+    question: ex.question,
+    imageUrl: ex.imageUrl,
+    answerJustification: ex.answerJustification,
+    options: ex.options.map((o) => ({
+      id: o.id,
+      text: o.text,
+      imageUrl: o.imageUrl,
+      isCorrect: o.isCorrect,
+      order: o.order,
+    })),
+  };
+}
+
 /** Atualiza exercício (professor/MASTER/ADMIN). */
 export async function PATCH(request: Request, context: Ctx) {
   const { id: courseId, moduleId, lessonId, exerciseId } = await context.params;
@@ -31,7 +57,7 @@ export async function PATCH(request: Request, context: Ctx) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { question, order, options, answerJustification } = parsed.data;
+  const { question, order, options, answerJustification, imageUrl } = parsed.data;
   const orderVal = order ?? exercise.order;
   const justification =
     typeof answerJustification === "string" && answerJustification.trim()
@@ -44,6 +70,7 @@ export async function PATCH(request: Request, context: Ctx) {
       data: {
         question: question.trim(),
         order: orderVal,
+        imageUrl: imageUrl ?? null,
         answerJustification: justification,
       },
     }),
@@ -53,6 +80,7 @@ export async function PATCH(request: Request, context: Ctx) {
         exerciseId,
         text: opt.text.trim(),
         isCorrect: opt.isCorrect,
+        imageUrl: opt.imageUrl ?? null,
         order: i,
       })),
     }),
@@ -64,19 +92,7 @@ export async function PATCH(request: Request, context: Ctx) {
   });
   if (!updated) return jsonErr("INTERNAL", "Erro ao atualizar exercício.", 500);
 
-  return jsonOk({
-    id: updated.id,
-    lessonId: updated.lessonId,
-    order: updated.order,
-    question: updated.question,
-    answerJustification: updated.answerJustification,
-    options: updated.options.map((o) => ({
-      id: o.id,
-      text: o.text,
-      isCorrect: o.isCorrect,
-      order: o.order,
-    })),
-  });
+  return jsonOk(serializeExercise(updated));
 }
 
 /** Exclui exercício (professor/MASTER/ADMIN). */

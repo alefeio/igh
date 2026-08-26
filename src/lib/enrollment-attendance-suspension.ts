@@ -107,6 +107,22 @@ export async function applyAttendanceSuspensionRules(params: {
         data: { status: "CANCELLED" },
       });
       cancelledIds.push(enrollment.id);
+
+      // Promoção da fila imediatamente após liberar a vaga — não pode depender de audit/e-mail.
+      // (Antes ficava no mesmo try do audit/`after`; falha no audit impedia a promoção.)
+      let waitlist: { promoted: boolean; enrollmentId?: string; studentId?: string } = {
+        promoted: false,
+      };
+      try {
+        waitlist = await tryPromoteWaitlistAfterSeatFreed(
+          params.classGroupId,
+          params.performedByUserId,
+          { skipNotifications: true },
+        );
+      } catch (e) {
+        console.error("[attendance] promoção da fila após cancelamento", enrollment.id, e);
+      }
+
       try {
         await createAuditLog({
           entityType: "Enrollment",
@@ -117,11 +133,15 @@ export async function applyAttendanceSuspensionRules(params: {
             reason: `${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT} faltas consecutivas sem justificativa`,
             consecutiveUnjustifiedAbsences: streak,
             studentName: enrollment.student.name,
+            waitlistPromoted: waitlist.promoted,
+            waitlistEnrollmentId: waitlist.enrollmentId ?? null,
           },
         });
-        const waitlist = await tryPromoteWaitlistAfterSeatFreed(params.classGroupId, params.performedByUserId, {
-          skipNotifications: true,
-        });
+      } catch (e) {
+        console.error("[attendance] audit após cancelamento", enrollment.id, e);
+      }
+
+      try {
         after(() => {
           void (async () => {
             try {
@@ -158,7 +178,7 @@ export async function applyAttendanceSuspensionRules(params: {
           })();
         });
       } catch (e) {
-        console.error("[attendance] efeito colateral após cancelamento", enrollment.id, e);
+        console.error("[attendance] agendar e-mails após cancelamento", enrollment.id, e);
       }
       continue;
     }

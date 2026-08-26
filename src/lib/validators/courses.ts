@@ -35,15 +35,26 @@ export const courseLessonSchema = z.object({
   moduleId: z.string().uuid().optional(),
 });
 
+const optionalHttpsImageUrl = z
+  .union([z.string().url(), z.literal(""), z.null()])
+  .optional()
+  .transform((v) => {
+    if (v == null || v === "") return null;
+    const trimmed = v.trim();
+    return trimmed.startsWith("https://") ? trimmed : null;
+  });
+
 export const courseLessonExerciseOptionSchema = z.object({
   text: z.string().min(1, "Texto da opção é obrigatório"),
   isCorrect: z.boolean(),
+  imageUrl: optionalHttpsImageUrl,
 });
 
 export const courseLessonExerciseSchema = z
   .object({
     question: z.string().min(1, "Pergunta é obrigatória"),
     order: z.number().int().min(0).optional(),
+    imageUrl: optionalHttpsImageUrl,
     answerJustification: z.string().optional().nullable(),
     options: z.array(courseLessonExerciseOptionSchema).min(2, "Adicione pelo menos 2 opções").max(10, "Máximo 10 opções"),
   })

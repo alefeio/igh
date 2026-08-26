@@ -20,12 +20,17 @@ type ExamRow = {
   attemptsCount: number;
 };
 
+function examSharePath(classGroupId: string, examId: string) {
+  return `/acesso-prova/${classGroupId}/${examId}`;
+}
+
 export default function ProfessorTurmaProvasPage() {
   const params = useParams();
   const classGroupId = params.id as string;
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [exams, setExams] = useState<ExamRow[]>([]);
+  const [copiedExamId, setCopiedExamId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${classGroupId}/exams`);
@@ -66,6 +71,18 @@ export default function ProfessorTurmaProvasPage() {
     }
     toast.push("success", "Prova encerrada.");
     void load();
+  }
+
+  async function copyShareLink(examId: string) {
+    const url = `${window.location.origin}${examSharePath(classGroupId, examId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedExamId(examId);
+      toast.push("success", "Link da prova copiado. Só alunos matriculados na turma conseguem acessar.");
+      window.setTimeout(() => setCopiedExamId((cur) => (cur === examId ? null : cur)), 2000);
+    } catch {
+      toast.push("error", "Não foi possível copiar. Selecione o link e copie manualmente.");
+    }
   }
 
   return (
@@ -114,6 +131,11 @@ export default function ProfessorTurmaProvasPage() {
                 <Link href={`/professor/turmas/${classGroupId}/provas/${e.id}`}>
                   <Button variant="secondary">Editar / resultados</Button>
                 </Link>
+                {e.status !== "DRAFT" && (
+                  <Button variant="secondary" onClick={() => void copyShareLink(e.id)}>
+                    {copiedExamId === e.id ? "Link copiado" : "Copiar link para alunos"}
+                  </Button>
+                )}
                 {e.status === "DRAFT" && (
                   <Button variant="secondary" onClick={() => void publish(e.id)}>
                     Publicar

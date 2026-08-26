@@ -107,7 +107,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (pathname.startsWith("/minhas-turmas")) {
+  if (pathname.startsWith("/minhas-turmas") || pathname.startsWith("/acesso-prova")) {
     if (role !== "STUDENT") {
       return NextResponse.redirect(dashboardUrl);
     }
@@ -182,6 +182,7 @@ export const config = {
     "/enrollments/:path*",
     "/students/:path*",
     "/minhas-turmas/:path*",
+    "/acesso-prova/:path*",
     "/admin/comunidade/:path*",
     "/admin/site/:path*",
     "/approvacoes/:path*",

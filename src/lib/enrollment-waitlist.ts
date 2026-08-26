@@ -85,27 +85,36 @@ export async function promoteNextWaitlistForClassGroup(
 
   if (!result) return { promoted: false };
 
-  await createAuditLog({
-    entityType: "Enrollment",
-    entityId: result.enrollmentId,
-    action: "CREATE",
-    diff: {
-      fromWaitlist: true,
-      waitlistId: result.waitlistId,
-      studentId: result.studentId,
-      classGroupId,
-    },
-    performedByUserId: performedByUserId ?? undefined,
-  });
+  try {
+    await createAuditLog({
+      entityType: "Enrollment",
+      entityId: result.enrollmentId,
+      action: "CREATE",
+      diff: {
+        fromWaitlist: true,
+        waitlistId: result.waitlistId,
+        studentId: result.studentId,
+        classGroupId,
+      },
+      performedByUserId: performedByUserId ?? undefined,
+    });
+  } catch (e) {
+    // Matrícula já foi criada na transação; não reverter o sucesso da promoção.
+    console.error("[waitlist] audit após promoção", result.enrollmentId, e);
+  }
 
   if (!opts?.skipNotifications) {
-    await sendEnrollmentWelcomeForStudent({
-      studentId: result.studentId,
-      enrollmentId: result.enrollmentId,
-      performedByUserId,
-      emailType: "welcome_student_waitlist",
-      auditExtra: { fromWaitlist: true },
-    });
+    try {
+      await sendEnrollmentWelcomeForStudent({
+        studentId: result.studentId,
+        enrollmentId: result.enrollmentId,
+        performedByUserId,
+        emailType: "welcome_student_waitlist",
+        auditExtra: { fromWaitlist: true },
+      });
+    } catch (e) {
+      console.error("[waitlist] e-mail de boas-vindas após promoção", result.enrollmentId, e);
+    }
 
     try {
       await notifyTeachersOfWaitlistEnrollment(result.enrollmentId);

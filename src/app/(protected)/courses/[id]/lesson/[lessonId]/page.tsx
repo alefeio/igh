@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApimagesFormationUpload } from "@/components/admin/ApimagesFormationUpload";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { ForumImageUpload } from "@/components/forum/ForumImageUpload";
 import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -26,15 +27,17 @@ import { parsePastedMultipleChoice } from "@/lib/parse-pasted-multiple-choice";
 type Lesson = { id: string; title: string; order: number; durationMinutes: number | null; videoUrl?: string | null; imageUrls?: string[]; contentRich?: string | null; summary?: string | null; pdfUrl?: string | null; attachmentUrls?: string[]; attachmentNames?: string[]; lastEditedAt?: string | null; lastEditedByUserName?: string | null };
 type ModuleWithLessons = { id: string; title: string; description: string | null; order: number; lessons: Lesson[] };
 
-type LessonExerciseOption = { id: string; text: string; isCorrect: boolean; order: number };
+type LessonExerciseOption = { id: string; text: string; imageUrl?: string | null; isCorrect: boolean; order: number };
 type LessonExercise = {
   id: string;
   lessonId: string;
   order: number;
   question: string;
+  imageUrl?: string | null;
   answerJustification?: string | null;
   options: LessonExerciseOption[];
 };
+type ExerciseFormOption = { text: string; isCorrect: boolean; imageUrl: string | null };
 
 const emptyLessonForm = {
   title: "",
@@ -119,9 +122,12 @@ export default function LessonEditPage() {
   const [exerciseModal, setExerciseModal] = useState<{ type: "add" | "edit"; exercise?: LessonExercise } | null>(null);
   const [exerciseForm, setExerciseForm] = useState({
     question: "",
+    imageUrl: null as string | null,
     answerJustification: "",
-    options: [] as { text: string; isCorrect: boolean }[],
+    options: [] as ExerciseFormOption[],
   });
+  const exerciseUploadSignaturePath =
+    user.role === "TEACHER" ? TEACHER_UPLOAD_SIGNATURE : COURSE_CONTENT_UPLOAD_SIGNATURE;
   const [savingExercise, setSavingExercise] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const contentSectionRef = useRef<HTMLDivElement>(null);
@@ -490,10 +496,11 @@ export default function LessonEditPage() {
   const openExerciseAdd = useCallback(() => {
     setExerciseForm({
       question: "",
+      imageUrl: null,
       answerJustification: "",
       options: [
-        { text: "", isCorrect: true },
-        { text: "", isCorrect: false },
+        { text: "", isCorrect: true, imageUrl: null },
+        { text: "", isCorrect: false, imageUrl: null },
       ],
     });
     setExerciseModal({ type: "add" });
@@ -502,13 +509,14 @@ export default function LessonEditPage() {
   const openExerciseEdit = useCallback((ex: LessonExercise) => {
     setExerciseForm({
       question: ex.question,
+      imageUrl: ex.imageUrl ?? null,
       answerJustification: ex.answerJustification ?? "",
       options:
         ex.options.length >= 2
-          ? ex.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect }))
+          ? ex.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect, imageUrl: o.imageUrl ?? null }))
           : [
-              { text: "", isCorrect: true },
-              { text: "", isCorrect: false },
+              { text: "", isCorrect: true, imageUrl: null },
+              { text: "", isCorrect: false, imageUrl: null },
             ],
     });
     setExerciseModal({ type: "edit", exercise: ex });
@@ -542,9 +550,14 @@ export default function LessonEditPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
+          imageUrl: exerciseForm.imageUrl,
           answerJustification: exerciseForm.answerJustification.trim() || null,
           order: isEdit ? exerciseModal.exercise!.order : lessonExercises.length,
-          options: options.map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect })),
+          options: options.map((o) => ({
+            text: o.text.trim(),
+            isCorrect: o.isCorrect,
+            imageUrl: o.imageUrl,
+          })),
         }),
       });
       const json = await res.json() as ApiResponse<LessonExercise>;
@@ -851,9 +864,25 @@ export default function LessonEditPage() {
                 {lessonExercises.map((ex, idx) => (
                   <li key={ex.id} className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
                     <p className="mb-2 font-medium text-[var(--text-primary)]">{idx + 1}. {ex.question}</p>
-                    <ul className="mb-2 list-none pl-0 text-sm text-[var(--text-secondary)]">
+                    {ex.imageUrl ? (
+                      <img
+                        src={ex.imageUrl}
+                        alt="Imagem da pergunta"
+                        className="mb-2 max-h-28 rounded border border-[var(--card-border)] object-contain"
+                      />
+                    ) : null}
+                    <ul className="mb-2 list-none space-y-1.5 pl-0 text-sm text-[var(--text-secondary)]">
                       {ex.options.map((o) => (
-                        <li key={o.id}>{o.text}{o.isCorrect ? " ✓" : ""}</li>
+                        <li key={o.id} className="flex flex-wrap items-start gap-2">
+                          <span>{o.text}{o.isCorrect ? " ✓" : ""}</span>
+                          {o.imageUrl ? (
+                            <img
+                              src={o.imageUrl}
+                              alt={`Imagem da opção ${o.text}`}
+                              className="h-12 w-12 rounded border border-[var(--card-border)] object-cover"
+                            />
+                          ) : null}
+                        </li>
                       ))}
                     </ul>
                     {ex.answerJustification?.trim() ? (
@@ -956,7 +985,7 @@ export default function LessonEditPage() {
                   setExerciseForm((f) => ({
                     ...f,
                     question: parsed.question,
-                    options: parsed.options.map((text, i) => ({ text, isCorrect: i === 0 })),
+                    options: parsed.options.map((text, i) => ({ text, isCorrect: i === 0, imageUrl: null })),
                   }));
                   toast.push("success", "Pergunta e alternativas preenchidas.");
                 }}
@@ -967,45 +996,92 @@ export default function LessonEditPage() {
               <p className="mt-1 text-sm text-[var(--text-muted)]">
                 Cole a pergunta e as alternativas (A, B, C…) de uma vez: o sistema separa automaticamente.
               </p>
+              <div className="mt-3">
+                <label className="text-sm font-medium text-[var(--text-primary)]">
+                  Imagem da pergunta{" "}
+                  <span className="font-normal text-[var(--text-muted)]">(opcional)</span>
+                </label>
+                <div className="mt-1">
+                  <ForumImageUpload
+                    imageUrls={exerciseForm.imageUrl ? [exerciseForm.imageUrl] : []}
+                    onChange={(urls) => setExerciseForm((f) => ({ ...f, imageUrl: urls[0] ?? null }))}
+                    maxImages={1}
+                    uploadSignaturePath={exerciseUploadSignaturePath}
+                    addLabel="Anexar imagem"
+                    hint="Uma imagem para ilustrar o enunciado."
+                    disabled={savingExercise}
+                  />
+                </div>
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--text-primary)]">Opções (marque a correta)</label>
-              <div className="mt-2 space-y-2">
+              <div className="mt-2 space-y-3">
                 {exerciseForm.options.map((opt, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="correctOption"
-                      checked={opt.isCorrect}
-                      onChange={() => setExerciseForm((f) => ({ ...f, options: f.options.map((o, i) => ({ ...o, isCorrect: i === idx })) }))}
-                      className="shrink-0"
-                    />
-                    <Input
-                      className="flex-1"
-                      value={opt.text}
-                      onChange={(e) => setExerciseForm((f) => ({ ...f, options: f.options.map((o, i) => (i === idx ? { ...o, text: e.target.value } : o)) }))}
-                      placeholder={`Opção ${idx + 1}`}
-                    />
-                    {exerciseForm.options.length > 2 && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="text-red-600 shrink-0"
-                        onClick={() => {
-                          setExerciseForm((f) => {
-                            const next = f.options.filter((_, i) => i !== idx);
-                            const hasCorrect = next.some((o) => o.isCorrect);
-                            return { ...f, options: hasCorrect ? next : next.map((o, i) => (i === 0 ? { ...o, isCorrect: true } : o)) };
-                          });
-                        }}
-                      >
-                        Remover
-                      </Button>
-                    )}
+                  <div key={idx} className="rounded border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="correctOption"
+                        checked={opt.isCorrect}
+                        onChange={() => setExerciseForm((f) => ({ ...f, options: f.options.map((o, i) => ({ ...o, isCorrect: i === idx })) }))}
+                        className="shrink-0"
+                      />
+                      <Input
+                        className="flex-1"
+                        value={opt.text}
+                        onChange={(e) => setExerciseForm((f) => ({ ...f, options: f.options.map((o, i) => (i === idx ? { ...o, text: e.target.value } : o)) }))}
+                        placeholder={`Opção ${idx + 1}`}
+                      />
+                      {exerciseForm.options.length > 2 && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="text-red-600 shrink-0"
+                          onClick={() => {
+                            setExerciseForm((f) => {
+                              const next = f.options.filter((_, i) => i !== idx);
+                              const hasCorrect = next.some((o) => o.isCorrect);
+                              return { ...f, options: hasCorrect ? next : next.map((o, i) => (i === 0 ? { ...o, isCorrect: true } : o)) };
+                            });
+                          }}
+                        >
+                          Remover
+                        </Button>
+                      )}
+                    </div>
+                    <div className="mt-2 pl-6">
+                      <ForumImageUpload
+                        imageUrls={opt.imageUrl ? [opt.imageUrl] : []}
+                        onChange={(urls) =>
+                          setExerciseForm((f) => ({
+                            ...f,
+                            options: f.options.map((o, i) => (i === idx ? { ...o, imageUrl: urls[0] ?? null } : o)),
+                          }))
+                        }
+                        maxImages={1}
+                        uploadSignaturePath={exerciseUploadSignaturePath}
+                        addLabel="Anexar imagem da opção"
+                        hint={null}
+                        disabled={savingExercise}
+                      />
+                    </div>
                   </div>
                 ))}
-                <Button type="button" variant="secondary" size="sm" onClick={() => setExerciseForm((f) => ({ ...f, options: [...f.options, { text: "", isCorrect: false }] }))}>+ Opção</Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setExerciseForm((f) => ({
+                      ...f,
+                      options: [...f.options, { text: "", isCorrect: false, imageUrl: null }],
+                    }))
+                  }
+                >
+                  + Opção
+                </Button>
               </div>
             </div>
             <div>

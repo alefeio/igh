@@ -8,6 +8,7 @@ export type CourseBackupOption = {
   id: string;
   order: number;
   text: string;
+  imageUrl: string | null;
   isCorrect: boolean;
 };
 
@@ -15,6 +16,7 @@ export type CourseBackupExercise = {
   id: string;
   order: number;
   question: string;
+  imageUrl: string | null;
   answerJustification: string | null;
   options: CourseBackupOption[];
 };
@@ -162,11 +164,13 @@ export async function exportCoursesBackup(courseIds: string[]): Promise<CourseBa
           id: ex.id,
           order: ex.order,
           question: ex.question,
+          imageUrl: ex.imageUrl ?? null,
           answerJustification: ex.answerJustification,
           options: ex.options.map((opt) => ({
             id: opt.id,
             order: opt.order,
             text: opt.text,
+            imageUrl: opt.imageUrl ?? null,
             isCorrect: opt.isCorrect,
           })),
         })),
@@ -303,6 +307,7 @@ export async function importCoursesBackup(
                   lessonId: lesson.id,
                   order: ex.order,
                   question: ex.question,
+                  imageUrl: ex.imageUrl ?? null,
                   answerJustification: ex.answerJustification ?? null,
                 },
               });
@@ -314,6 +319,7 @@ export async function importCoursesBackup(
                     exerciseId: ex.id,
                     order: opt.order,
                     text: opt.text,
+                    imageUrl: opt.imageUrl ?? null,
                     isCorrect: Boolean(opt.isCorrect),
                   },
                 });

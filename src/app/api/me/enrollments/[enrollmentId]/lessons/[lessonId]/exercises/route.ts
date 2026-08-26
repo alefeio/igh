@@ -54,7 +54,7 @@ export async function GET(
     where: { lessonId },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     include: {
-      options: { orderBy: { order: "asc" }, select: { id: true, text: true, order: true } },
+      options: { orderBy: { order: "asc" }, select: { id: true, text: true, imageUrl: true, order: true } },
     },
   });
 
@@ -80,8 +80,9 @@ export async function GET(
       id: ex.id,
       order: ex.order,
       question: ex.question,
+      imageUrl: ex.imageUrl,
       answerJustification: ex.answerJustification,
-      options: ex.options.map((o) => ({ id: o.id, text: o.text, order: o.order })),
+      options: ex.options.map((o) => ({ id: o.id, text: o.text, imageUrl: o.imageUrl, order: o.order })),
     })),
     answers: answersPayload,
   });

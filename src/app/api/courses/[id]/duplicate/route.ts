@@ -137,6 +137,7 @@ export async function POST(
                 lessonId: newLessonId,
                 order: ex.order,
                 question: ex.question,
+                imageUrl: ex.imageUrl,
                 answerJustification: ex.answerJustification,
               },
             });
@@ -146,6 +147,7 @@ export async function POST(
                   exerciseId: newEx.id,
                   order: opt.order,
                   text: opt.text,
+                  imageUrl: opt.imageUrl,
                   isCorrect: opt.isCorrect,
                 },
               });
