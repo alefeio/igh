@@ -5,6 +5,9 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { readDonationTermSchema } from "@/lib/validators/inventory-donations";
 
+/** OCR/visão em PDF escaneado pode passar de 10–15s. */
+export const maxDuration = 120;
+
 /** Lê PDF/imagem de termo assinado e sugere campos do formulário. */
 export async function POST(request: Request) {
   try {

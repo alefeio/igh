@@ -464,6 +464,7 @@ export default function DoacoesPage() {
 
     const parts: string[] = [];
     if (result.source === "pdf") parts.push("Campos preenchidos a partir do texto do PDF.");
+    else if (result.source === "ocr") parts.push("Campos sugeridos por OCR do PDF escaneado.");
     else if (result.source === "vision") parts.push("Campos sugeridos por leitura de imagem.");
     else parts.push("Poucos campos reconhecidos — revise o formulário.");
     if (result.warnings.length) parts.push(result.warnings.slice(0, 2).join(" "));

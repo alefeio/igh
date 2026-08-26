@@ -1,13 +1,17 @@
 /**
  * Leitura de PDF/imagem de termo de doação para pré-preenchimento do formulário.
  *
- * Pipeline: texto PDF (pdf-parse) → Vision (OpenAI) se texto insuficiente e OPENAI_API_KEY existir.
+ * Pipeline:
+ * 1) texto PDF (pdf-parse)
+ * 2) se insuficiente: renderiza páginas → OCR local (tesseract.js, pt)
+ * 3) se ainda insuficiente e OPENAI_API_KEY: Vision nas páginas/imagem
  * Não persiste doação — só devolve sugestões para revisão.
  */
 import "server-only";
 
 import {
   donationTermSuggestionFilledCount,
+  donatariaNameHintFromFileName,
   extractDonationTermFromText,
   isDonationTermSuggestionUseful,
   type DonationTermSuggestion,
@@ -17,7 +21,7 @@ export type { DonationTermSuggestion };
 
 export type DonationTermReadResult = {
   suggestion: DonationTermSuggestion;
-  source: "pdf" | "vision" | "partial";
+  source: "pdf" | "ocr" | "vision" | "partial";
   warnings: string[];
   matchedDonorInstitutionId: string | null;
   matchedDonatariaId: string | null;
@@ -76,7 +80,12 @@ async function tryExtractPdfText(buffer: Buffer): Promise<{ text: string; error?
     try {
       const result = await parser.getText();
       const text = (result.text || "").replace(/\u0000/g, "").trim();
-      return { text };
+      // pdf-parse em escaneados devolve só "-- 1 of N --"
+      const meaningful = text
+        .replace(/--\s*\d+\s*of\s*\d+\s*--/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return { text: meaningful.length >= 40 ? text : meaningful };
     } finally {
       await parser.destroy().catch(() => undefined);
     }
@@ -87,17 +96,77 @@ async function tryExtractPdfText(buffer: Buffer): Promise<{ text: string; error?
   }
 }
 
+type PagePng = { buffer: Buffer; pageNumber: number };
+
+async function renderPdfPagesToPng(buffer: Buffer, maxPages = 2): Promise<PagePng[]> {
+  const { CanvasFactory } = await import("pdf-parse/worker");
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: Uint8Array.from(buffer), CanvasFactory });
+  try {
+    const shot = await parser.getScreenshot({
+      first: maxPages,
+      scale: 2,
+      imageBuffer: true,
+      imageDataUrl: false,
+    });
+    const out: PagePng[] = [];
+    for (const page of shot.pages ?? []) {
+      if (!page?.data) continue;
+      out.push({
+        buffer: Buffer.from(page.data),
+        pageNumber: page.pageNumber ?? out.length + 1,
+      });
+    }
+    return out;
+  } finally {
+    await parser.destroy().catch(() => undefined);
+  }
+}
+
+async function ocrImageBuffer(png: Buffer): Promise<string> {
+  const Tesseract = await import("tesseract.js");
+  const result = await Tesseract.recognize(png, "por", {
+    logger: () => undefined,
+  });
+  return (result.data.text || "").trim();
+}
+
+async function tryOcrFromPdfOrImage(
+  buffer: Buffer,
+  mime: string,
+): Promise<{ text: string; warning?: string }> {
+  try {
+    if (mime === "application/pdf") {
+      const pages = await renderPdfPagesToPng(buffer, 2);
+      if (pages.length === 0) {
+        return { text: "", warning: "Não foi possível renderizar páginas do PDF para OCR." };
+      }
+      const parts: string[] = [];
+      for (const p of pages) {
+        const t = await ocrImageBuffer(p.buffer);
+        if (t) parts.push(t);
+      }
+      return { text: parts.join("\n\n") };
+    }
+    if (mime.startsWith("image/")) {
+      const text = await ocrImageBuffer(buffer);
+      return { text };
+    }
+    return { text: "", warning: "Formato sem suporte a OCR local." };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "erro desconhecido";
+    console.error("[donation-term-read] OCR failed:", msg);
+    return { text: "", warning: `OCR local falhou (${msg.slice(0, 120)}).` };
+  }
+}
+
 async function tryVisionSuggestion(
   buffer: Buffer,
   mime: string,
 ): Promise<{ suggestion: DonationTermSuggestion; warning?: string } | null> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
-    return {
-      suggestion: {},
-      warning:
-        "Leitura por imagem indisponível (defina OPENAI_API_KEY). Em PDFs escaneados, preencha manualmente.",
-    };
+    return null;
   }
 
   const baseUrl = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
@@ -195,6 +264,25 @@ async function tryVisionSuggestion(
     return {
       suggestion: {},
       warning: e instanceof Error ? e.message : "Falha ao interpretar o termo por visão.",
+    };
+  }
+}
+
+async function tryVisionOnPdfPages(buffer: Buffer): Promise<{
+  suggestion: DonationTermSuggestion;
+  warning?: string;
+} | null> {
+  if (!process.env.OPENAI_API_KEY?.trim()) return null;
+  try {
+    const pages = await renderPdfPagesToPng(buffer, 1);
+    if (pages.length === 0) {
+      return { suggestion: {}, warning: "Não foi possível renderizar o PDF para visão." };
+    }
+    return tryVisionSuggestion(pages[0].buffer, "image/png");
+  } catch (e) {
+    return {
+      suggestion: {},
+      warning: e instanceof Error ? e.message : "Falha ao preparar páginas para visão.",
     };
   }
 }
@@ -337,6 +425,8 @@ export async function readDonationTermAttachment(opts: {
   let suggestion: DonationTermSuggestion = {};
   let source: DonationTermReadResult["source"] = "partial";
 
+  const fileHint = donatariaNameHintFromFileName(opts.attachmentFileName);
+
   if (mime === "application/pdf") {
     const { text, error } = await tryExtractPdfText(buffer);
     if (error) warnings.push(error);
@@ -347,19 +437,21 @@ export async function readDonationTermAttachment(opts: {
         warnings.push("Texto do PDF encontrado, mas poucos campos reconhecidos.");
       }
     } else {
-      warnings.push(
-        "PDF sem texto extraível (provável escaneado). Tentando leitura por imagem se disponível…",
-      );
+      warnings.push("PDF sem texto extraível (escaneado). Usando OCR local…");
     }
   }
 
-  const needVision =
-    donationTermSuggestionFilledCount(suggestion) < 3 &&
-    (mime.startsWith("image/") || mime === "application/pdf");
+  if (donationTermSuggestionFilledCount(suggestion) < 3) {
+    const ocr = await tryOcrFromPdfOrImage(buffer, mime);
+    if (ocr.warning) warnings.push(ocr.warning);
+    if (ocr.text.length >= 40) {
+      suggestion = mergeSuggestion(suggestion, extractDonationTermFromText(ocr.text));
+      if (isDonationTermSuggestionUseful(suggestion)) source = "ocr";
+      else warnings.push("OCR concluiu, mas poucos campos reconhecidos — revise o formulário.");
+    }
+  }
 
-  if (needVision) {
-    // Para PDF escaneado, visão em página única via data URL do PDF costuma falhar;
-    // aceitamos imagem direta; para PDF só avisamos se OPENAI não ajudar.
+  if (donationTermSuggestionFilledCount(suggestion) < 3) {
     if (mime.startsWith("image/")) {
       const vision = await tryVisionSuggestion(buffer, mime);
       if (vision) {
@@ -367,14 +459,24 @@ export async function readDonationTermAttachment(opts: {
         suggestion = mergeSuggestion(suggestion, vision.suggestion);
         if (isDonationTermSuggestionUseful(vision.suggestion)) source = "vision";
       }
-    } else if (mime === "application/pdf" && donationTermSuggestionFilledCount(suggestion) < 3) {
-      const vision = await tryVisionSuggestion(buffer, "application/pdf");
+    } else if (mime === "application/pdf") {
+      const vision = await tryVisionOnPdfPages(buffer);
       if (vision) {
         if (vision.warning) warnings.push(vision.warning);
         suggestion = mergeSuggestion(suggestion, vision.suggestion);
         if (isDonationTermSuggestionUseful(vision.suggestion)) source = "vision";
+      } else if (!process.env.OPENAI_API_KEY?.trim() && donationTermSuggestionFilledCount(suggestion) < 3) {
+        warnings.push(
+          "Leitura por visão (OpenAI) não configurada. O OCR local já foi tentado; revise os campos manualmente se necessário.",
+        );
       }
     }
+  }
+
+  if (!suggestion.donatariaName && fileHint) {
+    suggestion.donatariaName = fileHint;
+    if (source === "partial") source = "partial";
+    warnings.push(`Nome da donatária sugerido a partir do arquivo: “${fileHint}”.`);
   }
 
   const parties = await matchDonationTermParties(suggestion, {

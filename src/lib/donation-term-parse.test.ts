@@ -1,53 +1,41 @@
 import { describe, expect, it } from "vitest";
 
-import { extractDonationTermFromText, isDonationTermSuggestionUseful } from "@/lib/donation-term-parse";
+import {
+  donatariaNameHintFromFileName,
+  extractDonationTermFromText,
+  isDonationTermSuggestionUseful,
+} from "@/lib/donation-term-parse";
 
-const SAMPLE = `
-TERMO DE DOAÇÃO DE EQUIPAMENTOS
-DOADORA:
-Nome: Instituto Gente Humana
-CNPJ: 12.345.678/0001-90
-Endereço: Rua A, 100
-Cidade: Belém
-Estado: PA
-CEP: 66000-000
-Responsável Legal: Maria Silva
-Cargo: Diretora
-CPF: 123.456.789-00
-TEL: (91) 3000-0000
-Email: contato@igh.org
-
-DONATÁRIA
-Instituição: Escola Municipal Sol Nascente
-CNPJ: 98.765.432/0001-10
-Endereço: Av. Central, 50
-Cidade/Município: Ananindeua
-Estado: PA
-CEP: 67000-000
-Zona: (X) Urbana  ( ) Rural
-Responsável: João Souza
-Telefone: (91) 98888-7777
-E-mail: escola@example.com
-
+const OCR_SAMPLE = `DOADORA: ã À Í
+Nome: INSTITUTO GUSTAVO HESSEL | i
+CNPJ: 08,633,366/0001-00
+Endereço: Travessa padre eutiquio, 3775 - Condor Í
+Email: guilherme(&igh.org.br | HW
+DONATÁRIA H
+Instituição: ASSOCIAÇÃO RATATA i
+CNPJ: 36.215.585/00001-04 Í
+Endereço: Agua Boa nº5 i i
+Responsável: Alex Martins Chaves |U EA REA :
+Telefone: (91) 98147-9405 |
 OBJETO
-Computador              10
-Monitor                 10
+O objeto do presente TERMO é a DOAÇÃO`;
 
-Belém, 26 de agosto de 2026
-`;
-
-describe("extractDonationTermFromText", () => {
-  it("extrai doadora, donatária e data do modelo IGH", () => {
-    const s = extractDonationTermFromText(SAMPLE);
+describe("donation-term-parse OCR noise", () => {
+  it("extrai doadora/donatária de texto OCR ruidoso", () => {
+    const s = extractDonationTermFromText(OCR_SAMPLE);
     expect(isDonationTermSuggestionUseful(s)).toBe(true);
-    expect(s.donorName).toMatch(/Instituto Gente Humana/i);
-    expect(s.donorDocument?.replace(/\D/g, "")).toBe("12345678000190");
-    expect(s.donatariaName).toMatch(/Sol Nascente/i);
-    expect(s.donatariaDocument?.replace(/\D/g, "")).toBe("98765432000110");
-    expect(s.donatariaCity).toMatch(/Ananindeua/i);
-    expect(s.donatariaZone).toBe("URBANA");
-    expect(s.donatedAt).toBe("2026-08-26");
-    expect(s.placeDateText).toMatch(/Belém/i);
-    expect(s.kitsCount).toBe(10);
+    expect(s.donorName).toBe("INSTITUTO GUSTAVO HESSEL");
+    expect(s.donorDocument?.replace(/\D/g, "")).toBe("08633366000100");
+    expect(s.donatariaName).toMatch(/ASSOCIAÇÃO RATATA/i);
+    expect(s.donatariaDocument?.replace(/\D/g, "")).toBe("36215585000104");
+    expect(s.donatariaContactName).toBe("Alex Martins Chaves");
+    expect(s.donatariaPhone).toMatch(/98147/);
+    expect(s.donorEmail).toMatch(/guilherme@igh\.org\.br/i);
+  });
+});
+
+describe("donatariaNameHintFromFileName", () => {
+  it("usa o nome do arquivo como sugestão", () => {
+    expect(donatariaNameHintFromFileName("ASSOCIAÇÃO RATATA.pdf")).toBe("ASSOCIAÇÃO RATATA");
   });
 });

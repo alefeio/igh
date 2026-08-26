@@ -52,9 +52,9 @@ const LOGO_CPI = path.join(process.cwd(), "public", "images", "logo_CPI.png");
 const LOGO_BRASIL = path.join(process.cwd(), "public", "images", "logo_Governo.png");
 
 /** Altura alvo das logomarcas no rodapé (pt). */
-const LOGO_FOOTER_HEIGHT = 64;
-const LOGO_FOOTER_MAX_WIDTH = 200;
-const LOGO_FOOTER_Y = 20;
+const LOGO_FOOTER_HEIGHT = 48;
+const LOGO_FOOTER_MAX_WIDTH = 150;
+const LOGO_FOOTER_Y = 28;
 
 const BLACK = rgb(0, 0, 0);
 const MONTHS_PT = [
@@ -361,14 +361,14 @@ export async function renderIghDonationTermPdf(input: IghDonationTermInput): Pro
 
   const page1 = doc.addPage([595.28, 841.89]);
   const page2 = doc.addPage([595.28, 841.89]);
-  const margin = 36;
+  const margin = 50;
   const tableW = page1.getWidth() - margin * 2;
   const size = 9;
 
   drawLogos(page1, logos, margin, page1.getWidth());
   drawLogos(page2, logos, margin, page2.getWidth());
 
-  let y = page1.getHeight() - 28;
+  let y = page1.getHeight() - margin;
   const title = "TERMO DE DOAÇÃO DE EQUIPAMENTOS";
   const titleH = 22;
   page1.drawRectangle({
@@ -486,7 +486,7 @@ export async function renderIghDonationTermPdf(input: IghDonationTermInput): Pro
   y = drawWrappedPara(page1, obs, bold, 8, obsX, y, tableW);
 
   // Página 2 — ACORDO
-  let y2 = page2.getHeight() - 40;
+  let y2 = page2.getHeight() - margin;
   const acordo = "ACORDO";
   page2.drawText(acordo, {
     x: (page2.getWidth() - bold.widthOfTextAtSize(acordo, 13)) / 2,
@@ -539,7 +539,7 @@ export async function renderIghDonationTermPdf(input: IghDonationTermInput): Pro
     2.5,
   );
 
-  y2 -= 28;
+  y2 -= 44;
   const date = ighDate(input);
   const dateW = regular.widthOfTextAtSize(date, 10);
   page2.drawText(date, {
@@ -550,7 +550,7 @@ export async function renderIghDonationTermPdf(input: IghDonationTermInput): Pro
     color: BLACK,
   });
 
-  y2 -= 48;
+  y2 -= 64;
   const colW = tableW / 2;
   page2.drawLine({
     start: { x: margin + 16, y: y2 },

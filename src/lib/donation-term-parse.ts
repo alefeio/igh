@@ -48,22 +48,54 @@ const MONTHS: Record<string, number> = {
   dezembro: 12,
 };
 
+/** Normaliza ruído típico de OCR em termos escaneados. */
+export function normalizeDonationTermOcrText(raw: string): string {
+  return raw
+    .replace(/\u0000/g, " ")
+    .replace(/\r/g, "\n")
+    // e-mail: guilherme(&igh.org.br → guilherme@igh.org.br
+    .replace(/([A-Za-z0-9._%+-])\(&/g, "$1@")
+    .replace(/([A-Za-z0-9._%+-])\(@/g, "$1@")
+    // CNPJ com vírgula no lugar do ponto: 08,633,366 → 08.633.366
+    .replace(/(\d),(\d{3})/g, "$1.$2")
+    .replace(/DONAT[ÁA]RIA\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ]?\s*(?=\n)/gi, "DONATÁRIA\n")
+    .replace(/DOADORA\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ]?\s*(?=\n|:)/gi, "DOADORA\n");
+}
+
 function cleanValue(raw: string | undefined | null): string | undefined {
   if (!raw) return undefined;
-  const v = raw
+  let v = raw
     .replace(/\u0000/g, "")
     .replace(/\s+/g, " ")
     .replace(/^[:\-–—|.\s]+/, "")
-    .replace(/\s+$/, "")
     .trim();
-  if (!v || /^[\-–—_]+$/.test(v)) return undefined;
+  // Corta lixo de OCR após "| …" (ex.: "NOME | i", "Chaves |U EA")
+  const pipeIdx = v.search(/\s*[|]\s*/);
+  if (pipeIdx >= 3) {
+    const after = v.slice(pipeIdx).replace(/^[|\s]+/, "").trim();
+    if (after.length <= 12 || !/[a-zà-ú]{4,}/i.test(after.split(/\s+/)[0] ?? "")) {
+      v = v.slice(0, pipeIdx).trim();
+    }
+  }
+  v = v
+    .replace(/^;\s*/, "")
+    .replace(/\s+[Íí]\s*$/u, "")
+    .replace(/\s*[:|]+\s*$/u, "")
+    .replace(/\s+[a-zA-ZÁÉÍÓÚáéíóú]\s*$/u, "")
+    .trim();
+  if (!v || /^[\-–—_]+$/.test(v) || v.length === 1) return undefined;
   return v.slice(0, 240);
 }
 
 function onlyDigits(v: string | undefined): string | undefined {
   if (!v) return undefined;
-  const d = v.replace(/\D/g, "");
-  return d.length >= 11 ? d : undefined;
+  let d = v.replace(/\D/g, "");
+  // OCR costuma dobrar zero no ramo: …/00001-04 (15 dígitos) → …/0001-04
+  if (d.length === 15 && d.slice(8, 13) === "00001") {
+    d = `${d.slice(0, 8)}0001${d.slice(13)}`;
+  }
+  if (d.length === 14 || d.length === 11) return d;
+  return d.length >= 11 && d.length <= 14 ? d : undefined;
 }
 
 function formatCnpjLike(digits: string): string {
@@ -150,7 +182,7 @@ function parseKitsCount(text: string): number | undefined {
 }
 
 export function extractDonationTermFromText(rawText: string): DonationTermSuggestion {
-  const text = rawText.replace(/\u0000/g, " ").replace(/\r/g, "\n");
+  const text = normalizeDonationTermOcrText(rawText);
   const donorSec = sectionBetween(
     text,
     /DOADORA\s*:?/i,
@@ -242,4 +274,20 @@ export function isDonationTermSuggestionUseful(s: DonationTermSuggestion): boole
       s.placeDateText ||
       (s.kitsCount != null && s.kitsCount > 0),
   );
+}
+
+/** Nome da donatária a partir do nome do arquivo (ex.: "ASSOCIAÇÃO RATATA.pdf"). */
+export function donatariaNameHintFromFileName(fileName: string | null | undefined): string | undefined {
+  if (!fileName) return undefined;
+  const base = fileName
+    .replace(/\\/g, "/")
+    .split("/")
+    .pop()!
+    .replace(/\.[^.]+$/i, "")
+    .replace(/[_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (base.length < 3) return undefined;
+  if (/^(termo|doacao|doação|signed|assinado|scan|documento)(\s|$)/i.test(base)) return undefined;
+  return base.slice(0, 160);
 }
