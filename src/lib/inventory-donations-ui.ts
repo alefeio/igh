@@ -122,6 +122,15 @@ export type DonationView = {
   inventoryPosted: boolean;
   createdAt: string;
   updatedAt: string;
+  attachments?: Array<{
+    id: string;
+    url: string;
+    publicId: string | null;
+    fileName: string | null;
+    description: string;
+    kind: "GERADO" | "ASSINADO" | "OUTRO";
+    createdAt: string;
+  }>;
   donataria: {
     id: string;
     name: string;

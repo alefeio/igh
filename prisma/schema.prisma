@@ -1780,12 +1780,30 @@ model Donation {
   financialEntry      FinancialEntry?   @relation(fields: [financialEntryId], references: [id], onDelete: SetNull)
   createdByUser       User?             @relation("DonationCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   items               DonationItem[]
+  attachments         DonationAttachment[]
   inventoryMovements  InventoryMovement[]
 
   @@index([donatariaId, donatedAt])
   @@index([donorInstitutionId])
   @@index([status, deletedAt])
   @@index([termNumber])
+}
+
+/// * Arquivo anexado ao termo (PDF gerado, cópia assinada/escaneada, etc.).
+model DonationAttachment {
+  id          String                  @id @default(uuid())
+  donationId  String
+  url         String
+  publicId    String?
+  fileName    String?
+  /// * Rótulo legível (ex.: "Termo assinado", "PDF gerado").
+  description String
+  kind        DonationAttachmentKind  @default(OUTRO)
+  createdAt   DateTime                @default(now())
+  donation    Donation                @relation(fields: [donationId], references: [id], onDelete: Cascade)
+
+  @@index([donationId, createdAt])
+  @@index([donationId, kind])
 }
 
 model DonationItem {
@@ -2901,6 +2919,14 @@ enum DonationStatus {
   RASCUNHO
   CONFIRMADA
   CANCELADA
+}
+
+enum DonationAttachmentKind {
+  /// * PDF gerado pelo sistema a partir do modelo.
+  GERADO
+  /// * Cópia impressa assinada / escaneada (ou termo histórico já assinado).
+  ASSINADO
+  OUTRO
 }
 
 enum DonatariaZone {

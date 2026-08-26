@@ -127,7 +127,7 @@ export default function LessonEditPage() {
     options: [] as ExerciseFormOption[],
   });
   const exerciseUploadSignaturePath =
-    user.role === "TEACHER" ? TEACHER_UPLOAD_SIGNATURE : COURSE_CONTENT_UPLOAD_SIGNATURE;
+    user.role === "TEACHER" ? TEACHER_UPLOAD_SIGNATURE : COURSE_MATERIAL_UPLOAD_SIGNATURE;
   const [savingExercise, setSavingExercise] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const contentSectionRef = useRef<HTMLDivElement>(null);

@@ -96,9 +96,22 @@ const donationItemSchema = z.object({
   unit: z.string().trim().min(1).default("UN"),
 });
 
+const donationAttachmentSchema = z.object({
+  url: z
+    .string()
+    .url("URL inválida")
+    .refine((u) => u.startsWith("https://"), "URL deve ser HTTPS"),
+  publicId: optionalText,
+  fileName: optionalText,
+  description: z.string().trim().min(1, "Descrição do anexo é obrigatória").max(200),
+  kind: z.enum(["GERADO", "ASSINADO", "OUTRO"]).optional().default("OUTRO"),
+});
+
 export const createDonationSchema = z
   .object({
-    donatariaId: z.string().uuid("Donatária inválida"),
+    donatariaId: z.string().uuid("Donatária inválida").optional(),
+    /** Quando a donatária ainda não existe: cadastra junto com o termo (após confirmação no UI). */
+    createDonataria: createDonatariaSchema.optional(),
     donorInstitutionId: z.string().uuid("Doadora inválida").nullable().optional(),
     kind: z.enum(["BENS", "DINHEIRO", "MISTO"]),
     donatedAt: requiredDate,
@@ -113,8 +126,23 @@ export const createDonationSchema = z
     postInventory: z.boolean().optional().default(true),
     postFinancial: z.boolean().optional().default(true),
     items: z.array(donationItemSchema).optional().default([]),
+    attachments: z.array(donationAttachmentSchema).max(10).optional().default([]),
   })
   .superRefine((data, ctx) => {
+    if (!data.donatariaId && !data.createDonataria) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["donatariaId"],
+        message: "Selecione ou cadastre a donatária.",
+      });
+    }
+    if (data.donatariaId && data.createDonataria) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["createDonataria"],
+        message: "Informe donatariaId ou createDonataria, não ambos.",
+      });
+    }
     const hasGoods =
       data.kitsCount > 0 || data.items.length > 0;
     if ((data.kind === "BENS" || data.kind === "MISTO") && !hasGoods) {
@@ -140,7 +168,7 @@ export const confirmDonationSchema = z.object({
   generatePdf: z.boolean().optional().default(true),
 });
 
-/** Atualização de doação ainda em rascunho (sem confirmar). */
+/** Atualização de doação ainda em rascunho (sem confirmar). Anexos também em confirmadas. */
 export const updateDonationDraftSchema = z
   .object({
     donatariaId: z.string().uuid("Donatária inválida").optional(),
@@ -154,6 +182,7 @@ export const updateDonationDraftSchema = z
     placeDateText: optionalText,
     templateId: z.string().uuid().nullable().optional(),
     items: z.array(donationItemSchema).optional(),
+    attachments: z.array(donationAttachmentSchema).max(10).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.kind == null) return;
@@ -179,3 +208,11 @@ export const updateDonationDraftSchema = z
       });
     }
   });
+
+export const readDonationTermSchema = z.object({
+  attachmentUrl: z
+    .string()
+    .url("URL inválida")
+    .refine((u) => u.startsWith("https://"), "URL deve ser HTTPS"),
+  attachmentFileName: z.string().trim().nullable().optional(),
+});

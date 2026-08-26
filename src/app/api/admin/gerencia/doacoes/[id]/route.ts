@@ -6,6 +6,7 @@ import { expandDonationKitItems } from "@/lib/donation-kits";
 import {
   archiveDonationRecord,
   donationInclude,
+  replaceDonationAttachments,
   resolveDonationItems,
   serializeDonation,
 } from "@/lib/donations";
@@ -50,9 +51,6 @@ export async function PATCH(request: Request, ctx: Ctx) {
     select: { id: true, status: true },
   });
   if (!existing) return jsonErr("NOT_FOUND", "Doação não encontrada.", 404);
-  if (existing.status !== "RASCUNHO") {
-    return jsonErr("INVALID_STATE", "Somente rascunhos podem ser editados.", 400);
-  }
 
   const body = await request.json().catch(() => null);
   const parsed = updateDonationDraftSchema.safeParse(body);
@@ -61,6 +59,16 @@ export async function PATCH(request: Request, ctx: Ctx) {
   }
 
   const data = parsed.data;
+  const fieldKeys = Object.keys(data).filter((k) => k !== "attachments");
+  const attachmentsOnly = fieldKeys.length === 0 && data.attachments !== undefined;
+
+  if (existing.status !== "RASCUNHO" && !attachmentsOnly) {
+    return jsonErr(
+      "INVALID_STATE",
+      "Somente rascunhos podem ter os dados do termo editados. Anexos podem ser atualizados em qualquer status.",
+      400,
+    );
+  }
 
   if (data.donatariaId) {
     const donataria = await prisma.donataria.findFirst({
@@ -112,6 +120,10 @@ export async function PATCH(request: Request, ctx: Ctx) {
     });
   }
 
+  if (data.attachments !== undefined) {
+    await replaceDonationAttachments({ donationId: id, attachments: data.attachments });
+  }
+
   const donation = await prisma.$transaction(async (tx) => {
     if (linkedItems) {
       await tx.donationItem.deleteMany({ where: { donationId: id } });
@@ -150,7 +162,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     entityType: "Donation",
     entityId: id,
     action: "UPDATE",
-    diff: { fields: Object.keys(data) },
+    diff: { fields: Object.keys(data), attachmentsOnly },
     performedByUserId: actor.id,
   });
 

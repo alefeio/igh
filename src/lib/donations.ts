@@ -12,6 +12,10 @@ import {
 } from "@/lib/donor-institution";
 import { expandDonationKitItems } from "@/lib/donation-kits";
 import { applyInventoryMovement } from "@/lib/inventory";
+import {
+  normalizeDonationAttachmentInputs,
+  type DonationAttachmentInput,
+} from "@/lib/donation-attachments";
 import { prisma } from "@/lib/prisma";
 
 export const donationInclude = {
@@ -23,6 +27,7 @@ export const donationInclude = {
       inventoryItem: { select: { id: true, name: true, quantityOnHand: true, unit: true } },
     },
   },
+  attachments: { orderBy: { createdAt: "asc" as const } },
   financialEntry: { select: { id: true, amountCents: true, description: true } },
 } as const;
 
@@ -54,6 +59,15 @@ export function serializeDonation(d: DonationLoaded) {
     inventoryPosted: d.inventoryPosted,
     createdAt: d.createdAt.toISOString(),
     updatedAt: d.updatedAt.toISOString(),
+    attachments: d.attachments.map((a) => ({
+      id: a.id,
+      url: a.url,
+      publicId: a.publicId,
+      fileName: a.fileName,
+      description: a.description,
+      kind: a.kind,
+      createdAt: a.createdAt.toISOString(),
+    })),
     donataria: {
       id: d.donataria.id,
       name: d.donataria.name,
@@ -255,6 +269,33 @@ export async function confirmDonationSideEffects(opts: {
     );
     pdfUrl = uploaded.url;
     pdfPublicId = uploaded.publicId;
+
+    const existingGenerated = await prisma.donationAttachment.findFirst({
+      where: { donationId: donation.id, kind: "GERADO" },
+      select: { id: true },
+    });
+    if (existingGenerated) {
+      await prisma.donationAttachment.update({
+        where: { id: existingGenerated.id },
+        data: {
+          url: uploaded.url,
+          publicId: uploaded.publicId,
+          fileName: `termo-doacao-${termNumber}.pdf`,
+          description: "PDF gerado",
+        },
+      });
+    } else {
+      await prisma.donationAttachment.create({
+        data: {
+          donationId: donation.id,
+          url: uploaded.url,
+          publicId: uploaded.publicId,
+          fileName: `termo-doacao-${termNumber}.pdf`,
+          description: "PDF gerado",
+          kind: "GERADO",
+        },
+      });
+    }
   }
 
   return prisma.donation.update({
@@ -271,6 +312,29 @@ export async function confirmDonationSideEffects(opts: {
       pdfPublicId,
     },
     include: donationInclude,
+  });
+}
+
+/** Substitui a lista de anexos do termo (mantém no máx. MAX). */
+export async function replaceDonationAttachments(opts: {
+  donationId: string;
+  attachments: DonationAttachmentInput[];
+}) {
+  const items = normalizeDonationAttachmentInputs(opts.attachments);
+  await prisma.$transaction(async (tx) => {
+    await tx.donationAttachment.deleteMany({ where: { donationId: opts.donationId } });
+    if (items.length > 0) {
+      await tx.donationAttachment.createMany({
+        data: items.map((a) => ({
+          donationId: opts.donationId,
+          url: a.url,
+          publicId: a.publicId ?? null,
+          fileName: a.fileName ?? null,
+          description: a.description,
+          kind: a.kind ?? "OUTRO",
+        })),
+      });
+    }
   });
 }
 

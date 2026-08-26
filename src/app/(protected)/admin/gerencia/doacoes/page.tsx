@@ -1,8 +1,16 @@
 "use client";
 
-import { Gift, Plus, Search } from "lucide-react";
+import { Gift, MoreHorizontal, Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
+import { createPortal } from "react-dom";
 
 import { DashboardHero, PanelPageStack, SectionCard, StatTile } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -12,6 +20,19 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+import {
+  apimagesUploadHeaders,
+  buildApimagesUploadFormData,
+  GERENCIA_UPLOAD_SIGNATURE,
+  parseApimagesUploadJson,
+  readApiJson,
+} from "@/lib/apimages-upload";
+import {
+  DONATION_ATTACHMENT_KIND_LABEL,
+  MAX_DONATION_ATTACHMENTS,
+  resolveDonationPdfUrl,
+  type DonationAttachmentKindValue,
+} from "@/lib/donation-attachments";
 import {
   DEFAULT_DONATION_KIT,
   describeDonationKit,
@@ -41,6 +62,28 @@ type ExtraItem = {
   unit: string;
 };
 
+type FormAttachment = {
+  key: string;
+  url: string;
+  publicId: string | null;
+  fileName: string | null;
+  description: string;
+  kind: DonationAttachmentKindValue;
+};
+
+type DonatariaCandidate = {
+  name: string;
+  document: string | null;
+  email: string | null;
+  phone: string | null;
+  contactName: string | null;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  cep: string | null;
+  zone: "URBANA" | "RURAL";
+};
+
 type FormState = {
   donorInstitutionId: string;
   donatariaId: string;
@@ -57,6 +100,24 @@ type FormState = {
   postInventory: boolean;
   postFinancial: boolean;
   extras: ExtraItem[];
+  attachments: FormAttachment[];
+};
+
+type TermReadResult = {
+  suggestion: {
+    donorName?: string;
+    donatedAt?: string;
+    placeDateText?: string;
+    kitsCount?: number;
+    belongsTo?: string;
+    description?: string;
+    donatariaName?: string;
+  };
+  source: string;
+  warnings: string[];
+  matchedDonorInstitutionId: string | null;
+  matchedDonatariaId: string | null;
+  donatariaCreateCandidate: DonatariaCandidate | null;
 };
 
 function emptyForm(): FormState {
@@ -78,6 +139,7 @@ function emptyForm(): FormState {
     postInventory: true,
     postFinancial: true,
     extras: [],
+    attachments: [],
   };
 }
 
@@ -87,8 +149,41 @@ function statusTone(status: DonationStatus): "zinc" | "green" | "amber" | "red" 
   return "red";
 }
 
+function donationHasPdf(d: DonationView): boolean {
+  return Boolean(
+    resolveDonationPdfUrl({
+      pdfUrl: d.pdfUrl,
+      attachments: d.attachments ?? [],
+    }),
+  );
+}
+
+function toFormAttachments(d: DonationView): FormAttachment[] {
+  return (d.attachments ?? []).map((a) => ({
+    key: a.id,
+    url: a.url,
+    publicId: a.publicId,
+    fileName: a.fileName,
+    description: a.description,
+    kind: a.kind,
+  }));
+}
+
+function payloadAttachments(attachments: FormAttachment[]) {
+  return attachments.map((a) => ({
+    url: a.url,
+    publicId: a.publicId,
+    fileName: a.fileName,
+    description: a.description,
+    kind: a.kind,
+  }));
+}
+
 const selectClass =
   "w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm";
+
+const menuItemClass =
+  "block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50";
 
 export default function DoacoesPage() {
   const toast = useToast();
@@ -110,11 +205,25 @@ export default function DoacoesPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [attachmentsOnlyEdit, setAttachmentsOnlyEdit] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [readingTerm, setReadingTerm] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [previewDonation, setPreviewDonation] = useState<DonationView | null>(null);
+  const [createDonataria, setCreateDonataria] = useState(false);
+  const [donatariaCandidate, setDonatariaCandidate] = useState<DonatariaCandidate | null>(null);
+  const [ocrNote, setOcrNote] = useState<string | null>(null);
+
+  const [actionsMenuId, setActionsMenuId] = useState<string | null>(null);
+  const [actionsMenuPos, setActionsMenuPos] = useState<{
+    top: number;
+    right: number;
+    openUp: boolean;
+  } | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -172,6 +281,27 @@ export default function DoacoesPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!actionsMenuId) return;
+    function onDoc(e: MouseEvent) {
+      if (actionsMenuRef.current?.contains(e.target as Node)) return;
+      setActionsMenuId(null);
+      setActionsMenuPos(null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setActionsMenuId(null);
+        setActionsMenuPos(null);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [actionsMenuId]);
+
   const previewItems = useMemo(() => {
     const kitLines = expandDonationKitItems(form.kitsCount, kitComponents);
     const extras = form.extras
@@ -202,14 +332,31 @@ export default function DoacoesPage() {
     };
   }, [donations]);
 
+  const actionsMenuDonation = actionsMenuId
+    ? donations.find((d) => d.id === actionsMenuId) ?? null
+    : null;
+
+  function closeForm() {
+    setFormOpen(false);
+    setEditingId(null);
+    setAttachmentsOnlyEdit(false);
+    setCreateDonataria(false);
+    setDonatariaCandidate(null);
+    setOcrNote(null);
+  }
+
   function openCreate() {
     const defaultDonor = donors.find((d) => d.isDefault) ?? donors[0];
     setEditingId(null);
+    setAttachmentsOnlyEdit(false);
+    setCreateDonataria(false);
+    setDonatariaCandidate(null);
+    setOcrNote(null);
     setForm({ ...emptyForm(), donorInstitutionId: defaultDonor?.id ?? "" });
     setFormOpen(true);
   }
 
-  function openEdit(d: DonationView) {
+  function openEdit(d: DonationView, attachmentsOnly = false) {
     const kitLines = expandDonationKitItems(d.kitsCount, kitComponents);
     const kitKeys = new Set(kitLines.map((i) => `${i.name.trim().toLowerCase()}|${i.quantity}`));
     const extras = d.items
@@ -222,6 +369,10 @@ export default function DoacoesPage() {
       }));
 
     setEditingId(d.id);
+    setAttachmentsOnlyEdit(attachmentsOnly || d.status !== "RASCUNHO");
+    setCreateDonataria(false);
+    setDonatariaCandidate(null);
+    setOcrNote(null);
     setForm({
       donorInstitutionId: d.donorInstitutionId ?? d.donorInstitution?.id ?? "",
       donatariaId: d.donatariaId,
@@ -241,8 +392,27 @@ export default function DoacoesPage() {
       postInventory: true,
       postFinancial: true,
       extras,
+      attachments: toFormAttachments(d),
     });
     setFormOpen(true);
+  }
+
+  function openActionsMenu(e: ReactMouseEvent<HTMLButtonElement>, id: string) {
+    if (actionsMenuId === id) {
+      setActionsMenuId(null);
+      setActionsMenuPos(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const estimatedHeight = 280;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUp = spaceBelow < estimatedHeight && rect.top > estimatedHeight;
+    setActionsMenuPos({
+      top: openUp ? rect.top : rect.bottom,
+      right: Math.max(8, window.innerWidth - rect.right),
+      openUp,
+    });
+    setActionsMenuId(id);
   }
 
   function setExtra(index: number, patch: Partial<ExtraItem>) {
@@ -262,13 +432,158 @@ export default function DoacoesPage() {
     });
   }
 
+  async function applyTermSuggestion(result: TermReadResult) {
+    const s = result.suggestion;
+    setForm((prev) => {
+      const next = { ...prev };
+      if (result.matchedDonorInstitutionId) {
+        next.donorInstitutionId = result.matchedDonorInstitutionId;
+      }
+      if (result.matchedDonatariaId) {
+        next.donatariaId = result.matchedDonatariaId;
+      }
+      if (s.donatedAt) next.donatedAt = s.donatedAt;
+      if (s.placeDateText) next.placeDateText = s.placeDateText;
+      if (s.kitsCount != null && s.kitsCount > 0) next.kitsCount = s.kitsCount;
+      if (s.belongsTo) next.belongsTo = s.belongsTo;
+      if (s.description && !prev.description.trim()) next.description = s.description;
+      // Histórico já assinado: não regenerar PDF por padrão
+      next.generatePdf = prev.attachments.some((a) => a.kind === "ASSINADO")
+        ? false
+        : prev.generatePdf;
+      return next;
+    });
+
+    if (result.matchedDonatariaId) {
+      setCreateDonataria(false);
+      setDonatariaCandidate(null);
+    } else if (result.donatariaCreateCandidate) {
+      setDonatariaCandidate(result.donatariaCreateCandidate);
+      setCreateDonataria(true);
+    }
+
+    const parts: string[] = [];
+    if (result.source === "pdf") parts.push("Campos preenchidos a partir do texto do PDF.");
+    else if (result.source === "vision") parts.push("Campos sugeridos por leitura de imagem.");
+    else parts.push("Poucos campos reconhecidos — revise o formulário.");
+    if (result.warnings.length) parts.push(result.warnings.slice(0, 2).join(" "));
+    setOcrNote(parts.join(" "));
+    toast.push(
+      "success",
+      result.source === "partial"
+        ? "Termo anexado. Revise e complete os campos."
+        : "Termo lido — confira os campos preenchidos.",
+    );
+  }
+
+  async function readSignedTerm(url: string, fileName: string | null) {
+    setReadingTerm(true);
+    try {
+      const res = await fetch("/api/admin/gerencia/doacoes/ler-termo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attachmentUrl: url, attachmentFileName: fileName }),
+      });
+      const json = (await res.json()) as ApiResponse<TermReadResult>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Falha ao ler o termo.");
+        return;
+      }
+      await applyTermSuggestion(json.data);
+    } catch {
+      toast.push("error", "Falha ao ler o termo.");
+    } finally {
+      setReadingTerm(false);
+    }
+  }
+
+  async function uploadAttachment(file: File, kind: DonationAttachmentKindValue = "ASSINADO") {
+    if (form.attachments.length >= MAX_DONATION_ATTACHMENTS) {
+      toast.push("error", `No máximo ${MAX_DONATION_ATTACHMENTS} anexos por termo.`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const signRes = await fetch(GERENCIA_UPLOAD_SIGNATURE, { method: "POST" });
+      const signJson = await readApiJson<{ uploadUrl: string; apiKey: string }>(signRes);
+      if (!signRes.ok || !signJson.ok) {
+        toast.push("error", !signJson.ok ? signJson.error.message : "Falha ao preparar upload.");
+        return;
+      }
+      const uploadRes = await fetch(signJson.data.uploadUrl, {
+        method: "POST",
+        headers: apimagesUploadHeaders(signJson.data.apiKey),
+        body: buildApimagesUploadFormData(file),
+      });
+      const cloud = parseApimagesUploadJson(await uploadRes.json());
+      if (!uploadRes.ok || !cloud.url || !cloud.publicId) {
+        toast.push("error", cloud.errorMessage ?? "Falha no upload.");
+        return;
+      }
+      const fileName = cloud.originalFilename ?? file.name;
+      const description =
+        kind === "ASSINADO"
+          ? "Termo assinado"
+          : kind === "GERADO"
+            ? "PDF gerado"
+            : fileName;
+      setForm((prev) => ({
+        ...prev,
+        attachments: [
+          ...prev.attachments,
+          {
+            key: `${Date.now()}-${fileName}`,
+            url: cloud.url!,
+            publicId: cloud.publicId,
+            fileName,
+            description,
+            kind,
+          },
+        ],
+        generatePdf: kind === "ASSINADO" && !editingId ? false : prev.generatePdf,
+      }));
+      toast.push("success", "Anexo enviado.");
+      if (kind === "ASSINADO" && !attachmentsOnlyEdit) {
+        void readSignedTerm(cloud.url!, fileName);
+      }
+    } catch {
+      toast.push("error", "Falha ao anexar arquivo.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function save() {
+    if (attachmentsOnlyEdit && editingId) {
+      setSaving(true);
+      try {
+        const res = await fetch(`/api/admin/gerencia/doacoes/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attachments: payloadAttachments(form.attachments) }),
+        });
+        const json = (await res.json()) as ApiResponse<{ donation: DonationView }>;
+        if (!res.ok || !json.ok) {
+          toast.push("error", !json.ok ? json.error.message : "Falha ao salvar anexos.");
+          return;
+        }
+        toast.push("success", "Anexos atualizados.");
+        closeForm();
+        void load();
+      } catch {
+        toast.push("error", "Falha ao salvar anexos.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     if (!form.donorInstitutionId) {
       toast.push("error", "Selecione a instituição doadora (quem doa).");
       return;
     }
-    if (!form.donatariaId) {
-      toast.push("error", "Selecione a donatária (quem recebe).");
+    if (!form.donatariaId && !(createDonataria && donatariaCandidate)) {
+      toast.push("error", "Selecione a donatária ou confirme o cadastro automático.");
       return;
     }
     const showGoods = form.kind === "BENS" || form.kind === "MISTO";
@@ -279,9 +594,8 @@ export default function DoacoesPage() {
 
     setSaving(true);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         donorInstitutionId: form.donorInstitutionId,
-        donatariaId: form.donatariaId,
         kind: form.kind,
         donatedAt: form.donatedAt,
         description: form.description.trim() || null,
@@ -290,14 +604,7 @@ export default function DoacoesPage() {
         belongsTo: form.belongsTo.trim() || null,
         placeDateText: form.placeDateText.trim() || null,
         templateId: form.templateId || null,
-        ...(editingId
-          ? {}
-          : {
-              generatePdf: form.generatePdf,
-              confirmNow: form.confirmNow,
-              postInventory: form.postInventory,
-              postFinancial: form.postFinancial,
-            }),
+        attachments: payloadAttachments(form.attachments),
         items: showGoods
           ? previewItems.map((i) => ({
               inventoryItemId: i.inventoryItemId,
@@ -307,6 +614,20 @@ export default function DoacoesPage() {
             }))
           : [],
       };
+
+      if (form.donatariaId) {
+        payload.donatariaId = form.donatariaId;
+      } else if (createDonataria && donatariaCandidate) {
+        payload.createDonataria = donatariaCandidate;
+      }
+
+      if (!editingId) {
+        payload.generatePdf = form.generatePdf;
+        payload.confirmNow = form.confirmNow;
+        payload.postInventory = form.postInventory;
+        payload.postFinancial = form.postFinancial;
+      }
+
       const res = await fetch(
         editingId ? `/api/admin/gerencia/doacoes/${editingId}` : "/api/admin/gerencia/doacoes",
         {
@@ -328,8 +649,7 @@ export default function DoacoesPage() {
             ? "Doação confirmada."
             : "Doação salva como rascunho.",
       );
-      setFormOpen(false);
-      setEditingId(null);
+      closeForm();
       void load();
     } catch {
       toast.push("error", "Falha ao salvar doação.");
@@ -340,6 +660,7 @@ export default function DoacoesPage() {
 
   async function confirmDonation(id: string) {
     setConfirmingId(id);
+    setActionsMenuId(null);
     try {
       const res = await fetch(`/api/admin/gerencia/doacoes/${id}/confirmar`, {
         method: "POST",
@@ -365,6 +686,7 @@ export default function DoacoesPage() {
   }
 
   async function archiveDonation(d: DonationView) {
+    setActionsMenuId(null);
     const termLabel = d.termNumber != null ? `nº ${d.termNumber}` : "rascunho";
     const extra =
       d.status === "CONFIRMADA"
@@ -396,6 +718,7 @@ export default function DoacoesPage() {
 
   const showItems = form.kind === "BENS" || form.kind === "MISTO";
   const showAmount = form.kind === "DINHEIRO" || form.kind === "MISTO";
+  const fieldsLocked = attachmentsOnlyEdit;
 
   return (
     <PanelPageStack>
@@ -474,7 +797,7 @@ export default function DoacoesPage() {
               <Th>Donatária</Th>
               <Th>Kits / itens</Th>
               <Th>Status</Th>
-              <Th>Ações</Th>
+              <Th className="text-right">Ações</Th>
             </tr>
           </thead>
           <tbody>
@@ -513,48 +836,27 @@ export default function DoacoesPage() {
                       {d.items.length > 3 ? "…" : ""}
                     </div>
                   ) : null}
+                  {(d.attachments?.length ?? 0) > 0 ? (
+                    <div className="text-xs text-[var(--text-muted)]">
+                      {d.attachments!.length} anexo{d.attachments!.length === 1 ? "" : "s"}
+                    </div>
+                  ) : null}
                 </Td>
                 <Td>
                   <Badge tone={statusTone(d.status)}>{DONATION_STATUS_LABEL[d.status]}</Badge>
                 </Td>
-                <Td>
-                  <div className="flex flex-wrap gap-1">
-                    {d.pdfUrl ? (
-                      <>
-                        <Button size="sm" variant="secondary" onClick={() => setPreviewDonation(d)}>
-                          Visualizar
-                        </Button>
-                        <a
-                          href={`/api/admin/gerencia/doacoes/${d.id}/pdf?download=1`}
-                          className="inline-flex min-h-[36px] items-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1.5 text-xs font-medium sm:min-h-0"
-                        >
-                          PDF
-                        </a>
-                      </>
-                    ) : null}
-                    {d.status === "RASCUNHO" ? (
-                      <>
-                        <Button size="sm" variant="secondary" onClick={() => openEdit(d)}>
-                          Editar
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => void confirmDonation(d.id)}
-                          disabled={confirmingId === d.id}
-                        >
-                          {confirmingId === d.id ? "Confirmando…" : "Confirmar"}
-                        </Button>
-                      </>
-                    ) : null}
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => void archiveDonation(d)}
-                      disabled={deletingId === d.id}
-                    >
-                      {deletingId === d.id ? "Excluindo…" : "Excluir"}
-                    </Button>
-                  </div>
+                <Td className="text-right">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    aria-haspopup="menu"
+                    aria-expanded={actionsMenuId === d.id}
+                    onClick={(e) => openActionsMenu(e, d.id)}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                    <span className="sr-only">Ações</span>
+                  </Button>
                 </Td>
               </tr>
             ))}
@@ -577,6 +879,109 @@ export default function DoacoesPage() {
         </Table>
       </SectionCard>
 
+      {actionsMenuDonation &&
+        actionsMenuPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={actionsMenuRef}
+            role="menu"
+            className="fixed z-50 min-w-[12.5rem] rounded-md border border-[var(--card-border)] bg-white py-1 shadow-lg dark:bg-zinc-900"
+            style={
+              actionsMenuPos.openUp
+                ? {
+                    bottom: window.innerHeight - actionsMenuPos.top + 4,
+                    right: actionsMenuPos.right,
+                  }
+                : {
+                    top: actionsMenuPos.top + 4,
+                    right: actionsMenuPos.right,
+                  }
+            }
+          >
+            {donationHasPdf(actionsMenuDonation) ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={menuItemClass}
+                  onClick={() => {
+                    setPreviewDonation(actionsMenuDonation);
+                    setActionsMenuId(null);
+                  }}
+                >
+                  Visualizar
+                </button>
+                <a
+                  role="menuitem"
+                  className={menuItemClass}
+                  href={`/api/admin/gerencia/doacoes/${actionsMenuDonation.id}/pdf?download=1`}
+                  onClick={() => setActionsMenuId(null)}
+                >
+                  Baixar PDF
+                </a>
+              </>
+            ) : null}
+            {actionsMenuDonation.status === "RASCUNHO" ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={menuItemClass}
+                  onClick={() => {
+                    setActionsMenuId(null);
+                    openEdit(actionsMenuDonation, false);
+                  }}
+                >
+                  Editar termo
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={menuItemClass}
+                  disabled={confirmingId === actionsMenuDonation.id}
+                  onClick={() => void confirmDonation(actionsMenuDonation.id)}
+                >
+                  {confirmingId === actionsMenuDonation.id ? "Confirmando…" : "Confirmar"}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                className={menuItemClass}
+                onClick={() => {
+                  setActionsMenuId(null);
+                  openEdit(actionsMenuDonation, true);
+                }}
+              >
+                Editar termo / anexos
+              </button>
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              className={menuItemClass}
+              onClick={() => {
+                setActionsMenuId(null);
+                openEdit(actionsMenuDonation, actionsMenuDonation.status !== "RASCUNHO");
+              }}
+            >
+              Gerenciar anexos
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className={`${menuItemClass} text-red-600 dark:text-red-400`}
+              disabled={deletingId === actionsMenuDonation.id}
+              onClick={() => void archiveDonation(actionsMenuDonation)}
+            >
+              {deletingId === actionsMenuDonation.id ? "Excluindo…" : "Excluir termo"}
+            </button>
+          </div>,
+          document.body,
+        )}
+
       <Modal
         open={previewDonation != null}
         title={
@@ -588,27 +993,100 @@ export default function DoacoesPage() {
         size="large"
       >
         {previewDonation ? (
-          <iframe
-            title={
-              previewDonation.termNumber != null
-                ? `Termo nº ${previewDonation.termNumber}`
-                : "Termo de doação"
-            }
-            src={`/api/admin/gerencia/doacoes/${previewDonation.id}/pdf`}
-            className="h-[75vh] w-full rounded-md border border-[var(--card-border)] bg-white"
-          />
+          <div className="space-y-3">
+            {(previewDonation.attachments?.length ?? 0) > 1 ? (
+              <div className="flex flex-wrap gap-2">
+                {previewDonation.attachments!.map((a) => (
+                  <a
+                    key={a.id}
+                    href={`/api/admin/gerencia/doacoes/${previewDonation.id}/pdf?attachmentId=${a.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md border border-[var(--card-border)] px-2 py-1 text-xs hover:bg-[var(--igh-surface)]"
+                  >
+                    {a.description || DONATION_ATTACHMENT_KIND_LABEL[a.kind]}
+                  </a>
+                ))}
+              </div>
+            ) : null}
+            <iframe
+              title={
+                previewDonation.termNumber != null
+                  ? `Termo nº ${previewDonation.termNumber}`
+                  : "Termo de doação"
+              }
+              src={`/api/admin/gerencia/doacoes/${previewDonation.id}/pdf`}
+              className="h-[75vh] w-full rounded-md border border-[var(--card-border)] bg-white"
+            />
+          </div>
         ) : null}
       </Modal>
 
       <Modal
         open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditingId(null);
-        }}
-        title={editingId ? "Editar rascunho de doação" : "Novo termo de doação"}
+        onClose={closeForm}
+        title={
+          editingId
+            ? attachmentsOnlyEdit
+              ? "Editar termo / anexos"
+              : "Editar rascunho de doação"
+            : "Novo termo de doação"
+        }
       >
         <div className="grid max-h-[70vh] gap-3 overflow-y-auto sm:grid-cols-2">
+          {!editingId ? (
+            <div className="sm:col-span-2 space-y-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-3">
+              <p className="text-sm font-medium text-[var(--text-primary)]">
+                Termo já assinado (histórico)
+              </p>
+              <p className="text-xs text-[var(--text-muted)]">
+                Anexe o PDF/imagem do termo impresso e assinado. Tentamos reconhecer doadora,
+                donatária, data e kits para preencher o formulário.
+              </p>
+              <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  className="text-xs"
+                  disabled={uploading || readingTerm}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) void uploadAttachment(file, "ASSINADO");
+                  }}
+                />
+              </label>
+              {uploading || readingTerm ? (
+                <p className="text-xs text-[var(--text-muted)]">
+                  {uploading ? "Enviando arquivo…" : "Lendo termo…"}
+                </p>
+              ) : null}
+              {ocrNote ? <p className="text-xs text-[var(--text-muted)]">{ocrNote}</p> : null}
+            </div>
+          ) : null}
+
+          {donatariaCandidate && !form.donatariaId ? (
+            <div className="sm:col-span-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm dark:border-amber-700/50 dark:bg-amber-950/30">
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={createDonataria}
+                  onChange={(e) => setCreateDonataria(e.target.checked)}
+                />
+                <span>
+                  Donatária <strong>{donatariaCandidate.name}</strong>
+                  {donatariaCandidate.document ? ` (${donatariaCandidate.document})` : ""} não
+                  cadastrada. Cadastrar automaticamente ao salvar?
+                  <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                    Revise os dados antes de confirmar — o cadastro usa o que foi extraído do
+                    termo.
+                  </span>
+                </span>
+              </label>
+            </div>
+          ) : null}
+
           <div className="sm:col-span-2 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm text-[var(--text-muted)]">
             <p className="font-medium text-[var(--text-primary)]">Quem participa do termo</p>
             <p className="mt-1">
@@ -621,6 +1099,7 @@ export default function DoacoesPage() {
             <select
               className={selectClass}
               value={form.donorInstitutionId}
+              disabled={fieldsLocked}
               onChange={(e) => setForm((f) => ({ ...f, donorInstitutionId: e.target.value }))}
             >
               <option value="">Selecione a doadora…</option>
@@ -644,9 +1123,19 @@ export default function DoacoesPage() {
             <select
               className={selectClass}
               value={form.donatariaId}
-              onChange={(e) => setForm((f) => ({ ...f, donatariaId: e.target.value }))}
+              disabled={fieldsLocked}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, donatariaId: e.target.value }));
+                if (e.target.value) {
+                  setCreateDonataria(false);
+                }
+              }}
             >
-              <option value="">Selecione a donatária…</option>
+              <option value="">
+                {createDonataria && donatariaCandidate
+                  ? `Nova: ${donatariaCandidate.name}`
+                  : "Selecione a donatária…"}
+              </option>
               {donatarias.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
@@ -666,6 +1155,7 @@ export default function DoacoesPage() {
             <select
               className={selectClass}
               value={form.kind}
+              disabled={fieldsLocked}
               onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as DonationKind }))}
             >
               {DONATION_KINDS.map((k) => (
@@ -680,6 +1170,7 @@ export default function DoacoesPage() {
             <Input
               type="date"
               value={form.donatedAt}
+              disabled={fieldsLocked}
               onChange={(e) => setForm((f) => ({ ...f, donatedAt: e.target.value }))}
             />
           </label>
@@ -688,6 +1179,7 @@ export default function DoacoesPage() {
             <Input
               placeholder="Pessoa, político ou entidade"
               value={form.belongsTo}
+              disabled={fieldsLocked}
               onChange={(e) => setForm((f) => ({ ...f, belongsTo: e.target.value }))}
             />
           </label>
@@ -695,6 +1187,7 @@ export default function DoacoesPage() {
             <span className="mb-1 block text-sm">Local e data por extenso</span>
             <Input
               value={form.placeDateText}
+              disabled={fieldsLocked}
               onChange={(e) => setForm((f) => ({ ...f, placeDateText: e.target.value }))}
             />
           </label>
@@ -704,6 +1197,7 @@ export default function DoacoesPage() {
               <Input
                 placeholder="0,00"
                 value={form.amount}
+                disabled={fieldsLocked}
                 onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
               />
             </label>
@@ -712,6 +1206,7 @@ export default function DoacoesPage() {
             <span className="mb-1 block text-sm">Descrição</span>
             <Input
               value={form.description}
+              disabled={fieldsLocked}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             />
           </label>
@@ -720,6 +1215,7 @@ export default function DoacoesPage() {
             <select
               className={selectClass}
               value={form.templateId}
+              disabled={fieldsLocked}
               onChange={(e) => setForm((f) => ({ ...f, templateId: e.target.value }))}
             >
               <option value="">Usar o mais recente (se houver)</option>
@@ -731,7 +1227,7 @@ export default function DoacoesPage() {
             </select>
           </label>
 
-          {showItems ? (
+          {showItems && !fieldsLocked ? (
             <div className="sm:col-span-2 space-y-3 rounded-md border border-[var(--card-border)] p-3">
               <p className="text-sm text-[var(--text-muted)]">
                 Cada kit contém: {kitDescription}.
@@ -788,10 +1284,11 @@ export default function DoacoesPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Itens extras (opcional)</span>
+                  <span className="text-sm font-medium">Itens extras</span>
                   <Button
                     size="sm"
                     variant="secondary"
+                    type="button"
                     onClick={() =>
                       setForm((f) => ({
                         ...f,
@@ -861,6 +1358,108 @@ export default function DoacoesPage() {
             </div>
           ) : null}
 
+          <div className="sm:col-span-2 space-y-2 rounded-md border border-[var(--card-border)] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">Anexos do termo</p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  PDF gerado e cópias assinadas/escaneadas (até {MAX_DONATION_ATTACHMENTS}).
+                </p>
+              </div>
+              {form.attachments.length < MAX_DONATION_ATTACHMENTS ? (
+                <label className="inline-flex cursor-pointer">
+                  <span className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1.5 text-xs font-medium">
+                    {uploading ? "Enviando…" : "+ Anexar arquivo"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) void uploadAttachment(file, "ASSINADO");
+                    }}
+                  />
+                </label>
+              ) : null}
+            </div>
+            {form.attachments.length === 0 ? (
+              <p className="text-xs text-[var(--text-muted)]">Nenhum anexo ainda.</p>
+            ) : (
+              <ul className="space-y-2">
+                {form.attachments.map((a) => (
+                  <li
+                    key={a.key}
+                    className="flex flex-wrap items-center gap-2 rounded-md border border-[var(--card-border)] px-2 py-2 text-sm"
+                  >
+                    <select
+                      className={selectClass + " w-auto max-w-[10rem]"}
+                      value={a.kind}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          attachments: prev.attachments.map((item) =>
+                            item.key === a.key
+                              ? {
+                                  ...item,
+                                  kind: e.target.value as DonationAttachmentKindValue,
+                                  description:
+                                    DONATION_ATTACHMENT_KIND_LABEL[
+                                      e.target.value as DonationAttachmentKindValue
+                                    ],
+                                }
+                              : item,
+                          ),
+                        }))
+                      }
+                    >
+                      <option value="ASSINADO">Termo assinado</option>
+                      <option value="GERADO">PDF gerado</option>
+                      <option value="OUTRO">Outro</option>
+                    </select>
+                    <Input
+                      className="min-w-[8rem] flex-1"
+                      value={a.description}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          attachments: prev.attachments.map((item) =>
+                            item.key === a.key
+                              ? { ...item, description: e.target.value }
+                              : item,
+                          ),
+                        }))
+                      }
+                    />
+                    <a
+                      href={a.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-[var(--igh-primary)] hover:underline"
+                    >
+                      {a.fileName || "Abrir"}
+                    </a>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          attachments: prev.attachments.filter((item) => item.key !== a.key),
+                        }))
+                      }
+                    >
+                      Remover
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {!editingId ? (
             <>
               <label className="flex items-center gap-2 text-sm sm:col-span-2">
@@ -896,30 +1495,31 @@ export default function DoacoesPage() {
                 Lançar no financeiro
               </label>
             </>
+          ) : fieldsLocked ? (
+            <p className="text-sm text-[var(--text-muted)] sm:col-span-2">
+              Termo confirmado: você pode gerenciar anexos (ex.: cópia assinada). Os demais dados
+              do rascunho não são alterados aqui.
+            </p>
           ) : (
             <p className="text-sm text-[var(--text-muted)] sm:col-span-2">
-              Após salvar o rascunho, use <strong>Confirmar</strong> na lista para gerar PDF e
-              baixar estoque/financeiro.
+              Após salvar o rascunho, use <strong>Confirmar</strong> no menu de ações para gerar
+              PDF e baixar estoque/financeiro.
             </p>
           )}
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setFormOpen(false);
-              setEditingId(null);
-            }}
-          >
+          <Button variant="secondary" onClick={closeForm}>
             Cancelar
           </Button>
-          <Button onClick={() => void save()} disabled={saving}>
+          <Button onClick={() => void save()} disabled={saving || uploading || readingTerm}>
             {saving
               ? "Salvando…"
               : editingId
-                ? "Salvar rascunho"
+                ? attachmentsOnlyEdit
+                  ? "Salvar anexos"
+                  : "Salvar rascunho"
                 : form.confirmNow
-                  ? "Gerar termo"
+                  ? "Criar e confirmar"
                   : "Salvar rascunho"}
           </Button>
         </div>

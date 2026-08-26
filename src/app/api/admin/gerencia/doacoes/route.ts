@@ -3,6 +3,7 @@ import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { getKitComponentsFromCatalog } from "@/lib/equipment-catalog";
 import { expandDonationKitItems } from "@/lib/donation-kits";
+import { normalizeDonationAttachmentInputs } from "@/lib/donation-attachments";
 import {
   confirmDonationSideEffects,
   donationInclude,
@@ -61,11 +62,47 @@ export async function POST(request: Request) {
   }
 
   const data = parsed.data;
-  const donataria = await prisma.donataria.findFirst({
-    where: { id: data.donatariaId, deletedAt: null, isActive: true },
-    select: { id: true },
-  });
-  if (!donataria) return jsonErr("NOT_FOUND", "Donatária não encontrada.", 404);
+  let donatariaId = data.donatariaId ?? null;
+
+  if (data.createDonataria) {
+    const createdDonataria = await prisma.donataria.create({
+      data: {
+        name: data.createDonataria.name,
+        document: data.createDonataria.document ?? null,
+        email: data.createDonataria.email ?? null,
+        phone: data.createDonataria.phone ?? null,
+        contactName: data.createDonataria.contactName ?? null,
+        cep: data.createDonataria.cep ?? null,
+        street: data.createDonataria.street ?? null,
+        number: data.createDonataria.number ?? null,
+        complement: data.createDonataria.complement ?? null,
+        neighborhood: data.createDonataria.neighborhood ?? null,
+        city: data.createDonataria.city ?? null,
+        state: data.createDonataria.state ?? null,
+        zone: data.createDonataria.zone ?? "URBANA",
+        notes: data.createDonataria.notes ?? null,
+        isActive: data.createDonataria.isActive ?? true,
+        createdByUserId: actor.id,
+      },
+      select: { id: true },
+    });
+    donatariaId = createdDonataria.id;
+    await createAuditLog({
+      entityType: "Donataria",
+      entityId: createdDonataria.id,
+      action: "CREATE",
+      diff: { source: "donation-term-import", name: data.createDonataria.name },
+      performedByUserId: actor.id,
+    });
+  } else if (donatariaId) {
+    const donataria = await prisma.donataria.findFirst({
+      where: { id: donatariaId, deletedAt: null, isActive: true },
+      select: { id: true },
+    });
+    if (!donataria) return jsonErr("NOT_FOUND", "Donatária não encontrada.", 404);
+  }
+
+  if (!donatariaId) return jsonErr("VALIDATION_ERROR", "Selecione ou cadastre a donatária.", 400);
 
   const donor = await resolveDonorInstitution(data.donorInstitutionId, actor.id);
   if (data.donorInstitutionId && donor.id !== data.donorInstitutionId) {
@@ -93,7 +130,6 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", "Informe kits ou ao menos um item para doação de bens.", 400);
   }
 
-  // Tenta vincular itens do kit ao estoque pelo nome (baixa automática quando houver match).
   const stockByName = await prisma.inventoryItem.findMany({
     where: { deletedAt: null, isActive: true },
     select: { id: true, name: true },
@@ -116,9 +152,11 @@ export async function POST(request: Request) {
     }
   }
 
+  const attachments = normalizeDonationAttachmentInputs(data.attachments);
+
   const created = await prisma.donation.create({
     data: {
-      donatariaId: data.donatariaId,
+      donatariaId,
       donorInstitutionId: donor.id,
       kind: data.kind,
       donatedAt: data.donatedAt,
@@ -138,6 +176,18 @@ export async function POST(request: Request) {
           unit: item.unit,
         })),
       },
+      attachments:
+        attachments.length > 0
+          ? {
+              create: attachments.map((a) => ({
+                url: a.url,
+                publicId: a.publicId ?? null,
+                fileName: a.fileName ?? null,
+                description: a.description,
+                kind: a.kind ?? "OUTRO",
+              })),
+            }
+          : undefined,
     },
     include: donationInclude,
   });
@@ -146,7 +196,13 @@ export async function POST(request: Request) {
     entityType: "Donation",
     entityId: created.id,
     action: "CREATE",
-    diff: { donatariaId: data.donatariaId, donorInstitutionId: donor.id, kind: data.kind, status: "RASCUNHO" },
+    diff: {
+      donatariaId,
+      donorInstitutionId: donor.id,
+      kind: data.kind,
+      status: "RASCUNHO",
+      attachments: attachments.length,
+    },
     performedByUserId: actor.id,
   });
 
