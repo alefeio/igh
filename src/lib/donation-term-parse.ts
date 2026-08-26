@@ -53,9 +53,10 @@ export function normalizeDonationTermOcrText(raw: string): string {
   return raw
     .replace(/\u0000/g, " ")
     .replace(/\r/g, "\n")
-    // e-mail: guilherme(&igh.org.br → guilherme@igh.org.br
+    // e-mail: guilherme(&igh.org.br / guilherme&igh.org.br → @
     .replace(/([A-Za-z0-9._%+-])\(&/g, "$1@")
     .replace(/([A-Za-z0-9._%+-])\(@/g, "$1@")
+    .replace(/([A-Za-z0-9._%+-])&(?=[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, "$1@")
     // CNPJ com vírgula no lugar do ponto: 08,633,366 → 08.633.366
     .replace(/(\d),(\d{3})/g, "$1.$2")
     .replace(/DONAT[ÁA]RIA\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ]?\s*(?=\n)/gi, "DONATÁRIA\n")
@@ -80,9 +81,11 @@ function cleanValue(raw: string | undefined | null): string | undefined {
   v = v
     .replace(/^;\s*/, "")
     .replace(/\s+[Íí]\s*$/u, "")
-    .replace(/\s*[:|]+\s*$/u, "")
+    .replace(/\s*[—–\-|:.]+\s*$/u, "")
     .replace(/\s+[a-zA-ZÁÉÍÓÚáéíóú]\s*$/u, "")
     .trim();
+  // sobras tipo "NOME — ]" ou "NOME ]"
+  v = v.replace(/\s*[\]\[]+\s*$/u, "").replace(/\s*[—–]\s*[\]\[]?\s*$/u, "").trim();
   if (!v || /^[\-–—_]+$/.test(v) || v.length === 1) return undefined;
   return v.slice(0, 240);
 }

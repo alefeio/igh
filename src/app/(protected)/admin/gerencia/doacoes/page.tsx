@@ -479,11 +479,14 @@ export default function DoacoesPage() {
 
   async function readSignedTerm(url: string, fileName: string | null) {
     setReadingTerm(true);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 75_000);
     try {
       const res = await fetch("/api/admin/gerencia/doacoes/ler-termo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attachmentUrl: url, attachmentFileName: fileName }),
+        signal: controller.signal,
       });
       const json = (await res.json()) as ApiResponse<TermReadResult>;
       if (!res.ok || !json.ok) {
@@ -491,9 +494,16 @@ export default function DoacoesPage() {
         return;
       }
       await applyTermSuggestion(json.data);
-    } catch {
-      toast.push("error", "Falha ao ler o termo.");
+    } catch (e) {
+      const aborted = e instanceof DOMException && e.name === "AbortError";
+      toast.push(
+        "error",
+        aborted
+          ? "A leitura demorou demais. O anexo foi mantido — preencha os campos manualmente."
+          : "Falha ao ler o termo.",
+      );
     } finally {
+      window.clearTimeout(timeoutId);
       setReadingTerm(false);
     }
   }

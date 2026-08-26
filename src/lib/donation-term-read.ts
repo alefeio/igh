@@ -98,14 +98,30 @@ async function tryExtractPdfText(buffer: Buffer): Promise<{ text: string; error?
 
 type PagePng = { buffer: Buffer; pageNumber: number };
 
-async function renderPdfPagesToPng(buffer: Buffer, maxPages = 2): Promise<PagePng[]> {
+const OCR_TIMEOUT_MS = 45_000;
+const DOWNLOAD_TIMEOUT_MS = 20_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise.finally(() => {
+      if (timer) clearTimeout(timer);
+    }),
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} excedeu ${Math.round(ms / 1000)}s`)), ms);
+    }),
+  ]);
+}
+
+/** Preferência: só a 1ª página (DOADORA/DONATÁRIA); scale moderado para OCR mais rápido. */
+async function renderPdfPagesToPng(buffer: Buffer, maxPages = 1): Promise<PagePng[]> {
   const { CanvasFactory } = await import("pdf-parse/worker");
   const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: Uint8Array.from(buffer), CanvasFactory });
   try {
     const shot = await parser.getScreenshot({
       first: maxPages,
-      scale: 2,
+      scale: 1.5,
       imageBuffer: true,
       imageDataUrl: false,
     });
@@ -124,11 +140,14 @@ async function renderPdfPagesToPng(buffer: Buffer, maxPages = 2): Promise<PagePn
 }
 
 async function ocrImageBuffer(png: Buffer): Promise<string> {
-  const Tesseract = await import("tesseract.js");
-  const result = await Tesseract.recognize(png, "por", {
-    logger: () => undefined,
-  });
-  return (result.data.text || "").trim();
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("por");
+  try {
+    const result = await worker.recognize(png);
+    return (result.data.text || "").trim();
+  } finally {
+    await worker.terminate().catch(() => undefined);
+  }
 }
 
 async function tryOcrFromPdfOrImage(
@@ -136,27 +155,33 @@ async function tryOcrFromPdfOrImage(
   mime: string,
 ): Promise<{ text: string; warning?: string }> {
   try {
-    if (mime === "application/pdf") {
-      const pages = await renderPdfPagesToPng(buffer, 2);
-      if (pages.length === 0) {
-        return { text: "", warning: "Não foi possível renderizar páginas do PDF para OCR." };
-      }
-      const parts: string[] = [];
-      for (const p of pages) {
-        const t = await ocrImageBuffer(p.buffer);
-        if (t) parts.push(t);
-      }
-      return { text: parts.join("\n\n") };
-    }
-    if (mime.startsWith("image/")) {
-      const text = await ocrImageBuffer(buffer);
-      return { text };
-    }
-    return { text: "", warning: "Formato sem suporte a OCR local." };
+    return await withTimeout(
+      (async () => {
+        if (mime === "application/pdf") {
+          // Só página 1: contém DOADORA/DONATÁRIA; página 2 (acordo) é cara e pouco útil para o form.
+          const pages = await renderPdfPagesToPng(buffer, 1);
+          if (pages.length === 0) {
+            return { text: "", warning: "Não foi possível renderizar páginas do PDF para OCR." };
+          }
+          const text = await ocrImageBuffer(pages[0].buffer);
+          return { text };
+        }
+        if (mime.startsWith("image/")) {
+          const text = await ocrImageBuffer(buffer);
+          return { text };
+        }
+        return { text: "", warning: "Formato sem suporte a OCR local." };
+      })(),
+      OCR_TIMEOUT_MS,
+      "OCR",
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "erro desconhecido";
     console.error("[donation-term-read] OCR failed:", msg);
-    return { text: "", warning: `OCR local falhou (${msg.slice(0, 120)}).` };
+    return {
+      text: "",
+      warning: `OCR local indisponível (${msg.slice(0, 120)}). Preencha os campos manualmente.`,
+    };
   }
 }
 
@@ -383,11 +408,45 @@ export async function readDonationTermAttachment(opts: {
     };
   }
 
-  const res = await fetch(opts.attachmentUrl, {
-    headers: { Accept: "application/pdf,image/*,*/*" },
-    cache: "no-store",
-    redirect: "follow",
-  });
+  const fileHint = donatariaNameHintFromFileName(opts.attachmentFileName);
+
+  let res: Response;
+  try {
+    res = await fetch(opts.attachmentUrl, {
+      headers: { Accept: "application/pdf,image/*,*/*" },
+      cache: "no-store",
+      redirect: "follow",
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "falha de rede";
+    return {
+      suggestion: fileHint
+        ? { donatariaName: fileHint, description: "Termo de doação de equipamentos" }
+        : {},
+      source: "partial",
+      warnings: [
+        `Não foi possível baixar o anexo a tempo (${msg.slice(0, 80)}).`,
+        ...(fileHint ? [`Nome da donatária sugerido a partir do arquivo: “${fileHint}”.`] : []),
+      ],
+      matchedDonorInstitutionId: null,
+      matchedDonatariaId: null,
+      donatariaCreateCandidate: fileHint
+        ? {
+            name: fileHint,
+            document: null,
+            email: null,
+            phone: null,
+            contactName: null,
+            street: null,
+            city: null,
+            state: null,
+            cep: null,
+            zone: "URBANA" as const,
+          }
+        : null,
+    };
+  }
   if (!res.ok) {
     return {
       suggestion: {},
@@ -424,8 +483,6 @@ export async function readDonationTermAttachment(opts: {
   const mime = guessMime(opts.attachmentFileName ?? undefined, res.headers.get("content-type"), buffer);
   let suggestion: DonationTermSuggestion = {};
   let source: DonationTermReadResult["source"] = "partial";
-
-  const fileHint = donatariaNameHintFromFileName(opts.attachmentFileName);
 
   if (mime === "application/pdf") {
     const { text, error } = await tryExtractPdfText(buffer);
@@ -475,8 +532,13 @@ export async function readDonationTermAttachment(opts: {
 
   if (!suggestion.donatariaName && fileHint) {
     suggestion.donatariaName = fileHint;
-    if (source === "partial") source = "partial";
     warnings.push(`Nome da donatária sugerido a partir do arquivo: “${fileHint}”.`);
+  }
+
+  // Se OCR/visão falharam, ainda devolve hint do arquivo como parcial útil
+  if (!isDonationTermSuggestionUseful(suggestion) && fileHint) {
+    suggestion.donatariaName = fileHint;
+    suggestion.description = suggestion.description ?? "Termo de doação de equipamentos";
   }
 
   const parties = await matchDonationTermParties(suggestion, {
