@@ -135,6 +135,7 @@ export default function ProfessorApresentarAulaPage() {
   const [showExerciseAnswers, setShowExerciseAnswers] = useState(false);
   const contentWrapperRef = useRef<HTMLDivElement>(null);
   const contentPageIndexRef = useRef(0);
+  const hasSetUrlFromStorageRef = useRef(false);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
   const courseNavRef = useRef<HTMLDivElement>(null);
 
@@ -173,9 +174,11 @@ export default function ProfessorApresentarAulaPage() {
   const [openSection, setOpenSection] = useState<SectionKey | null>(null);
   const [studentPreview, setStudentPreview] = useState(false);
   const [quizFullscreen, setQuizFullscreen] = useState(false);
+  const [initialSlideIndex, setInitialSlideIndex] = useState(0);
 
   const localStoragePassagesKey = `teacher-presentation:${classGroupId}:${lessonId}:passages:v2`;
   const localStorageNotesKey = `teacher-presentation:${classGroupId}:${lessonId}:notes`;
+  const localStorageLastPageKey = `teacher-presentation:${classGroupId}:${lessonId}:lastPageIndex`;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -211,6 +214,17 @@ export default function ProfessorApresentarAulaPage() {
     setOpenSection(null);
     setStudentPreview(false);
     setQuizFullscreen(false);
+    hasSetUrlFromStorageRef.current = false;
+    setInitialSlideIndex(0);
+    try {
+      const rawLastPage = localStorage.getItem(localStorageLastPageKey);
+      if (rawLastPage != null) {
+        const parsed = parseInt(rawLastPage, 10);
+        if (Number.isFinite(parsed) && parsed >= 0) setInitialSlideIndex(parsed);
+      }
+    } catch {
+      /* ignore */
+    }
     try {
       const rawPassages = localStorage.getItem(localStoragePassagesKey);
       if (rawPassages) {
@@ -234,7 +248,7 @@ export default function ProfessorApresentarAulaPage() {
     } catch {
       setNotes([]);
     }
-  }, [lessonId, localStorageNotesKey, localStoragePassagesKey]);
+  }, [lessonId, localStorageLastPageKey, localStorageNotesKey, localStoragePassagesKey]);
 
   useEffect(() => {
     try {
@@ -794,7 +808,58 @@ export default function ProfessorApresentarAulaPage() {
     hasMultiplePages && totalPages > 0 && Number.isFinite(parsedPagina)
       ? Math.max(0, Math.min(totalPages - 1, parsedPagina - 1))
       : null;
-  const contentPageIndex = hasMultiplePages ? (contentPageIndexFromUrl ?? 0) : 0;
+  const contentPageIndex =
+    hasMultiplePages && totalPages > 0 ? (contentPageIndexFromUrl ?? initialSlideIndex) : 0;
+
+  const persistLastPageIndex = useCallback(
+    (index: number) => {
+      try {
+        localStorage.setItem(localStorageLastPageKey, String(index));
+      } catch {
+        /* ignore */
+      }
+    },
+    [localStorageLastPageKey],
+  );
+
+  /** Sem ?pagina= na URL, restaura a última página visitada nesta turma/aula. */
+  useEffect(() => {
+    if (
+      !hasMultiplePages ||
+      !lesson ||
+      hasSetUrlFromStorageRef.current ||
+      totalPages === 0 ||
+      searchParams.get("pagina") != null
+    ) {
+      return;
+    }
+    let saved = initialSlideIndex;
+    try {
+      const raw = localStorage.getItem(localStorageLastPageKey);
+      if (raw != null) {
+        const parsed = parseInt(raw, 10);
+        if (Number.isFinite(parsed) && parsed >= 0) saved = parsed;
+      }
+    } catch {
+      /* ignore */
+    }
+    const clamped = Math.max(0, Math.min(totalPages - 1, saved));
+    hasSetUrlFromStorageRef.current = true;
+    setInitialSlideIndex(clamped);
+    if (clamped <= 0) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("pagina", String(clamped + 1));
+    router.replace(`${presentationPath}?${params.toString()}#conteudo`);
+  }, [
+    hasMultiplePages,
+    initialSlideIndex,
+    lesson,
+    localStorageLastPageKey,
+    presentationPath,
+    router,
+    searchParams,
+    totalPages,
+  ]);
 
   const currentContentSection = contentPages[contentPageIndex];
   const contentToShow =
@@ -830,6 +895,7 @@ export default function ProfessorApresentarAulaPage() {
     (index: number) => {
       if (!hasMultiplePages || !lesson) return;
       const clamped = Math.max(0, Math.min(totalPages - 1, index));
+      persistLastPageIndex(clamped);
       const params = new URLSearchParams(searchParams.toString());
       params.set("pagina", String(clamped + 1));
       router.replace(`${presentationPath}?${params.toString()}#conteudo`);
@@ -837,7 +903,16 @@ export default function ProfessorApresentarAulaPage() {
         setTimeout(() => contentWrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
       }
     },
-    [hasMultiplePages, isContentFullscreen, lesson, presentationPath, router, searchParams, totalPages]
+    [
+      hasMultiplePages,
+      isContentFullscreen,
+      lesson,
+      persistLastPageIndex,
+      presentationPath,
+      router,
+      searchParams,
+      totalPages,
+    ],
   );
 
   const gotoPrevSlide = useCallback(() => {
@@ -884,6 +959,25 @@ export default function ProfessorApresentarAulaPage() {
     window.addEventListener("keydown", onKeyDown, { passive: false });
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [hasMultiplePages, gotoPrevSlide, gotoNextSlide]);
+
+  useEffect(() => {
+    if (!hasMultiplePages || searchParams.get("pagina") == null) return;
+    persistLastPageIndex(contentPageIndex);
+  }, [contentPageIndex, hasMultiplePages, persistLastPageIndex, searchParams]);
+
+  useEffect(() => {
+    if (!hasMultiplePages) return;
+    const save = () => persistLastPageIndex(contentPageIndexRef.current);
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") save();
+    };
+    window.addEventListener("pagehide", save);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", save);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [hasMultiplePages, persistLastPageIndex]);
 
   useEffect(() => {
     const sync = () => {

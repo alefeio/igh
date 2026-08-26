@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    siteSettings: {
+      findFirst: vi.fn(async () => ({ logoUrl: null })),
+    },
+  },
+}));
 
 import { isIghDonationTemplate, renderIghDonationTermPdf } from "@/lib/admin/donation-term-igh-pdf";
 

@@ -16,6 +16,18 @@ type ModuleRow = {
   lessons: { id: string; title: string; order: number; sessionDate: string | null }[];
 };
 
+function lastVisitedPageQuery(classGroupId: string, lessonId: string): string {
+  try {
+    const raw = localStorage.getItem(`teacher-presentation:${classGroupId}:${lessonId}:lastPageIndex`);
+    if (raw == null) return "";
+    const index = parseInt(raw, 10);
+    if (!Number.isFinite(index) || index <= 0) return "";
+    return `?pagina=${index + 1}`;
+  } catch {
+    return "";
+  }
+}
+
 export default function ProfessorApresentarIndexPage() {
   const params = useParams();
   const classGroupId = params.id as string;
@@ -82,7 +94,7 @@ export default function ProfessorApresentarIndexPage() {
                   {mod.lessons.map((les) => (
                     <li key={les.id}>
                       <Link
-                        href={`/professor/turmas/${classGroupId}/apresentar/${les.id}`}
+                        href={`/professor/turmas/${classGroupId}/apresentar/${les.id}${lastVisitedPageQuery(classGroupId, les.id)}`}
                         className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-[var(--text-primary)] transition hover:bg-[var(--igh-surface)]"
                       >
                         <span className="min-w-0">

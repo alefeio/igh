@@ -7,6 +7,7 @@ import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 
 import { DEFAULT_DONATION_KIT, expandDonationKitItems } from "@/lib/donation-kits";
+import { prisma } from "@/lib/prisma";
 
 export type IghDonationTermInput = {
   donor: {
@@ -45,9 +46,15 @@ export type IghDonationTermInput = {
 
 const FONT_REGULAR_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Regular.ttf");
 const FONT_BOLD_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Bold.ttf");
-const LOGO_IGH = path.join(process.cwd(), "assets", "gerencia", "termo-doacao", "logo-igh.png");
+const LOGO_SITE_FALLBACK = path.join(process.cwd(), "public", "images", "logo.png");
+const LOGO_IGH_FALLBACK = path.join(process.cwd(), "assets", "gerencia", "termo-doacao", "logo-igh.png");
 const LOGO_CPI = path.join(process.cwd(), "assets", "gerencia", "termo-doacao", "logo-cpi.png");
 const LOGO_BRASIL = path.join(process.cwd(), "assets", "gerencia", "termo-doacao", "logo-brasil.png");
+
+/** Altura alvo das logomarcas no rodapé (pt). */
+const LOGO_FOOTER_HEIGHT = 64;
+const LOGO_FOOTER_MAX_WIDTH = 185;
+const LOGO_FOOTER_Y = 20;
 
 const BLACK = rgb(0, 0, 0);
 const MONTHS_PT = [
@@ -193,28 +200,103 @@ function rowHeight(font: PDFFont, cells: Cell[], size: number, minH: number): nu
   return Math.max(minH, lines * (size + 1.5) + 6);
 }
 
-async function embedLogos(doc: PDFDocument): Promise<{ igh: PDFImage; cpi: PDFImage; brasil: PDFImage }> {
+async function embedImageBytes(doc: PDFDocument, bytes: Uint8Array): Promise<PDFImage | null> {
+  try {
+    const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+    const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
+    if (isPng) return await doc.embedPng(bytes);
+    if (isJpeg) return await doc.embedJpg(bytes);
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function resolveSiteLogoUrl(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const base = (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const p = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return `${base}${p}`;
+}
+
+async function embedSiteLogo(doc: PDFDocument): Promise<PDFImage> {
+  try {
+    const settings = await prisma.siteSettings.findFirst({
+      select: { logoUrl: true },
+    });
+    const url = resolveSiteLogoUrl(settings?.logoUrl);
+    if (url) {
+      const imgRes = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (imgRes.ok) {
+        const bytes = new Uint8Array(await imgRes.arrayBuffer());
+        const embedded = await embedImageBytes(doc, bytes);
+        if (embedded) return embedded;
+      }
+    }
+  } catch {
+    /* fallback abaixo */
+  }
+  const fallbackPath = fs.existsSync(LOGO_SITE_FALLBACK)
+    ? LOGO_SITE_FALLBACK
+    : LOGO_IGH_FALLBACK;
+  return embedLocalImage(doc, fallbackPath);
+}
+
+async function embedLocalImage(doc: PDFDocument, filePath: string): Promise<PDFImage> {
+  const bytes = new Uint8Array(fs.readFileSync(filePath));
+  const embedded = await embedImageBytes(doc, bytes);
+  if (!embedded) throw new Error(`Falha ao embutir imagem: ${filePath}`);
+  return embedded;
+}
+
+async function embedLogos(doc: PDFDocument): Promise<{ site: PDFImage; cpi: PDFImage; brasil: PDFImage }> {
   return {
-    igh: await doc.embedPng(fs.readFileSync(LOGO_IGH)),
-    cpi: await doc.embedPng(fs.readFileSync(LOGO_CPI)),
-    brasil: await doc.embedPng(fs.readFileSync(LOGO_BRASIL)),
+    site: await embedSiteLogo(doc),
+    cpi: await embedLocalImage(doc, LOGO_CPI),
+    brasil: await embedLocalImage(doc, LOGO_BRASIL),
   };
+}
+
+function logoDrawSize(img: PDFImage): { width: number; height: number } {
+  let height = LOGO_FOOTER_HEIGHT;
+  let width = (img.width / img.height) * height;
+  if (width > LOGO_FOOTER_MAX_WIDTH) {
+    width = LOGO_FOOTER_MAX_WIDTH;
+    height = (img.height / img.width) * width;
+  }
+  return { width, height };
 }
 
 function drawLogos(
   page: PDFPage,
-  logos: { igh: PDFImage; cpi: PDFImage; brasil: PDFImage },
+  logos: { site: PDFImage; cpi: PDFImage; brasil: PDFImage },
   margin: number,
   pageWidth: number,
 ) {
-  const h = 38;
-  const y = 18;
-  const ighW = (logos.igh.width / logos.igh.height) * h;
-  const cpiW = (logos.cpi.width / logos.cpi.height) * h;
-  const brW = (logos.brasil.width / logos.brasil.height) * h;
-  page.drawImage(logos.igh, { x: margin, y, width: ighW, height: h });
-  page.drawImage(logos.cpi, { x: (pageWidth - cpiW) / 2, y, width: cpiW, height: h });
-  page.drawImage(logos.brasil, { x: pageWidth - margin - brW, y, width: brW, height: h });
+  const site = logoDrawSize(logos.site);
+  const cpi = logoDrawSize(logos.cpi);
+  const brasil = logoDrawSize(logos.brasil);
+  const y = LOGO_FOOTER_Y;
+  page.drawImage(logos.site, {
+    x: margin,
+    y: y + (LOGO_FOOTER_HEIGHT - site.height) / 2,
+    width: site.width,
+    height: site.height,
+  });
+  page.drawImage(logos.cpi, {
+    x: (pageWidth - cpi.width) / 2,
+    y: y + (LOGO_FOOTER_HEIGHT - cpi.height) / 2,
+    width: cpi.width,
+    height: cpi.height,
+  });
+  page.drawImage(logos.brasil, {
+    x: pageWidth - margin - brasil.width,
+    y: y + (LOGO_FOOTER_HEIGHT - brasil.height) / 2,
+    width: brasil.width,
+    height: brasil.height,
+  });
 }
 
 function drawWrappedPara(
