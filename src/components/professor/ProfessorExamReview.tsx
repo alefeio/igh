@@ -25,6 +25,7 @@ type ReviewQuestion = {
   id: string;
   order: number;
   questionText: string;
+  answerJustification?: string | null;
   options: {
     id: string;
     label: string;
@@ -49,6 +50,7 @@ function QuestionBlock({
   lessonTitle,
   options,
   showStudentResult,
+  answerJustification,
 }: {
   order: number;
   questionText: string;
@@ -60,7 +62,9 @@ function QuestionBlock({
     isSelected?: boolean;
   }[];
   showStudentResult?: boolean;
+  answerJustification?: string | null;
 }) {
+  const justification = answerJustification?.trim();
   return (
     <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
       <p className="text-sm font-semibold text-[var(--text-muted)]">
@@ -99,6 +103,14 @@ function QuestionBlock({
           );
         })}
       </div>
+      {justification ? (
+        <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2.5 dark:border-sky-900 dark:bg-sky-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-300">
+            Justificativa
+          </p>
+          <p className="mt-1 text-sm whitespace-pre-wrap text-[var(--text-secondary)]">{justification}</p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -425,6 +437,7 @@ export function ProfessorExamReview({
                     order={q.order}
                     questionText={q.questionText}
                     options={q.options}
+                    answerJustification={q.answerJustification}
                     showStudentResult
                   />
                 ))}

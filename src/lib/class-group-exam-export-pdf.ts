@@ -67,6 +67,24 @@ function wrapLines(text: string, font: PDFFont, fontSize: number, maxWidth: numb
   return lines;
 }
 
+/** Quebra texto com parágrafos (preserva \n) para justificativas longas. */
+function wrapMultiline(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
+  const normalized = (text ?? "")
+    .toString()
+    .replace(/[\u{10000}-\u{10FFFF}]/gu, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .trim();
+  if (!normalized) return [];
+  const paragraphs = normalized.split(/\r?\n+/);
+  const lines: string[] = [];
+  for (const paragraph of paragraphs) {
+    const safe = toWinAnsiSafe(paragraph);
+    if (!safe) continue;
+    lines.push(...wrapLines(safe, font, fontSize, maxWidth));
+  }
+  return lines;
+}
+
 function ensureSpace(
   pdf: PDFDocument,
   pageRef: { page: PDFPage },
@@ -215,7 +233,7 @@ export async function buildExamAttemptsPdfBytes(
           color: rgb(0.2, 0.2, 0.35),
         });
         yRef.y -= 12;
-        for (const line of wrapLines(justification, font, 9, maxWidth)) {
+        for (const line of wrapMultiline(justification, font, 9, maxWidth)) {
           ensureSpace(pdf, pageRef, yRef, 12, width, height, margin);
           pageRef.page.drawText(line, {
             x: margin,
