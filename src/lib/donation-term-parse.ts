@@ -177,6 +177,24 @@ function parseZone(text: string): "URBANA" | "RURAL" | undefined {
   return undefined;
 }
 
+function parseDonatariaName(doneeSec: string, fullText: string): string | undefined {
+  const block = doneeSec || fullText;
+  const inst = block.match(/Institui[cç][aã]o\s*[:.]?\s*([\s\S]*?)(?=\n\s*CNPJ\s*[:.]?)/i);
+  if (inst?.[1]) {
+    const merged = inst[1]
+      .replace(/\n+/g, " ")
+      .replace(/\s*\|\s*/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const v = cleanValue(merged);
+    if (v && v.length >= 3) return v;
+  }
+  return (
+    afterLabel(block, ["Instituição", "Instituicao", "Nome"]) ??
+    afterLabel(fullText, ["Donatária", "Donataria"])
+  );
+}
+
 function parseKitsCount(text: string): number | undefined {
   const obj = sectionBetween(text, /OBJETO/i, /OBS:|ACORDO|São obrigações/i) || text;
 
@@ -213,13 +231,42 @@ function parseKitsCount(text: string): number | undefined {
     }
   }
   if (perKit.length > 0) {
-    // Moda (quantidade mais frequente); empate → mediana
     const freq = new Map<number, number>();
     for (const n of perKit) freq.set(n, (freq.get(n) ?? 0) + 1);
     let best = perKit[0];
     let bestCount = 0;
     for (const [n, c] of freq) {
       if (c > bestCount || (c === bestCount && n > best)) {
+        best = n;
+        bestCount = c;
+      }
+    }
+    if (best > 0 && best < 500) return best;
+  }
+
+  // OCR ruim: número isolado na tabela (ex.: linha só com "5" após "Equipamentos")
+  let afterEquipHeader = false;
+  const isolated: number[] = [];
+  for (const rawLine of obj.split(/\n+/)) {
+    const line = rawLine.trim();
+    if (/equipamentos/i.test(line)) {
+      afterEquipHeader = true;
+      continue;
+    }
+    if (!afterEquipHeader) continue;
+    if (/^(\d{1,2})$/.test(line)) {
+      const n = Number(line);
+      if (n >= 1 && n <= 99) isolated.push(n);
+    }
+  }
+  if (isolated.length === 1) return isolated[0];
+  if (isolated.length > 1) {
+    const freq = new Map<number, number>();
+    for (const n of isolated) freq.set(n, (freq.get(n) ?? 0) + 1);
+    let best = isolated[0];
+    let bestCount = 0;
+    for (const [n, c] of freq) {
+      if (c > bestCount) {
         best = n;
         bestCount = c;
       }
@@ -254,14 +301,16 @@ export function detectDonationTermTemplateKind(
 ): "IGH" | "INAC" | null {
   const digits = (donorDocument ?? "").replace(/\D/g, "");
   if (digits === IGH_DONOR_CNPJ_DIGITS) return "IGH";
-  const t = text.normalize("NFD").replace(/\p{M}/gu, "");
+  if (/\b08\.633\.366\/0001-00\b/.test(text)) return "IGH";
   if (
     /INSTITUTO\s+GUSTAVO\s+HESSEL/i.test(text) ||
     /\bCRC\s*[- ]?\s*IGH\b/i.test(text) ||
-    /\(IGH\)/i.test(text)
+    /\(IGH\)/i.test(text) ||
+    /TERMO\s+DE\s+DOA[CÇ][AÃ]O\s+DE\s+EQUIPAMENTOS/i.test(text)
   ) {
     return "IGH";
   }
+  const t = text.normalize("NFD").replace(/\p{M}/gu, "");
   if (/\bCRC\s*[- ]?\s*INAC\b/i.test(t) || /\bINAC\b/i.test(text)) return "INAC";
   if (/TERMO\s+DE\s+DOA/i.test(text)) return "INAC";
   return null;
@@ -314,9 +363,7 @@ export function extractDonationTermFromText(rawText: string): DonationTermSugges
       const d = onlyDigits(cpf);
       return d ? formatCnpjLike(d) : cleanValue(cpf);
     })(),
-    donatariaName:
-      afterLabel(doneeSec, ["Instituição", "Instituicao", "Nome"]) ??
-      afterLabel(text, ["Donatária", "Donataria"]),
+    donatariaName: parseDonatariaName(doneeSec, text),
     donatariaDocument: doneeDigits ? formatCnpjLike(doneeDigits) : cleanValue(doneeDocRaw),
     donatariaStreet: afterLabel(doneeSec, ["Endereço", "Endereco"]),
     donatariaCity:

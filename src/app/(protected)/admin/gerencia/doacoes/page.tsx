@@ -444,15 +444,20 @@ export default function DoacoesPage() {
       if (result.matchedDonatariaId) {
         next.donatariaId = result.matchedDonatariaId;
       }
-      if (result.matchedTemplateId) {
-        next.templateId = result.matchedTemplateId;
+      let templateId = result.matchedTemplateId;
+      if (!templateId && s.templateKind) {
+        templateId =
+          s.templateKind === "IGH"
+            ? (templates.find((t) => /\(IGH\)/i.test(t.title))?.id ?? null)
+            : (templates.find((t) => /termo de doa/i.test(t.title) && !/\(IGH\)/i.test(t.title))?.id ??
+              null);
       }
+      if (templateId) next.templateId = templateId;
       if (s.donatedAt) next.donatedAt = s.donatedAt;
       if (s.placeDateText) next.placeDateText = s.placeDateText;
       if (s.kitsCount != null && s.kitsCount > 0) next.kitsCount = s.kitsCount;
       if (s.belongsTo) next.belongsTo = s.belongsTo;
       if (s.description && !prev.description.trim()) next.description = s.description;
-      // Histórico já assinado: não regenerar PDF por padrão
       next.generatePdf = prev.attachments.some((a) => a.kind === "ASSINADO")
         ? false
         : prev.generatePdf;
@@ -485,7 +490,7 @@ export default function DoacoesPage() {
   async function readSignedTerm(url: string, fileName: string | null) {
     setReadingTerm(true);
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 75_000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 95_000);
     try {
       const res = await fetch("/api/admin/gerencia/doacoes/ler-termo", {
         method: "POST",

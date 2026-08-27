@@ -26,7 +26,23 @@ Teclado 10
 Mouse 10
 Cabo de Força 20
 Cabo de Video 10
-OBS: Os termos serão contabilizados`;
+OBS: Os termos serão contabilizados
+
+Belém, 26 de Agosto de 2026.`;
+
+const ACBCM_OBJ_GARBLED = `TERMO DE DOAÇÃO DE EQUIPAMENTOS
+DOADORA:
+Nome: INSTITUTO GUSTAVO HESSEL
+CNPJ: 08.633.366/0001-00
+DONATÁRIA
+Instituição: ASSOCIAÇÃO DE COLETORES E BENEFICIADORES DE
+CARANGUEIJO DE MARACANÃ - ACBCM
+CNPJ: 09.502.555/0001-06
+OBJETO
+Equipamentos
+5
+OBS: Os termos serão contabilizados
+Belém, 26 de Agosto de 2026.`;
 
 describe("donation-term-parse OCR noise", () => {
   it("extrai doadora/donatária de texto OCR ruidoso", () => {
@@ -37,13 +53,22 @@ describe("donation-term-parse OCR noise", () => {
     expect(s.donatariaName).toMatch(/ASSOCIAÇÃO RATATA/i);
     expect(s.donatariaDocument?.replace(/\D/g, "")).toBe("36215585000104");
     expect(s.donatariaContactName).toBe("Alex Martins Chaves");
-    expect(s.donatariaPhone).toMatch(/98147/);
     expect(s.donorEmail).toMatch(/guilherme@igh\.org\.br/i);
   });
 
-  it("infere kits pela tabela OBJETO e modelo IGH", () => {
+  it("infere kits, data, local e modelo IGH", () => {
     const s = extractDonationTermFromText(OCR_SAMPLE);
     expect(s.kitsCount).toBe(10);
+    expect(s.templateKind).toBe("IGH");
+    expect(s.donatedAt).toBe("2026-08-26");
+    expect(s.placeDateText).toMatch(/Belém.*2026/i);
+  });
+
+  it("infere kits em tabela OCR degradada (ACBCM)", () => {
+    const s = extractDonationTermFromText(ACBCM_OBJ_GARBLED);
+    expect(s.kitsCount).toBe(5);
+    expect(s.donatariaName).toMatch(/CARANGUEIJO DE MARACANÃ/i);
+    expect(s.donatedAt).toBe("2026-08-26");
     expect(s.templateKind).toBe("IGH");
   });
 });

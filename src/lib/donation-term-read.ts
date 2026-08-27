@@ -101,7 +101,7 @@ async function tryExtractPdfText(buffer: Buffer): Promise<{ text: string; error?
 
 type PagePng = { buffer: Buffer; pageNumber: number };
 
-const OCR_TIMEOUT_MS = 45_000;
+const OCR_TIMEOUT_MS = 90_000;
 const DOWNLOAD_TIMEOUT_MS = 20_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -116,8 +116,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
-/** Preferência: só a 1ª página (DOADORA/DONATÁRIA); scale moderado para OCR mais rápido. */
-async function renderPdfPagesToPng(buffer: Buffer, maxPages = 1): Promise<PagePng[]> {
+/** Renderiza até N primeiras páginas do PDF para OCR. */
+async function renderPdfPagesToPng(buffer: Buffer, maxPages = 2): Promise<PagePng[]> {
   const { CanvasFactory } = await import("pdf-parse/worker");
   const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: Uint8Array.from(buffer), CanvasFactory });
@@ -142,6 +142,23 @@ async function renderPdfPagesToPng(buffer: Buffer, maxPages = 1): Promise<PagePn
   }
 }
 
+async function ocrPdfPages(pages: PagePng[]): Promise<string> {
+  if (pages.length === 0) return "";
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("por");
+  try {
+    const parts: string[] = [];
+    for (const page of pages) {
+      const result = await worker.recognize(page.buffer);
+      const t = (result.data.text || "").trim();
+      if (t) parts.push(t);
+    }
+    return parts.join("\n\n");
+  } finally {
+    await worker.terminate().catch(() => undefined);
+  }
+}
+
 async function ocrImageBuffer(png: Buffer): Promise<string> {
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("por");
@@ -161,12 +178,12 @@ async function tryOcrFromPdfOrImage(
     return await withTimeout(
       (async () => {
         if (mime === "application/pdf") {
-          // Só página 1: contém DOADORA/DONATÁRIA; página 2 (acordo) é cara e pouco útil para o form.
-          const pages = await renderPdfPagesToPng(buffer, 1);
+          // Pág. 1: doadora/donatária/kits; pág. 2: data por extenso (IGH).
+          const pages = await renderPdfPagesToPng(buffer, 2);
           if (pages.length === 0) {
             return { text: "", warning: "Não foi possível renderizar páginas do PDF para OCR." };
           }
-          const text = await ocrImageBuffer(pages[0].buffer);
+          const text = await ocrPdfPages(pages);
           return { text };
         }
         if (mime.startsWith("image/")) {
@@ -497,10 +514,11 @@ export async function readDonationTermAttachment(opts: {
     }
   }
 
-  // OCR se faltam campos-chave (não só "3 quaisquer")
+  // OCR se faltam campos-chave (data fica na pág. 2 em termos IGH)
   const needsOcr =
     donationTermSuggestionFilledCount(suggestion) < 3 ||
     suggestion.kitsCount == null ||
+    !suggestion.donatedAt ||
     !suggestion.donorName ||
     !suggestion.donatariaName;
 
