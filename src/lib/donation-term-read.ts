@@ -10,10 +10,12 @@
 import "server-only";
 
 import {
+  detectDonationTermTemplateKind,
   donationTermSuggestionFilledCount,
   donatariaNameHintFromFileName,
   extractDonationTermFromText,
   isDonationTermSuggestionUseful,
+  suggestDonationTermTemplateId,
   type DonationTermSuggestion,
 } from "@/lib/donation-term-parse";
 
@@ -25,6 +27,7 @@ export type DonationTermReadResult = {
   warnings: string[];
   matchedDonorInstitutionId: string | null;
   matchedDonatariaId: string | null;
+  matchedTemplateId: string | null;
   donatariaCreateCandidate: {
     name: string;
     document: string | null;
@@ -323,6 +326,15 @@ function mergeSuggestion(
       (out as Record<string, unknown>)[k] = v;
     }
   }
+  // Preferir IGH se qualquer lado indicar
+  if (base.templateKind === "IGH" || extra.templateKind === "IGH") {
+    out.templateKind = "IGH";
+  } else if (!out.templateKind && extra.templateKind) {
+    out.templateKind = extra.templateKind;
+  }
+  if ((out.kitsCount == null || out.kitsCount <= 0) && extra.kitsCount != null && extra.kitsCount > 0) {
+    out.kitsCount = extra.kitsCount;
+  }
   return out;
 }
 
@@ -395,17 +407,21 @@ export async function readDonationTermAttachment(opts: {
   attachmentFileName?: string | null;
   donors: Array<{ id: string; name: string | null; document: string | null }>;
   donatarias: Array<{ id: string; name: string; document: string | null }>;
+  templates?: Array<{ id: string; title: string }>;
 }): Promise<DonationTermReadResult> {
+  const empty = (warnings: string[], suggestion: DonationTermSuggestion = {}): DonationTermReadResult => ({
+    suggestion,
+    source: "partial",
+    warnings,
+    matchedDonorInstitutionId: null,
+    matchedDonatariaId: null,
+    matchedTemplateId: null,
+    donatariaCreateCandidate: null,
+  });
+
   const warnings: string[] = [];
   if (!isHttpsUrl(opts.attachmentUrl)) {
-    return {
-      suggestion: {},
-      source: "partial",
-      warnings: ["URL do anexo inválida (precisa ser HTTPS)."],
-      matchedDonorInstitutionId: null,
-      matchedDonatariaId: null,
-      donatariaCreateCandidate: null,
-    };
+    return empty(["URL do anexo inválida (precisa ser HTTPS)."]);
   }
 
   const fileHint = donatariaNameHintFromFileName(opts.attachmentFileName);
@@ -420,17 +436,17 @@ export async function readDonationTermAttachment(opts: {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "falha de rede";
+    const suggestion: DonationTermSuggestion = fileHint
+      ? { donatariaName: fileHint, description: "Termo de doação de equipamentos", templateKind: "IGH" }
+      : {};
     return {
-      suggestion: fileHint
-        ? { donatariaName: fileHint, description: "Termo de doação de equipamentos" }
-        : {},
-      source: "partial",
-      warnings: [
-        `Não foi possível baixar o anexo a tempo (${msg.slice(0, 80)}).`,
-        ...(fileHint ? [`Nome da donatária sugerido a partir do arquivo: “${fileHint}”.`] : []),
-      ],
-      matchedDonorInstitutionId: null,
-      matchedDonatariaId: null,
+      ...empty(
+        [
+          `Não foi possível baixar o anexo a tempo (${msg.slice(0, 80)}).`,
+          ...(fileHint ? [`Nome da donatária sugerido a partir do arquivo: “${fileHint}”.`] : []),
+        ],
+        suggestion,
+      ),
       donatariaCreateCandidate: fileHint
         ? {
             name: fileHint,
@@ -445,39 +461,22 @@ export async function readDonationTermAttachment(opts: {
             zone: "URBANA" as const,
           }
         : null,
+      matchedTemplateId: suggestDonationTermTemplateId(
+        suggestion.templateKind ?? null,
+        opts.templates ?? [],
+      ),
     };
   }
   if (!res.ok) {
-    return {
-      suggestion: {},
-      source: "partial",
-      warnings: [`Não foi possível baixar o anexo (${res.status}).`],
-      matchedDonorInstitutionId: null,
-      matchedDonatariaId: null,
-      donatariaCreateCandidate: null,
-    };
+    return empty([`Não foi possível baixar o anexo (${res.status}).`]);
   }
 
   const buffer = Buffer.from(await res.arrayBuffer());
   if (buffer.byteLength === 0) {
-    return {
-      suggestion: {},
-      source: "partial",
-      warnings: ["Anexo vazio."],
-      matchedDonorInstitutionId: null,
-      matchedDonatariaId: null,
-      donatariaCreateCandidate: null,
-    };
+    return empty(["Anexo vazio."]);
   }
   if (buffer.byteLength > 12 * 1024 * 1024) {
-    return {
-      suggestion: {},
-      source: "partial",
-      warnings: ["Anexo muito grande para leitura automática."],
-      matchedDonorInstitutionId: null,
-      matchedDonatariaId: null,
-      donatariaCreateCandidate: null,
-    };
+    return empty(["Anexo muito grande para leitura automática."]);
   }
 
   const mime = guessMime(opts.attachmentFileName ?? undefined, res.headers.get("content-type"), buffer);
@@ -498,7 +497,14 @@ export async function readDonationTermAttachment(opts: {
     }
   }
 
-  if (donationTermSuggestionFilledCount(suggestion) < 3) {
+  // OCR se faltam campos-chave (não só "3 quaisquer")
+  const needsOcr =
+    donationTermSuggestionFilledCount(suggestion) < 3 ||
+    suggestion.kitsCount == null ||
+    !suggestion.donorName ||
+    !suggestion.donatariaName;
+
+  if (needsOcr && (mime === "application/pdf" || mime.startsWith("image/"))) {
     const ocr = await tryOcrFromPdfOrImage(buffer, mime);
     if (ocr.warning) warnings.push(ocr.warning);
     if (ocr.text.length >= 40) {
@@ -508,7 +514,7 @@ export async function readDonationTermAttachment(opts: {
     }
   }
 
-  if (donationTermSuggestionFilledCount(suggestion) < 3) {
+  if (donationTermSuggestionFilledCount(suggestion) < 3 || suggestion.kitsCount == null) {
     if (mime.startsWith("image/")) {
       const vision = await tryVisionSuggestion(buffer, mime);
       if (vision) {
@@ -535,10 +541,14 @@ export async function readDonationTermAttachment(opts: {
     warnings.push(`Nome da donatária sugerido a partir do arquivo: “${fileHint}”.`);
   }
 
-  // Se OCR/visão falharam, ainda devolve hint do arquivo como parcial útil
   if (!isDonationTermSuggestionUseful(suggestion) && fileHint) {
     suggestion.donatariaName = fileHint;
     suggestion.description = suggestion.description ?? "Termo de doação de equipamentos";
+  }
+
+  if (!suggestion.templateKind && suggestion.donorDocument) {
+    suggestion.templateKind =
+      detectDonationTermTemplateKind("", suggestion.donorDocument) ?? suggestion.templateKind;
   }
 
   const parties = await matchDonationTermParties(suggestion, {
@@ -546,10 +556,26 @@ export async function readDonationTermAttachment(opts: {
     donatarias: opts.donatarias,
   });
 
+  const matchedTemplateId = suggestDonationTermTemplateId(
+    suggestion.templateKind ?? null,
+    opts.templates ?? [],
+  );
+  if (matchedTemplateId) {
+    warnings.push(
+      suggestion.templateKind === "IGH"
+        ? "Modelo sugerido: Termo de doação (IGH)."
+        : "Modelo sugerido: Termo de doação (INAC).",
+    );
+  }
+  if (suggestion.kitsCount != null && suggestion.kitsCount > 0) {
+    warnings.push(`Quantidade de kits sugerida: ${suggestion.kitsCount}.`);
+  }
+
   return {
     suggestion,
     source,
     warnings,
+    matchedTemplateId,
     ...parties,
   };
 }

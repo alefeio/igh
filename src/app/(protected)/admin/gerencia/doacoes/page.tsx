@@ -112,11 +112,13 @@ type TermReadResult = {
     belongsTo?: string;
     description?: string;
     donatariaName?: string;
+    templateKind?: "IGH" | "INAC";
   };
   source: string;
   warnings: string[];
   matchedDonorInstitutionId: string | null;
   matchedDonatariaId: string | null;
+  matchedTemplateId: string | null;
   donatariaCreateCandidate: DonatariaCandidate | null;
 };
 
@@ -441,6 +443,9 @@ export default function DoacoesPage() {
       }
       if (result.matchedDonatariaId) {
         next.donatariaId = result.matchedDonatariaId;
+      }
+      if (result.matchedTemplateId) {
+        next.templateId = result.matchedTemplateId;
       }
       if (s.donatedAt) next.donatedAt = s.donatedAt;
       if (s.placeDateText) next.placeDateText = s.placeDateText;

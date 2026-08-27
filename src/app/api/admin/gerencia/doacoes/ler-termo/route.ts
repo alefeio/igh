@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const [donors, donatarias] = await Promise.all([
+    const [donors, donatarias, templates] = await Promise.all([
       prisma.donorInstitutionSettings.findMany({
         where: { deletedAt: null, isActive: true },
         select: { id: true, name: true, document: true },
@@ -34,6 +34,11 @@ export async function POST(request: Request) {
         where: { deletedAt: null, isActive: true },
         select: { id: true, name: true, document: true },
       }),
+      prisma.documentTemplate.findMany({
+        where: { type: "TERMO_DOACAO", isActive: true },
+        select: { id: true, title: true },
+        orderBy: { title: "asc" },
+      }),
     ]);
 
     const result = await readDonationTermAttachment({
@@ -41,6 +46,7 @@ export async function POST(request: Request) {
       attachmentFileName: parsed.data.attachmentFileName,
       donors,
       donatarias,
+      templates,
     });
 
     return jsonOk(result);

@@ -30,6 +30,8 @@ export type DonationTermSuggestion = {
   kitsCount?: number;
   belongsTo?: string;
   description?: string;
+  /** Modelo inferido do texto (IGH vs INAC). */
+  templateKind?: "IGH" | "INAC";
 };
 
 const MONTHS: Record<string, number> = {
@@ -119,7 +121,15 @@ function afterLabel(text: string, labels: string[]): string | undefined {
       "i",
     );
     const m = text.match(re);
-    const v = cleanValue(m?.[1]);
+    let v = cleanValue(m?.[1]);
+    if (!v) continue;
+    // Mesma linha com outro campo: "TEL: … Email: …" / "CEP: … Zona: …"
+    v = cleanValue(
+      v.replace(
+        /\s+(Email|E-mail|TEL|Telefone|Fone|CNPJ|CEP|Zona|Estado|UF|Cidade|Cargo|CPF|Respons[aá]vel|Institui[cç][aã]o)\s*[:.].*$/i,
+        "",
+      ),
+    );
     if (v) return v;
   }
   return undefined;
@@ -168,10 +178,58 @@ function parseZone(text: string): "URBANA" | "RURAL" | undefined {
 }
 
 function parseKitsCount(text: string): number | undefined {
-  // Heurística: quantidade de "Computador" / "CPU" na tabela OBJETO
-  const obj = sectionBetween(text, /OBJETO/i, /OBS:|ACORDO|São obrigações/i);
-  const cpu = obj.match(/Computador[^\d]{0,40}?(\d{1,3})/i)
-    ?? obj.match(/CPU[^\d]{0,20}?(\d{1,3})/i);
+  const obj = sectionBetween(text, /OBJETO/i, /OBS:|ACORDO|São obrigações/i) || text;
+
+  // Linhas do tipo "Monitor 10", "CPU | 2", "Teclado | 10"
+  const kitSignals: Array<{ name: string; qty: number }> = [];
+  for (const rawLine of obj.split(/\n+/)) {
+    const line = rawLine.replace(/[|]/g, " ").replace(/\s+/g, " ").trim();
+    if (!line || line.length < 3) continue;
+    const m =
+      line.match(
+        /\b(CPU|Computador(?:es)?|Monitor(?:es)?|Teclado(?:s)?|Mouse(?:s)?|Cabo\s+de\s+For[cç]a|Cabo\s+de\s+V[ií]deo)\b[^\d]{0,40}?(\d{1,3})\b/i,
+      ) ??
+      line.match(
+        /\b(\d{1,3})\b[^\n]{0,20}\b(CPU|Computador(?:es)?|Monitor(?:es)?|Teclado(?:s)?|Mouse(?:s)?)\b/i,
+      );
+    if (!m) continue;
+    const a = m[1];
+    const b = m[2];
+    const name = /^\d+$/.test(a) ? b : a;
+    const qty = Number(/^\d+$/.test(a) ? a : b);
+    if (!Number.isFinite(qty) || qty <= 0 || qty >= 500) continue;
+    kitSignals.push({ name, qty });
+  }
+
+  // Kit padrão: 1 CPU/Monitor/Teclado/Mouse por kit. Cabo de Força = 2/kit.
+  const perKit: number[] = [];
+  for (const s of kitSignals) {
+    if (/cabo\s+de\s+for/i.test(s.name)) {
+      if (s.qty % 2 === 0 && s.qty / 2 >= 1) perKit.push(s.qty / 2);
+      continue;
+    }
+    if (/cpu|computador|monitor|teclado|mouse|cabo\s+de\s+v/i.test(s.name)) {
+      perKit.push(s.qty);
+    }
+  }
+  if (perKit.length > 0) {
+    // Moda (quantidade mais frequente); empate → mediana
+    const freq = new Map<number, number>();
+    for (const n of perKit) freq.set(n, (freq.get(n) ?? 0) + 1);
+    let best = perKit[0];
+    let bestCount = 0;
+    for (const [n, c] of freq) {
+      if (c > bestCount || (c === bestCount && n > best)) {
+        best = n;
+        bestCount = c;
+      }
+    }
+    if (best > 0 && best < 500) return best;
+  }
+
+  const cpu =
+    obj.match(/Computador[^\d]{0,40}?(\d{1,3})/i) ??
+    obj.match(/CPU[^\d]{0,20}?(\d{1,3})/i);
   if (cpu) {
     const n = Number(cpu[1]);
     if (n > 0 && n < 500) return n;
@@ -182,6 +240,31 @@ function parseKitsCount(text: string): number | undefined {
     if (n > 0 && n < 500) return n;
   }
   return undefined;
+}
+
+/** CNPJ do Instituto Gustavo Hessel (CRC IGH). */
+export const IGH_DONOR_CNPJ_DIGITS = "08633366000100";
+
+/**
+ * Infere o modelo do termo: IGH (layout próprio) vs INAC (modelo genérico).
+ */
+export function detectDonationTermTemplateKind(
+  text: string,
+  donorDocument?: string | null,
+): "IGH" | "INAC" | null {
+  const digits = (donorDocument ?? "").replace(/\D/g, "");
+  if (digits === IGH_DONOR_CNPJ_DIGITS) return "IGH";
+  const t = text.normalize("NFD").replace(/\p{M}/gu, "");
+  if (
+    /INSTITUTO\s+GUSTAVO\s+HESSEL/i.test(text) ||
+    /\bCRC\s*[- ]?\s*IGH\b/i.test(text) ||
+    /\(IGH\)/i.test(text)
+  ) {
+    return "IGH";
+  }
+  if (/\bCRC\s*[- ]?\s*INAC\b/i.test(t) || /\bINAC\b/i.test(text)) return "INAC";
+  if (/TERMO\s+DE\s+DOA/i.test(text)) return "INAC";
+  return null;
 }
 
 export function extractDonationTermFromText(rawText: string): DonationTermSuggestion {
@@ -249,6 +332,9 @@ export function extractDonationTermFromText(rawText: string): DonationTermSugges
     kitsCount: parseKitsCount(text),
     belongsTo: afterLabel(text, ["Pertence a", "Pertence à"]),
     description: /TERMO DE DOA/i.test(text) ? "Termo de doação de equipamentos" : undefined,
+    templateKind:
+      detectDonationTermTemplateKind(text, donorDigits ? formatCnpjLike(donorDigits) : null) ??
+      undefined,
   };
 
   // Evita confundir CNPJ da doadora com o da donatária quando só há um bloco
@@ -257,11 +343,24 @@ export function extractDonationTermFromText(rawText: string): DonationTermSugges
     suggestion.donatariaDocument &&
     onlyDigits(suggestion.donorDocument) === onlyDigits(suggestion.donatariaDocument)
   ) {
-    // Se nomes diferentes, mantém; se iguais, limpa donatária doc se nome vazio
     if (!suggestion.donatariaName) delete suggestion.donatariaDocument;
   }
 
   return suggestion;
+}
+
+export function suggestDonationTermTemplateId(
+  kind: "IGH" | "INAC" | null,
+  templates: Array<{ id: string; title: string }>,
+): string | null {
+  if (!kind || templates.length === 0) return null;
+  if (kind === "IGH") {
+    const igh = templates.find((t) => /\(IGH\)/i.test(t.title));
+    if (igh) return igh.id;
+  }
+  const inac = templates.find((t) => /termo de doa/i.test(t.title) && !/\(IGH\)/i.test(t.title));
+  if (inac) return inac.id;
+  return templates[0]?.id ?? null;
 }
 
 export function donationTermSuggestionFilledCount(s: DonationTermSuggestion): number {

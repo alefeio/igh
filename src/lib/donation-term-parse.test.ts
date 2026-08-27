@@ -4,6 +4,7 @@ import {
   donatariaNameHintFromFileName,
   extractDonationTermFromText,
   isDonationTermSuggestionUseful,
+  suggestDonationTermTemplateId,
 } from "@/lib/donation-term-parse";
 
 const OCR_SAMPLE = `DOADORA: ã À Í
@@ -18,7 +19,14 @@ Endereço: Agua Boa nº5 i i
 Responsável: Alex Martins Chaves |U EA REA :
 Telefone: (91) 98147-9405 |
 OBJETO
-O objeto do presente TERMO é a DOAÇÃO`;
+O objeto do presente TERMO é a DOAÇÃO, sem nenhum encargo
+Equipamentos Qtd
+Monitor 10
+Teclado 10
+Mouse 10
+Cabo de Força 20
+Cabo de Video 10
+OBS: Os termos serão contabilizados`;
 
 describe("donation-term-parse OCR noise", () => {
   it("extrai doadora/donatária de texto OCR ruidoso", () => {
@@ -32,10 +40,26 @@ describe("donation-term-parse OCR noise", () => {
     expect(s.donatariaPhone).toMatch(/98147/);
     expect(s.donorEmail).toMatch(/guilherme@igh\.org\.br/i);
   });
+
+  it("infere kits pela tabela OBJETO e modelo IGH", () => {
+    const s = extractDonationTermFromText(OCR_SAMPLE);
+    expect(s.kitsCount).toBe(10);
+    expect(s.templateKind).toBe("IGH");
+  });
 });
 
 describe("donatariaNameHintFromFileName", () => {
   it("usa o nome do arquivo como sugestão", () => {
     expect(donatariaNameHintFromFileName("ASSOCIAÇÃO RATATA.pdf")).toBe("ASSOCIAÇÃO RATATA");
+  });
+});
+
+describe("suggestDonationTermTemplateId", () => {
+  it("escolhe o modelo (IGH) quando aplicável", () => {
+    const id = suggestDonationTermTemplateId("IGH", [
+      { id: "1", title: "Termo de doação de equipamentos" },
+      { id: "2", title: "Termo de doação de equipamentos (IGH)" },
+    ]);
+    expect(id).toBe("2");
   });
 });
