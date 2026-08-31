@@ -3,9 +3,9 @@
  */
 
 export const MULTI_CERT_MIN_COURSES = 2;
-/** Máximo de alunos com 2 certificações exibidos na home pública. */
-export const MULTI_CERT_PUBLIC_SILVER_CAP = 24;
-/** Máximo total na vitrine compacta do dashboard do aluno. */
+/** Mínimo de certificações para aparecer na home e nos dashboards (destaque). */
+export const MULTI_CERT_FEATURED_MIN_COURSES = 3;
+/** Máximo na vitrine compacta do dashboard do aluno/professor. */
 export const MULTI_CERT_DASHBOARD_CAP = 12;
 
 export type MultiCertTier = "silver" | "gold" | "platinum";
@@ -41,10 +41,16 @@ export type MultiCertifiedShowcasePayload = {
 
 export type StudentMultiCertProgress = {
   certificationCount: number;
+  /** Certificados faltantes para entrar no mural completo (2+). */
   coursesNeededForMural: number;
+  /** Certificados faltantes para aparecer em destaque na home/dashboard (3+). */
+  coursesNeededForFeatured: number;
   /** Certificados faltantes para a próxima faixa visual (ou null no topo). */
   coursesNeededForNextTier: number | null;
+  /** Está no mural completo (2 ou mais certificações). */
   isOnMural: boolean;
+  /** Aparece na vitrine em destaque da home e dos dashboards (3 ou mais). */
+  isOnFeaturedShowcase: boolean;
   tier: MultiCertTier | null;
   displayName: string;
 };
@@ -160,16 +166,13 @@ export function toShowcaseEntries(
   }));
 }
 
-export function selectForPublicShowcase(
+export function selectForFeaturedShowcase(
   sorted: AggregatedStudentCert[],
-  minCourses = MULTI_CERT_MIN_COURSES,
-  silverCap = MULTI_CERT_PUBLIC_SILVER_CAP,
+  minCourses = MULTI_CERT_FEATURED_MIN_COURSES,
+  cap?: number,
 ): { selected: AggregatedStudentCert[]; totalEligible: number; hiddenCount: number } {
   const eligible = sorted.filter((s) => s.certificationCount >= minCourses);
-  const goldPlus = eligible.filter((s) => s.certificationCount >= 3);
-  const silver = eligible.filter((s) => s.certificationCount === 2);
-  const silverShown = silver.slice(0, silverCap);
-  const selected = sortMultiCertStudents([...goldPlus, ...silverShown]);
+  const selected = cap != null ? eligible.slice(0, cap) : eligible;
   return {
     selected,
     totalEligible: eligible.length,
@@ -177,9 +180,26 @@ export function selectForPublicShowcase(
   };
 }
 
-export function selectForDashboardShowcase(
+/** @deprecated Use selectForFeaturedShowcase — mantido como alias. */
+export function selectForPublicShowcase(
+  sorted: AggregatedStudentCert[],
+  _minCourses = MULTI_CERT_MIN_COURSES,
+  _silverCap?: number,
+): { selected: AggregatedStudentCert[]; totalEligible: number; hiddenCount: number } {
+  return selectForFeaturedShowcase(sorted);
+}
+
+export function selectForFullShowcase(
   sorted: AggregatedStudentCert[],
   minCourses = MULTI_CERT_MIN_COURSES,
+): { selected: AggregatedStudentCert[]; totalEligible: number } {
+  const selected = sorted.filter((s) => s.certificationCount >= minCourses);
+  return { selected, totalEligible: selected.length };
+}
+
+export function selectForDashboardShowcase(
+  sorted: AggregatedStudentCert[],
+  minCourses = MULTI_CERT_FEATURED_MIN_COURSES,
   cap = MULTI_CERT_DASHBOARD_CAP,
 ): AggregatedStudentCert[] {
   return sorted.filter((s) => s.certificationCount >= minCourses).slice(0, cap);
@@ -190,7 +210,9 @@ export function computeStudentMultiCertProgress(
   displayName: string,
 ): StudentMultiCertProgress {
   const isOnMural = certificationCount >= MULTI_CERT_MIN_COURSES;
+  const isOnFeaturedShowcase = certificationCount >= MULTI_CERT_FEATURED_MIN_COURSES;
   const coursesNeededForMural = Math.max(0, MULTI_CERT_MIN_COURSES - certificationCount);
+  const coursesNeededForFeatured = Math.max(0, MULTI_CERT_FEATURED_MIN_COURSES - certificationCount);
 
   let coursesNeededForNextTier: number | null;
   if (certificationCount >= 4) {
@@ -200,14 +222,16 @@ export function computeStudentMultiCertProgress(
   } else if (certificationCount >= 2) {
     coursesNeededForNextTier = 3 - certificationCount;
   } else {
-    coursesNeededForNextTier = coursesNeededForMural;
+    coursesNeededForNextTier = coursesNeededForFeatured;
   }
 
   return {
     certificationCount,
     coursesNeededForMural,
+    coursesNeededForFeatured,
     coursesNeededForNextTier,
     isOnMural,
+    isOnFeaturedShowcase,
     tier: isOnMural ? tierFromCount(certificationCount) : null,
     displayName,
   };

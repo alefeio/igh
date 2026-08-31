@@ -9,10 +9,11 @@ import {
   assignMultiCertDisplayNames,
   computeStudentMultiCertProgress,
   formatMultiCertDisplayName,
-  selectForDashboardShowcase,
-  selectForPublicShowcase,
+  selectForFeaturedShowcase,
+  selectForFullShowcase,
   sortMultiCertStudents,
   toShowcaseEntries,
+  MULTI_CERT_DASHBOARD_CAP,
   type AggregatedStudentCert,
   type MultiCertifiedShowcasePayload,
   type StudentMultiCertProgress,
@@ -121,17 +122,59 @@ function buildPayload(
 
 export async function getPublicMultiCertifiedShowcase(): Promise<MultiCertifiedShowcasePayload | null> {
   const sorted = await loadSortedStudents();
-  const { selected, totalEligible, hiddenCount } = selectForPublicShowcase(sorted);
+  const { selected, totalEligible, hiddenCount } = selectForFeaturedShowcase(sorted);
   if (selected.length === 0) return null;
   return buildPayload(selected, totalEligible, hiddenCount, "public");
 }
 
 export async function getDashboardMultiCertifiedShowcase(): Promise<MultiCertifiedShowcasePayload | null> {
   const sorted = await loadSortedStudents();
-  const selected = selectForDashboardShowcase(sorted);
-  const totalEligible = sorted.filter((s) => s.certificationCount >= 2).length;
+  const { selected, totalEligible, hiddenCount } = selectForFeaturedShowcase(
+    sorted,
+    undefined,
+    MULTI_CERT_DASHBOARD_CAP,
+  );
   if (selected.length === 0) return null;
-  return buildPayload(selected, totalEligible, Math.max(0, totalEligible - selected.length), "public");
+  return buildPayload(selected, totalEligible, hiddenCount, "public");
+}
+
+export async function getFullMultiCertifiedShowcase(): Promise<MultiCertifiedShowcasePayload | null> {
+  const sorted = await loadSortedStudents();
+  const { selected, totalEligible } = selectForFullShowcase(sorted);
+  if (selected.length === 0) return null;
+  return buildPayload(selected, totalEligible, 0, "public");
+}
+
+async function loadTeacherStudentIds(teacherId: string): Promise<Set<string>> {
+  const rows = await prisma.enrollment.findMany({
+    where: {
+      student: { deletedAt: null },
+      classGroup: {
+        OR: [{ teacherId }, { classGroupTeachers: { some: { teacherId } } }],
+      },
+    },
+    select: { studentId: true },
+    distinct: ["studentId"],
+  });
+  return new Set(rows.map((r) => r.studentId));
+}
+
+/** Alunos do professor com 3+ certificações (vitrine em destaque). */
+export async function getTeacherFeaturedMultiCertifiedShowcase(
+  teacherId: string,
+): Promise<MultiCertifiedShowcasePayload | null> {
+  const [sorted, studentIds] = await Promise.all([
+    loadSortedStudents(),
+    loadTeacherStudentIds(teacherId),
+  ]);
+  const mine = sorted.filter((s) => studentIds.has(s.studentId));
+  const { selected, totalEligible, hiddenCount } = selectForFeaturedShowcase(
+    mine,
+    undefined,
+    MULTI_CERT_DASHBOARD_CAP,
+  );
+  if (selected.length === 0) return null;
+  return buildPayload(selected, totalEligible, hiddenCount, "full");
 }
 
 export async function getStudentMultiCertProgress(

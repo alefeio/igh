@@ -44,6 +44,7 @@ import { prisma } from "@/lib/prisma";
 import {
   getDashboardMultiCertifiedShowcase,
   getStudentMultiCertProgress,
+  getTeacherFeaturedMultiCertifiedShowcase,
 } from "@/lib/student-multi-certification";
 import type {
   MultiCertifiedShowcasePayload,
@@ -423,9 +424,11 @@ function DashboardAdmin({
 function DashboardTeacher({
   data,
   userName,
+  multiCertShowcase,
 }: {
   data: Extract<DashboardData, { role: "TEACHER" }>;
   userName: string;
+  multiCertShowcase: MultiCertifiedShowcasePayload | null;
 }) {
   const { myClassGroupsCount, myEnrollmentsCount, classGroups, roleLabel } = data;
   const totalVagasDisponiveis = classGroups.reduce(
@@ -505,6 +508,16 @@ function DashboardTeacher({
           </Link>
         </div>
       </SectionCard>
+
+      {multiCertShowcase ? (
+        <StudentMultiCertificationPanel
+          progress={null}
+          showcase={multiCertShowcase}
+          showPersonalHint={false}
+          title="Qualificação contínua — seus alunos"
+          description="Alunos das suas turmas com 3 ou mais certificações concluídas no instituto."
+        />
+      ) : null}
 
       <section data-tour="teacher-dashboard-turmas" className="flex min-h-0 min-w-0 flex-col">
         <SectionCard
@@ -1182,6 +1195,7 @@ export default async function DashboardPage() {
   let data: DashboardData;
   let studentMultiCertProgress: StudentMultiCertProgress | null = null;
   let studentMultiCertShowcase: MultiCertifiedShowcasePayload | null = null;
+  let teacherMultiCertShowcase: MultiCertifiedShowcasePayload | null = null;
   let studentRecordId: string | null = null;
   try {
     data = await getDashboardData(user);
@@ -1226,6 +1240,16 @@ export default async function DashboardPage() {
     }
   }
 
+  if (data.role === "TEACHER") {
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (teacher) {
+      teacherMultiCertShowcase = await getTeacherFeaturedMultiCertifiedShowcase(teacher.id);
+    }
+  }
+
   return (
     <>
       {data.role === "ADMIN" ||
@@ -1238,7 +1262,11 @@ export default async function DashboardPage() {
           readOnly={false}
         />
       ) : data.role === "TEACHER" ? (
-        <DashboardTeacher data={data} userName={user.name} />
+        <DashboardTeacher
+          data={data}
+          userName={user.name}
+          multiCertShowcase={teacherMultiCertShowcase}
+        />
       ) : (
         <DashboardStudent
           userName={user.name}
