@@ -7,6 +7,7 @@ import {
   renderDocumentTemplateHtml,
 } from "@/lib/admin/document-template-vars";
 import { uploadGerenciaPdfBytes } from "@/lib/admin/gerencia-pdf-upload";
+import { donorInstitutionVariableMap, resolveDonorInstitution } from "@/lib/donor-institution";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { createEmployeeContractSchema } from "@/lib/validators/admin-documents";
@@ -126,12 +127,17 @@ export async function POST(request: Request) {
   }
 
   const issuedAt = new Date();
-  const vars = buildDocumentVariableMap(employee, {
-    startDate: data.startDate,
-    endDate: data.endDate,
-    monthlyValueCents: data.monthlyValue,
-    issuedAt,
-  });
+  const donor = await resolveDonorInstitution();
+  const vars = buildDocumentVariableMap(
+    employee,
+    {
+      startDate: data.startDate,
+      endDate: data.endDate,
+      monthlyValueCents: data.monthlyValue,
+      issuedAt,
+    },
+    donorInstitutionVariableMap(donor),
+  );
   const renderedHtml = renderDocumentTemplateHtml(template.contentRich, vars);
 
   let pdfUrl: string | null = null;

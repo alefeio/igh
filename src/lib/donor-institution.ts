@@ -149,6 +149,7 @@ export function donorInstitutionVariableMap(
     "instituto.nome": name,
     "instituto.cnpj": donor?.document?.trim() || "—",
     "instituto.email": donor?.email?.trim() || "—",
+    "instituto.logradouro": donor?.address?.trim() || "—",
     "instituto.endereco": addr || "—",
     "instituto.cidade": donor?.city?.trim() || "—",
     "instituto.estado": donor?.state?.trim() || "—",
@@ -157,6 +158,9 @@ export function donorInstitutionVariableMap(
     "instituto.responsavel": donor?.representativeName?.trim() || "—",
     "instituto.cargo": donor?.representativeRole?.trim() || "—",
     "instituto.cpf": donor?.representativeCpf?.trim() || "—",
+    "instituto.responsavel_rg": "—",
+    "instituto.responsavel_estado_civil": "—",
+    "instituto.responsavel_endereco": "—",
   };
   const doadora = Object.fromEntries(
     Object.entries(instituto).map(([key, value]) => [key.replace("instituto.", "doadora."), value]),

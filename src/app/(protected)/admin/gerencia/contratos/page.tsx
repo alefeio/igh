@@ -103,6 +103,11 @@ export default function ContratosPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const signedFileRef = useRef<HTMLInputElement>(null);
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
+  const [previewContract, setPreviewContract] = useState<{
+    id: string;
+    label: string;
+    variant: "generated" | "signed";
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -410,26 +415,54 @@ export default function ContratosPage() {
                     <Td>
                       <div className="flex flex-col gap-1 text-sm">
                         {c.pdfUrl ? (
-                          <a
-                            href={c.pdfUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-medium text-[var(--igh-primary)] hover:underline"
-                          >
-                            Gerado
-                          </a>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-auto px-0 py-0 font-medium text-[var(--igh-primary)]"
+                              onClick={() =>
+                                setPreviewContract({
+                                  id: c.id,
+                                  label: `${c.employee.name} — contrato gerado`,
+                                  variant: "generated",
+                                })
+                              }
+                            >
+                              Visualizar
+                            </Button>
+                            <a
+                              href={`/api/admin/gerencia/contratos/${c.id}/pdf?download=1`}
+                              className="text-[var(--text-muted)] hover:text-[var(--igh-primary)] hover:underline"
+                            >
+                              Baixar
+                            </a>
+                          </div>
                         ) : (
                           <span className="text-[var(--text-muted)]">Sem gerado</span>
                         )}
                         {c.signedPdfUrl ? (
-                          <a
-                            href={c.signedPdfUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-                          >
-                            Assinado
-                          </a>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-auto px-0 py-0 font-medium text-emerald-700 dark:text-emerald-400"
+                              onClick={() =>
+                                setPreviewContract({
+                                  id: c.id,
+                                  label: `${c.employee.name} — contrato assinado`,
+                                  variant: "signed",
+                                })
+                              }
+                            >
+                              Visualizar assinado
+                            </Button>
+                            <a
+                              href={`/api/admin/gerencia/contratos/${c.id}/pdf?variant=signed&download=1`}
+                              className="text-emerald-700 hover:underline dark:text-emerald-400"
+                            >
+                              Baixar
+                            </a>
+                          </div>
                         ) : (
                           <Button
                             size="sm"
@@ -521,6 +554,23 @@ export default function ContratosPage() {
           )}
         </SectionCard>
       )}
+
+      <Modal
+        open={previewContract != null}
+        title={previewContract?.label ?? "Contrato"}
+        onClose={() => setPreviewContract(null)}
+        size="large"
+      >
+        {previewContract ? (
+          <iframe
+            title={previewContract.label}
+            src={`/api/admin/gerencia/contratos/${previewContract.id}/pdf${
+              previewContract.variant === "signed" ? "?variant=signed" : ""
+            }`}
+            className="h-[75vh] w-full rounded-md border border-[var(--card-border)] bg-white"
+          />
+        ) : null}
+      </Modal>
 
       <Modal
         open={open}

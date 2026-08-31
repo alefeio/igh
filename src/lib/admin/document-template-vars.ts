@@ -11,14 +11,96 @@ export type ContractTemplateVars = {
   issuedAt?: Date | string | null;
 };
 
-function dateBr(value: Date | string | null | undefined): string {
-  if (!value) return "____/____/________";
+const MESES_LONGOS = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+] as const;
+
+const MESES_EXTENSO = [
+  "zero",
+  "um",
+  "dois",
+  "três",
+  "quatro",
+  "cinco",
+  "seis",
+  "sete",
+  "oito",
+  "nove",
+  "dez",
+  "onze",
+  "doze",
+] as const;
+
+function parseDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
   const d = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(d.getTime())) return "____/____/________";
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function dateBr(value: Date | string | null | undefined): string {
+  const d = parseDate(value);
+  if (!d) return "____/____/________";
   const day = String(d.getUTCDate()).padStart(2, "0");
   const month = String(d.getUTCMonth() + 1).padStart(2, "0");
   const year = d.getUTCFullYear();
   return `${day}/${month}/${year}`;
+}
+
+function dateLongBr(value: Date | string | null | undefined): string {
+  const d = parseDate(value);
+  if (!d) return "____ de __________ de ________";
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = MESES_LONGOS[d.getUTCMonth()] ?? "__________";
+  const year = d.getUTCFullYear();
+  return `${day} de ${month} de ${year}`;
+}
+
+function monthsBetween(
+  start: Date | string | null | undefined,
+  end: Date | string | null | undefined,
+): number | null {
+  const s = parseDate(start);
+  const e = parseDate(end);
+  if (!s || !e) return null;
+  const months = (e.getUTCFullYear() - s.getUTCFullYear()) * 12 + (e.getUTCMonth() - s.getUTCMonth()) + 1;
+  return months > 0 ? months : null;
+}
+
+function monthsLabel(count: number | null): { short: string; long: string } {
+  if (count == null || count <= 0) {
+    return { short: "—", long: "—" };
+  }
+  const padded = String(count).padStart(2, "0");
+  const word = MESES_EXTENSO[count] ?? String(count);
+  return {
+    short: `${padded} (${word}) meses`,
+    long: word,
+  };
+}
+
+function formatConvenioRef(
+  ref: string | null | undefined,
+  startDate?: Date | string | null,
+): string {
+  const trimmed = ref?.trim();
+  if (!trimmed) return "—";
+  const slashMatch = trimmed.match(/(\d{4,})\/(\d{4})/);
+  if (slashMatch) return `${slashMatch[1]}/${slashMatch[2]}`;
+  const digits = trimmed.match(/\d{4,}/)?.[0];
+  if (!digits) return trimmed;
+  const year = parseDate(startDate)?.getUTCFullYear() ?? new Date().getUTCFullYear();
+  return `${digits}/${year}`;
 }
 
 function addressLine(e: Employee): string {
@@ -33,11 +115,21 @@ function addressLine(e: Employee): string {
   return parts.length ? parts.join(", ") : "—";
 }
 
+function employeeCityState(e: Employee): string {
+  if (e.city && e.state) return `${e.city}, ${e.state}`;
+  return e.city?.trim() || e.state?.trim() || "—";
+}
+
 /** Mapa de variáveis disponíveis nos modelos oficiais. */
 export function buildDocumentVariableMap(
   employee: Employee,
   contract?: ContractTemplateVars,
+  extra?: Record<string, string>,
 ): Record<string, string> {
+  const durationMonths = monthsBetween(contract?.startDate, contract?.endDate);
+  const duration = monthsLabel(durationMonths);
+  const issuedAt = contract?.issuedAt ?? new Date();
+
   return {
     "funcionario.nome": employee.name,
     "funcionario.cpf": formatCpf(employee.cpf),
@@ -46,6 +138,9 @@ export function buildDocumentVariableMap(
     "funcionario.email": employee.email?.trim() || "—",
     "funcionario.telefone": employee.phone?.trim() || "—",
     "funcionario.endereco": addressLine(employee),
+    "funcionario.cidade_estado": employeeCityState(employee),
+    "funcionario.nacionalidade": "Brasileiro(a)",
+    "funcionario.estado_civil": "—",
     "funcionario.mei_cnpj": employee.meiCnpj?.trim() || "—",
     "funcionario.pix": employee.pixKey?.trim() || "—",
     "funcionario.banco": employee.bankName?.trim() || "—",
@@ -54,8 +149,12 @@ export function buildDocumentVariableMap(
     "contrato.valor": formatCentsBRL(contract?.monthlyValueCents),
     "contrato.inicio": dateBr(contract?.startDate),
     "contrato.fim": dateBr(contract?.endDate),
-    "contrato.data": dateBr(contract?.issuedAt ?? new Date()),
+    "contrato.data": dateLongBr(issuedAt),
+    "contrato.convenio": formatConvenioRef(employee.fundingContractRef, contract?.startDate),
+    "contrato.duracao": duration.short,
+    "contrato.duracao_extenso": duration.long,
     "instituto.nome": BRAND.legalName || BRAND.shortName || "Instituto",
+    ...(extra ?? {}),
   };
 }
 
@@ -168,10 +267,16 @@ export const DOCUMENT_TEMPLATE_VARIABLE_HELP = [
   "{{funcionario.banco}}",
   "{{funcionario.agencia}}",
   "{{funcionario.conta}}",
+  "{{funcionario.cidade_estado}}",
+  "{{funcionario.nacionalidade}}",
+  "{{funcionario.estado_civil}}",
   "{{contrato.valor}}",
   "{{contrato.inicio}}",
   "{{contrato.fim}}",
   "{{contrato.data}}",
+  "{{contrato.convenio}}",
+  "{{contrato.duracao}}",
+  "{{contrato.duracao_extenso}}",
   "{{instituto.nome}}",
   "{{instituto.cnpj}}",
   "{{instituto.email}}",
@@ -183,6 +288,10 @@ export const DOCUMENT_TEMPLATE_VARIABLE_HELP = [
   "{{instituto.responsavel}}",
   "{{instituto.cargo}}",
   "{{instituto.cpf}}",
+  "{{instituto.responsavel_rg}}",
+  "{{instituto.responsavel_estado_civil}}",
+  "{{instituto.responsavel_endereco}}",
+  "{{instituto.logradouro}}",
   "{{doadora.nome}}",
   "{{doadora.cnpj}}",
   "{{doadora.email}}",

@@ -12,12 +12,12 @@ export async function applyDocumentTemplatesV1Seed(db: PrismaClient) {
       select: { id: true },
     });
     if (existing) {
-      if (tpl.type === "TERMO_DOACAO") {
+      if (tpl.type === "TERMO_DOACAO" || (tpl.type === "CONTRATO" && tpl.title === "Contrato de prestação de serviços (MEI)")) {
         await db.documentTemplate.update({
           where: { id: existing.id },
           data: { contentRich: tpl.contentRich },
         });
-        console.log(`Modelo ${tpl.type} “${tpl.title}”: HTML alinhado ao termo oficial.`);
+        console.log(`Modelo ${tpl.type} “${tpl.title}”: HTML alinhado ao documento oficial.`);
         continue;
       }
       console.log(`Modelo ${tpl.type} “${tpl.title}”: já existe; seed omitido.`);
