@@ -3,6 +3,10 @@ import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { renderDocumentHtmlToPdfBytes } from "@/lib/admin/document-template-pdf";
 import {
+  isMeiServiceContractTemplate,
+  renderMeiServiceContractPdfBytes,
+} from "@/lib/admin/employee-contract-mei-pdf";
+import {
   buildDocumentVariableMap,
   renderDocumentTemplateHtml,
 } from "@/lib/admin/document-template-vars";
@@ -144,7 +148,10 @@ export async function POST(request: Request) {
   let pdfPublicId: string | null = null;
   if (data.generatePdf) {
     try {
-      const bytes = await renderDocumentHtmlToPdfBytes(renderedHtml, template.title);
+      const bytes =
+        data.kind === "CONTRATO" && isMeiServiceContractTemplate(template.title)
+          ? await renderMeiServiceContractPdfBytes(vars)
+          : await renderDocumentHtmlToPdfBytes(renderedHtml, template.title);
       const uploaded = await uploadGerenciaPdfBytes(
         bytes,
         `${data.kind.toLowerCase()}-${employee.name.replace(/\s+/g, "-").slice(0, 40)}.pdf`,

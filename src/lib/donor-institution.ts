@@ -121,6 +121,30 @@ export function serializeDonorInstitution(
   };
 }
 
+const IGH_INSTITUTE_DEFAULTS = {
+  document: "08.633.366/0001-00",
+  address: "TV. Padre eutiquio, nº 3775 - Condor",
+  city: "Belém",
+  state: "PA",
+  cep: "66065-165",
+  phone: "(91) 3235-9320",
+  representativeName: "Guilherme de Oliveira Hessel",
+  representativeRole: "Administrador Financeiro",
+  representativeCpf: "431.501.768-08",
+  representativeRg: "54.040.895-5",
+  representativeMaritalStatus: "casado",
+  representativeAddress: "São Paulo, SP",
+} as const;
+
+function pickInstituteField(
+  value: string | null | undefined,
+  fallback: string | undefined,
+): string {
+  const trimmed = value?.trim();
+  if (trimmed) return trimmed;
+  return fallback ?? "—";
+}
+
 export function donorInstitutionVariableMap(
   donor: {
     name?: string | null;
@@ -136,31 +160,34 @@ export function donorInstitutionVariableMap(
     representativeCpf?: string | null;
   } | null,
 ): Record<string, string> {
+  const useIghDefaults = BRAND.shortName === "IGH";
+  const defaults = useIghDefaults ? IGH_INSTITUTE_DEFAULTS : null;
+
   const name = donor?.name?.trim() || BRAND.legalName || BRAND.shortName || "Instituto";
-  const addr = [
-    donor?.address,
-    donor?.city && donor?.state ? `${donor.city}/${donor.state}` : donor?.city || donor?.state,
-    donor?.cep,
-  ]
-    .filter(Boolean)
+  const logradouro = pickInstituteField(donor?.address, defaults?.address);
+  const city = pickInstituteField(donor?.city, defaults?.city);
+  const state = pickInstituteField(donor?.state, defaults?.state);
+  const cep = pickInstituteField(donor?.cep, defaults?.cep);
+  const addr = [logradouro, city && state ? `${city}/${state}` : city || state, cep]
+    .filter((part) => part && part !== "—")
     .join(", ");
 
   const instituto: Record<string, string> = {
     "instituto.nome": name,
-    "instituto.cnpj": donor?.document?.trim() || "—",
+    "instituto.cnpj": pickInstituteField(donor?.document, defaults?.document),
     "instituto.email": donor?.email?.trim() || "—",
-    "instituto.logradouro": donor?.address?.trim() || "—",
+    "instituto.logradouro": logradouro,
     "instituto.endereco": addr || "—",
-    "instituto.cidade": donor?.city?.trim() || "—",
-    "instituto.estado": donor?.state?.trim() || "—",
-    "instituto.cep": donor?.cep?.trim() || "—",
-    "instituto.telefone": donor?.phone?.trim() || "—",
-    "instituto.responsavel": donor?.representativeName?.trim() || "—",
-    "instituto.cargo": donor?.representativeRole?.trim() || "—",
-    "instituto.cpf": donor?.representativeCpf?.trim() || "—",
-    "instituto.responsavel_rg": "—",
-    "instituto.responsavel_estado_civil": "—",
-    "instituto.responsavel_endereco": "—",
+    "instituto.cidade": city,
+    "instituto.estado": state,
+    "instituto.cep": cep,
+    "instituto.telefone": pickInstituteField(donor?.phone, defaults?.phone),
+    "instituto.responsavel": pickInstituteField(donor?.representativeName, defaults?.representativeName),
+    "instituto.cargo": pickInstituteField(donor?.representativeRole, defaults?.representativeRole),
+    "instituto.cpf": pickInstituteField(donor?.representativeCpf, defaults?.representativeCpf),
+    "instituto.responsavel_rg": defaults?.representativeRg ?? "—",
+    "instituto.responsavel_estado_civil": defaults?.representativeMaritalStatus ?? "—",
+    "instituto.responsavel_endereco": defaults?.representativeAddress ?? "—",
   };
   const doadora = Object.fromEntries(
     Object.entries(instituto).map(([key, value]) => [key.replace("instituto.", "doadora."), value]),

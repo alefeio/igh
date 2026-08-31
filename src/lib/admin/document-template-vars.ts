@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Employee } from "@/generated/prisma/client";
 import { employeePositionText, formatCentsBRL, formatCpf } from "@/lib/employees";
+import { formatReaisPorExtenso } from "@/lib/admin/money-pt-extenso";
 import { BRAND } from "@/lib/brand";
 
 export type ContractTemplateVars = {
@@ -139,7 +140,7 @@ export function buildDocumentVariableMap(
     "funcionario.telefone": employee.phone?.trim() || "—",
     "funcionario.endereco": addressLine(employee),
     "funcionario.cidade_estado": employeeCityState(employee),
-    "funcionario.nacionalidade": "Brasileiro(a)",
+    "funcionario.nacionalidade": "brasileiro(a)",
     "funcionario.estado_civil": "—",
     "funcionario.mei_cnpj": employee.meiCnpj?.trim() || "—",
     "funcionario.pix": employee.pixKey?.trim() || "—",
@@ -147,11 +148,18 @@ export function buildDocumentVariableMap(
     "funcionario.agencia": employee.bankAgency?.trim() || "—",
     "funcionario.conta": employee.bankAccount?.trim() || "—",
     "contrato.valor": formatCentsBRL(contract?.monthlyValueCents),
+    "contrato.valor_extenso": formatReaisPorExtenso(contract?.monthlyValueCents),
     "contrato.inicio": dateBr(contract?.startDate),
     "contrato.fim": dateBr(contract?.endDate),
+    "contrato.inicio_extenso": dateLongBr(contract?.startDate),
+    "contrato.fim_extenso": dateLongBr(contract?.endDate),
     "contrato.data": dateLongBr(issuedAt),
     "contrato.convenio": formatConvenioRef(employee.fundingContractRef, contract?.startDate),
     "contrato.duracao": duration.short,
+    "contrato.duracao_meses":
+      durationMonths != null && durationMonths > 0
+        ? `${String(durationMonths).padStart(2, "0")} meses`
+        : "—",
     "contrato.duracao_extenso": duration.long,
     "instituto.nome": BRAND.legalName || BRAND.shortName || "Instituto",
     ...(extra ?? {}),
@@ -271,11 +279,15 @@ export const DOCUMENT_TEMPLATE_VARIABLE_HELP = [
   "{{funcionario.nacionalidade}}",
   "{{funcionario.estado_civil}}",
   "{{contrato.valor}}",
+  "{{contrato.valor_extenso}}",
   "{{contrato.inicio}}",
   "{{contrato.fim}}",
+  "{{contrato.inicio_extenso}}",
+  "{{contrato.fim_extenso}}",
   "{{contrato.data}}",
   "{{contrato.convenio}}",
   "{{contrato.duracao}}",
+  "{{contrato.duracao_meses}}",
   "{{contrato.duracao_extenso}}",
   "{{instituto.nome}}",
   "{{instituto.cnpj}}",
