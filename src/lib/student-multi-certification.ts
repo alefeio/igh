@@ -18,10 +18,38 @@ import {
   type StudentMultiCertProgress,
 } from "@/lib/student-multi-certification-shared";
 
+type CachedStudentRow = {
+  studentId: string;
+  studentName: string;
+  certificationCount: number;
+  courseIds: string[];
+  lastCompletedAt: string | null;
+};
+
 type CachedMultiCertSnapshot = {
-  sorted: AggregatedStudentCert[];
+  sorted: CachedStudentRow[];
   countByStudentId: Record<string, number>;
 };
+
+function toCachedRows(students: AggregatedStudentCert[]): CachedStudentRow[] {
+  return students.map((s) => ({
+    studentId: s.studentId,
+    studentName: s.studentName,
+    certificationCount: s.certificationCount,
+    courseIds: s.courseIds,
+    lastCompletedAt: s.lastCompletedAt ? s.lastCompletedAt.toISOString() : null,
+  }));
+}
+
+function fromCachedRows(rows: CachedStudentRow[]): AggregatedStudentCert[] {
+  return rows.map((s) => ({
+    studentId: s.studentId,
+    studentName: s.studentName,
+    certificationCount: s.certificationCount,
+    courseIds: s.courseIds,
+    lastCompletedAt: s.lastCompletedAt ? new Date(s.lastCompletedAt) : null,
+  }));
+}
 
 async function fetchCertifiedEnrollmentRows() {
   return prisma.enrollment.findMany({
@@ -63,14 +91,19 @@ async function buildSnapshot(): Promise<CachedMultiCertSnapshot> {
   for (const s of sorted) {
     countByStudentId[s.studentId] = s.certificationCount;
   }
-  return { sorted, countByStudentId };
+  return { sorted: toCachedRows(sorted), countByStudentId };
 }
 
 const getCachedSnapshot = unstable_cache(
   buildSnapshot,
-  ["multi-certified-students-v1"],
+  ["multi-certified-students-v2"],
   { revalidate: 300, tags: [MULTI_CERT_CACHE_TAG] },
 );
+
+async function loadSortedStudents(): Promise<AggregatedStudentCert[]> {
+  const { sorted } = await getCachedSnapshot();
+  return fromCachedRows(sorted);
+}
 
 function buildPayload(
   students: AggregatedStudentCert[],
@@ -87,37 +120,25 @@ function buildPayload(
 }
 
 export async function getPublicMultiCertifiedShowcase(): Promise<MultiCertifiedShowcasePayload | null> {
-  try {
-    const { sorted } = await getCachedSnapshot();
-    const { selected, totalEligible, hiddenCount } = selectForPublicShowcase(sorted);
-    if (selected.length === 0) return null;
-    return buildPayload(selected, totalEligible, hiddenCount, "public");
-  } catch {
-    return null;
-  }
+  const sorted = await loadSortedStudents();
+  const { selected, totalEligible, hiddenCount } = selectForPublicShowcase(sorted);
+  if (selected.length === 0) return null;
+  return buildPayload(selected, totalEligible, hiddenCount, "public");
 }
 
 export async function getDashboardMultiCertifiedShowcase(): Promise<MultiCertifiedShowcasePayload | null> {
-  try {
-    const { sorted } = await getCachedSnapshot();
-    const selected = selectForDashboardShowcase(sorted);
-    const totalEligible = sorted.filter((s) => s.certificationCount >= 2).length;
-    if (selected.length === 0) return null;
-    return buildPayload(selected, totalEligible, Math.max(0, totalEligible - selected.length), "public");
-  } catch {
-    return null;
-  }
+  const sorted = await loadSortedStudents();
+  const selected = selectForDashboardShowcase(sorted);
+  const totalEligible = sorted.filter((s) => s.certificationCount >= 2).length;
+  if (selected.length === 0) return null;
+  return buildPayload(selected, totalEligible, Math.max(0, totalEligible - selected.length), "public");
 }
 
 export async function getStudentMultiCertProgress(
   studentId: string,
   studentName: string,
 ): Promise<StudentMultiCertProgress> {
-  try {
-    const { countByStudentId } = await getCachedSnapshot();
-    const count = countByStudentId[studentId] ?? 0;
-    return computeStudentMultiCertProgress(count, formatMultiCertDisplayName(studentName, "full"));
-  } catch {
-    return computeStudentMultiCertProgress(0, formatMultiCertDisplayName(studentName, "full"));
-  }
+  const { countByStudentId } = await getCachedSnapshot();
+  const count = countByStudentId[studentId] ?? 0;
+  return computeStudentMultiCertProgress(count, formatMultiCertDisplayName(studentName, "full"));
 }

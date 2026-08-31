@@ -1,6 +1,6 @@
 import { revalidateTag } from "next/cache";
 
-export const MULTI_CERT_CACHE_TAG = "public-multi-certified-students-v1";
+export const MULTI_CERT_CACHE_TAG = "public-multi-certified-students-v2";
 
 export function revalidateMultiCertifiedStudentsCache(): void {
   revalidateTag(MULTI_CERT_CACHE_TAG, "max");

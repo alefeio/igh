@@ -1061,7 +1061,7 @@ function DashboardStudent({
         </SectionCard>
       )}
 
-      {multiCertProgress ? (
+      {multiCertShowcase ? (
         <StudentMultiCertificationPanel
           progress={multiCertProgress}
           showcase={multiCertShowcase}

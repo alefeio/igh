@@ -13,6 +13,7 @@ export { Stats } from "./Stats";
 export { Testimonials } from "./Testimonials";
 export { StudentRankingShowcase } from "./StudentRankingShowcase";
 export { MultiCertifiedShowcase } from "./MultiCertifiedShowcase";
+export { MultiCertifiedGrid, MultiCertifiedStudentCard } from "./MultiCertifiedGrid";
 export { MothersDayMessagesHomeSection } from "./MothersDayMessagesHomeSection";
 export { PlatformExperienceHomeSection } from "./PlatformExperienceHomeSection";
 export { CookieConsentBanner } from "./CookieConsentBanner";
