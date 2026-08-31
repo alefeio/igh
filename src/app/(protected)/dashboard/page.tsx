@@ -36,9 +36,19 @@ import {
 } from "@/components/dashboard/DashboardUI";
 import { StudentPlatformExperienceModal } from "@/components/student/StudentPlatformExperienceModal";
 import { StudentMarketingCampaignModal } from "@/components/student/StudentMarketingCampaignModal";
+import { StudentMultiCertificationPanel } from "@/components/student/StudentMultiCertificationPanel";
 import { TabletBannerViewer } from "@/components/tablet/TabletBannerViewer";
 import { requireSessionUser } from "@/lib/auth";
 import { BRAND } from "@/lib/brand";
+import { prisma } from "@/lib/prisma";
+import {
+  getDashboardMultiCertifiedShowcase,
+  getStudentMultiCertProgress,
+} from "@/lib/student-multi-certification";
+import type {
+  MultiCertifiedShowcasePayload,
+  StudentMultiCertProgress,
+} from "@/lib/student-multi-certification-shared";
 import {
   getDashboardData,
   type DashboardData,
@@ -731,9 +741,15 @@ function FinishLineFlagIcon({ className }: { className?: string }) {
 function DashboardStudent({
   userName,
   data,
+  multiCertProgress,
+  multiCertShowcase,
+  highlightStudentId,
 }: {
   userName: string;
   data: Extract<DashboardData, { role: "STUDENT" }>;
+  multiCertProgress: StudentMultiCertProgress | null;
+  multiCertShowcase: MultiCertifiedShowcasePayload | null;
+  highlightStudentId?: string | null;
 }) {
   const {
     enrollments,
@@ -1045,6 +1061,14 @@ function DashboardStudent({
         </SectionCard>
       )}
 
+      {multiCertProgress ? (
+        <StudentMultiCertificationPanel
+          progress={multiCertProgress}
+          showcase={multiCertShowcase}
+          highlightStudentId={highlightStudentId}
+        />
+      ) : null}
+
       {activeCourseEnrollments.length > 0 || otherCourseEnrollments.length > 0 ? (
         <>
           <section aria-labelledby="cursos-heading">
@@ -1156,6 +1180,9 @@ export default async function DashboardPage() {
     );
   }
   let data: DashboardData;
+  let studentMultiCertProgress: StudentMultiCertProgress | null = null;
+  let studentMultiCertShowcase: MultiCertifiedShowcasePayload | null = null;
+  let studentRecordId: string | null = null;
   try {
     data = await getDashboardData(user);
   } catch (err) {
@@ -1185,6 +1212,20 @@ export default async function DashboardPage() {
     );
   }
 
+  if (data.role === "STUDENT") {
+    const student = await prisma.student.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    if (student) {
+      studentRecordId = student.id;
+      [studentMultiCertProgress, studentMultiCertShowcase] = await Promise.all([
+        getStudentMultiCertProgress(student.id, student.name),
+        getDashboardMultiCertifiedShowcase(),
+      ]);
+    }
+  }
+
   return (
     <>
       {data.role === "ADMIN" ||
@@ -1202,6 +1243,9 @@ export default async function DashboardPage() {
         <DashboardStudent
           userName={user.name}
           data={data as Extract<DashboardData, { role: "STUDENT" }>}
+          multiCertProgress={studentMultiCertProgress}
+          multiCertShowcase={studentMultiCertShowcase}
+          highlightStudentId={studentRecordId}
         />
       )}
       <DashboardTutorial

@@ -13,6 +13,7 @@ import {
   HomeHowItWorksSection,
   HeroBannerCarousel,
   StudentRankingShowcase,
+  MultiCertifiedShowcase,
   PlatformExperienceHomeSection,
   MothersDayMessagesHomeSection,
   CommunityCtaHomeSection,
@@ -29,6 +30,7 @@ import {
   getPublicPlatformExperienceBlock,
   getPublicMotherCampaignMessages,
 } from "@/lib/site-data";
+import { getPublicMultiCertifiedShowcase } from "@/lib/student-multi-certification";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { BRAND } from "@/lib/brand";
 
@@ -57,6 +59,7 @@ export default async function HomePage({ searchParams }: Props) {
     testimonialsFromDb,
     newsPosts,
     studentRanking,
+    multiCertifiedShowcase,
     platformExperienceBlock,
     mothersDaySection,
     sessionUser,
@@ -70,6 +73,7 @@ export default async function HomePage({ searchParams }: Props) {
     getTestimonials(),
     getNewsPostsForSite(),
     getPublicStudentRanking(5),
+    getPublicMultiCertifiedShowcase(),
     getPublicPlatformExperienceBlock(),
     getPublicMotherCampaignMessages(18),
     getSessionUserFromCookie(),
@@ -189,6 +193,8 @@ export default async function HomePage({ searchParams }: Props) {
       <CommunityCtaHomeSection
         sessionUser={sessionUser ? { name: sessionUser.name, role: sessionUser.role } : null}
       />
+
+      {multiCertifiedShowcase ? <MultiCertifiedShowcase data={multiCertifiedShowcase} /> : null}
 
       {studentRanking.length > 0 && <StudentRankingShowcase items={studentRanking} />}
 

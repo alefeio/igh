@@ -20,6 +20,7 @@ import {
   splitHolidaysForSchedule,
 } from "@/lib/schedule";
 import { createUserNotificationIfNew } from "@/lib/user-notifications";
+import { revalidateMultiCertifiedStudentsCache } from "@/lib/student-multi-certification-cache";
 import type { updateClassGroupSchema } from "@/lib/validators/class-groups";
 
 export type ClassGroupPatch = z.infer<typeof updateClassGroupSchema>;
@@ -323,6 +324,10 @@ export async function applyClassGroupUpdate(input: {
     totalHours > 0
       ? totalHours
       : (existing.sessions?.length ?? 0) * parseDurationHours(updated.startTime, updated.endTime);
+
+  if (existing.status !== "ENCERRADA" && updated.status === "ENCERRADA") {
+    revalidateMultiCertifiedStudentsCache();
+  }
 
   return {
     ok: true,

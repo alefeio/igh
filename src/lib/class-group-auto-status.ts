@@ -2,6 +2,7 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { revalidateMultiCertifiedStudentsCache } from "@/lib/student-multi-certification-cache";
 
 /**
  * Status que passam automaticamente para EM_ANDAMENTO quando startDate <= hoje (calendário Brasil).
@@ -58,6 +59,10 @@ export async function applyClassGroupAutomaticStatusUpdates(): Promise<{
       data: { status: "ENCERRADA" },
     }),
   ]);
+
+  if (closed.count > 0) {
+    revalidateMultiCertifiedStudentsCache();
+  }
 
   return {
     promotedToEmAndamento: promoted.count,

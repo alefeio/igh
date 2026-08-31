@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAuditLog } from "@/lib/audit";
 import { markReferralCertified } from "@/lib/student-referrals";
+import { revalidateMultiCertifiedStudentsCache } from "@/lib/student-multi-certification-cache";
 
 type Ctx = { params: Promise<{ id: string; enrollmentId: string }> };
 
@@ -77,6 +78,8 @@ export async function PATCH(request: Request, context: Ctx) {
     },
     performedByUserId: user.id,
   });
+
+  revalidateMultiCertifiedStudentsCache();
 
   return jsonOk({
     enrollment: {
