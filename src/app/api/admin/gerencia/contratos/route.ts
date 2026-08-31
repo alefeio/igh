@@ -1,11 +1,10 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireAdminManager, requireAdminManagerWrite } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
-import { renderDocumentHtmlToPdfBytes } from "@/lib/admin/document-template-pdf";
 import {
-  isMeiServiceContractTemplate,
-  renderMeiServiceContractPdfBytes,
-} from "@/lib/admin/employee-contract-mei-pdf";
+  buildEmployeeContractPdfArtifacts,
+  employeeContractPdfFileName,
+} from "@/lib/admin/employee-contract-pdf-generate";
 import {
   buildDocumentVariableMap,
   renderDocumentTemplateHtml,
@@ -142,19 +141,25 @@ export async function POST(request: Request) {
     },
     donorInstitutionVariableMap(donor),
   );
-  const renderedHtml = renderDocumentTemplateHtml(template.contentRich, vars);
+  let renderedHtml = renderDocumentTemplateHtml(template.contentRich, vars);
 
   let pdfUrl: string | null = null;
   let pdfPublicId: string | null = null;
   if (data.generatePdf) {
     try {
-      const bytes =
-        data.kind === "CONTRATO" && isMeiServiceContractTemplate(template.title)
-          ? await renderMeiServiceContractPdfBytes(vars)
-          : await renderDocumentHtmlToPdfBytes(renderedHtml, template.title);
+      const artifacts = await buildEmployeeContractPdfArtifacts({
+        employee,
+        template,
+        kind: data.kind,
+        startDate: data.startDate,
+        endDate: data.endDate ?? null,
+        monthlyValueCents: data.monthlyValue ?? null,
+        issuedAt,
+      });
+      renderedHtml = artifacts.renderedHtml;
       const uploaded = await uploadGerenciaPdfBytes(
-        bytes,
-        `${data.kind.toLowerCase()}-${employee.name.replace(/\s+/g, "-").slice(0, 40)}.pdf`,
+        artifacts.bytes,
+        employeeContractPdfFileName(data.kind, employee.name),
       );
       pdfUrl = uploaded.url;
       pdfPublicId = uploaded.publicId;
