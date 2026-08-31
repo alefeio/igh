@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreVertical, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardHero, PanelPageStack, SectionCard } from "@/components/dashboard/DashboardUI";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { TableRowActionsMenu } from "@/components/ui/TableRowActionsMenu";
 import type { ApiResponse } from "@/lib/api-types";
 import {
   apimagesUploadHeaders,
@@ -140,16 +141,6 @@ export default function ContratosPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    if (!menuOpenId) return;
-    function handleMouseDown(ev: MouseEvent) {
-      const wrap = document.querySelector(`[data-contract-menu="${menuOpenId}"]`);
-      if (wrap && !wrap.contains(ev.target as Node)) setMenuOpenId(null);
-    }
-    document.addEventListener("mousedown", handleMouseDown);
-    return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [menuOpenId]);
 
   const contratacoes = useMemo(
     () => contracts.filter((c) => c.kind === "CONTRATO"),
@@ -457,128 +448,116 @@ export default function ContratosPage() {
                       </div>
                     </Td>
                     <Td className="text-right">
-                      <div className="relative inline-flex justify-end" data-contract-menu={c.id}>
+                      <TableRowActionsMenu
+                        open={menuOpenId === c.id}
+                        onOpenChange={(next) => setMenuOpenId(next ? c.id : null)}
+                        label={`Opções do contrato de ${c.employee.name}`}
+                        disabled={regeneratingId === c.id || uploadingId === c.id}
+                        estimatedHeight={320}
+                      >
+                        <p className="px-3 pb-1 pt-2 text-[0.65rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                          PDF gerado
+                        </p>
+                        {c.pdfUrl ? (
+                          <>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                              onClick={() => {
+                                setPreviewContract({
+                                  id: c.id,
+                                  label: `${c.employee.name} — contrato gerado`,
+                                  variant: "generated",
+                                });
+                                setMenuOpenId(null);
+                              }}
+                            >
+                              Visualizar
+                            </button>
+                            <a
+                              role="menuitem"
+                              href={`/api/admin/gerencia/contratos/${c.id}/pdf?download=1`}
+                              className="block px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                              onClick={() => setMenuOpenId(null)}
+                            >
+                              Baixar
+                            </a>
+                          </>
+                        ) : (
+                          <p className="px-3 py-1.5 text-sm text-[var(--text-muted)]">Nenhum PDF gerado</p>
+                        )}
                         <button
                           type="button"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--text-muted)] transition hover:border-[var(--card-border)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 disabled:opacity-50"
-                          aria-haspopup="menu"
-                          aria-expanded={menuOpenId === c.id}
-                          aria-label={`Opções do contrato de ${c.employee.name}`}
-                          disabled={regeneratingId === c.id || uploadingId === c.id}
-                          onClick={() => setMenuOpenId((id) => (id === c.id ? null : c.id))}
+                          role="menuitem"
+                          className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
+                          disabled={regeneratingId === c.id}
+                          onClick={() => void regeneratePdf(c)}
                         >
-                          <MoreVertical className="h-5 w-5" aria-hidden />
+                          {regeneratingId === c.id
+                            ? "Gerando…"
+                            : c.pdfUrl
+                              ? "Regerar PDF"
+                              : "Gerar PDF"}
                         </button>
-                        {menuOpenId === c.id ? (
-                          <div
-                            role="menu"
-                            className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] py-1 text-left shadow-lg"
+
+                        <div className="my-1 border-t border-[var(--card-border)]" />
+
+                        <p className="px-3 pb-1 pt-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                          PDF assinado
+                        </p>
+                        {c.signedPdfUrl ? (
+                          <>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="block w-full px-3 py-2 text-left text-sm text-emerald-700 hover:bg-[var(--igh-surface)] dark:text-emerald-400"
+                              onClick={() => {
+                                setPreviewContract({
+                                  id: c.id,
+                                  label: `${c.employee.name} — contrato assinado`,
+                                  variant: "signed",
+                                });
+                                setMenuOpenId(null);
+                              }}
+                            >
+                              Visualizar assinado
+                            </button>
+                            <a
+                              role="menuitem"
+                              href={`/api/admin/gerencia/contratos/${c.id}/pdf?variant=signed&download=1`}
+                              className="block px-3 py-2 text-sm text-emerald-700 hover:bg-[var(--igh-surface)] dark:text-emerald-400"
+                              onClick={() => setMenuOpenId(null)}
+                            >
+                              Baixar assinado
+                            </a>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
+                            disabled={uploadingId === c.id}
+                            onClick={() => {
+                              pickSignedPdf(c.id);
+                              setMenuOpenId(null);
+                            }}
                           >
-                            <p className="px-3 pb-1 pt-2 text-[0.65rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                              PDF gerado
-                            </p>
-                            {c.pdfUrl ? (
-                              <>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
-                                  onClick={() => {
-                                    setPreviewContract({
-                                      id: c.id,
-                                      label: `${c.employee.name} — contrato gerado`,
-                                      variant: "generated",
-                                    });
-                                    setMenuOpenId(null);
-                                  }}
-                                >
-                                  Visualizar
-                                </button>
-                                <a
-                                  role="menuitem"
-                                  href={`/api/admin/gerencia/contratos/${c.id}/pdf?download=1`}
-                                  className="block px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
-                                  onClick={() => setMenuOpenId(null)}
-                                >
-                                  Baixar
-                                </a>
-                              </>
-                            ) : (
-                              <p className="px-3 py-1.5 text-sm text-[var(--text-muted)]">Nenhum PDF gerado</p>
-                            )}
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
-                              disabled={regeneratingId === c.id}
-                              onClick={() => void regeneratePdf(c)}
-                            >
-                              {regeneratingId === c.id
-                                ? "Gerando…"
-                                : c.pdfUrl
-                                  ? "Regerar PDF"
-                                  : "Gerar PDF"}
-                            </button>
+                            {uploadingId === c.id ? "Enviando…" : "Anexar assinado"}
+                          </button>
+                        )}
 
-                            <div className="my-1 border-t border-[var(--card-border)]" />
+                        <div className="my-1 border-t border-[var(--card-border)]" />
 
-                            <p className="px-3 pb-1 pt-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                              PDF assinado
-                            </p>
-                            {c.signedPdfUrl ? (
-                              <>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  className="block w-full px-3 py-2 text-left text-sm text-emerald-700 hover:bg-[var(--igh-surface)] dark:text-emerald-400"
-                                  onClick={() => {
-                                    setPreviewContract({
-                                      id: c.id,
-                                      label: `${c.employee.name} — contrato assinado`,
-                                      variant: "signed",
-                                    });
-                                    setMenuOpenId(null);
-                                  }}
-                                >
-                                  Visualizar assinado
-                                </button>
-                                <a
-                                  role="menuitem"
-                                  href={`/api/admin/gerencia/contratos/${c.id}/pdf?variant=signed&download=1`}
-                                  className="block px-3 py-2 text-sm text-emerald-700 hover:bg-[var(--igh-surface)] dark:text-emerald-400"
-                                  onClick={() => setMenuOpenId(null)}
-                                >
-                                  Baixar assinado
-                                </a>
-                              </>
-                            ) : (
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)] disabled:opacity-50"
-                                disabled={uploadingId === c.id}
-                                onClick={() => {
-                                  pickSignedPdf(c.id);
-                                  setMenuOpenId(null);
-                                }}
-                              >
-                                {uploadingId === c.id ? "Enviando…" : "Anexar assinado"}
-                              </button>
-                            )}
-
-                            <div className="my-1 border-t border-[var(--card-border)]" />
-
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="block w-full px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                              onClick={() => void archiveContract(c)}
-                            >
-                              Arquivar
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="block w-full px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          onClick={() => void archiveContract(c)}
+                        >
+                          Arquivar
+                        </button>
+                      </TableRowActionsMenu>
                     </Td>
                   </tr>
                 ))}

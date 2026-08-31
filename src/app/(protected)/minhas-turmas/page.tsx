@@ -1,6 +1,6 @@
 "use client";
 
-import { GraduationCap, LayoutDashboard, MoreVertical, Star, UserCircle } from "lucide-react";
+import { GraduationCap, LayoutDashboard, Star, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Td, Th } from "@/components/ui/Table";
+import { TableRowActionsMenu } from "@/components/ui/TableRowActionsMenu";
 import type { ApiResponse } from "@/lib/api-types";
 
 type EnrollmentItem = {
@@ -62,16 +63,6 @@ export default function MinhasTurmasPage() {
   useEffect(() => {
     void loadEnrollments();
   }, [loadEnrollments]);
-
-  useEffect(() => {
-    if (!menuOpenId) return;
-    function handleMouseDown(ev: MouseEvent) {
-      const wrap = document.querySelector(`[data-enrollment-menu="${menuOpenId}"]`);
-      if (wrap && !wrap.contains(ev.target as Node)) setMenuOpenId(null);
-    }
-    document.addEventListener("mousedown", handleMouseDown);
-    return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [menuOpenId]);
 
   /** Formata ISO date ou date-time em pt-BR. Usa só a parte da data para evitar dia errado em fusos à esquerda de UTC. */
   function formatDate(iso: string) {
@@ -183,44 +174,33 @@ export default function MinhasTurmasPage() {
                   </Td>
                   <Td>{e.location ?? "—"}</Td>
                   <Td className="text-right">
-                    <div className="relative inline-flex justify-end" data-enrollment-menu={e.id}>
+                    <TableRowActionsMenu
+                      open={menuOpenId === e.id}
+                      onOpenChange={(next) => setMenuOpenId(next ? e.id : null)}
+                      label={`Opções da turma ${e.courseName}`}
+                      estimatedHeight={120}
+                      menuClassName="min-w-[11rem]"
+                    >
+                      <Link
+                        role="menuitem"
+                        href={`/minhas-turmas/${e.id}`}
+                        className="block px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                        onClick={() => setMenuOpenId(null)}
+                      >
+                        Ver detalhes
+                      </Link>
                       <button
                         type="button"
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--text-muted)] transition hover:border-[var(--card-border)] hover:bg-[var(--igh-surface)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-                        aria-haspopup="menu"
-                        aria-expanded={menuOpenId === e.id}
-                        aria-label={`Opções da turma ${e.courseName}`}
-                        onClick={() => setMenuOpenId((id) => (id === e.id ? null : e.id))}
+                        role="menuitem"
+                        className="w-full px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        onClick={() => {
+                          setDeleteTarget(e);
+                          setMenuOpenId(null);
+                        }}
                       >
-                        <MoreVertical className="h-5 w-5" aria-hidden />
+                        Excluir turma
                       </button>
-                      {menuOpenId === e.id ? (
-                        <div
-                          role="menu"
-                          className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] py-1 text-left shadow-lg"
-                        >
-                          <Link
-                            role="menuitem"
-                            href={`/minhas-turmas/${e.id}`}
-                            className="block px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
-                            onClick={() => setMenuOpenId(null)}
-                          >
-                            Ver detalhes
-                          </Link>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="w-full px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                            onClick={() => {
-                              setDeleteTarget(e);
-                              setMenuOpenId(null);
-                            }}
-                          >
-                            Excluir turma
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
+                    </TableRowActionsMenu>
                   </Td>
                 </tr>
               ))}
