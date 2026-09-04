@@ -761,7 +761,7 @@ export function templateNextCycleInterestConfirmation(params: {
 <p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
 <p>Recebemos sua pré-inscrição de interesse no próximo ciclo do ${escapeHtml(COMPANY_NAME)}.</p>
 <ul>
-  <li><strong>Curso pretendido:</strong> ${escapeHtml(courseLabel)}</li>
+  <li><strong>Curso(s) pretendido(s):</strong> ${escapeHtml(courseLabel)}</li>
 </ul>
 <p>Esta pré-inscrição <strong>não garante vaga</strong>. Quando as matrículas do próximo ciclo abrirem, entraremos em contato pelos dados que você informou.</p>
 <p style="margin:24px 0;">

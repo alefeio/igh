@@ -7,7 +7,6 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site/Button";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
-import { NEXT_CYCLE_OTHER_COURSE } from "@/lib/validators/next-cycle-interest";
 
 function formatPhoneInput(raw: string) {
   const d = raw.replace(/\D/g, "").slice(0, 11);
@@ -30,23 +29,36 @@ export function NextCycleInterestForm({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [courseId, setCourseId] = useState("");
+  const [courseIds, setCourseIds] = useState<string[]>([]);
+  const [otherChecked, setOtherChecked] = useState(false);
   const [customCourseName, setCustomCourseName] = useState("");
   const [website, setWebsite] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const isOther = courseId === NEXT_CYCLE_OTHER_COURSE;
-
   const sortedCourses = useMemo(
     () => [...courses].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
     [courses],
   );
 
+  function toggleCourse(id: string, checked: boolean) {
+    setCourseIds((prev) =>
+      checked ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id),
+    );
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
+    if (courseIds.length === 0 && !otherChecked) {
+      toast.push("error", "Selecione ao menos um curso ou marque “Outro”.");
+      return;
+    }
+    if (otherChecked && customCourseName.trim().length < 2) {
+      toast.push("error", "Digite o nome do curso em “Outro”.");
+      return;
+    }
     if (turnstileSiteKey && !captchaToken) {
       toast.push("error", "Confirme que você não é um robô antes de continuar.");
       return;
@@ -60,8 +72,8 @@ export function NextCycleInterestForm({
           name,
           phone,
           email,
-          courseId: courseId || null,
-          customCourseName: isOther ? customCourseName : null,
+          courseIds,
+          customCourseName: otherChecked ? customCourseName : null,
           captchaToken,
           website,
         }),
@@ -81,7 +93,8 @@ export function NextCycleInterestForm({
       setName("");
       setPhone("");
       setEmail("");
-      setCourseId("");
+      setCourseIds([]);
+      setOtherChecked(false);
       setCustomCourseName("");
       setCaptchaToken(null);
     } finally {
@@ -177,34 +190,47 @@ export function NextCycleInterestForm({
         </div>
       </div>
 
-      <div>
-        <label htmlFor="next-cycle-course" className="text-xs font-medium text-[var(--igh-muted)]">
-          Curso pretendido *
-        </label>
-        <select
-          id="next-cycle-course"
-          value={courseId}
-          onChange={(e) => setCourseId(e.target.value)}
-          required
-          className="theme-input mt-1 min-h-[44px] w-full rounded-md border px-3 py-2 text-sm"
-        >
-          <option value="">Selecione um curso</option>
-          {sortedCourses.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-          <option value={NEXT_CYCLE_OTHER_COURSE}>Outro (digitar o nome)</option>
-        </select>
-      </div>
+      <fieldset>
+        <legend className="text-xs font-medium text-[var(--igh-muted)]">
+          Cursos pretendidos * (pode marcar mais de um)
+        </legend>
+        <div className="mt-2 max-h-64 space-y-2 overflow-y-auto rounded-md border border-[var(--igh-border)] bg-[var(--igh-surface)] px-3 py-2">
+          {sortedCourses.map((c) => {
+            const checked = courseIds.includes(c.id);
+            return (
+              <label
+                key={c.id}
+                className="flex cursor-pointer items-start gap-2 text-sm text-[var(--igh-secondary)]"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => toggleCourse(c.id, e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--igh-primary)]"
+                />
+                <span>{c.name}</span>
+              </label>
+            );
+          })}
+          <label className="flex cursor-pointer items-start gap-2 border-t border-[var(--igh-border)] pt-2 text-sm font-medium text-[var(--igh-secondary)]">
+            <input
+              type="checkbox"
+              checked={otherChecked}
+              onChange={(e) => setOtherChecked(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--igh-primary)]"
+            />
+            <span>Outro (digitar o nome)</span>
+          </label>
+        </div>
+      </fieldset>
 
-      {isOther ? (
+      {otherChecked ? (
         <div>
           <label
             htmlFor="next-cycle-custom-course"
             className="text-xs font-medium text-[var(--igh-muted)]"
           >
-            Nome do curso *
+            Nome do outro curso *
           </label>
           <div className="mt-1">
             <Input

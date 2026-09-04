@@ -28,10 +28,12 @@ export async function listCoursesFromPastCyclesForInterest() {
   });
 }
 
-/** Valida se um courseId pode ser escolhido no formulário de pré-inscrição. */
-export async function findEligibleCourseForInterest(courseId: string) {
-  return prisma.course.findFirst({
-    where: { id: courseId, ...courseEligibleForInterestWhere },
+/** Valida cursos escolhidos no formulário de pré-inscrição. */
+export async function findEligibleCoursesForInterest(courseIds: string[]) {
+  if (courseIds.length === 0) return [];
+  return prisma.course.findMany({
+    where: { id: { in: courseIds }, ...courseEligibleForInterestWhere },
     select: { id: true, name: true },
+    orderBy: { name: "asc" },
   });
 }

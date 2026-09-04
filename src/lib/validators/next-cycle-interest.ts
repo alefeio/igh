@@ -2,9 +2,6 @@ import { z } from "zod";
 
 import { normalizeDigits } from "@/lib/validators/students";
 
-/** Valor sentinela do formulário para “outro curso”. */
-export const NEXT_CYCLE_OTHER_COURSE = "__other__";
-
 export const nextCycleInterestSchema = z
   .object({
     name: z.string().trim().min(2, "Informe o nome.").max(120, "Nome muito longo."),
@@ -21,12 +18,10 @@ export const nextCycleInterestSchema = z
       .email("E-mail inválido.")
       .toLowerCase()
       .max(160, "E-mail muito longo."),
-    courseId: z
-      .string()
-      .trim()
-      .optional()
-      .nullable()
-      .transform((v) => (v == null || v === "" || v === NEXT_CYCLE_OTHER_COURSE ? null : v)),
+    courseIds: z
+      .array(z.string().trim().uuid("Curso inválido."))
+      .max(30, "Selecione no máximo 30 cursos.")
+      .default([]),
     customCourseName: z
       .string()
       .trim()
@@ -38,12 +33,13 @@ export const nextCycleInterestSchema = z
     website: z.string().optional().nullable(),
   })
   .superRefine((data, ctx) => {
-    if (data.courseId) return;
-    if (!data.customCourseName || data.customCourseName.length < 2) {
+    const hasCourses = data.courseIds.length > 0;
+    const hasCustom = Boolean(data.customCourseName && data.customCourseName.length >= 2);
+    if (!hasCourses && !hasCustom) {
       ctx.addIssue({
         code: "custom",
-        path: ["customCourseName"],
-        message: "Selecione um curso ou digite o nome do curso pretendido.",
+        path: ["courseIds"],
+        message: "Selecione ao menos um curso ou digite o nome em “Outro”.",
       });
     }
   });

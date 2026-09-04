@@ -51,10 +51,10 @@ export default async function PreInscricaoPage() {
           <aside className="rounded-xl border border-[var(--igh-border)] bg-[var(--card-bg)] p-5 text-sm text-[var(--igh-muted)] sm:p-6">
             <h2 className="text-base font-semibold text-[var(--igh-secondary)]">Como funciona</h2>
             <ul className="mt-3 list-disc space-y-2 pl-5">
-              <li>Informe nome, telefone, e-mail e o curso de interesse.</li>
+              <li>Informe nome, telefone, e-mail e os cursos de interesse (pode marcar mais de um).</li>
               <li>
                 A lista inclui cursos que já tiveram turmas nos ciclos 1, 2 e 3. Se o seu não aparecer,
-                escolha &quot;Outro&quot; e digite o nome.
+                marque &quot;Outro&quot; e digite o nome.
               </li>
               <li>Não é obrigatório criar conta para enviar a pré-inscrição.</li>
               <li>

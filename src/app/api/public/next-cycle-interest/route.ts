@@ -7,7 +7,7 @@ import {
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateNextCycleInterestConfirmation } from "@/lib/email/templates";
 import { jsonErr, jsonOk } from "@/lib/http";
-import { findEligibleCourseForInterest } from "@/lib/next-cycle-interest";
+import { findEligibleCoursesForInterest } from "@/lib/next-cycle-interest";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit-memory";
 import { nextCycleInterestSchema } from "@/lib/validators/next-cycle-interest";
@@ -51,25 +51,27 @@ export async function POST(request: Request) {
       }
     }
 
-    let courseId: string | null = parsed.data.courseId;
-    let customCourseName: string | null = parsed.data.customCourseName;
-    let courseLabel = customCourseName?.trim() || "Curso informado";
+    const requestedIds = [...new Set(parsed.data.courseIds)];
+    const customCourseName = parsed.data.customCourseName;
+    const eligible = await findEligibleCoursesForInterest(requestedIds);
 
-    if (courseId) {
-      const course = await findEligibleCourseForInterest(courseId);
-      if (!course) {
-        return jsonErr("VALIDATION_ERROR", "Curso selecionado inválido.", 400);
-      }
-      customCourseName = null;
-      courseLabel = course.name;
+    if (requestedIds.length > 0 && eligible.length !== requestedIds.length) {
+      return jsonErr("VALIDATION_ERROR", "Um ou mais cursos selecionados são inválidos.", 400);
     }
+
+    const courseLabels = [
+      ...eligible.map((c) => c.name),
+      ...(customCourseName ? [customCourseName] : []),
+    ];
+    const courseLabel =
+      courseLabels.length > 0 ? courseLabels.join(", ") : "Curso informado";
 
     const created = await prisma.nextCycleInterest.create({
       data: {
         name: parsed.data.name,
         phone: parsed.data.phone,
         email: parsed.data.email,
-        courseId,
+        courseIds: eligible.map((c) => c.id),
         customCourseName,
         source: "site",
       },
