@@ -5,6 +5,7 @@ import {
   verifyTurnstileToken,
 } from "@/lib/bot-protection";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { findEligibleCourseForInterest } from "@/lib/next-cycle-interest";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit-memory";
 import { nextCycleInterestSchema } from "@/lib/validators/next-cycle-interest";
@@ -51,18 +52,7 @@ export async function POST(request: Request) {
     let customCourseName: string | null = parsed.data.customCourseName;
 
     if (courseId) {
-      const course = await prisma.course.findFirst({
-        where: {
-          id: courseId,
-          classGroups: {
-            some: {
-              status: { not: "CANCELADA" },
-              cycle: { cycle: { in: [1, 2, 3] } },
-            },
-          },
-        },
-        select: { id: true },
-      });
+      const course = await findEligibleCourseForInterest(courseId);
       if (!course) {
         return jsonErr("VALIDATION_ERROR", "Curso selecionado inválido.", 400);
       }
