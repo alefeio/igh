@@ -8,6 +8,7 @@ import {
   BlogCard,
   FormacoesSection,
   HomeAudiencePathsStrip,
+  HomeNextCycleInterestSection,
   HomePublicRatingStrip,
   HomeObjectiveTrails,
   HomeHowItWorksSection,
@@ -109,6 +110,7 @@ export default async function HomePage({ searchParams }: Props) {
       {banners.length > 0 ? <HeroBannerCarousel banners={banners} /> : null}
 
       <HomeAudiencePathsStrip />
+      <HomeNextCycleInterestSection />
       <HomePublicRatingStrip block={platformExperienceBlock} stats={[]} />
       <HomeObjectiveTrails basePath="/" />
 
@@ -125,9 +127,12 @@ export default async function HomePage({ searchParams }: Props) {
             initialObjetivo={objetivo}
             basePath="/"
           />
-          <div className="mt-8 text-center">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button as="link" href="/inscreva" variant="primary" size="lg">
               Quero me inscrever
+            </Button>
+            <Button as="link" href="/pre-inscricao" variant="accent" size="lg">
+              Pré-inscrição próximo ciclo
             </Button>
           </div>
         </Section>

@@ -32,6 +32,6 @@ export async function listCoursesFromPastCyclesForInterest() {
 export async function findEligibleCourseForInterest(courseId: string) {
   return prisma.course.findFirst({
     where: { id: courseId, ...courseEligibleForInterestWhere },
-    select: { id: true },
+    select: { id: true, name: true },
   });
 }

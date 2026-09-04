@@ -94,7 +94,8 @@ export function NextCycleInterestForm({
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-6 text-center">
         <p className="text-lg font-semibold text-[var(--igh-secondary)]">Pré-inscrição enviada!</p>
         <p className="mt-2 text-sm text-[var(--igh-muted)]">
-          Recebemos seus dados. Quando o próximo ciclo abrir as matrículas, entraremos em contato.
+          Recebemos seus dados e enviamos um e-mail de confirmação. Quando o próximo ciclo abrir as
+          matrículas, entraremos em contato.
         </p>
         <Button
           type="button"

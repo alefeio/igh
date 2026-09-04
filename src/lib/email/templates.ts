@@ -748,6 +748,33 @@ ${courseList}
   };
 }
 
+/** Confirmação da pré-inscrição de interesse no próximo ciclo (formulário público). */
+export function templateNextCycleInterestConfirmation(params: {
+  name: string;
+  courseLabel: string;
+}): { subject: string; html: string } {
+  const { name, courseLabel } = params;
+  const preInscricaoUrl = getAppUrl("/pre-inscricao");
+  const formacoesUrl = getAppUrl("/formacoes");
+  const body = `
+<h2>Pré-inscrição confirmada</h2>
+<p>Olá, <strong>${escapeHtml(name)}</strong>.</p>
+<p>Recebemos sua pré-inscrição de interesse no próximo ciclo do ${escapeHtml(COMPANY_NAME)}.</p>
+<ul>
+  <li><strong>Curso pretendido:</strong> ${escapeHtml(courseLabel)}</li>
+</ul>
+<p>Esta pré-inscrição <strong>não garante vaga</strong>. Quando as matrículas do próximo ciclo abrirem, entraremos em contato pelos dados que você informou.</p>
+<p style="margin:24px 0;">
+  <a href="${formacoesUrl}" style="display:inline-block;background:#0066b3;color:#fff!important;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">Ver catálogo de cursos</a>
+</p>
+<p style="font-size:13px;color:#6b7280;">Se precisar atualizar seus dados, envie outra pré-inscrição em <a href="${preInscricaoUrl}">${preInscricaoUrl}</a>.</p>
+`;
+  return {
+    subject: `Pré-inscrição confirmada — próximo ciclo | ${BRAND.shortName}`,
+    html: wrapHtml(body),
+  };
+}
+
 export { TERMS_VERSION };
 
 function escapeHtml(s: string): string {

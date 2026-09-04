@@ -4,6 +4,7 @@ import { isStudentEnrollmentActiveInClassGroup } from "@/lib/student-enrollment-
 import {
   BookOpen,
   CalendarDays,
+  CalendarPlus,
   ChevronRight,
   Clock,
   GraduationCap,
@@ -24,7 +25,7 @@ import {
 } from "lucide-react";
 
 import { StudentEnrollmentSuspensionBanner } from "@/components/student/StudentEnrollmentSuspensionBanner";
-import { StudentEnrollmentCtaBanner } from "@/components/student/StudentEnrollmentCtaBanner";
+import { StudentEnrollmentCtaBanner, StudentNextCycleInterestBanner } from "@/components/student/StudentEnrollmentCtaBanner";
 import { DirectorDashboard } from "@/components/director/DirectorDashboard";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import {
@@ -921,6 +922,13 @@ function DashboardStudent({
     },
     ...(hasEnrollment ? forumQuickActions : []),
     {
+      href: "/pre-inscricao",
+      label: "Pré-inscrição",
+      description: "Interesse no próximo ciclo",
+      icon: CalendarPlus,
+      accent: "from-orange-500 to-amber-600",
+    },
+    {
       href: "/meus-dados",
       label: "Meus dados",
       description: "Cadastro e documentos",
@@ -953,6 +961,8 @@ function DashboardStudent({
       {hasEnrollment ? null : (
         <StudentEnrollmentCtaBanner openClassGroupsCount={openPublicClassGroupsCount} />
       )}
+
+      {hasEnrollment ? <StudentNextCycleInterestBanner /> : null}
 
       {continueBlock ? <div className="min-w-0">{continueBlock}</div> : null}
 

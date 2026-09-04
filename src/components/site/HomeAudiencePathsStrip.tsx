@@ -21,10 +21,10 @@ export function HomeAudiencePathsStrip() {
           </a>
           <a
             href="/pre-inscricao"
-            className="touch-manipulation rounded-lg border border-[var(--igh-accent)]/50 bg-[var(--card-bg)] px-4 py-3 text-center text-sm font-semibold text-[var(--igh-secondary)] shadow-sm transition hover:border-[var(--igh-accent)] hover:bg-[var(--igh-accent)]/10 sm:min-w-[220px] sm:py-3.5"
+            className="touch-manipulation rounded-lg bg-[var(--igh-accent)] px-4 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--igh-accent-hover)] sm:min-w-[220px] sm:py-3.5"
           >
             Pré-inscrição próximo ciclo
-            <span className="mt-0.5 block text-xs font-normal text-[var(--igh-muted)]">Deixe seu interesse (sem conta)</span>
+            <span className="mt-0.5 block text-xs font-normal text-white/90">Deixe seu interesse (sem conta)</span>
           </a>
           <a
             href="/formacoes"

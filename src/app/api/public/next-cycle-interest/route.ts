@@ -4,6 +4,8 @@ import {
   isTurnstileConfigured,
   verifyTurnstileToken,
 } from "@/lib/bot-protection";
+import { sendEmailAndRecord } from "@/lib/email/send-and-record";
+import { templateNextCycleInterestConfirmation } from "@/lib/email/templates";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { findEligibleCourseForInterest } from "@/lib/next-cycle-interest";
 import { prisma } from "@/lib/prisma";
@@ -14,7 +16,8 @@ const WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_IP = 15;
 
 /**
- * Registra interesse / pré-inscrição no próximo ciclo (sem conta obrigatória).
+ * Registra interesse / pré-inscrição no próximo ciclo (sem conta obrigatória)
+ * e envia e-mail de confirmação.
  */
 export async function POST(request: Request) {
   try {
@@ -50,6 +53,7 @@ export async function POST(request: Request) {
 
     let courseId: string | null = parsed.data.courseId;
     let customCourseName: string | null = parsed.data.customCourseName;
+    let courseLabel = customCourseName?.trim() || "Curso informado";
 
     if (courseId) {
       const course = await findEligibleCourseForInterest(courseId);
@@ -57,6 +61,7 @@ export async function POST(request: Request) {
         return jsonErr("VALIDATION_ERROR", "Curso selecionado inválido.", 400);
       }
       customCourseName = null;
+      courseLabel = course.name;
     }
 
     const created = await prisma.nextCycleInterest.create({
@@ -71,10 +76,29 @@ export async function POST(request: Request) {
       select: { id: true },
     });
 
+    const { subject, html } = templateNextCycleInterestConfirmation({
+      name: parsed.data.name,
+      courseLabel,
+    });
+    try {
+      await sendEmailAndRecord({
+        to: parsed.data.email,
+        subject,
+        html,
+        emailType: "next_cycle_interest_confirmation",
+        entityType: "NextCycleInterest",
+        entityId: created.id,
+        performedByUserId: null,
+      });
+    } catch (emailError) {
+      console.error("[public/next-cycle-interest] email", emailError);
+    }
+
     return jsonOk(
       {
         id: created.id,
-        message: "Pré-inscrição registrada! Entraremos em contato quando o próximo ciclo abrir.",
+        message:
+          "Pré-inscrição registrada! Enviamos um e-mail de confirmação. Entraremos em contato quando o próximo ciclo abrir.",
       },
       { status: 201 },
     );

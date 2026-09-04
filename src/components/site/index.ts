@@ -22,6 +22,7 @@ export { BlogCard } from "./BlogCard";
 export { NoticiasList } from "./NoticiasList";
 export { FormacoesSection } from "./FormacoesSection";
 export { HomeAudiencePathsStrip } from "./HomeAudiencePathsStrip";
+export { HomeNextCycleInterestSection } from "./HomeNextCycleInterestSection";
 export { HomePublicRatingStrip } from "./HomePublicRatingStrip";
 export { HomeStudentJourneySection } from "./HomeStudentJourneySection";
 export { HomeObjectiveTrails } from "./HomeObjectiveTrails";
