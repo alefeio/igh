@@ -152,6 +152,18 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/admin/pre-inscricoes")) {
+    const canViewPreInscricoes = [
+      "MASTER",
+      "GENERAL_ADMIN",
+      "ADMIN",
+      "SITE_ADMIN",
+    ].includes(role ?? "");
+    if (!canViewPreInscricoes) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
   if (pathname.startsWith("/admin/gerencia")) {
     if ((role ?? "") === "DIRECTOR") {
       return NextResponse.redirect(dashboardUrl);
@@ -193,6 +205,7 @@ export const config = {
     "/escolher-perfil/:path*",
     "/admin/polos/:path*",
     "/holidays/:path*",
+    "/admin/pre-inscricoes/:path*",
     "/time-slots/:path*",
     "/professor/:path*",
     "/suporte/:path*",

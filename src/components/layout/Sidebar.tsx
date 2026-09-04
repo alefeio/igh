@@ -51,6 +51,8 @@ const MASTER_AND_ADMIN = ["MASTER", "GENERAL_ADMIN", "ADMIN"] as const;
 const MASTER_OR_GENERAL = ["MASTER", "GENERAL_ADMIN"] as const;
 /** Comunicação e Site: Master, Admin Geral e Administrador Site. */
 const SITE_AND_COMMS = ["MASTER", "GENERAL_ADMIN", "SITE_ADMIN"] as const;
+/** Pré-inscrições do próximo ciclo: pedagógico + site. */
+const PRE_INSCRICOES_ROLES = ["MASTER", "GENERAL_ADMIN", "ADMIN", "SITE_ADMIN"] as const;
 /** Gerência Administrativa: pessoas, patrimônio, doações e financeiro (sem Diretor). */
 const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER"] as const;
 /** Área executiva do Diretor (Master também vê para preview). */
@@ -242,6 +244,12 @@ const ITEMS: Item[] = [
     category: "Administração",
   },
   { href: "/holidays", label: "Inscrições em eventos", roles: MASTER_AND_ADMIN, category: "Administração" },
+  {
+    href: "/admin/pre-inscricoes",
+    label: "Pré-inscrições (próximo ciclo)",
+    roles: PRE_INSCRICOES_ROLES,
+    category: "Administração",
+  },
   { href: "/gamificacao", label: "Gamificação", roles: MASTER_AND_ADMIN, category: "Administração" },
   { href: "/ranking-alunos", label: "Ranking dos alunos", roles: MASTER_AND_ADMIN, category: "Administração" },
 
