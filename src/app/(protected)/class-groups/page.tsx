@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal } from "lucide-react";
+import { ChevronDown, MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -255,6 +255,7 @@ export default function ClassGroupsPage() {
   const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
   const [downloadingCycleCertsId, setDownloadingCycleCertsId] = useState<string | null>(null);
   const [downloadingCycleReportId, setDownloadingCycleReportId] = useState<string | null>(null);
+  const [cycleReportMenuId, setCycleReportMenuId] = useState<string | null>(null);
   const [downloadingSelected, setDownloadingSelected] = useState(false);
   const [certificatePagesMode, setCertificatePagesMode] = useState<CertificatePagesMode>("both");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -279,6 +280,7 @@ export default function ClassGroupsPage() {
     openUp: boolean;
   } | null>(null);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const cycleReportMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [cycleEditNumber, setCycleEditNumber] = useState("1");
   const [cycleEditYear, setCycleEditYear] = useState(String(new Date().getFullYear()));
@@ -806,6 +808,33 @@ export default function ClassGroupsPage() {
     }
   }
 
+  async function downloadCycleReport(c: Cycle, format: "xlsx" | "pdf") {
+    if (downloadingCycleReportId) return;
+    setCycleReportMenuId(null);
+    setDownloadingCycleReportId(c.id);
+    const ext = format === "pdf" ? "pdf" : "xlsx";
+    const label = format === "pdf" ? "PDF" : "Excel";
+    try {
+      const res = await fetch(`/api/cycles/${c.id}/report?format=${format}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        toast.push(
+          "error",
+          apiErrorMessage(json, `Falha ao baixar o relatório do ciclo (${label}).`),
+        );
+        return;
+      }
+      await downloadBlobResponse(res, `relatorio-ciclo-${c.cycle}-${c.year}.${ext}`);
+      toast.push("success", `Download do relatório do ciclo (${label}) iniciado.`);
+    } catch {
+      toast.push("error", `Falha ao baixar o relatório do ciclo (${label}).`);
+    } finally {
+      setDownloadingCycleReportId(null);
+    }
+  }
+
   async function downloadSelectedCertificates() {
     const ids = [...selectedIds];
     if (ids.length === 0 || downloadingSelected) return;
@@ -870,6 +899,28 @@ export default function ClassGroupsPage() {
       };
     }
   }, [actionsMenuId]);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!cycleReportMenuRef.current) return;
+      if (!cycleReportMenuRef.current.contains(e.target as Node)) {
+        setCycleReportMenuId(null);
+      }
+    }
+    function onClose() {
+      setCycleReportMenuId(null);
+    }
+    if (cycleReportMenuId) {
+      document.addEventListener("mousedown", onDocClick);
+      window.addEventListener("scroll", onClose, true);
+      window.addEventListener("resize", onClose);
+      return () => {
+        document.removeEventListener("mousedown", onDocClick);
+        window.removeEventListener("scroll", onClose, true);
+        window.removeEventListener("resize", onClose);
+      };
+    }
+  }, [cycleReportMenuId]);
 
   const actionsMenuClassGroup = useMemo(
     () => (actionsMenuId ? items.find((cg) => cg.id === actionsMenuId) ?? null : null),
@@ -1137,45 +1188,58 @@ export default function ClassGroupsPage() {
                 </Td>
                 <Td>
                   <div className="flex flex-wrap justify-end gap-2">
-                    <Button
-                      variant="secondary"
-                      disabled={downloadingCycleReportId != null || downloadingCycleCertsId != null}
-                      title="Excel: turmas e resumo por curso (inscritos, formados, frequência)"
-                      onClick={async () => {
-                        if (downloadingCycleReportId) return;
-                        setDownloadingCycleReportId(c.id);
-                        try {
-                          const res = await fetch(`/api/cycles/${c.id}/report`, {
-                            credentials: "include",
-                          });
-                          if (!res.ok) {
-                            const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
-                            toast.push(
-                              "error",
-                              apiErrorMessage(json, "Falha ao baixar o relatório do ciclo."),
-                            );
-                            return;
-                          }
-                          await downloadBlobResponse(
-                            res,
-                            `relatorio-ciclo-${c.cycle}-${c.year}.xlsx`,
-                          );
-                          toast.push("success", "Download do relatório do ciclo iniciado.");
-                        } catch {
-                          toast.push("error", "Falha ao baixar o relatório do ciclo.");
-                        } finally {
-                          setDownloadingCycleReportId(null);
-                        }
-                      }}
-                    >
-                      {downloadingCycleReportId === c.id ? "Gerando…" : "Relatório do ciclo"}
-                    </Button>
+                    <div className="relative" ref={cycleReportMenuId === c.id ? cycleReportMenuRef : undefined}>
+                      <Button
+                        variant="secondary"
+                        disabled={downloadingCycleReportId != null || downloadingCycleCertsId != null}
+                        title="Baixar relatório do ciclo (Excel ou PDF)"
+                        aria-haspopup="menu"
+                        aria-expanded={cycleReportMenuId === c.id}
+                        onClick={() => {
+                          if (downloadingCycleReportId) return;
+                          setCycleReportMenuId((prev) => (prev === c.id ? null : c.id));
+                        }}
+                      >
+                        {downloadingCycleReportId === c.id ? (
+                          "Gerando…"
+                        ) : (
+                          <>
+                            Relatório do ciclo
+                            <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-70" aria-hidden />
+                          </>
+                        )}
+                      </Button>
+                      {cycleReportMenuId === c.id && downloadingCycleReportId == null ? (
+                        <div
+                          role="menu"
+                          className="absolute right-0 z-50 mt-1 min-w-[10.5rem] rounded-md border border-[var(--card-border)] bg-white py-1 shadow-lg dark:bg-zinc-900"
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                            onClick={() => void downloadCycleReport(c, "xlsx")}
+                          >
+                            Excel (.xlsx)
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="block w-full px-3 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                            onClick={() => void downloadCycleReport(c, "pdf")}
+                          >
+                            PDF
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                     <Button
                       variant="secondary"
                       disabled={downloadingCycleCertsId != null || downloadingCycleReportId != null}
                       title="Baixar ZIP com certificados (um arquivo .zip por curso)"
                       onClick={async () => {
                         if (downloadingCycleCertsId) return;
+                        setCycleReportMenuId(null);
                         setDownloadingCycleCertsId(c.id);
                         try {
                           const res = await fetch(

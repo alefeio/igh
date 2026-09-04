@@ -1,10 +1,12 @@
 import "server-only";
 
 import ExcelJS from "exceljs";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { BRAND } from "@/lib/brand";
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
+import { enrollmentOccupiesSeat } from "@/lib/enrollment-seat";
 import { prisma } from "@/lib/prisma";
 
 const DAY_LABEL: Record<string, string> = {
@@ -35,11 +37,12 @@ export type CycleClassGroupReportRow = {
   status: string;
   statusLabel: string;
   capacity: number;
+  /** Vagas preenchidas (ACTIVE + SUSPENDED), alinhado a /enrollments. */
   inscritos: number;
   ocupacaoPercent: number | null;
   suspensos: number;
   cancelados: number;
-  /** ACTIVE + SUSPENDED (base da taxa de formados). */
+  /** ACTIVE + SUSPENDED (vagas preenchidas / base da taxa de formados). */
   baseFormacao: number;
   /** certificateEligible e turma ENCERRADA. */
   formados: number;
@@ -91,7 +94,8 @@ function avg(nums: number[]): number | null {
 
 /**
  * Relatório de turmas do ciclo (exclui CANCELADA; inclui internas e externas).
- * Inscritos = ACTIVE · Formados = Certificado Sim + turma ENCERRADA ·
+ * Inscritos = vagas preenchidas (ACTIVE + SUSPENDED), alinhado a /enrollments ·
+ * Formados = Certificado Sim + turma ENCERRADA ·
  * Taxa = formados / (ACTIVE + SUSPENDED).
  */
 export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
@@ -144,7 +148,6 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
       : await prisma.enrollment.findMany({
           where: {
             classGroupId: { in: classGroupIds },
-            isPreEnrollment: false,
           },
           select: {
             id: true,
@@ -166,9 +169,7 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
         });
   const eligibleById = new Map(refreshedEligible.map((r) => [r.id, r.certificateEligible]));
 
-  const attendanceIds = enrollments
-    .filter((e) => e.status === "ACTIVE" || e.status === "SUSPENDED")
-    .map((e) => e.id);
+  const attendanceIds = enrollments.filter((e) => enrollmentOccupiesSeat(e.status)).map((e) => e.id);
   const attendanceMap = await getEnrollmentAttendanceSummaries(attendanceIds);
 
   const enrollmentsByCg = new Map<string, typeof enrollments>();
@@ -182,10 +183,11 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
 
   for (const cg of classGroups) {
     const rows = enrollmentsByCg.get(cg.id) ?? [];
-    const inscritos = rows.filter((e) => e.status === "ACTIVE").length;
+    // Mesma regra de /enrollments e lotação de turmas: ACTIVE + SUSPENDED.
+    const inscritos = rows.filter((e) => enrollmentOccupiesSeat(e.status)).length;
     const suspensos = rows.filter((e) => e.status === "SUSPENDED").length;
     const cancelados = rows.filter((e) => e.status === "CANCELLED").length;
-    const baseFormacao = inscritos + suspensos;
+    const baseFormacao = inscritos;
 
     const isEncerrada = cg.status === "ENCERRADA";
     const formados = isEncerrada
@@ -199,7 +201,7 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
     const freqPercents: number[] = [];
     let sessoes = 0;
     for (const e of rows) {
-      if (e.status !== "ACTIVE" && e.status !== "SUSPENDED") continue;
+      if (!enrollmentOccupiesSeat(e.status)) continue;
       const summary = attendanceMap.get(e.id);
       if (summary) {
         sessoes = Math.max(sessoes, summary.totalSessions);
@@ -581,9 +583,12 @@ export async function buildCycleClassGroupsReportXlsx(params: {
   styleHeaderRow(glossHeader, 2);
 
   const glossario: [string, string][] = [
-    ["Inscritos", "Matrículas com status ACTIVE"],
-    ["Suspensos", "Matrículas com status SUSPENDED"],
-    ["Base formação", "Inscritos (ACTIVE) + Suspensos"],
+    [
+      "Inscritos",
+      "Vagas preenchidas: matrículas ACTIVE + SUSPENDED (mesma regra de /enrollments e lotação das turmas)",
+    ],
+    ["Suspensos", "Matrículas com status SUSPENDED (já incluídas em Inscritos)"],
+    ["Base formação", "Igual a Inscritos (ACTIVE + SUSPENDED); denominador da taxa de formados"],
     ["Formados", "Alunos com Certificado = Sim (aptos) e turma ENCERRADA"],
     ["Taxa formados %", "Formados ÷ Base formação × 100"],
     [
@@ -610,4 +615,319 @@ export async function buildCycleClassGroupsReportXlsx(params: {
 
   const buffer = await wb.xlsx.writeBuffer();
   return Buffer.from(buffer);
+}
+
+/** Converte texto para exibição no PDF (remove caracteres não WinAnsi). */
+function toPdfText(text: string): string {
+  const map: Record<string, string> = {
+    á: "a",
+    à: "a",
+    ã: "a",
+    â: "a",
+    ä: "a",
+    é: "e",
+    ê: "e",
+    ë: "e",
+    í: "i",
+    ï: "i",
+    ó: "o",
+    ô: "o",
+    õ: "o",
+    ö: "o",
+    ú: "u",
+    ü: "u",
+    ç: "c",
+    Á: "A",
+    À: "A",
+    Ã: "A",
+    Â: "A",
+    É: "E",
+    Ê: "E",
+    Í: "I",
+    Ó: "O",
+    Ô: "O",
+    Õ: "O",
+    Ú: "U",
+    Ç: "C",
+    "\u2014": "-",
+    "\u2013": "-",
+  };
+  let out = text;
+  for (const [from, to] of Object.entries(map)) {
+    out = out.split(from).join(to);
+  }
+  return out.replace(/[^\x20-\x7E\u00A0-\u00FF]/g, " ");
+}
+
+function fmtPct(n: number | null): string {
+  return n == null ? "-" : `${n.toFixed(1)}%`;
+}
+
+/**
+ * PDF paisagem: resumo por curso + detalhe das turmas (mesmos dados do Excel).
+ */
+export async function buildCycleClassGroupsReportPdf(params: {
+  cycle: { cycle: number; year: number };
+  turmaRows: CycleClassGroupReportRow[];
+  courseRows: CycleCourseReportRow[];
+}): Promise<Buffer> {
+  const PAGE_WIDTH = 842; // A4 landscape
+  const PAGE_HEIGHT = 595;
+  const MARGIN = 28;
+  const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+  const ROW_H = 12;
+  const FONT_TITLE = 14;
+  const FONT_HEADING = 11;
+  const FONT_BODY = 7.5;
+  const FONT_SMALL = 6.5;
+
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const black = rgb(0.12, 0.12, 0.12);
+  const gray = rgb(0.4, 0.4, 0.4);
+  const headerBg = rgb(0.12, 0.31, 0.47);
+  const altRow = rgb(0.95, 0.95, 0.95);
+  const white = rgb(1, 1, 1);
+
+  let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  let y = PAGE_HEIGHT - MARGIN;
+
+  function drawText(
+    text: string,
+    opts: {
+      x: number;
+      y: number;
+      size?: number;
+      font?: typeof font | typeof fontBold;
+      color?: ReturnType<typeof rgb>;
+      maxWidth?: number;
+    },
+  ) {
+    const f = opts.font ?? font;
+    const size = opts.size ?? FONT_BODY;
+    let t = toPdfText(text);
+    if (opts.maxWidth != null) {
+      while (t.length > 1 && f.widthOfTextAtSize(t, size) > opts.maxWidth) {
+        t = t.slice(0, -1);
+      }
+      if (t !== toPdfText(text) && t.length > 1) t = `${t.slice(0, -1)}.`;
+    }
+    page.drawText(t, {
+      x: opts.x,
+      y: opts.y,
+      size,
+      font: f,
+      color: opts.color ?? black,
+    });
+  }
+
+  function newPageIfNeeded(needed: number) {
+    if (y - needed < MARGIN) {
+      page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      y = PAGE_HEIGHT - MARGIN;
+    }
+  }
+
+  type Col = { key: string; label: string; width: number; align?: "left" | "right" | "center" };
+
+  function drawTableHeader(cols: Col[]) {
+    newPageIfNeeded(ROW_H + 4);
+    page.drawRectangle({
+      x: MARGIN,
+      y: y - 2,
+      width: CONTENT_WIDTH,
+      height: ROW_H + 2,
+      color: headerBg,
+    });
+    let x = MARGIN + 3;
+    for (const col of cols) {
+      drawText(col.label, {
+        x,
+        y: y + 1,
+        size: FONT_SMALL,
+        font: fontBold,
+        color: white,
+        maxWidth: col.width - 4,
+      });
+      x += col.width;
+    }
+    y -= ROW_H + 4;
+  }
+
+  function drawTableRow(cols: Col[], values: string[], alt: boolean) {
+    newPageIfNeeded(ROW_H + 2);
+    if (alt) {
+      page.drawRectangle({
+        x: MARGIN,
+        y: y - 2,
+        width: CONTENT_WIDTH,
+        height: ROW_H + 1,
+        color: altRow,
+      });
+    }
+    let x = MARGIN + 3;
+    for (let i = 0; i < cols.length; i++) {
+      const col = cols[i]!;
+      const val = values[i] ?? "";
+      const size = FONT_BODY;
+      const textW = font.widthOfTextAtSize(toPdfText(val).slice(0, 80), size);
+      let drawX = x;
+      if (col.align === "right") {
+        drawX = x + Math.max(0, col.width - 6 - Math.min(textW, col.width - 6));
+      } else if (col.align === "center") {
+        drawX = x + Math.max(0, (col.width - Math.min(textW, col.width - 4)) / 2);
+      }
+      drawText(val, {
+        x: drawX,
+        y,
+        size,
+        maxWidth: col.width - 4,
+      });
+      x += col.width;
+    }
+    y -= ROW_H;
+  }
+
+  const title = `Relatorio do ciclo ${params.cycle.cycle}/${params.cycle.year}`;
+  const generatedAt = new Date().toLocaleString("pt-BR", { timeZone: "America/Belem" });
+
+  drawText(title, { x: MARGIN, y, size: FONT_TITLE, font: fontBold });
+  y -= 14;
+  drawText(`Gerado em ${generatedAt} · ${BRAND.shortName}`, {
+    x: MARGIN,
+    y,
+    size: FONT_SMALL,
+    color: gray,
+  });
+  y -= 18;
+
+  // Totais rápidos
+  const totalCap = params.courseRows.reduce((s, r) => s + r.capacity, 0);
+  const totalInscritos = params.courseRows.reduce((s, r) => s + r.inscritos, 0);
+  const totalTurmas = params.turmaRows.length;
+  drawText(
+    `Turmas: ${totalTurmas}  |  Capacidade: ${totalCap}  |  Inscritos (vagas preenchidas): ${totalInscritos}  |  Ocupacao: ${fmtPct(pct(totalInscritos, totalCap))}`,
+    { x: MARGIN, y, size: FONT_BODY, font: fontBold },
+  );
+  y -= 20;
+
+  // --- Por curso ---
+  drawText("Resumo por curso", { x: MARGIN, y, size: FONT_HEADING, font: fontBold });
+  y -= 14;
+
+  const courseCols: Col[] = [
+    { key: "curso", label: "Curso", width: 150 },
+    { key: "turmas", label: "Turmas", width: 45, align: "right" },
+    { key: "cap", label: "Capacidade", width: 60, align: "right" },
+    { key: "insc", label: "Inscritos", width: 55, align: "right" },
+    { key: "ocup", label: "Ocupacao %", width: 60, align: "right" },
+    { key: "susp", label: "Suspensos", width: 55, align: "right" },
+    { key: "form", label: "Formados", width: 55, align: "right" },
+    { key: "taxa", label: "Taxa form. %", width: 65, align: "right" },
+    { key: "freq", label: "Freq. media %", width: 70, align: "right" },
+  ];
+  // Normalize widths to CONTENT_WIDTH
+  {
+    const sum = courseCols.reduce((s, c) => s + c.width, 0);
+    const scale = CONTENT_WIDTH / sum;
+    for (const c of courseCols) c.width = Math.floor(c.width * scale);
+  }
+
+  drawTableHeader(courseCols);
+  params.courseRows.forEach((r, idx) => {
+    drawTableRow(
+      courseCols,
+      [
+        r.courseName,
+        String(r.turmas),
+        String(r.capacity),
+        String(r.inscritos),
+        fmtPct(r.ocupacaoPercent),
+        String(r.suspensos),
+        String(r.formados),
+        fmtPct(r.taxaFormadosPercent),
+        fmtPct(r.frequenciaMediaPercent),
+      ],
+      idx % 2 === 1,
+    );
+  });
+
+  y -= 16;
+  drawText("Turmas do ciclo", { x: MARGIN, y, size: FONT_HEADING, font: fontBold });
+  y -= 14;
+
+  const turmaCols: Col[] = [
+    { key: "curso", label: "Curso", width: 95 },
+    { key: "prof", label: "Professor(es)", width: 90 },
+    { key: "dias", label: "Dias", width: 55 },
+    { key: "hor", label: "Horario", width: 55 },
+    { key: "local", label: "Local", width: 80 },
+    { key: "status", label: "Status", width: 55 },
+    { key: "cap", label: "Cap.", width: 32, align: "right" },
+    { key: "insc", label: "Insc.", width: 32, align: "right" },
+    { key: "ocup", label: "Ocup.%", width: 40, align: "right" },
+    { key: "susp", label: "Susp.", width: 32, align: "right" },
+    { key: "canc", label: "Canc.", width: 32, align: "right" },
+    { key: "form", label: "Form.", width: 32, align: "right" },
+    { key: "taxa", label: "Taxa%", width: 38, align: "right" },
+    { key: "freq", label: "Freq%", width: 38, align: "right" },
+    { key: "ini", label: "Inicio", width: 42, align: "center" },
+    { key: "fim", label: "Fim", width: 42, align: "center" },
+  ];
+  {
+    const sum = turmaCols.reduce((s, c) => s + c.width, 0);
+    const scale = CONTENT_WIDTH / sum;
+    for (const c of turmaCols) c.width = Math.floor(c.width * scale);
+  }
+
+  drawTableHeader(turmaCols);
+  for (let idx = 0; idx < params.turmaRows.length; idx++) {
+    const r = params.turmaRows[idx]!;
+    if (y - (ROW_H + 2) < MARGIN) {
+      page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      y = PAGE_HEIGHT - MARGIN;
+      drawText(`${title} - Turmas (cont.)`, {
+        x: MARGIN,
+        y,
+        size: FONT_BODY,
+        font: fontBold,
+        color: gray,
+      });
+      y -= 14;
+      drawTableHeader(turmaCols);
+    }
+    drawTableRow(
+      turmaCols,
+      [
+        r.courseName,
+        r.teachers || "-",
+        r.daysOfWeek || "-",
+        r.schedule,
+        r.location || "-",
+        r.statusLabel,
+        String(r.capacity),
+        String(r.inscritos),
+        fmtPct(r.ocupacaoPercent),
+        String(r.suspensos),
+        String(r.cancelados),
+        String(r.formados),
+        fmtPct(r.taxaFormadosPercent),
+        fmtPct(r.frequenciaMediaPercent),
+        r.startDate || "-",
+        r.endDate || "-",
+      ],
+      idx % 2 === 1,
+    );
+  }
+
+  y -= 14;
+  newPageIfNeeded(40);
+  drawText(
+    "Inscritos = vagas preenchidas (ACTIVE + SUSPENDED), alinhado ao card Vagas por curso e turma.",
+    { x: MARGIN, y, size: FONT_SMALL, color: gray },
+  );
+
+  const bytes = await doc.save();
+  return Buffer.from(bytes);
 }

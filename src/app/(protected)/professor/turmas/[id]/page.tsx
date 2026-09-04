@@ -221,6 +221,7 @@ export default function ProfessorTurmaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
   const [togglingCertificateId, setTogglingCertificateId] = useState<string | null>(null);
+  const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
   const [updatingEnrollmentId, setUpdatingEnrollmentId] = useState<string | null>(null);
   const [enrollmentStatusConfirm, setEnrollmentStatusConfirm] = useState<{
     enrollment: Enrollment;
@@ -330,6 +331,50 @@ export default function ProfessorTurmaDetailPage() {
       toast.push("error", "Falha de rede ao atualizar certificado.");
     } finally {
       setTogglingCertificateId(null);
+    }
+  }
+
+  async function downloadEnrollmentCertificate(enrollment: Enrollment) {
+    if (downloadingCertificateId) return;
+    if (!enrollment.certificateEligible) {
+      toast.push("error", "Marque Certificado = Sim para baixar o PDF.");
+      return;
+    }
+    setDownloadingCertificateId(enrollment.id);
+    try {
+      const res = await fetch(
+        `/api/teacher/class-groups/${id}/enrollments/${enrollment.id}/certificate?download=1`,
+        { credentials: "include" },
+      );
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        toast.push(
+          "error",
+          json && !json.ok
+            ? json.error.message
+            : "Não foi possível baixar o certificado.",
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(cd);
+      const fileName =
+        match?.[1] ??
+        `certificado-${enrollment.studentName.replace(/\s+/g, "-").slice(0, 40)}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.push("success", "Download do certificado iniciado.");
+    } catch {
+      toast.push("error", "Falha ao baixar o certificado.");
+    } finally {
+      setDownloadingCertificateId(null);
     }
   }
 
@@ -941,35 +986,54 @@ export default function ProfessorTurmaDetailPage() {
                       Frequência: {e.attendancePresentCount ?? 0}/{e.attendanceTotalSessions ?? 0}
                       {e.attendancePercent != null ? ` (${e.attendancePercent}%)` : ""}
                     </span>
-                    <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--text-primary)]">
-                      <span className="text-[var(--text-muted)]">Certificado</span>
+                    <div className="inline-flex flex-wrap items-center justify-end gap-2 text-xs text-[var(--text-primary)]">
+                      <label className="inline-flex cursor-pointer items-center gap-2">
+                        <span className="text-[var(--text-muted)]">Certificado</span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={e.certificateEligible === true}
+                          aria-label={
+                            e.certificateEligible
+                              ? `Desabilitar certificado de ${e.studentName}`
+                              : `Habilitar certificado de ${e.studentName}`
+                          }
+                          disabled={togglingCertificateId === e.id}
+                          onClick={() => void toggleCertificateEligible(e)}
+                          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+                            e.certificateEligible
+                              ? "bg-emerald-600"
+                              : "bg-[var(--card-border)]"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                              e.certificateEligible ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                        <span className="min-w-[1.75rem] font-medium tabular-nums">
+                          {e.certificateEligible ? "Sim" : "Não"}
+                        </span>
+                      </label>
                       <button
                         type="button"
-                        role="switch"
-                        aria-checked={e.certificateEligible === true}
-                        aria-label={
-                          e.certificateEligible
-                            ? `Desabilitar certificado de ${e.studentName}`
-                            : `Habilitar certificado de ${e.studentName}`
+                        disabled={
+                          !e.certificateEligible || downloadingCertificateId === e.id
                         }
-                        disabled={togglingCertificateId === e.id}
-                        onClick={() => void toggleCertificateEligible(e)}
-                        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+                        title={
                           e.certificateEligible
-                            ? "bg-emerald-600"
-                            : "bg-[var(--card-border)]"
-                        }`}
+                            ? `Baixar PDF do certificado de ${e.studentName}`
+                            : "Disponível quando Certificado = Sim"
+                        }
+                        aria-label={`Baixar certificado de ${e.studentName}`}
+                        onClick={() => void downloadEnrollmentCertificate(e)}
+                        className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2 py-1 font-medium text-[var(--text-primary)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <span
-                          className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                            e.certificateEligible ? "translate-x-4" : "translate-x-0"
-                          }`}
-                        />
+                        <Download className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {downloadingCertificateId === e.id ? "Gerando…" : "Baixar"}
                       </button>
-                      <span className="min-w-[1.75rem] font-medium tabular-nums">
-                        {e.certificateEligible ? "Sim" : "Não"}
-                      </span>
-                    </label>
+                    </div>
                     {(e.status === "ACTIVE" || e.status === "SUSPENDED") && (
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {e.status === "ACTIVE" && (

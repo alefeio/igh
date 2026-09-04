@@ -334,7 +334,7 @@ export default function EnrollmentsPage() {
   const [listFilter, setListFilter] = useState("");
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
-  const [statusFilterState, setStatusFilterState] = useState("");
+  const [statusFilterState, setStatusFilterState] = useState<string[]>([]);
   const [preEnrollmentFilterState, setPreEnrollmentFilterState] = useState<"" | "pre" | "confirmed">("");
   const [turmaFilterIds, setTurmaFilterIds] = useState<string[]>([]);
   const [classGroupStatusFilter, setClassGroupStatusFilter] = useState<string[]>([
@@ -372,7 +372,7 @@ export default function EnrollmentsPage() {
       if (raw) {
         const saved = JSON.parse(raw) as {
           listFilter?: string;
-          statusFilterState?: string;
+          statusFilterState?: string | string[];
           preEnrollmentFilterState?: "" | "pre" | "confirmed";
           turmaFilterIds?: string[];
           classGroupStatusFilter?: string[];
@@ -383,7 +383,21 @@ export default function EnrollmentsPage() {
           pageSize?: number;
         };
         setListFilter(saved.listFilter ?? "");
-        setStatusFilterState(saved.statusFilterState ?? "");
+        {
+          const validStatuses = Object.keys(ENROLLMENT_STATUS_LABELS);
+          if (Array.isArray(saved.statusFilterState)) {
+            setStatusFilterState(
+              saved.statusFilterState.filter((status) => validStatuses.includes(status)),
+            );
+          } else if (
+            typeof saved.statusFilterState === "string" &&
+            validStatuses.includes(saved.statusFilterState)
+          ) {
+            setStatusFilterState([saved.statusFilterState]);
+          } else {
+            setStatusFilterState([]);
+          }
+        }
         setPreEnrollmentFilterState(saved.preEnrollmentFilterState ?? "");
         setTurmaFilterIds(Array.isArray(saved.turmaFilterIds) ? saved.turmaFilterIds : []);
         setClassGroupStatusFilter(
@@ -732,7 +746,10 @@ export default function EnrollmentsPage() {
           normalizeForSearch(e.classGroup.course.name).includes(qNorm)
       );
     }
-    if (statusFilterState) list = list.filter((e) => e.status === statusFilterState);
+    if (statusFilterState.length > 0) {
+      const allowed = new Set(statusFilterState);
+      list = list.filter((e) => allowed.has(e.status));
+    }
     if (preEnrollmentFilterState === "pre") list = list.filter((e) => e.isPreEnrollment);
     if (preEnrollmentFilterState === "confirmed") {
       list = list.filter((e) => e.enrollmentConfirmedAt != null);
@@ -1332,7 +1349,7 @@ export default function EnrollmentsPage() {
                 </p>
               </div>
               {(listFilter ||
-                statusFilterState ||
+                statusFilterState.length > 0 ||
                 preEnrollmentFilterState ||
                 turmaFilterIds.length > 0 ||
                 !haveSameValues(classGroupStatusFilter, DEFAULT_CLASS_GROUP_STATUS_FILTERS) ||
@@ -1347,7 +1364,7 @@ export default function EnrollmentsPage() {
                   size="sm"
                   onClick={() => {
                     setListFilter("");
-                    setStatusFilterState("");
+                    setStatusFilterState([]);
                     setPreEnrollmentFilterState("");
                     setTurmaFilterIds([]);
                     setClassGroupStatusFilter([...DEFAULT_CLASS_GROUP_STATUS_FILTERS]);
@@ -1375,21 +1392,37 @@ export default function EnrollmentsPage() {
                   className="w-full"
                 />
               </div>
-              <div>
-                <label htmlFor="enrollments-status-filter" className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+              <div className="min-w-[min(100%,320px)] max-w-full">
+                <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
                   Status da matrícula
-                </label>
-                <select
-                  id="enrollments-status-filter"
-                  value={statusFilterState}
-                  onChange={(e) => setStatusFilterState(e.target.value)}
-                  className="theme-input min-h-[44px] rounded-md border px-3 py-2 text-sm sm:h-10"
-                >
-                  <option value="">Todos os status</option>
-                  {Object.entries(ENROLLMENT_STATUS_LABELS).map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
-                </select>
+                </span>
+                <div className="flex min-h-[44px] flex-wrap items-center gap-3 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+                  {Object.entries(ENROLLMENT_STATUS_LABELS).map(([val, label]) => {
+                    const checked = statusFilterState.includes(val);
+                    return (
+                      <label
+                        key={val}
+                        className="flex items-center gap-2 text-sm text-[var(--text-secondary)]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => {
+                            setStatusFilterState((previous) =>
+                              event.target.checked
+                                ? previous.includes(val)
+                                  ? previous
+                                  : [...previous, val]
+                                : previous.filter((status) => status !== val),
+                            );
+                          }}
+                          className="h-4 w-4 accent-[var(--igh-primary)]"
+                        />
+                        {label}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               <div>
                 <label htmlFor="enrollments-pre-filter" className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
@@ -1564,7 +1597,7 @@ export default function EnrollmentsPage() {
                 size="sm"
                 onClick={() => {
                   setPreEnrollmentFilterState("pre");
-                  setStatusFilterState("");
+                  setStatusFilterState([]);
                 }}
               >
                 Filtrar e confirmar
@@ -1578,9 +1611,9 @@ export default function EnrollmentsPage() {
             </h2>
             <button
               type="button"
-              onClick={() => { setStatusFilterState(""); setPreEnrollmentFilterState(""); }}
+              onClick={() => { setStatusFilterState([]); setPreEnrollmentFilterState(""); }}
               className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                !statusFilterState && !preEnrollmentFilterState
+                statusFilterState.length === 0 && !preEnrollmentFilterState
                   ? "border-[var(--igh-primary)]/50 bg-[var(--igh-primary)]/5"
                   : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/30"
               }`}
@@ -1590,9 +1623,11 @@ export default function EnrollmentsPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setStatusFilterState("ACTIVE"); setPreEnrollmentFilterState(""); }}
+              onClick={() => { setStatusFilterState(["ACTIVE"]); setPreEnrollmentFilterState(""); }}
               className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
-                statusFilterState === "ACTIVE" && !preEnrollmentFilterState
+                statusFilterState.length === 1 &&
+                statusFilterState[0] === "ACTIVE" &&
+                !preEnrollmentFilterState
                   ? "border-green-500/50 bg-green-500/5"
                   : "border-[var(--card-border)] bg-[var(--card-bg)] hover:border-[var(--igh-primary)]/30"
               }`}
@@ -1602,7 +1637,7 @@ export default function EnrollmentsPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setPreEnrollmentFilterState("pre"); setStatusFilterState(""); }}
+              onClick={() => { setPreEnrollmentFilterState("pre"); setStatusFilterState([]); }}
               className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
                 preEnrollmentFilterState === "pre"
                   ? "border-amber-500/50 bg-amber-500/5"
@@ -1614,7 +1649,7 @@ export default function EnrollmentsPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setPreEnrollmentFilterState("confirmed"); setStatusFilterState(""); }}
+              onClick={() => { setPreEnrollmentFilterState("confirmed"); setStatusFilterState([]); }}
               className={`rounded-lg border p-4 text-left transition focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 ${
                 preEnrollmentFilterState === "confirmed"
                   ? "border-[var(--igh-primary)]/50 bg-[var(--igh-primary)]/5"
