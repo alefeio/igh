@@ -163,9 +163,12 @@ export default async function HomePage({ searchParams }: Props) {
 
       <CTASection
         title="Pronto para começar sua formação?"
-        subtitle={`Inscreva-se em uma turma e acompanhe suas aulas na plataforma do ${BRAND.shortName}.`}
+        subtitle={`Inscreva-se em uma turma e acompanhe suas aulas na plataforma do ${BRAND.shortName}. Se o próximo ciclo ainda não abriu, deixe sua pré-inscrição.`}
         primaryCTA={{ label: "Quero me inscrever", href: "/inscreva" }}
-        secondaryCTAs={[{ label: "Ver todas as formações", href: "/formacoes" }]}
+        secondaryCTAs={[
+          { label: "Pré-inscrição próximo ciclo", href: "/pre-inscricao" },
+          { label: "Ver todas as formações", href: "/formacoes" },
+        ]}
       />
 
       <Testimonials
