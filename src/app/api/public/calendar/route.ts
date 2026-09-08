@@ -13,6 +13,7 @@ const holidaySelect = {
   allowsRegistration: true,
   publicDescription: true,
   subtitle: true,
+  slug: true,
 } as const;
 
 async function loadSubtitleTags() {

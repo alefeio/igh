@@ -77,15 +77,19 @@ export async function GET(request: Request) {
     orderBy: [{ occurrenceDate: "desc" }, { createdAt: "asc" }],
     include: {
       user: { select: { id: true, name: true, email: true, whatsapp: true } },
+      referrerUser: { select: { id: true, name: true } },
+      raffleTicket: { select: { number: true } },
       holiday: {
         select: {
           id: true,
           name: true,
           subtitle: true,
+          slug: true,
           recurring: true,
           eventStartTime: true,
           eventEndTime: true,
           allowsRegistration: true,
+          allowsReferral: true,
           isActive: true,
         },
       },
@@ -153,6 +157,7 @@ export async function POST(request: Request) {
         userName: user.name,
         holidayId,
         occurrenceDate,
+        skipReferralRequirement: true,
       });
       if (!result.ok) return jsonErr("VALIDATION_ERROR", result.message, 400);
       return jsonOk(
@@ -185,6 +190,7 @@ export async function POST(request: Request) {
       phone,
       email,
       cpf,
+      skipReferralRequirement: true,
     });
     if (!result.ok) return jsonErr("VALIDATION_ERROR", result.message, 400);
     return jsonOk(

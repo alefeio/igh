@@ -1,7 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Clock, Mail, Plus, Printer, Search, Trash2, Users } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  FileSpreadsheet,
+  Mail,
+  Plus,
+  Printer,
+  Search,
+  Trash2,
+  UserCheck,
+  Users,
+} from "lucide-react";
 
 import { SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -22,15 +34,21 @@ type RegistrationRow = {
   guestPhone: string | null;
   guestEmail: string | null;
   guestCpf: string | null;
+  present: boolean | null;
+  checkinCode: string | null;
   user: { id: string; name: string; email: string; whatsapp: string | null } | null;
+  referrerUser: { id: string; name: string } | null;
+  raffleTicket: { number: number } | null;
   holiday: {
     id: string;
     name: string | null;
     subtitle: string | null;
+    slug: string | null;
     recurring: boolean;
     eventStartTime: string | null;
     eventEndTime: string | null;
     allowsRegistration: boolean;
+    allowsReferral: boolean;
     isActive: boolean;
   };
 };
@@ -120,6 +138,7 @@ export function HolidayEventRegistrationsPanel({
   const [guestCpf, setGuestCpf] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [exportingKey, setExportingKey] = useState<string | null>(null);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -263,6 +282,29 @@ export function HolidayEventRegistrationsPanel({
       await load();
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function exportGroupXlsx(group: { key: string; holidayId: string; occurrenceDate: string }) {
+    if (exportingKey) return;
+    setExportingKey(group.key);
+    try {
+      const res = await fetch(
+        `/api/holidays/${group.holidayId}/registrations/export?occurrenceDate=${group.occurrenceDate}`,
+      );
+      if (!res.ok) {
+        toast.push("error", "Não foi possível gerar a planilha.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `evento-${group.occurrenceDate}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportingKey(null);
     }
   }
 
@@ -553,6 +595,28 @@ export function HolidayEventRegistrationsPanel({
                         <Button
                           type="button"
                           size="sm"
+                          onClick={() =>
+                            window.location.assign(
+                              `/holidays/eventos/${group.holidayId}/checkin?data=${group.occurrenceDate}`,
+                            )
+                          }
+                        >
+                          <UserCheck className="mr-1 h-4 w-4" />
+                          Check-in e sorteios
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => exportGroupXlsx(group)}
+                          disabled={exportingKey === group.key}
+                        >
+                          <FileSpreadsheet className="mr-1 h-4 w-4" />
+                          {exportingKey === group.key ? "Gerando…" : "Exportar Excel"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
                           variant="secondary"
                           onClick={() => printAttendanceLists([group])}
                         >
@@ -652,6 +716,8 @@ export function HolidayEventRegistrationsPanel({
                           <tr>
                             <Th>Participante</Th>
                             <Th>Contato</Th>
+                            <Th>Presença</Th>
+                            <Th>Indicação</Th>
                             <Th>Inscrito em</Th>
                             <Th>E-mails</Th>
                             <Th className="w-20">Ações</Th>
@@ -667,6 +733,11 @@ export function HolidayEventRegistrationsPanel({
                                     Sem conta
                                   </span>
                                 ) : null}
+                                {row.checkinCode ? (
+                                  <span className="mt-0.5 block text-[10px] font-normal uppercase tracking-wide text-[var(--text-muted)]">
+                                    Código {row.checkinCode}
+                                  </span>
+                                ) : null}
                               </Td>
                               <Td className="text-[var(--text-secondary)]">
                                 <div className="flex flex-col gap-0.5 text-xs">
@@ -674,6 +745,23 @@ export function HolidayEventRegistrationsPanel({
                                   <span>{participantPhone(row)}</span>
                                   {row.guestCpf ? <span>CPF: {row.guestCpf}</span> : null}
                                 </div>
+                              </Td>
+                              <Td>
+                                <div className="flex flex-col items-start gap-1">
+                                  {row.present === true ? (
+                                    <Badge tone="green">Presente</Badge>
+                                  ) : row.present === false ? (
+                                    <Badge tone="red">Ausente</Badge>
+                                  ) : (
+                                    <Badge tone="zinc">Não confirmado</Badge>
+                                  )}
+                                  {row.raffleTicket ? (
+                                    <Badge tone="amber">Nº {row.raffleTicket.number}</Badge>
+                                  ) : null}
+                                </div>
+                              </Td>
+                              <Td className="text-xs text-[var(--text-secondary)]">
+                                {row.referrerUser?.name ?? "—"}
                               </Td>
                               <Td className="text-[var(--text-secondary)]">{formatDateTime(row.createdAt)}</Td>
                               <Td className="text-xs text-[var(--text-secondary)]">

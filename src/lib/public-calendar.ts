@@ -13,6 +13,7 @@ export function mapHolidayToPublicCalendarItems(
     id: string;
     name: string | null;
     subtitle: string | null;
+    slug: string | null;
     date: Date;
     recurring: boolean;
     eventStartTime: string | null;
@@ -30,6 +31,7 @@ export function mapHolidayToPublicCalendarItems(
   return dateStrs.map((dateStr) => ({
     id: `${row.id}-${dateStr}-${timed ? "event" : "holiday"}`,
     holidayId: row.id,
+    slug: timed ? row.slug : null,
     date: dateStr,
     kind: timed ? "event" : "holiday",
     name: label,

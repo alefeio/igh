@@ -1,6 +1,8 @@
 export type PublicCalendarItem = {
   id: string;
   holidayId: string;
+  /** Slug da página dedicada do evento, quando houver. */
+  slug: string | null;
   date: string;
   kind: "holiday" | "event";
   name: string;
@@ -11,6 +13,16 @@ export type PublicCalendarItem = {
   publicDescription: string | null;
   recurring: boolean;
 };
+
+/** Página dedicada do evento; usa o slug quando existe, senão o id. */
+export function publicEventDetailPath(item: {
+  holidayId: string;
+  slug: string | null;
+  date: string;
+}): string {
+  const key = item.slug?.trim() || item.holidayId;
+  return `/eventos/${encodeURIComponent(key)}?data=${item.date}`;
+}
 
 export function isTimedHolidayEvent(row: {
   eventStartTime: string | null;

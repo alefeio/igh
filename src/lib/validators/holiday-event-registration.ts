@@ -17,9 +17,36 @@ const optionalCpf = z
   })
   .refine((v) => v == null || v.length === 11, "CPF deve ter 11 dígitos.");
 
+const optionalReferrerUserId = z
+  .string()
+  .trim()
+  .uuid("Indicador inválido.")
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => (v == null || v === "" ? null : v));
+
+const optionalReferrerCode = z
+  .string()
+  .trim()
+  .max(64)
+  .optional()
+  .nullable()
+  .transform((v) => (v == null || v.trim() === "" ? null : v.trim()));
+
+const optionalReferrerQuery = z
+  .string()
+  .trim()
+  .max(200)
+  .optional()
+  .nullable()
+  .transform((v) => (v == null || v.trim() === "" ? null : v.trim()));
+
 /** Inscrição autenticada (usuário logado). */
 export const registerHolidayEventSchema = z.object({
   occurrenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."),
+  referrerUserId: optionalReferrerUserId,
+  referrerCode: optionalReferrerCode,
+  referrerQuery: optionalReferrerQuery,
 });
 
 export const guestHolidayEventRegisterSchema = z.object({
@@ -33,6 +60,9 @@ export const guestHolidayEventRegisterSchema = z.object({
     .refine((v) => v.length >= 10 && v.length <= 11, "Telefone deve ter 10 ou 11 dígitos."),
   email: optionalEmail,
   cpf: optionalCpf,
+  referrerUserId: optionalReferrerUserId,
+  referrerCode: optionalReferrerCode,
+  referrerQuery: optionalReferrerQuery,
   captchaToken: z.string().optional().nullable(),
   website: z.string().optional().nullable(),
 });

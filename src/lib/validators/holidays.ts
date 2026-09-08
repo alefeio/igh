@@ -39,6 +39,26 @@ const hmRefine = (data: { eventStartTime?: string | null; eventEndTime?: string 
   }
 };
 
+const referralRefine = (
+  data: { allowsRegistration?: boolean; allowsReferral?: boolean | null; requiresReferral?: boolean | null },
+  ctx: z.RefinementCtx,
+) => {
+  if (data.requiresReferral && !data.allowsReferral) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Para exigir indicação é preciso primeiro permitir indicação.",
+      path: ["requiresReferral"],
+    });
+  }
+  if (data.allowsReferral && data.allowsRegistration === false) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Indicação só faz sentido em eventos com inscrição aberta.",
+      path: ["allowsReferral"],
+    });
+  }
+};
+
 export const createHolidaySchema = z
   .object({
     recurring: z.boolean().optional(),
@@ -50,9 +70,14 @@ export const createHolidaySchema = z
     allowsRegistration: z.boolean().optional(),
     publicDescription: z.string().max(2000).optional().nullable(),
     subtitle: z.string().max(300).optional().nullable(),
+    slug: z.string().max(140).optional().nullable(),
+    allowsReferral: z.boolean().optional(),
+    requiresReferral: z.boolean().optional(),
+    capacity: z.number().int().positive().max(100000).optional().nullable(),
     responsibleTeacherId: z.string().uuid().optional().nullable(),
   })
   .superRefine(hmRefine)
+  .superRefine(referralRefine)
   .superRefine((data, ctx) => {
     if (data.allowsRegistration) {
       const s = data.eventStartTime?.trim();
@@ -67,18 +92,24 @@ export const createHolidaySchema = z
     }
   });
 
-export const updateHolidaySchema = z.object({
-  recurring: z.boolean().optional(),
-  date: dateStringSchema.optional(),
-  name: z.string().max(200).optional().nullable(),
-  isActive: z.boolean().optional(),
-  eventStartTime: z.string().max(8).optional().nullable(),
-  eventEndTime: z.string().max(8).optional().nullable(),
-  allowsRegistration: z.boolean().optional(),
-  publicDescription: z.string().max(2000).optional().nullable(),
-  subtitle: z.string().max(300).optional().nullable(),
-  responsibleTeacherId: z.string().uuid().optional().nullable(),
-});
+export const updateHolidaySchema = z
+  .object({
+    recurring: z.boolean().optional(),
+    date: dateStringSchema.optional(),
+    name: z.string().max(200).optional().nullable(),
+    isActive: z.boolean().optional(),
+    eventStartTime: z.string().max(8).optional().nullable(),
+    eventEndTime: z.string().max(8).optional().nullable(),
+    allowsRegistration: z.boolean().optional(),
+    publicDescription: z.string().max(2000).optional().nullable(),
+    subtitle: z.string().max(300).optional().nullable(),
+    slug: z.string().max(140).optional().nullable(),
+    allowsReferral: z.boolean().optional(),
+    requiresReferral: z.boolean().optional(),
+    capacity: z.number().int().positive().max(100000).optional().nullable(),
+    responsibleTeacherId: z.string().uuid().optional().nullable(),
+  })
+  .superRefine(referralRefine);
 
 export const holidayCalendarBannerSchema = z.object({
   title: z.string().max(200).optional().nullable(),

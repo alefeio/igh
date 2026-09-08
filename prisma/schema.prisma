@@ -87,6 +87,12 @@ model User {
   ighCommunityTopicsAuthored       IghCommunityTopic[]          @relation("IghCommunityTopicAuthor")
   ighCommunityRepliesAuthored      IghCommunityReply[]          @relation("IghCommunityReplyAuthor")
   holidayEventRegistrations          HolidayEventRegistration[]
+  /// * Inscrições em eventos cuja presença foi confirmada por este usuário (check-in admin).
+  holidayEventAttendanceMarked       HolidayEventRegistration[] @relation("HolidayEventAttendanceMarkedByUser")
+  /// * Participantes de eventos indicados por este usuário.
+  holidayEventReferrals              HolidayEventRegistration[] @relation("HolidayEventReferrer")
+  /// * Sorteios de evento executados por este usuário.
+  holidayEventRaffleDraws            HolidayEventRaffleDraw[]   @relation("HolidayEventRaffleDrawnBy")
   coordinatedPolos                   Polo[]
   /// * Código único de indicação deste usuário (link /cadastro?ref=...).
   referralCode                       UserReferralCode?
@@ -799,12 +805,23 @@ model Holiday {
   publicDescription  String?
   /// * Subtítulo discreto abaixo do nome no calendário público (eventos).
   subtitle           String?
+  /// * URL amigável da página pública do evento (/eventos/[slug]).
+  slug               String?                    @unique
+  /// * Exibe o campo "quem me indicou" no formulário de inscrição.
+  allowsReferral     Boolean                    @default(false)
+  /// * Torna a indicação obrigatória (exige allowsReferral).
+  requiresReferral   Boolean                    @default(false)
+  /// * Limite de inscrições por ocorrência (null = ilimitado).
+  capacity           Int?
   /// * Professor responsável (opcional) — usado para marcação de presença e certificado.
   responsibleTeacherId String?
   registrations      HolidayEventRegistration[]
+  raffles            HolidayEventRaffle[]
+  raffleTickets      HolidayEventRaffleTicket[]
   responsibleTeacher Teacher?                   @relation("HolidayResponsibleTeacher", fields: [responsibleTeacherId], references: [id], onDelete: SetNull)
 
   @@index([responsibleTeacherId])
+  @@index([slug])
 }
 
 /// * Banner horizontal de destaque na página pública /calendario (singleton).
@@ -835,10 +852,18 @@ model HolidayEventRegistration {
   guestPhone              String?
   guestEmail              String?
   guestCpf                String?
-  /// * Presença confirmada pelo professor responsável.
+  /// * Presença confirmada pelo professor responsável ou por um admin no check-in.
   present                 Boolean?
   attendanceMarkedAt      DateTime?
   attendanceMarkedByTeacherId String?
+  /// * Preenchido quando quem confirmou a presença foi um usuário admin (check-in).
+  attendanceMarkedByUserId String?
+  /// * Código curto usado no check-in rápido / QR code (único por ocorrência).
+  checkinCode             String?
+  /// * Usuário cadastrado que indicou este participante.
+  referrerUserId          String?
+  /// * Texto digitado pelo participante ao buscar o indicador (auditoria).
+  referrerQuery           String?
   /// * Certificado gerado automaticamente (somente se present=true).
   certificateUrl          String?
   certificatePublicId     String?
@@ -846,14 +871,82 @@ model HolidayEventRegistration {
   holiday                 Holiday   @relation(fields: [holidayId], references: [id], onDelete: Cascade)
   user                    User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   attendanceMarkedByTeacher Teacher? @relation("HolidayEventAttendanceMarkedByTeacher", fields: [attendanceMarkedByTeacherId], references: [id], onDelete: SetNull)
+  attendanceMarkedByUser  User?     @relation("HolidayEventAttendanceMarkedByUser", fields: [attendanceMarkedByUserId], references: [id], onDelete: SetNull)
+  referrerUser            User?     @relation("HolidayEventReferrer", fields: [referrerUserId], references: [id], onDelete: SetNull)
+  raffleTicket            HolidayEventRaffleTicket?
 
   @@unique([holidayId, userId, occurrenceDate])
   @@unique([holidayId, guestPhone, occurrenceDate])
+  @@unique([holidayId, occurrenceDate, checkinCode])
   @@index([occurrenceDate])
   @@index([userId])
   @@index([guestPhone])
   @@index([holidayId, occurrenceDate])
   @@index([attendanceMarkedByTeacherId])
+  @@index([attendanceMarkedByUserId])
+  @@index([referrerUserId])
+}
+
+/// * Sorteio cadastrado em uma ocorrência de evento; realizado no dia, entre os presentes.
+model HolidayEventRaffle {
+  id                String                  @id @default(uuid())
+  holidayId         String
+  /// * Ocorrência do evento (YYYY-MM-DD) em que o sorteio será realizado.
+  occurrenceDate    String
+  title             String
+  /// * Descrição do prêmio (opcional).
+  prize             String?
+  description       String?
+  /// * Ordem de exibição/execução dentro da ocorrência.
+  order             Int                     @default(0)
+  /// * PENDING | DRAWN | CANCELLED
+  status            String                  @default("PENDING")
+  /// * Permite que alguém que já ganhou outro sorteio do mesmo evento seja sorteado novamente.
+  allowRepeatWinner Boolean                 @default(false)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  holiday           Holiday                 @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+  draws             HolidayEventRaffleDraw[]
+
+  @@index([holidayId, occurrenceDate])
+  @@index([status])
+}
+
+/// * Número de sorteio emitido para quem teve presença confirmada no evento.
+model HolidayEventRaffleTicket {
+  id             String                   @id @default(uuid())
+  holidayId      String
+  occurrenceDate String
+  /// * Um número por inscrição (garante 1 número por pessoa presente).
+  registrationId String                   @unique
+  number         Int
+  issuedAt       DateTime                 @default(now())
+  holiday        Holiday                  @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+  registration   HolidayEventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  draws          HolidayEventRaffleDraw[]
+
+  @@unique([holidayId, occurrenceDate, number])
+  @@index([holidayId, occurrenceDate])
+}
+
+/// * Registro auditável de cada execução de sorteio (mantém histórico em caso de novo sorteio).
+model HolidayEventRaffleDraw {
+  id            String                   @id @default(uuid())
+  raffleId      String
+  ticketId      String
+  number        Int
+  /// * Quantidade de números elegíveis no momento do sorteio (transparência).
+  eligibleCount Int
+  drawnAt       DateTime                 @default(now())
+  drawnByUserId String?
+  /// * WINNER | REDRAWN
+  status        String                   @default("WINNER")
+  raffle        HolidayEventRaffle       @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  ticket        HolidayEventRaffleTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  drawnByUser   User?                    @relation("HolidayEventRaffleDrawnBy", fields: [drawnByUserId], references: [id], onDelete: SetNull)
+
+  @@index([raffleId, status])
+  @@index([ticketId])
 }
 
 model AuditLog {

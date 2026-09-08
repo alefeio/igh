@@ -587,6 +587,22 @@ export function templateEnrollmentCancelled(params: {
   };
 }
 
+function holidayEventRaffleNotice(raffleCount: number | null | undefined): string {
+  if (!raffleCount || raffleCount <= 0) return "";
+  const plural = raffleCount > 1 ? `${raffleCount} sorteios` : "1 sorteio";
+  return `<p style="background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 16px;border-radius:6px;">
+  Este evento tem <strong>${escapeHtml(plural)}</strong>. Seu número só é gerado no dia,
+  <strong>depois que a equipe confirmar a sua presença no local</strong>. Quem se inscreve e não comparece não recebe número.
+</p>`;
+}
+
+function holidayEventCheckinNotice(checkinCode: string | null | undefined): string {
+  const code = checkinCode?.trim();
+  if (!code) return "";
+  return `<p>Para agilizar a fila no dia, apresente este código no check-in:</p>
+<p style="font-size:26px;letter-spacing:4px;font-weight:700;color:#1e40af;margin:8px 0 16px;">${escapeHtml(code)}</p>`;
+}
+
 export function templateHolidayEventConfirmation(params: {
   name: string;
   eventName: string;
@@ -594,10 +610,20 @@ export function templateHolidayEventConfirmation(params: {
   startTime: string;
   endTime: string;
   publicDescription?: string | null;
+  eventUrl?: string | null;
+  checkinCode?: string | null;
+  raffleCount?: number | null;
+  referrerName?: string | null;
 }): { subject: string; html: string } {
-  const calendarUrl = getAppUrl("/calendario");
+  const ctaUrl = params.eventUrl?.trim() || getAppUrl("/calendario");
+  const ctaLabel = params.eventUrl?.trim()
+    ? "Ver página do evento"
+    : `Ver calendário ${BRAND.shortName}`;
   const extra = params.publicDescription?.trim()
     ? `<p>${escapeHtml(params.publicDescription.trim())}</p>`
+    : "";
+  const referral = params.referrerName?.trim()
+    ? `<li><strong>Indicado por:</strong> ${escapeHtml(params.referrerName.trim())}</li>`
     : "";
   const body = `
 <h2>Inscrição confirmada</h2>
@@ -607,10 +633,13 @@ export function templateHolidayEventConfirmation(params: {
   <li><strong>Evento:</strong> ${escapeHtml(params.eventName)}</li>
   <li><strong>Data:</strong> ${escapeHtml(params.occurrenceDateLabel)}</li>
   <li><strong>Horário:</strong> ${escapeHtml(params.startTime)} – ${escapeHtml(params.endTime)}</li>
+  ${referral}
 </ul>
 ${extra}
+${holidayEventCheckinNotice(params.checkinCode)}
+${holidayEventRaffleNotice(params.raffleCount)}
 <p>No dia do evento você receberá um lembrete por e-mail pela manhã.</p>
-<p><a href="${escapeHtml(calendarUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Ver calendário ${escapeHtml(BRAND.shortName)}</a></p>
+<p><a href="${escapeHtml(ctaUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">${escapeHtml(ctaLabel)}</a></p>
 `;
   return { subject: `Inscrição confirmada — ${params.eventName}`, html: wrapHtml(body) };
 }
@@ -621,8 +650,12 @@ export function templateHolidayEventReminder(params: {
   occurrenceDateLabel: string;
   startTime: string;
   endTime: string;
+  eventUrl?: string | null;
+  checkinCode?: string | null;
+  raffleCount?: number | null;
 }): { subject: string; html: string } {
-  const calendarUrl = getAppUrl("/calendario");
+  const ctaUrl = params.eventUrl?.trim() || getAppUrl("/calendario");
+  const ctaLabel = params.eventUrl?.trim() ? "Ver página do evento" : "Abrir calendário";
   const body = `
 <h2>É hoje!</h2>
 <p>Olá, <strong>${escapeHtml(params.name)}</strong>.</p>
@@ -631,10 +664,68 @@ export function templateHolidayEventReminder(params: {
   <li><strong>Data:</strong> ${escapeHtml(params.occurrenceDateLabel)}</li>
   <li><strong>Horário:</strong> ${escapeHtml(params.startTime)} – ${escapeHtml(params.endTime)}</li>
 </ul>
+${holidayEventCheckinNotice(params.checkinCode)}
+${holidayEventRaffleNotice(params.raffleCount)}
 <p>Contamos com a sua participação!</p>
-<p><a href="${escapeHtml(calendarUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Abrir calendário</a></p>
+<p><a href="${escapeHtml(ctaUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">${escapeHtml(ctaLabel)}</a></p>
 `;
   return { subject: `Lembrete: ${params.eventName} é hoje`, html: wrapHtml(body) };
+}
+
+/** Presença confirmada no local; informa o número do sorteio quando houver. */
+export function templateHolidayEventAttendanceConfirmed(params: {
+  name: string;
+  eventName: string;
+  occurrenceDateLabel: string;
+  raffleNumber?: number | null;
+  raffleCount?: number | null;
+  eventUrl?: string | null;
+}): { subject: string; html: string } {
+  const firstName = params.name.trim().split(/\s+/)[0] || params.name;
+  const ctaUrl = params.eventUrl?.trim() || getAppUrl("/calendario");
+  const numberBlock =
+    params.raffleNumber != null
+      ? `<p>Seu número para ${params.raffleCount && params.raffleCount > 1 ? "os sorteios" : "o sorteio"} deste evento é:</p>
+<p style="font-size:40px;font-weight:800;color:#1e40af;margin:8px 0 16px;">${params.raffleNumber}</p>
+<p>Guarde este número. Ele vale para todos os sorteios realizados hoje neste evento.</p>`
+      : `<p>Obrigado por comparecer!</p>`;
+  const body = `
+<h2>Presença confirmada</h2>
+<p>Olá, <strong>${escapeHtml(firstName)}</strong>.</p>
+<p>Confirmamos a sua presença em <strong>${escapeHtml(params.eventName)}</strong> (${escapeHtml(params.occurrenceDateLabel)}).</p>
+${numberBlock}
+<p><a href="${escapeHtml(ctaUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Ver página do evento</a></p>
+`;
+  return {
+    subject:
+      params.raffleNumber != null
+        ? `Presença confirmada — seu número é ${params.raffleNumber}`
+        : `Presença confirmada — ${params.eventName}`,
+    html: wrapHtml(body),
+  };
+}
+
+/** Avisa o indicador de que alguém se inscreveu no evento por indicação dele. */
+export function templateHolidayEventReferralNotice(params: {
+  referrerName: string;
+  participantName: string;
+  eventName: string;
+  occurrenceDateLabel: string;
+  eventUrl?: string | null;
+}): { subject: string; html: string } {
+  const firstName = params.referrerName.trim().split(/\s+/)[0] || params.referrerName;
+  const ctaUrl = params.eventUrl?.trim() || getAppUrl("/calendario");
+  const body = `
+<h2>Sua indicação deu certo</h2>
+<p>Olá, <strong>${escapeHtml(firstName)}</strong>.</p>
+<p><strong>${escapeHtml(params.participantName)}</strong> se inscreveu em <strong>${escapeHtml(params.eventName)}</strong> (${escapeHtml(params.occurrenceDateLabel)}) informando que foi indicado por você.</p>
+<p>Obrigado por levar mais gente para o ${escapeHtml(BRAND.shortName)}!</p>
+<p><a href="${escapeHtml(ctaUrl)}" style="display: inline-block; background: #1e40af; color: #fff !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">Ver página do evento</a></p>
+`;
+  return {
+    subject: `${params.participantName} se inscreveu por sua indicação`,
+    html: wrapHtml(body),
+  };
 }
 
 export function templateBirthdayCongratulations(params: {

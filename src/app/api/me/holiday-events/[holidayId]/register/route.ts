@@ -24,6 +24,9 @@ export async function POST(request: Request, ctx: RouteCtx) {
       userName: user.name,
       holidayId,
       occurrenceDate: parsed.data.occurrenceDate,
+      referrerUserId: parsed.data.referrerUserId,
+      referrerCode: parsed.data.referrerCode,
+      referrerQuery: parsed.data.referrerQuery,
     });
 
     if (!result.ok) return jsonErr("VALIDATION_ERROR", result.message, 400);

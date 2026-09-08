@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireMaster } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createAuditLog } from "@/lib/audit";
+import { ensureUniqueHolidaySlug } from "@/lib/holiday-event-slug";
 
 function addUtcDays(date: Date, days: number): Date {
   const d = new Date(date);
@@ -69,6 +70,10 @@ export async function POST(
       allowsRegistration: isEvent ? source.allowsRegistration : false,
       publicDescription: source.publicDescription,
       subtitle: isEvent ? source.subtitle : null,
+      slug: isEvent ? await ensureUniqueHolidaySlug(copyName) : null,
+      allowsReferral: isEvent ? source.allowsReferral : false,
+      requiresReferral: isEvent ? source.requiresReferral : false,
+      capacity: isEvent ? source.capacity : null,
       responsibleTeacherId: source.responsibleTeacherId,
     },
   });

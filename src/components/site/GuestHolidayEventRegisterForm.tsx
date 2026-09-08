@@ -5,6 +5,7 @@ import { useState } from "react";
 import { TurnstileWidget } from "@/components/auth/TurnstileWidget";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site/Button";
+import { ReferrerPicker, type ReferrerOption } from "@/components/site/ReferrerPicker";
 import { Input } from "@/components/ui/Input";
 import type { ApiResponse } from "@/lib/api-types";
 
@@ -28,11 +29,19 @@ export function GuestHolidayEventRegisterForm({
   holidayId,
   occurrenceDate,
   turnstileSiteKey = null,
+  allowsReferral = false,
+  requiresReferral = false,
+  initialReferrer = null,
+  referrerLocked = false,
   onSuccess,
 }: {
   holidayId: string;
   occurrenceDate: string;
   turnstileSiteKey?: string | null;
+  allowsReferral?: boolean;
+  requiresReferral?: boolean;
+  initialReferrer?: ReferrerOption | null;
+  referrerLocked?: boolean;
   onSuccess?: () => void;
 }) {
   const toast = useToast();
@@ -41,6 +50,8 @@ export function GuestHolidayEventRegisterForm({
   const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
   const [website, setWebsite] = useState("");
+  const [referrer, setReferrer] = useState<ReferrerOption | null>(initialReferrer);
+  const [referrerQuery, setReferrerQuery] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -49,6 +60,10 @@ export function GuestHolidayEventRegisterForm({
     if (loading) return;
     if (turnstileSiteKey && !captchaToken) {
       toast.push("error", "Confirme que você não é um robô antes de continuar.");
+      return;
+    }
+    if (allowsReferral && requiresReferral && !referrer) {
+      toast.push("error", "Selecione na lista quem indicou você.");
       return;
     }
     setLoading(true);
@@ -62,6 +77,8 @@ export function GuestHolidayEventRegisterForm({
           phone,
           email: email.trim() || undefined,
           cpf: cpf.trim() || undefined,
+          referrerUserId: allowsReferral ? referrer?.id : undefined,
+          referrerQuery: allowsReferral ? referrerQuery.trim() || undefined : undefined,
           captchaToken,
           website,
         }),
@@ -79,6 +96,10 @@ export function GuestHolidayEventRegisterForm({
       setPhone("");
       setEmail("");
       setCpf("");
+      if (!referrerLocked) {
+        setReferrer(null);
+        setReferrerQuery("");
+      }
       onSuccess?.();
     } finally {
       setLoading(false);
@@ -135,6 +156,28 @@ export function GuestHolidayEventRegisterForm({
           />
         </div>
       </div>
+      {allowsReferral ? (
+        <div>
+          <label
+            htmlFor={`guest-referrer-${holidayId}`}
+            className="text-xs font-medium text-[var(--igh-muted)]"
+          >
+            Quem indicou você {requiresReferral ? "*" : "(opcional)"}
+          </label>
+          <div className="mt-1">
+            <ReferrerPicker
+              inputId={`guest-referrer-${holidayId}`}
+              value={referrer}
+              locked={referrerLocked}
+              required={requiresReferral}
+              onChange={(option, query) => {
+                setReferrer(option);
+                setReferrerQuery(query);
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
       {turnstileSiteKey ? (
         <TurnstileWidget siteKey={turnstileSiteKey} onToken={setCaptchaToken} />
       ) : null}

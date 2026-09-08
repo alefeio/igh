@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Clock, Share2, Sparkles, Ticket, X } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Clock, Share2, Sparkles, Ticket, X } from "lucide-react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site/Button";
@@ -17,6 +17,7 @@ import {
   parsePublicCalendarSearchParams,
   publicCalendarLoginPath,
   publicCalendarSignupPath,
+  publicEventDetailPath,
   subtitlesMatch,
   type PublicCalendarUrlState,
 } from "@/lib/public-calendar-shared";
@@ -121,6 +122,16 @@ function CalendarItemDetail({
       {item.publicDescription && (
         <p className="mt-3 text-sm text-[var(--igh-muted)]">{item.publicDescription}</p>
       )}
+
+      {item.kind === "event" ? (
+        <a
+          href={publicEventDetailPath(item)}
+          className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--igh-primary)] underline-offset-2 hover:underline"
+        >
+          Ver detalhes e inscrição
+          <ArrowRight className="h-4 w-4" />
+        </a>
+      ) : null}
 
       {item.allowsRegistration ? (
         <div className="mt-4 flex flex-col gap-2">

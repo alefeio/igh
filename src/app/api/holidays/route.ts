@@ -4,6 +4,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { createHolidaySchema, normalizeHolidayTimeHm } from "@/lib/validators/holidays";
 import { createAuditLog } from "@/lib/audit";
 import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-sessions-holiday-resync";
+import { ensureUniqueHolidaySlug } from "@/lib/holiday-event-slug";
 import { SENTINEL_YEAR_RECURRING } from "@/lib/schedule";
 
 export async function GET(request: Request) {
@@ -62,6 +63,12 @@ export async function POST(request: Request) {
     }
   }
 
+  const allowsRegistration = isEvent ? (parsed.data.allowsRegistration ?? false) : false;
+  const allowsReferral = allowsRegistration ? (parsed.data.allowsReferral ?? false) : false;
+  const slug = isEvent
+    ? await ensureUniqueHolidaySlug(parsed.data.slug?.trim() || parsed.data.name || null)
+    : null;
+
   const holiday = await prisma.holiday.create({
     data: {
       date,
@@ -70,9 +77,13 @@ export async function POST(request: Request) {
       isActive: parsed.data.isActive ?? true,
       eventStartTime,
       eventEndTime,
-      allowsRegistration: isEvent ? (parsed.data.allowsRegistration ?? false) : false,
+      allowsRegistration,
       publicDescription: parsed.data.publicDescription?.trim() || null,
       subtitle: isEvent ? parsed.data.subtitle?.trim() || null : null,
+      slug,
+      allowsReferral,
+      requiresReferral: allowsReferral ? (parsed.data.requiresReferral ?? false) : false,
+      capacity: isEvent ? (parsed.data.capacity ?? null) : null,
       responsibleTeacherId: parsed.data.responsibleTeacherId ?? null,
     },
   });

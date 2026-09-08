@@ -55,6 +55,9 @@ export async function POST(
       phone: parsed.data.phone,
       email: parsed.data.email,
       cpf: parsed.data.cpf,
+      referrerUserId: parsed.data.referrerUserId,
+      referrerCode: parsed.data.referrerCode,
+      referrerQuery: parsed.data.referrerQuery,
     });
 
     if (!result.ok) {

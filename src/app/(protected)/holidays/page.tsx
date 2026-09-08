@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { DashboardHero, SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { HolidayCalendarBannerEditor } from "@/components/holidays/HolidayCalendarBannerEditor";
+import { HolidayEventRafflesEditor } from "@/components/holidays/HolidayEventRafflesEditor";
 import { HolidayEventRegistrationsPanel } from "@/components/holidays/HolidayEventRegistrationsPanel";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
@@ -28,6 +29,10 @@ type Holiday = {
   allowsRegistration: boolean;
   publicDescription: string | null;
   subtitle: string | null;
+  slug: string | null;
+  allowsReferral: boolean;
+  requiresReferral: boolean;
+  capacity: number | null;
   responsibleTeacherId?: string | null;
   _count?: { registrations: number };
 };
@@ -117,6 +122,10 @@ export default function HolidaysPage() {
   const [allowsRegistration, setAllowsRegistration] = useState(false);
   const [publicDescription, setPublicDescription] = useState("");
   const [subtitle, setSubtitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [allowsReferral, setAllowsReferral] = useState(false);
+  const [requiresReferral, setRequiresReferral] = useState(false);
+  const [capacity, setCapacity] = useState("");
   const [responsibleTeacherId, setResponsibleTeacherId] = useState<string>("");
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [saving, setSaving] = useState(false);
@@ -145,6 +154,10 @@ export default function HolidaysPage() {
     setAllowsRegistration(false);
     setPublicDescription("");
     setSubtitle("");
+    setSlug("");
+    setAllowsReferral(false);
+    setRequiresReferral(false);
+    setCapacity("");
     setResponsibleTeacherId("");
     setEditing(null);
     setIsDuplicating(false);
@@ -171,6 +184,10 @@ export default function HolidaysPage() {
     setAllowsRegistration(h.allowsRegistration);
     setPublicDescription(h.publicDescription ?? "");
     setSubtitle(h.subtitle ?? "");
+    setSlug(h.slug ?? "");
+    setAllowsReferral(h.allowsReferral);
+    setRequiresReferral(h.requiresReferral);
+    setCapacity(h.capacity != null ? String(h.capacity) : "");
     setResponsibleTeacherId(h.responsibleTeacherId ?? "");
     setOpen(true);
   }
@@ -189,6 +206,10 @@ export default function HolidaysPage() {
     setAllowsRegistration(h.allowsRegistration);
     setPublicDescription(h.publicDescription ?? "");
     setSubtitle(h.subtitle ?? "");
+    setSlug("");
+    setAllowsReferral(h.allowsReferral);
+    setRequiresReferral(h.requiresReferral);
+    setCapacity(h.capacity != null ? String(h.capacity) : "");
     setResponsibleTeacherId(h.responsibleTeacherId ?? "");
     setOpen(true);
   }
@@ -348,6 +369,10 @@ export default function HolidaysPage() {
         payload.allowsRegistration = allowsRegistration;
         payload.publicDescription = publicDescription.trim() || null;
         payload.subtitle = subtitle.trim() || null;
+        payload.slug = slug.trim() || null;
+        payload.allowsReferral = allowsRegistration && allowsReferral;
+        payload.requiresReferral = allowsRegistration && allowsReferral && requiresReferral;
+        payload.capacity = capacity.trim() ? Number(capacity.trim()) : null;
         payload.responsibleTeacherId = responsibleTeacherId.trim() || null;
       } else {
         payload.eventStartTime = null;
@@ -355,6 +380,10 @@ export default function HolidaysPage() {
         payload.allowsRegistration = false;
         payload.publicDescription = null;
         payload.subtitle = null;
+        payload.slug = null;
+        payload.allowsReferral = false;
+        payload.requiresReferral = false;
+        payload.capacity = null;
         payload.responsibleTeacherId = null;
       }
 
@@ -730,6 +759,16 @@ export default function HolidaysPage() {
                             </Td>
                             <Td>
                               <div className="flex flex-wrap justify-end gap-2">
+                                {isTimedEvent(h) && h.allowsRegistration ? (
+                                  <Button
+                                    variant="secondary"
+                                    onClick={() =>
+                                      window.location.assign(`/holidays/eventos/${h.id}/checkin`)
+                                    }
+                                  >
+                                    Check-in
+                                  </Button>
+                                ) : null}
                                 <Button variant="secondary" onClick={() => void duplicateHoliday(h)}>
                                   Duplicar
                                 </Button>
@@ -986,15 +1025,96 @@ export default function HolidaysPage() {
                 </span>
               </label>
               {allowsRegistration ? (
-                <div>
-                  <label className="text-sm font-medium">Descrição pública (opcional)</label>
-                  <textarea
-                    className="mt-1 min-h-[80px] w-full rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
-                    value={publicDescription}
-                    onChange={(e) => setPublicDescription(e.target.value)}
-                    placeholder="Informações extras exibidas no calendário público (local, o que levar, etc.)"
-                  />
-                </div>
+                <>
+                  <label className="flex items-start gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/40 p-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={allowsReferral}
+                      onChange={(e) => {
+                        setAllowsReferral(e.target.checked);
+                        if (!e.target.checked) setRequiresReferral(false);
+                      }}
+                    />
+                    <span>
+                      <strong className="text-[var(--text-primary)]">
+                        Permitir que usuários cadastrados indiquem outros
+                      </strong>
+                      <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                        O formulário passa a ter o campo &quot;quem indicou você&quot;, que busca apenas
+                        pessoas já cadastradas no sistema. Usuários logados também ganham um link de
+                        indicação para compartilhar.
+                      </span>
+                    </span>
+                  </label>
+                  {allowsReferral ? (
+                    <label className="ml-6 flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={requiresReferral}
+                        onChange={(e) => setRequiresReferral(e.target.checked)}
+                      />
+                      <span>
+                        <strong className="text-[var(--text-primary)]">Indicação obrigatória</strong>
+                        <span className="mt-1 block text-xs text-[var(--text-muted)]">
+                          Ninguém consegue se inscrever pelo site sem informar o indicador. A equipe
+                          continua podendo inscrever manualmente no painel.
+                        </span>
+                      </span>
+                    </label>
+                  ) : null}
+                  <div>
+                    <label className="text-sm font-medium">Limite de vagas (opcional)</label>
+                    <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                      Em branco = ilimitado. Vale por data de ocorrência.
+                    </p>
+                    <div className="mt-1">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={capacity}
+                        onChange={(e) => setCapacity(e.target.value)}
+                        placeholder="Ex.: 120"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Endereço da página (opcional)</label>
+                    <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                      Em branco, geramos a partir do nome. A página do evento fica em{" "}
+                      <code>/eventos/{slug.trim() || "nome-do-evento"}</code>.
+                    </p>
+                    <div className="mt-1">
+                      <Input
+                        value={slug}
+                        onChange={(e) => setSlug(e.target.value)}
+                        placeholder="feira-de-tecnologia-2026"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Descrição pública (opcional)</label>
+                    <textarea
+                      className="mt-1 min-h-[80px] w-full rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm"
+                      value={publicDescription}
+                      onChange={(e) => setPublicDescription(e.target.value)}
+                      placeholder="Informações extras exibidas no calendário público (local, o que levar, etc.)"
+                    />
+                  </div>
+                  {editing ? (
+                    <HolidayEventRafflesEditor
+                      holidayId={editing.id}
+                      date={date}
+                      recurring={recurring}
+                    />
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-[var(--card-border)] p-3 text-xs text-[var(--text-muted)]">
+                      Salve o evento para cadastrar os sorteios. Os números são gerados no dia, no
+                      check-in, apenas para quem tiver presença confirmada.
+                    </p>
+                  )}
+                </>
               ) : null}
             </>
           ) : null}

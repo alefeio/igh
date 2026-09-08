@@ -8,6 +8,7 @@ import {
 } from "@/lib/validators/holidays";
 import { createAuditLog } from "@/lib/audit";
 import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-sessions-holiday-resync";
+import { ensureUniqueHolidaySlug } from "@/lib/holiday-event-slug";
 import { SENTINEL_YEAR_RECURRING } from "@/lib/schedule";
 
 export async function GET(
@@ -87,6 +88,24 @@ export async function PATCH(
     }
   }
 
+  const effectiveAllowsRegistration = isEvent
+    ? (parsed.data.allowsRegistration ?? existing.allowsRegistration)
+    : false;
+  const effectiveAllowsReferral = effectiveAllowsRegistration
+    ? (parsed.data.allowsReferral ?? existing.allowsReferral)
+    : false;
+  const effectiveName = parsed.data.name !== undefined ? parsed.data.name || null : existing.name;
+  const desiredSlug = parsed.data.slug !== undefined ? parsed.data.slug?.trim() || null : undefined;
+
+  let slugValue: string | null | undefined;
+  if (!isEvent) {
+    slugValue = existing.slug === null ? undefined : null;
+  } else if (desiredSlug !== undefined) {
+    slugValue = await ensureUniqueHolidaySlug(desiredSlug || effectiveName, id);
+  } else if (!existing.slug) {
+    slugValue = await ensureUniqueHolidaySlug(effectiveName, id);
+  }
+
   const updated = await prisma.holiday.update({
     where: { id },
     data: {
@@ -98,13 +117,30 @@ export async function PATCH(
         ? { eventStartTime, eventEndTime }
         : {}),
       ...(parsed.data.allowsRegistration !== undefined || parsed.data.eventStartTime !== undefined || parsed.data.eventEndTime !== undefined
-        ? { allowsRegistration: isEvent ? (parsed.data.allowsRegistration ?? existing.allowsRegistration) : false }
+        ? { allowsRegistration: effectiveAllowsRegistration }
         : {}),
       ...(parsed.data.publicDescription !== undefined
         ? { publicDescription: parsed.data.publicDescription?.trim() || null }
         : {}),
       ...(parsed.data.subtitle !== undefined || parsed.data.eventStartTime !== undefined || parsed.data.eventEndTime !== undefined
         ? { subtitle: isEvent ? (parsed.data.subtitle !== undefined ? parsed.data.subtitle?.trim() || null : existing.subtitle) : null }
+        : {}),
+      ...(slugValue !== undefined ? { slug: slugValue } : {}),
+      ...(parsed.data.allowsReferral !== undefined ||
+      parsed.data.allowsRegistration !== undefined ||
+      parsed.data.eventStartTime !== undefined ||
+      parsed.data.eventEndTime !== undefined
+        ? {
+            allowsReferral: effectiveAllowsReferral,
+            requiresReferral: effectiveAllowsReferral
+              ? (parsed.data.requiresReferral ?? existing.requiresReferral)
+              : false,
+          }
+        : parsed.data.requiresReferral !== undefined
+          ? { requiresReferral: effectiveAllowsReferral ? parsed.data.requiresReferral : false }
+          : {}),
+      ...(parsed.data.capacity !== undefined
+        ? { capacity: isEvent ? (parsed.data.capacity ?? null) : null }
         : {}),
       ...(parsed.data.responsibleTeacherId !== undefined
         ? { responsibleTeacherId: parsed.data.responsibleTeacherId || null }
