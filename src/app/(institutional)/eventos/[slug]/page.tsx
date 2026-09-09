@@ -52,25 +52,38 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const raw = await searchParams;
   const { occurrenceDate } = resolveHolidayEventOccurrence(event, normalizeDateParam(raw.data));
   const name = event.name?.trim() || `Evento ${BRAND.shortName}`;
+  const subtitle = event.subtitle?.trim() || null;
+  // WhatsApp usa og:title como linha principal do preview — título + subtítulo juntos.
+  const shareTitle = subtitle ? `${name} — ${subtitle}` : name;
   const dateLabel = occurrenceDate ? formatLongDate(occurrenceDate) : null;
+  const timeLabel =
+    event.eventStartTime?.trim() && event.eventEndTime?.trim()
+      ? `${formatHm(event.eventStartTime)} – ${formatHm(event.eventEndTime)}`
+      : null;
+  const whenLabel = [dateLabel, timeLabel].filter(Boolean).join(" · ");
+  const descBody =
+    event.publicDescription
+      ?.trim()
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .find(Boolean) || null;
   const description =
-    event.publicDescription?.trim() ||
-    event.subtitle?.trim() ||
-    `${name}${dateLabel ? ` — ${dateLabel}` : ""}. Inscreva-se pelo site do ${BRAND.legalName}.`;
+    [whenLabel, descBody].filter(Boolean).join(". ") ||
+    `Inscreva-se pelo site do ${BRAND.legalName}.`;
   const url = getAppUrl(holidayEventPublicPath(event, occurrenceDate));
 
   return {
-    title: name,
+    title: shareTitle,
     description,
     alternates: { canonical: url },
     openGraph: {
-      type: "article",
-      title: name,
+      type: "website",
+      title: shareTitle,
       description,
       url,
       siteName: BRAND.legalName,
     },
-    twitter: { card: "summary_large_image", title: name, description },
+    twitter: { card: "summary_large_image", title: shareTitle, description },
   };
 }
 
