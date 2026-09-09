@@ -37,7 +37,7 @@ export async function GET(
 
     const questions = await prisma.enrollmentLessonQuestion.findMany({
       where: { lessonId },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
       include: {
         enrollment: {
           select: { id: true, student: { select: { name: true } } },

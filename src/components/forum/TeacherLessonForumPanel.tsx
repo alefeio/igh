@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useToast } from "@/components/feedback/ToastProvider";
+import { ForumPostBody } from "@/components/forum/ForumPostBody";
 import type { ApiResponse } from "@/lib/api-types";
 
 type LessonQuestionReply = {
@@ -17,6 +18,7 @@ type LessonTeacherReply = { id: string; content: string; createdAt: string; teac
 type LessonQuestion = {
   id: string;
   content: string;
+  imageUrls?: string[];
   createdAt: string;
   updatedAt?: string;
   enrollmentId: string | null;
@@ -185,7 +187,11 @@ export function TeacherLessonForumPanel({
                   </span>
                   <span>{formatForumDate(q.createdAt)}</span>
                 </div>
-                <p className="whitespace-pre-wrap text-[var(--text-primary)]">{q.content}</p>
+                <ForumPostBody
+                  content={q.content}
+                  imageUrls={q.imageUrls}
+                  altPrefix={`Foto de ${q.authorName}`}
+                />
 
                 {(q.teacherReplies ?? []).length > 0 && (
                   <div className="mt-3 rounded-md border border-[var(--igh-primary)]/30 bg-[var(--igh-primary)]/5 p-2">
@@ -198,7 +204,9 @@ export function TeacherLessonForumPanel({
                       <div key={r.id} className="mb-2 text-xs last:mb-0">
                         <span className="font-medium text-[var(--text-primary)]">{r.teacherName}</span>
                         <span className="ml-2 text-[var(--text-muted)]">{formatForumDate(r.createdAt)}</span>
-                        <p className="mt-1 whitespace-pre-wrap text-[var(--text-primary)]">{r.content}</p>
+                        <div className="mt-1">
+                          <ForumPostBody content={r.content} />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -211,7 +219,9 @@ export function TeacherLessonForumPanel({
                       <div key={r.id} className="mb-2 text-xs">
                         <span className="font-medium text-[var(--text-secondary)]">{r.authorName}</span>
                         <span className="ml-2 text-[var(--text-muted)]">{formatForumDate(r.createdAt)}</span>
-                        <p className="mt-1 whitespace-pre-wrap text-[var(--text-primary)]">{r.content}</p>
+                        <div className="mt-1">
+                          <ForumPostBody content={r.content} />
+                        </div>
                       </div>
                     ))}
                   </div>

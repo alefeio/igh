@@ -1,32 +1,29 @@
 "use client";
 
 /**
- * Sons do sorteio a partir de arquivos em /public/sounds/raffle/.
- * HTMLAudioElement costuma ser mais confiável que Web Audio puro em mobile.
+ * Sons do sorteio.
+ * Rufar: /public/sounds/tambores.mp3
+ * Comemoração: /public/sounds/raffle/celebration.wav
  */
 
-const TICK_SRC = "/sounds/raffle/tick.wav";
-const SUSPENSE_SRC = "/sounds/raffle/suspense.wav";
+const DRUMROLL_SRC = "/sounds/tambores.mp3";
 const CELEBRATION_SRC = "/sounds/raffle/celebration.wav";
 
 let unlocked = false;
-let tickAudio: HTMLAudioElement | null = null;
-let suspenseAudio: HTMLAudioElement | null = null;
+let drumrollAudio: HTMLAudioElement | null = null;
 let celebrationAudio: HTMLAudioElement | null = null;
 
-function makeAudio(src: string, opts?: { loop?: boolean; volume?: number }): HTMLAudioElement {
+function makeAudio(src: string, opts?: { volume?: number }): HTMLAudioElement {
   const a = new Audio(src);
   a.preload = "auto";
-  a.loop = opts?.loop ?? false;
+  a.loop = false;
   a.volume = opts?.volume ?? 1;
   return a;
 }
 
 function ensureAudio() {
   if (typeof window === "undefined") return;
-  if (!tickAudio) tickAudio = makeAudio(TICK_SRC, { volume: 1 });
-  // Sem loop: o rufar já dura a contagem inteira e acelera até o fim.
-  if (!suspenseAudio) suspenseAudio = makeAudio(SUSPENSE_SRC, { loop: false, volume: 0.85 });
+  if (!drumrollAudio) drumrollAudio = makeAudio(DRUMROLL_SRC, { volume: 1 });
   if (!celebrationAudio) celebrationAudio = makeAudio(CELEBRATION_SRC, { volume: 1 });
 }
 
@@ -46,8 +43,7 @@ export async function unlockRaffleAudio() {
   ensureAudio();
   if (unlocked) return;
 
-  // Desbloqueia a política de autoplay tocando e pausando imediatamente.
-  const candidates = [tickAudio, suspenseAudio, celebrationAudio].filter(Boolean) as HTMLAudioElement[];
+  const candidates = [drumrollAudio, celebrationAudio].filter(Boolean) as HTMLAudioElement[];
   for (const a of candidates) {
     try {
       a.muted = true;
@@ -57,29 +53,22 @@ export async function unlockRaffleAudio() {
       a.currentTime = 0;
       a.muted = false;
     } catch {
-      /* ignore — tentaremos de novo no play real */
+      /* ignore */
     }
   }
-  if (tickAudio) tickAudio.volume = 1;
-  if (suspenseAudio) suspenseAudio.volume = 0.85;
+  if (drumrollAudio) drumrollAudio.volume = 1;
   if (celebrationAudio) celebrationAudio.volume = 1;
   unlocked = true;
 }
 
+/** Mantido por compatibilidade — o rufar de tambores cobre o suspense. */
 export function playCountdownTick(_secondsLeft?: number) {
-  ensureAudio();
-  if (!tickAudio) return;
-  // Clone curto evita cortar o tick anterior se ainda estiver tocando.
-  const clone = tickAudio.cloneNode(true) as HTMLAudioElement;
-  clone.volume = 0.9 + Math.min(0.1, ((_secondsLeft ?? 3) === 1 ? 0.1 : 0));
-  void clone.play().catch((err) => console.warn("[raffle-audio] tick failed:", err));
+  /* sem tick separado: o MP3 de tambores é o efeito principal */
 }
 
 export function startSuspenseBed(): () => void {
   ensureAudio();
-  const audio = suspenseAudio;
-  if (!audio) return () => {};
-
+  const audio = drumrollAudio;
   void safePlay(audio);
 
   let stopped = false;
@@ -87,8 +76,8 @@ export function startSuspenseBed(): () => void {
     if (stopped) return;
     stopped = true;
     try {
-      audio.pause();
-      audio.currentTime = 0;
+      audio?.pause();
+      if (audio) audio.currentTime = 0;
     } catch {
       /* ignore */
     }
@@ -98,8 +87,8 @@ export function startSuspenseBed(): () => void {
 export function playCelebrationBurst() {
   ensureAudio();
   try {
-    suspenseAudio?.pause();
-    if (suspenseAudio) suspenseAudio.currentTime = 0;
+    drumrollAudio?.pause();
+    if (drumrollAudio) drumrollAudio.currentTime = 0;
   } catch {
     /* ignore */
   }
@@ -107,7 +96,7 @@ export function playCelebrationBurst() {
 }
 
 export function stopAllRaffleAudio() {
-  for (const a of [tickAudio, suspenseAudio, celebrationAudio]) {
+  for (const a of [drumrollAudio, celebrationAudio]) {
     if (!a) continue;
     try {
       a.pause();
