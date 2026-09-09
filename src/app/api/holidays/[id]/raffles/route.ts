@@ -89,3 +89,42 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   return jsonOk({ raffle }, { status: 201 });
 }
+
+/** Exclui todos os sorteios de uma ocorrência do evento. */
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  let user;
+  try {
+    user = await requireStaffWrite();
+  } catch (e) {
+    return authFailure(e);
+  }
+
+  const { id } = await context.params;
+  const { searchParams } = new URL(request.url);
+  const occurrenceDate = searchParams.get("occurrenceDate")?.trim() ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(occurrenceDate)) {
+    return jsonErr("VALIDATION_ERROR", "Informe a data da ocorrência.", 400);
+  }
+
+  const existing = await prisma.holidayEventRaffle.findMany({
+    where: { holidayId: id, occurrenceDate },
+    select: { id: true, title: true, status: true },
+  });
+  if (existing.length === 0) {
+    return jsonOk({ deleted: 0 });
+  }
+
+  const result = await prisma.holidayEventRaffle.deleteMany({
+    where: { holidayId: id, occurrenceDate },
+  });
+
+  await createAuditLog({
+    entityType: "HolidayEventRaffle",
+    entityId: id,
+    action: "DELETE",
+    diff: { before: { occurrenceDate, raffles: existing }, deleted: result.count },
+    performedByUserId: user.id,
+  });
+
+  return jsonOk({ deleted: result.count });
+}

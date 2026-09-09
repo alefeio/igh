@@ -70,18 +70,17 @@ export async function DELETE(_request: Request, context: RouteCtx) {
   const { id, raffleId } = await context.params;
   const existing = await prisma.holidayEventRaffle.findFirst({
     where: { id: raffleId, holidayId: id },
-    select: { id: true, title: true, occurrenceDate: true, _count: { select: { draws: true } } },
+    select: {
+      id: true,
+      title: true,
+      occurrenceDate: true,
+      status: true,
+      _count: { select: { draws: true } },
+    },
   });
   if (!existing) return jsonErr("NOT_FOUND", "Sorteio não encontrado.", 404);
 
-  if (existing._count.draws > 0) {
-    return jsonErr(
-      "VALIDATION_ERROR",
-      "Este sorteio já foi realizado. Cancele-o em vez de excluir, para preservar o histórico.",
-      400,
-    );
-  }
-
+  // Draws têm onDelete: Cascade — excluir o sorteio remove o histórico de ganhadores.
   await prisma.holidayEventRaffle.delete({ where: { id: raffleId } });
 
   await createAuditLog({

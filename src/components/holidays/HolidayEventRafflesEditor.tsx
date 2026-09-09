@@ -52,6 +52,7 @@ export function HolidayEventRafflesEditor({
   const [prize, setPrize] = useState("");
   const [allowRepeatWinner, setAllowRepeatWinner] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   useEffect(() => {
     if (options.length > 0 && !options.includes(occurrenceDate)) setOccurrenceDate(options[0]);
@@ -110,7 +111,11 @@ export function HolidayEventRafflesEditor({
   }
 
   async function removeRaffle(raffle: RaffleItem) {
-    if (!window.confirm(`Excluir o sorteio "${raffle.title}"?`)) return;
+    const hadWinner = Boolean(raffle.winner);
+    const msg = hadWinner
+      ? `Excluir o sorteio "${raffle.title}"? Ele já foi realizado — o histórico do ganhador também será removido.`
+      : `Excluir o sorteio "${raffle.title}"?`;
+    if (!window.confirm(msg)) return;
     const res = await fetch(`/api/holidays/${holidayId}/raffles/${raffle.id}`, { method: "DELETE" });
     const json = await parseApiJson<{ deleted: boolean }>(res);
     if (!res.ok || !json || !json.ok) {
@@ -119,6 +124,32 @@ export function HolidayEventRafflesEditor({
     }
     toast.push("success", "Sorteio excluído.");
     await load();
+  }
+
+  async function removeAllRaffles() {
+    if (raffles.length === 0) return;
+    const drawn = raffles.filter((r) => r.winner).length;
+    const msg =
+      drawn > 0
+        ? `Excluir todos os ${raffles.length} sorteios desta data? ${drawn} já ${drawn === 1 ? "foi realizado" : "foram realizados"} e o histórico dos ganhadores será removido.`
+        : `Excluir todos os ${raffles.length} sorteios desta data?`;
+    if (!window.confirm(msg)) return;
+    setDeletingAll(true);
+    try {
+      const res = await fetch(
+        `/api/holidays/${holidayId}/raffles?occurrenceDate=${occurrenceDate}`,
+        { method: "DELETE" },
+      );
+      const json = await parseApiJson<{ deleted: number }>(res);
+      if (!res.ok || !json || !json.ok) {
+        toast.push("error", json && !json.ok ? json.error.message : "Não foi possível excluir.");
+        return;
+      }
+      toast.push("success", `${json.data.deleted} sorteio(s) excluído(s).`);
+      await load();
+    } finally {
+      setDeletingAll(false);
+    }
   }
 
   async function cancelRaffle(raffle: RaffleItem) {
@@ -178,46 +209,59 @@ export function HolidayEventRafflesEditor({
       ) : raffles.length === 0 ? (
         <p className="mt-3 text-xs text-[var(--text-muted)]">Nenhum sorteio cadastrado nesta data.</p>
       ) : (
-        <ul className="mt-3 list-none space-y-2 pl-0">
-          {raffles.map((raffle) => (
-            <li
-              key={raffle.id}
-              className="flex flex-wrap items-start justify-between gap-2 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] p-2.5"
+        <>
+          <div className="mt-3 flex justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              className="text-red-600 hover:text-red-700"
+              disabled={deletingAll}
+              onClick={() => void removeAllRaffles()}
             >
-              <div className="min-w-0">
-                <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                  {raffle.title}
-                  {raffle.status === "CANCELLED" ? <Badge tone="red">Cancelado</Badge> : null}
-                  {raffle.allowRepeatWinner ? <Badge tone="zinc">Repete ganhador</Badge> : null}
-                </p>
-                {raffle.prize?.trim() ? (
-                  <p className="text-xs text-[var(--text-muted)]">{raffle.prize}</p>
-                ) : null}
-                {raffle.winner ? (
-                  <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-                    <Trophy className="h-3.5 w-3.5" aria-hidden />
-                    Nº {raffle.winner.number} — {raffle.winner.participantName}
+              <Trash2 className="mr-1.5 h-4 w-4" aria-hidden />
+              {deletingAll ? "Excluindo…" : "Excluir todos"}
+            </Button>
+          </div>
+          <ul className="mt-2 list-none space-y-2 pl-0">
+            {raffles.map((raffle) => (
+              <li
+                key={raffle.id}
+                className="flex flex-wrap items-start justify-between gap-2 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] p-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+                    {raffle.title}
+                    {raffle.status === "CANCELLED" ? <Badge tone="red">Cancelado</Badge> : null}
+                    {raffle.allowRepeatWinner ? <Badge tone="zinc">Repete ganhador</Badge> : null}
                   </p>
-                ) : null}
-              </div>
-              <div className="flex shrink-0 gap-1.5">
-                <Button type="button" variant="secondary" onClick={() => void cancelRaffle(raffle)}>
-                  {raffle.status === "CANCELLED" ? "Reativar" : "Cancelar"}
-                </Button>
-                {raffle.winner ? null : (
+                  {raffle.prize?.trim() ? (
+                    <p className="text-xs text-[var(--text-muted)]">{raffle.prize}</p>
+                  ) : null}
+                  {raffle.winner ? (
+                    <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                      <Trophy className="h-3.5 w-3.5" aria-hidden />
+                      Nº {raffle.winner.number} — {raffle.winner.participantName}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 gap-1.5">
+                  <Button type="button" variant="secondary" onClick={() => void cancelRaffle(raffle)}>
+                    {raffle.status === "CANCELLED" ? "Reativar" : "Cancelar"}
+                  </Button>
                   <Button
                     type="button"
                     variant="secondary"
                     className="text-red-600 hover:text-red-700"
+                    title="Excluir sorteio"
                     onClick={() => void removeRaffle(raffle)}
                   >
                     <Trash2 className="h-4 w-4" aria-hidden />
                   </Button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
