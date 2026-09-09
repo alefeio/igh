@@ -7,6 +7,7 @@ import {
   playCelebrationBurst,
   playCountdownTick,
   startSuspenseBed,
+  stopAllRaffleAudio,
   unlockRaffleAudio,
 } from "@/components/holidays/raffle-stage-fx";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -314,7 +315,7 @@ export function RaffleDrawPanel({
     }
 
     abortRef.current = false;
-    unlockRaffleAudio();
+    await unlockRaffleAudio();
     setDrawingId(raffle.id);
     setCountdown(COUNTDOWN_FROM);
     setStage({ raffle, winner: null, phase: "countdown", celebrate: false });
@@ -364,9 +365,9 @@ export function RaffleDrawPanel({
     }
   }
 
-  function showExistingWinner(raffle: RaffleItem) {
+  async function showExistingWinner(raffle: RaffleItem) {
     if (!raffle.winner) return;
-    unlockRaffleAudio();
+    await unlockRaffleAudio();
     setCountdown(null);
     setStage({
       raffle,
@@ -379,6 +380,7 @@ export function RaffleDrawPanel({
 
   function closeStage() {
     abortRef.current = true;
+    stopAllRaffleAudio();
     setStage(null);
     setCountdown(null);
   }
@@ -449,7 +451,7 @@ export function RaffleDrawPanel({
                           type="button"
                           variant="secondary"
                           className="min-h-[44px] w-full sm:w-auto"
-                          onClick={() => showExistingWinner(raffle)}
+                          onClick={() => void showExistingWinner(raffle)}
                         >
                           <Expand className="mr-1.5 h-4 w-4" aria-hidden />
                           Mostrar em tela cheia

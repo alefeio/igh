@@ -1,141 +1,118 @@
 "use client";
 
-/** Efeitos de áudio do sorteio (Web Audio API — sem arquivos externos). */
+/**
+ * Sons do sorteio a partir de arquivos em /public/sounds/raffle/.
+ * HTMLAudioElement costuma ser mais confiável que Web Audio puro em mobile.
+ */
 
-let sharedCtx: AudioContext | null = null;
+const TICK_SRC = "/sounds/raffle/tick.wav";
+const SUSPENSE_SRC = "/sounds/raffle/suspense.wav";
+const CELEBRATION_SRC = "/sounds/raffle/celebration.wav";
 
-function getCtx(): AudioContext | null {
-  if (typeof window === "undefined") return null;
-  const AC =
-    window.AudioContext ||
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AC) return null;
-  if (!sharedCtx || sharedCtx.state === "closed") {
-    sharedCtx = new AC();
+let unlocked = false;
+let tickAudio: HTMLAudioElement | null = null;
+let suspenseAudio: HTMLAudioElement | null = null;
+let celebrationAudio: HTMLAudioElement | null = null;
+
+function makeAudio(src: string, opts?: { loop?: boolean; volume?: number }): HTMLAudioElement {
+  const a = new Audio(src);
+  a.preload = "auto";
+  a.loop = opts?.loop ?? false;
+  a.volume = opts?.volume ?? 1;
+  return a;
+}
+
+function ensureAudio() {
+  if (typeof window === "undefined") return;
+  if (!tickAudio) tickAudio = makeAudio(TICK_SRC, { volume: 0.9 });
+  if (!suspenseAudio) suspenseAudio = makeAudio(SUSPENSE_SRC, { loop: true, volume: 0.55 });
+  if (!celebrationAudio) celebrationAudio = makeAudio(CELEBRATION_SRC, { volume: 1 });
+}
+
+async function safePlay(audio: HTMLAudioElement | null) {
+  if (!audio) return;
+  try {
+    audio.currentTime = 0;
+    await audio.play();
+  } catch (err) {
+    console.warn("[raffle-audio] play blocked or failed:", err);
   }
-  if (sharedCtx.state === "suspended") {
-    void sharedCtx.resume();
+}
+
+/** Precisa ser chamado no clique do botão (gesto do usuário). */
+export async function unlockRaffleAudio() {
+  if (typeof window === "undefined") return;
+  ensureAudio();
+  if (unlocked) return;
+
+  // Desbloqueia a política de autoplay tocando e pausando imediatamente.
+  const candidates = [tickAudio, suspenseAudio, celebrationAudio].filter(Boolean) as HTMLAudioElement[];
+  for (const a of candidates) {
+    try {
+      a.muted = true;
+      a.volume = 0;
+      await a.play();
+      a.pause();
+      a.currentTime = 0;
+      a.muted = false;
+    } catch {
+      /* ignore — tentaremos de novo no play real */
+    }
   }
-  return sharedCtx;
+  if (tickAudio) tickAudio.volume = 0.9;
+  if (suspenseAudio) suspenseAudio.volume = 0.55;
+  if (celebrationAudio) celebrationAudio.volume = 1;
+  unlocked = true;
 }
 
-/** Chamar no clique do botão para liberar áudio nos navegadores. */
-export function unlockRaffleAudio() {
-  getCtx();
+export function playCountdownTick(_secondsLeft?: number) {
+  ensureAudio();
+  if (!tickAudio) return;
+  // Clone curto evita cortar o tick anterior se ainda estiver tocando.
+  const clone = tickAudio.cloneNode(true) as HTMLAudioElement;
+  clone.volume = 0.9 + Math.min(0.1, ((_secondsLeft ?? 3) === 1 ? 0.1 : 0));
+  void clone.play().catch((err) => console.warn("[raffle-audio] tick failed:", err));
 }
 
-function tone(
-  ctx: AudioContext,
-  opts: {
-    freq: number;
-    start: number;
-    duration: number;
-    type?: OscillatorType;
-    gain?: number;
-    endFreq?: number;
-  },
-) {
-  const osc = ctx.createOscillator();
-  const g = ctx.createGain();
-  osc.type = opts.type ?? "sine";
-  osc.frequency.setValueAtTime(opts.freq, opts.start);
-  if (opts.endFreq != null) {
-    osc.frequency.exponentialRampToValueAtTime(Math.max(1, opts.endFreq), opts.start + opts.duration);
-  }
-  const peak = opts.gain ?? 0.18;
-  g.gain.setValueAtTime(0.0001, opts.start);
-  g.gain.exponentialRampToValueAtTime(peak, opts.start + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, opts.start + opts.duration);
-  osc.connect(g);
-  g.connect(ctx.destination);
-  osc.start(opts.start);
-  osc.stop(opts.start + opts.duration + 0.02);
-}
-
-/** Tick de suspense a cada segundo da contagem (tom sobe conforme aproxima do zero). */
-export function playCountdownTick(secondsLeft: number) {
-  const ctx = getCtx();
-  if (!ctx) return;
-  const t = ctx.currentTime;
-  const freq = 220 + (5 - Math.min(5, Math.max(1, secondsLeft))) * 90;
-  tone(ctx, { freq, start: t, duration: 0.18, type: "triangle", gain: 0.22 });
-  tone(ctx, { freq: freq * 1.5, start: t, duration: 0.12, type: "sine", gain: 0.08 });
-}
-
-/** Rolo de suspense contínuo durante a contagem. */
 export function startSuspenseBed(): () => void {
-  const ctx = getCtx();
-  if (!ctx) return () => {};
+  ensureAudio();
+  const audio = suspenseAudio;
+  if (!audio) return () => {};
 
-  const master = ctx.createGain();
-  master.gain.value = 0.07;
-  master.connect(ctx.destination);
-
-  const osc = ctx.createOscillator();
-  osc.type = "sawtooth";
-  osc.frequency.value = 55;
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = 180;
-  osc.connect(filter);
-  filter.connect(master);
-  osc.start();
-
-  const lfo = ctx.createOscillator();
-  const lfoGain = ctx.createGain();
-  lfo.frequency.value = 4;
-  lfoGain.gain.value = 40;
-  lfo.connect(lfoGain);
-  lfoGain.connect(filter.frequency);
-  lfo.start();
+  void safePlay(audio);
 
   let stopped = false;
   return () => {
     if (stopped) return;
     stopped = true;
-    const now = ctx.currentTime;
-    master.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
     try {
-      osc.stop(now + 0.3);
-      lfo.stop(now + 0.3);
+      audio.pause();
+      audio.currentTime = 0;
     } catch {
-      /* already stopped */
+      /* ignore */
     }
   };
 }
 
-/** Explosão de vitória + “aplausos” sintetizados. */
 export function playCelebrationBurst() {
-  const ctx = getCtx();
-  if (!ctx) return;
-  const t0 = ctx.currentTime;
-
-  // Acorde triunfal
-  for (const freq of [523.25, 659.25, 783.99, 1046.5]) {
-    tone(ctx, { freq, start: t0, duration: 0.9, type: "triangle", gain: 0.12 });
+  ensureAudio();
+  try {
+    suspenseAudio?.pause();
+    if (suspenseAudio) suspenseAudio.currentTime = 0;
+  } catch {
+    /* ignore */
   }
-  tone(ctx, { freq: 261.63, start: t0, duration: 1.1, type: "sine", gain: 0.1, endFreq: 523.25 });
+  void safePlay(celebrationAudio);
+}
 
-  // Ruído ritmado ≈ aplausos / gritos
-  const bufferSize = Math.floor(ctx.sampleRate * 2.4);
-  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) {
-    const env = Math.exp(-i / (ctx.sampleRate * 1.4));
-    const clap = Math.random() * 2 - 1;
-    const pulse = 0.55 + 0.45 * Math.sin((i / ctx.sampleRate) * Math.PI * 14);
-    data[i] = clap * env * pulse * 0.55;
+export function stopAllRaffleAudio() {
+  for (const a of [tickAudio, suspenseAudio, celebrationAudio]) {
+    if (!a) continue;
+    try {
+      a.pause();
+      a.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
   }
-  const noise = ctx.createBufferSource();
-  noise.buffer = buffer;
-  const band = ctx.createBiquadFilter();
-  band.type = "bandpass";
-  band.frequency.value = 1800;
-  band.Q.value = 0.7;
-  const g = ctx.createGain();
-  g.gain.value = 0.35;
-  noise.connect(band);
-  band.connect(g);
-  g.connect(ctx.destination);
-  noise.start(t0);
 }
