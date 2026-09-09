@@ -24,8 +24,9 @@ function makeAudio(src: string, opts?: { loop?: boolean; volume?: number }): HTM
 
 function ensureAudio() {
   if (typeof window === "undefined") return;
-  if (!tickAudio) tickAudio = makeAudio(TICK_SRC, { volume: 0.9 });
-  if (!suspenseAudio) suspenseAudio = makeAudio(SUSPENSE_SRC, { loop: true, volume: 0.55 });
+  if (!tickAudio) tickAudio = makeAudio(TICK_SRC, { volume: 1 });
+  // Sem loop: o rufar já dura a contagem inteira e acelera até o fim.
+  if (!suspenseAudio) suspenseAudio = makeAudio(SUSPENSE_SRC, { loop: false, volume: 0.85 });
   if (!celebrationAudio) celebrationAudio = makeAudio(CELEBRATION_SRC, { volume: 1 });
 }
 
@@ -59,8 +60,8 @@ export async function unlockRaffleAudio() {
       /* ignore — tentaremos de novo no play real */
     }
   }
-  if (tickAudio) tickAudio.volume = 0.9;
-  if (suspenseAudio) suspenseAudio.volume = 0.55;
+  if (tickAudio) tickAudio.volume = 1;
+  if (suspenseAudio) suspenseAudio.volume = 0.85;
   if (celebrationAudio) celebrationAudio.volume = 1;
   unlocked = true;
 }

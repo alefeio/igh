@@ -239,7 +239,7 @@ function StageOverlay({
             >
               {countdown ?? "…"}
             </p>
-            <p className="mt-4 text-sm text-white/50 sm:text-base">Segurem a respiração…</p>
+            <p className="mt-4 text-sm text-white/50 sm:text-base">Que rufem os tambores…</p>
           </>
         ) : winner ? (
           <>
