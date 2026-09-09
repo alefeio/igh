@@ -3,15 +3,16 @@
 /**
  * Sons do sorteio.
  * Rufar: /public/sounds/tambores.mp3
- * Comemoração: /public/sounds/raffle/celebration.wav
+ * Comemoração: /public/sounds/aplausos.mp3 (se existir) ou aplausos.wav
  */
 
 const DRUMROLL_SRC = "/sounds/tambores.mp3";
-const CELEBRATION_SRC = "/sounds/raffle/celebration.wav";
+const CELEBRATION_CANDIDATES = ["/sounds/aplausos.mp3", "/sounds/aplausos.wav"];
 
 let unlocked = false;
 let drumrollAudio: HTMLAudioElement | null = null;
 let celebrationAudio: HTMLAudioElement | null = null;
+let celebrationResolved = false;
 
 function makeAudio(src: string, opts?: { volume?: number }): HTMLAudioElement {
   const a = new Audio(src);
@@ -21,10 +22,26 @@ function makeAudio(src: string, opts?: { volume?: number }): HTMLAudioElement {
   return a;
 }
 
-function ensureAudio() {
+async function resolveCelebrationSrc(): Promise<string> {
+  for (const src of CELEBRATION_CANDIDATES) {
+    try {
+      const res = await fetch(src, { method: "HEAD", cache: "no-store" });
+      if (res.ok) return src;
+    } catch {
+      /* tenta o próximo */
+    }
+  }
+  return CELEBRATION_CANDIDATES[CELEBRATION_CANDIDATES.length - 1]!;
+}
+
+async function ensureAudio() {
   if (typeof window === "undefined") return;
   if (!drumrollAudio) drumrollAudio = makeAudio(DRUMROLL_SRC, { volume: 1 });
-  if (!celebrationAudio) celebrationAudio = makeAudio(CELEBRATION_SRC, { volume: 1 });
+  if (!celebrationAudio || !celebrationResolved) {
+    const src = await resolveCelebrationSrc();
+    celebrationAudio = makeAudio(src, { volume: 1 });
+    celebrationResolved = true;
+  }
 }
 
 async function safePlay(audio: HTMLAudioElement | null) {
@@ -40,7 +57,7 @@ async function safePlay(audio: HTMLAudioElement | null) {
 /** Precisa ser chamado no clique do botão (gesto do usuário). */
 export async function unlockRaffleAudio() {
   if (typeof window === "undefined") return;
-  ensureAudio();
+  await ensureAudio();
   if (unlocked) return;
 
   const candidates = [drumrollAudio, celebrationAudio].filter(Boolean) as HTMLAudioElement[];
@@ -67,17 +84,23 @@ export function playCountdownTick(_secondsLeft?: number) {
 }
 
 export function startSuspenseBed(): () => void {
-  ensureAudio();
-  const audio = drumrollAudio;
-  void safePlay(audio);
-
   let stopped = false;
-  return () => {
+  let audio: HTMLAudioElement | null = null;
+
+  void (async () => {
+    await ensureAudio();
     if (stopped) return;
+    audio = drumrollAudio;
+    await safePlay(audio);
+  })();
+
+  return () => {
     stopped = true;
     try {
       audio?.pause();
       if (audio) audio.currentTime = 0;
+      drumrollAudio?.pause();
+      if (drumrollAudio) drumrollAudio.currentTime = 0;
     } catch {
       /* ignore */
     }
@@ -85,14 +108,16 @@ export function startSuspenseBed(): () => void {
 }
 
 export function playCelebrationBurst() {
-  ensureAudio();
-  try {
-    drumrollAudio?.pause();
-    if (drumrollAudio) drumrollAudio.currentTime = 0;
-  } catch {
-    /* ignore */
-  }
-  void safePlay(celebrationAudio);
+  void (async () => {
+    await ensureAudio();
+    try {
+      drumrollAudio?.pause();
+      if (drumrollAudio) drumrollAudio.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
+    await safePlay(celebrationAudio);
+  })();
 }
 
 export function stopAllRaffleAudio() {
