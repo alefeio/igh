@@ -1,8 +1,10 @@
 "use client";
 
+import { BookOpen, CalendarDays, ClipboardList, Sparkles, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
+import { StatTile } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -43,6 +45,10 @@ function normalizeSearch(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+function startOfLocalDay(d = new Date()): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 export default function AdminPreInscricoesPage() {
@@ -93,6 +99,53 @@ export default function AdminPreInscricoesPage() {
     });
   }, [items, query]);
 
+  const summary = useMemo(() => {
+    const todayStart = startOfLocalDay();
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(weekStart.getDate() - 6);
+
+    let today = 0;
+    let last7Days = 0;
+    let withCustomCourse = 0;
+    let multiCourse = 0;
+    let courseSelections = 0;
+    const courseCounts = new Map<string, number>();
+
+    for (const item of items) {
+      const created = new Date(item.createdAt);
+      if (created >= todayStart) today += 1;
+      if (created >= weekStart) last7Days += 1;
+      if (item.customCourseName?.trim()) withCustomCourse += 1;
+
+      const listed = item.courseNames.filter((n) => !n.startsWith("Outro:"));
+      const totalCourses = listed.length + (item.customCourseName?.trim() ? 1 : 0);
+      if (totalCourses > 1) multiCourse += 1;
+      courseSelections += totalCourses;
+
+      for (const name of item.courseNames) {
+        courseCounts.set(name, (courseCounts.get(name) ?? 0) + 1);
+      }
+    }
+
+    const topCourses = [...courseCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR"))
+      .slice(0, 8);
+
+    const avgCourses =
+      items.length === 0 ? 0 : Math.round((courseSelections / items.length) * 10) / 10;
+
+    return {
+      total: items.length,
+      today,
+      last7Days,
+      withCustomCourse,
+      multiCourse,
+      avgCourses,
+      topCourses,
+      distinctCourses: courseCounts.size,
+    };
+  }, [items]);
+
   function exportExcel() {
     if (exporting || filtered.length === 0) return;
     setExporting(true);
@@ -125,6 +178,8 @@ export default function AdminPreInscricoesPage() {
     }
   }
 
+  const topCourseMax = summary.topCourses[0]?.[1] ?? 0;
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -148,8 +203,119 @@ export default function AdminPreInscricoesPage() {
         </Button>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label="Total"
+          value={loading ? "—" : summary.total}
+          icon={ClipboardList}
+          sublabel="pré-inscrições recebidas"
+        />
+        <StatTile
+          label="Hoje"
+          value={loading ? "—" : summary.today}
+          icon={Sparkles}
+          accent="emerald"
+          sublabel="cadastradas neste dia"
+        />
+        <StatTile
+          label="Últimos 7 dias"
+          value={loading ? "—" : summary.last7Days}
+          icon={CalendarDays}
+          accent="sky"
+          sublabel="incluindo hoje"
+        />
+        <StatTile
+          label="Cursos distintos"
+          value={loading ? "—" : summary.distinctCourses}
+          icon={BookOpen}
+          accent="amber"
+          sublabel={
+            loading ? undefined : `média ${summary.avgCourses} curso(s) por pessoa`
+          }
+        />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm sm:p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-[var(--igh-primary)]" aria-hidden />
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+              Cursos mais pretendidos
+            </h2>
+          </div>
+          {loading ? (
+            <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
+          ) : summary.topCourses.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">
+              Ainda não há cursos selecionados nas pré-inscrições.
+            </p>
+          ) : (
+            <ul className="list-none space-y-2.5 pl-0">
+              {summary.topCourses.map(([name, count], index) => {
+                const pct = topCourseMax > 0 ? Math.round((count / topCourseMax) * 100) : 0;
+                return (
+                  <li key={name}>
+                    <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate text-[var(--text-primary)]">
+                        <span className="mr-2 font-semibold text-[var(--text-muted)]">
+                          {index + 1}.
+                        </span>
+                        {name}
+                      </span>
+                      <span className="shrink-0 font-semibold tabular-nums text-[var(--igh-primary)]">
+                        {count}
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-[var(--igh-surface)]">
+                      <div
+                        className="h-full rounded-full bg-[var(--igh-primary)]/80"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm sm:p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <Users className="h-4 w-4 text-[var(--igh-primary)]" aria-hidden />
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Perfil das escolhas</h2>
+          </div>
+          {loading ? (
+            <p className="text-sm text-[var(--text-muted)]">Carregando…</p>
+          ) : (
+            <dl className="space-y-3 text-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-[var(--card-border)] pb-3">
+                <dt className="text-[var(--text-muted)]">Mais de um curso marcado</dt>
+                <dd className="font-semibold tabular-nums text-[var(--text-primary)]">
+                  {summary.multiCourse}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-b border-[var(--card-border)] pb-3">
+                <dt className="text-[var(--text-muted)]">Informaram “Outro” curso</dt>
+                <dd className="font-semibold tabular-nums text-[var(--text-primary)]">
+                  {summary.withCustomCourse}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-[var(--text-muted)]">Média de cursos por pessoa</dt>
+                <dd className="font-semibold tabular-nums text-[var(--text-primary)]">
+                  {summary.avgCourses}
+                </dd>
+              </div>
+            </dl>
+          )}
+        </div>
+      </div>
+
       <div className="max-w-md">
-        <label htmlFor="pre-inscricoes-search" className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+        <label
+          htmlFor="pre-inscricoes-search"
+          className="mb-1 block text-xs font-medium text-[var(--text-muted)]"
+        >
           Buscar
         </label>
         <Input
