@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const scope = searchParams.get("scope") ?? "upcoming";
+  const scope = searchParams.get("scope") ?? "all";
   const holidayId = searchParams.get("holidayId")?.trim() || null;
   const occurrenceDate = searchParams.get("occurrenceDate")?.trim() || null;
   const q = searchParams.get("q")?.trim() || null;
@@ -54,21 +54,32 @@ export async function GET(request: Request) {
   }
 
   if (q) {
+    const qDigits = q.replace(/\D/g, "");
+    const or: Prisma.HolidayEventRegistrationWhereInput[] = [
+      { user: { name: { contains: q, mode: "insensitive" } } },
+      { user: { email: { contains: q, mode: "insensitive" } } },
+      { guestName: { contains: q, mode: "insensitive" } },
+      { guestEmail: { contains: q, mode: "insensitive" } },
+      { guestCpf: { contains: q } },
+      { checkinCode: { contains: q, mode: "insensitive" } },
+      { holiday: { name: { contains: q, mode: "insensitive" } } },
+      { holiday: { subtitle: { contains: q, mode: "insensitive" } } },
+    ];
+    // Telefone: busca também só pelos dígitos (cadastro guarda sem máscara).
+    if (qDigits.length >= 3) {
+      or.push(
+        { user: { whatsapp: { contains: qDigits } } },
+        { guestPhone: { contains: qDigits } },
+      );
+    } else {
+      or.push(
+        { user: { whatsapp: { contains: q } } },
+        { guestPhone: { contains: q } },
+      );
+    }
     where.AND = [
       ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
-      {
-        OR: [
-          { user: { name: { contains: q, mode: "insensitive" } } },
-          { user: { email: { contains: q, mode: "insensitive" } } },
-          { user: { whatsapp: { contains: q } } },
-          { guestName: { contains: q, mode: "insensitive" } },
-          { guestEmail: { contains: q, mode: "insensitive" } },
-          { guestPhone: { contains: q } },
-          { guestCpf: { contains: q } },
-          { holiday: { name: { contains: q, mode: "insensitive" } } },
-          { holiday: { subtitle: { contains: q, mode: "insensitive" } } },
-        ],
-      },
+      { OR: or },
     ];
   }
 
@@ -96,6 +107,69 @@ export async function GET(request: Request) {
     },
   });
 
+  // Com holidayId focado e ainda sem inscritos, devolve o evento para o painel criar o grupo vazio.
+  let emptyEvent:
+    | {
+        id: string;
+        name: string | null;
+        subtitle: string | null;
+        slug: string | null;
+        recurring: boolean;
+        eventStartTime: string | null;
+        eventEndTime: string | null;
+        allowsRegistration: boolean;
+        allowsReferral: boolean;
+        isActive: boolean;
+        occurrenceDate: string;
+      }
+    | null = null;
+
+  if (holidayId && registrations.length === 0) {
+    const holiday = await prisma.holiday.findFirst({
+      where: {
+        id: holidayId,
+        allowsRegistration: true,
+        eventStartTime: { not: null },
+        eventEndTime: { not: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        subtitle: true,
+        slug: true,
+        recurring: true,
+        eventStartTime: true,
+        eventEndTime: true,
+        allowsRegistration: true,
+        allowsReferral: true,
+        isActive: true,
+        date: true,
+      },
+    });
+    if (holiday) {
+      const y = holiday.date.getUTCFullYear();
+      const m = String(holiday.date.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(holiday.date.getUTCDate()).padStart(2, "0");
+      const date =
+        occurrenceDate && /^\d{4}-\d{2}-\d{2}$/.test(occurrenceDate)
+          ? occurrenceDate
+          : `${y}-${m}-${d}`;
+      emptyEvent = {
+        id: holiday.id,
+        name: holiday.name,
+        subtitle: holiday.subtitle,
+        slug: holiday.slug,
+        recurring: holiday.recurring,
+        eventStartTime: holiday.eventStartTime,
+        eventEndTime: holiday.eventEndTime,
+        allowsRegistration: holiday.allowsRegistration,
+        allowsReferral: holiday.allowsReferral,
+        isActive: holiday.isActive,
+        occurrenceDate: date,
+      };
+    }
+  }
+
   if (scope !== "past") {
     registrations.sort((a, b) => {
       const dateCmp = a.occurrenceDate.localeCompare(b.occurrenceDate);
@@ -104,7 +178,7 @@ export async function GET(request: Request) {
     });
   }
 
-  return jsonOk({ registrations, today });
+  return jsonOk({ registrations, today, emptyEvent });
 }
 
 export async function POST(request: Request) {
@@ -141,7 +215,7 @@ export async function POST(request: Request) {
   if (userEmail) {
     const user = await prisma.user.findUnique({
       where: { email: userEmail },
-      select: { id: true, name: true, email: true, isActive: true },
+      select: { id: true, name: true, email: true, whatsapp: true, isActive: true },
     });
     if (!user) {
       return jsonErr("NOT_FOUND", "Nenhum usuário encontrado com este e-mail.", 404);
@@ -161,21 +235,41 @@ export async function POST(request: Request) {
       });
       if (!result.ok) return jsonErr("VALIDATION_ERROR", result.message, 400);
       return jsonOk(
-        { registration: result.registration, alreadyRegistered: result.alreadyRegistered },
+        {
+          registration: result.registration,
+          alreadyRegistered: result.alreadyRegistered,
+          participantName: user.name,
+        },
         { status: result.alreadyRegistered ? 200 : 201 },
       );
     }
 
     const existing = await prisma.holidayEventRegistration.findFirst({
-      where: { holidayId, userId: user.id, occurrenceDate },
+      where: {
+        holidayId,
+        occurrenceDate,
+        OR: [
+          { userId: user.id },
+          ...(user.whatsapp
+            ? [{ guestPhone: user.whatsapp.replace(/\D/g, "") }]
+            : []),
+        ],
+      },
     });
     if (existing) {
-      return jsonOk({ registration: existing, alreadyRegistered: true });
+      return jsonOk({
+        registration: existing,
+        alreadyRegistered: true,
+        participantName: user.name,
+      });
     }
     const registration = await prisma.holidayEventRegistration.create({
       data: { holidayId, userId: user.id, occurrenceDate },
     });
-    return jsonOk({ registration, alreadyRegistered: false }, { status: 201 });
+    return jsonOk(
+      { registration, alreadyRegistered: false, participantName: user.name },
+      { status: 201 },
+    );
   }
 
   if (!name || !phone) {
@@ -194,17 +288,30 @@ export async function POST(request: Request) {
     });
     if (!result.ok) return jsonErr("VALIDATION_ERROR", result.message, 400);
     return jsonOk(
-      { registration: result.registration, alreadyRegistered: result.alreadyRegistered },
+      {
+        registration: result.registration,
+        alreadyRegistered: result.alreadyRegistered,
+        participantName: name.trim(),
+      },
       { status: result.alreadyRegistered ? 200 : 201 },
     );
   }
 
   const phoneDigits = phone.replace(/\D/g, "");
   const existingGuest = await prisma.holidayEventRegistration.findFirst({
-    where: { holidayId, occurrenceDate, guestPhone: phoneDigits },
+    where: {
+      holidayId,
+      occurrenceDate,
+      OR: [{ guestPhone: phoneDigits }, { user: { whatsapp: phoneDigits } }],
+    },
+    include: { user: { select: { name: true } } },
   });
   if (existingGuest) {
-    return jsonOk({ registration: existingGuest, alreadyRegistered: true });
+    return jsonOk({
+      registration: existingGuest,
+      alreadyRegistered: true,
+      participantName: existingGuest.user?.name ?? existingGuest.guestName ?? name.trim(),
+    });
   }
 
   const registration = await prisma.holidayEventRegistration.create({
@@ -217,5 +324,8 @@ export async function POST(request: Request) {
       guestCpf: cpf || null,
     },
   });
-  return jsonOk({ registration, alreadyRegistered: false }, { status: 201 });
+  return jsonOk(
+    { registration, alreadyRegistered: false, participantName: name.trim() },
+    { status: 201 },
+  );
 }

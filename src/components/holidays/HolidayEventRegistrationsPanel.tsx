@@ -123,12 +123,18 @@ export function HolidayEventRegistrationsPanel({
   onClearFocus?: () => void;
 }) {
   const toast = useToast();
-  const [scope, setScope] = useState<Scope>("upcoming");
+  const [scope, setScope] = useState<Scope>("all");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<RegistrationRow[]>([]);
+  const [emptyEvent, setEmptyEvent] = useState<{
+    id: string;
+    occurrenceDate: string;
+    holiday: RegistrationRow["holiday"];
+  } | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [addingFor, setAddingFor] = useState<string | null>(null);
   const [mode, setMode] = useState<"user" | "guest">("guest");
   const [userEmail, setUserEmail] = useState("");
@@ -152,16 +158,59 @@ export function HolidayEventRegistrationsPanel({
       if (debouncedQuery) params.set("q", debouncedQuery);
       if (focusHolidayId) params.set("holidayId", focusHolidayId);
       const res = await fetch(`/api/holidays/registrations?${params.toString()}`);
-      const json = await parseApiJson<{ registrations: RegistrationRow[] }>(res);
+      const json = await parseApiJson<{
+        registrations: RegistrationRow[];
+        emptyEvent: {
+          id: string;
+          name: string | null;
+          subtitle: string | null;
+          slug: string | null;
+          recurring: boolean;
+          eventStartTime: string | null;
+          eventEndTime: string | null;
+          allowsRegistration: boolean;
+          allowsReferral: boolean;
+          isActive: boolean;
+          occurrenceDate: string;
+        } | null;
+      }>(res);
       if (res.ok && json?.ok) {
         setRows(json.data.registrations);
+        const empty = json.data.emptyEvent;
+        setEmptyEvent(
+          empty
+            ? {
+                id: empty.id,
+                occurrenceDate: empty.occurrenceDate,
+                holiday: {
+                  id: empty.id,
+                  name: empty.name,
+                  subtitle: empty.subtitle,
+                  slug: empty.slug,
+                  recurring: empty.recurring,
+                  eventStartTime: empty.eventStartTime,
+                  eventEndTime: empty.eventEndTime,
+                  allowsRegistration: empty.allowsRegistration,
+                  allowsReferral: empty.allowsReferral,
+                  isActive: empty.isActive,
+                },
+              }
+            : null,
+        );
       } else {
         setRows([]);
+        setEmptyEvent(null);
       }
     } finally {
       setLoading(false);
     }
   }, [scope, debouncedQuery, focusHolidayId]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = window.setTimeout(() => setHighlightId(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [highlightId]);
 
   useEffect(() => {
     void load();
@@ -170,6 +219,8 @@ export function HolidayEventRegistrationsPanel({
   useEffect(() => {
     if (focusHolidayId) {
       setScope("all");
+      setQuery("");
+      setDebouncedQuery("");
     }
   }, [focusHolidayId]);
 
@@ -199,6 +250,18 @@ export function HolidayEventRegistrationsPanel({
         });
       }
     }
+    if (emptyEvent && focusHolidayId === emptyEvent.id && rows.length === 0) {
+      const key = groupKey(emptyEvent.id, emptyEvent.occurrenceDate);
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          holidayId: emptyEvent.id,
+          occurrenceDate: emptyEvent.occurrenceDate,
+          holiday: emptyEvent.holiday,
+          items: [],
+        });
+      }
+    }
     return [...map.values()].sort((a, b) => {
       const dateCmp =
         scope === "past"
@@ -207,7 +270,7 @@ export function HolidayEventRegistrationsPanel({
       if (dateCmp !== 0) return dateCmp;
       return (a.holiday.name ?? "").localeCompare(b.holiday.name ?? "", "pt-BR");
     });
-  }, [rows, scope]);
+  }, [rows, scope, emptyEvent, focusHolidayId]);
 
   const totalRegistrations = rows.length;
 
@@ -251,17 +314,84 @@ export function HolidayEventRegistrationsPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await parseApiJson<{ alreadyRegistered?: boolean }>(res);
+      const json = await parseApiJson<{
+        alreadyRegistered?: boolean;
+        participantName?: string;
+        registration?: { id: string };
+      }>(res);
       if (!res.ok || !json?.ok) {
         toast.push("error", json && !json.ok ? json.error.message : "Falha ao cadastrar inscrição.");
         return;
       }
+
+      const already = Boolean(json.data.alreadyRegistered);
+      const who = json.data.participantName?.trim();
       toast.push(
         "success",
-        json.data.alreadyRegistered ? "Participante já estava inscrito." : "Inscrição cadastrada.",
+        already
+          ? who
+            ? `${who} já estava inscrito(a). A busca foi limpa para exibir na lista.`
+            : "Participante já estava inscrito. A busca foi limpa para exibir na lista."
+          : "Inscrição cadastrada.",
       );
+
+      // Força listagem completa: a pessoa podia existir no banco e estar oculta pelo filtro/busca.
+      setQuery("");
+      setDebouncedQuery("");
+      setScope("all");
       setAddingFor(null);
-      await load();
+      const key = groupKey(holidayId, occurrenceDate);
+      setExpanded((prev) => new Set(prev).add(key));
+      if (json.data.registration?.id) setHighlightId(json.data.registration.id);
+
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ scope: "all" });
+        if (focusHolidayId) params.set("holidayId", focusHolidayId);
+        const reloadRes = await fetch(`/api/holidays/registrations?${params.toString()}`);
+        const reloadJson = await parseApiJson<{
+          registrations: RegistrationRow[];
+          emptyEvent: {
+            id: string;
+            name: string | null;
+            subtitle: string | null;
+            slug: string | null;
+            recurring: boolean;
+            eventStartTime: string | null;
+            eventEndTime: string | null;
+            allowsRegistration: boolean;
+            allowsReferral: boolean;
+            isActive: boolean;
+            occurrenceDate: string;
+          } | null;
+        }>(reloadRes);
+        if (reloadRes.ok && reloadJson?.ok) {
+          setRows(reloadJson.data.registrations);
+          const empty = reloadJson.data.emptyEvent;
+          setEmptyEvent(
+            empty
+              ? {
+                  id: empty.id,
+                  occurrenceDate: empty.occurrenceDate,
+                  holiday: {
+                    id: empty.id,
+                    name: empty.name,
+                    subtitle: empty.subtitle,
+                    slug: empty.slug,
+                    recurring: empty.recurring,
+                    eventStartTime: empty.eventStartTime,
+                    eventEndTime: empty.eventEndTime,
+                    allowsRegistration: empty.allowsRegistration,
+                    allowsReferral: empty.allowsReferral,
+                    isActive: empty.isActive,
+                  },
+                }
+              : null,
+          );
+        }
+      } finally {
+        setLoading(false);
+      }
     } finally {
       setSaving(false);
     }
@@ -477,9 +607,9 @@ export function HolidayEventRegistrationsPanel({
           <div className="flex flex-wrap gap-2">
             {(
               [
+                ["all", "Todos"],
                 ["upcoming", "Próximos"],
                 ["past", "Passados"],
-                ["all", "Todos"],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -529,6 +659,32 @@ export function HolidayEventRegistrationsPanel({
               </Button>
             ) : null}
           </div>
+        ) : null}
+
+        {debouncedQuery ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-[var(--text-secondary)]">
+            <span>
+              Busca ativa: só aparecem inscritos que batem com “{debouncedQuery}”. Limpe a busca para ver todos.
+            </span>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setQuery("");
+                setDebouncedQuery("");
+              }}
+            >
+              Limpar busca
+            </Button>
+          </div>
+        ) : null}
+
+        {scope !== "all" ? (
+          <p className="text-xs text-[var(--text-muted)]">
+            Filtro “{scope === "upcoming" ? "Próximos" : "Passados"}” ativo — inscritos de outras datas ficam
+            ocultos. Use “Todos” para ver a listagem completa.
+          </p>
         ) : null}
 
         {loading ? (
@@ -724,8 +880,22 @@ export function HolidayEventRegistrationsPanel({
                           </tr>
                         </thead>
                         <tbody>
-                          {group.items.map((row) => (
-                            <tr key={row.id}>
+                          {group.items.length === 0 ? (
+                            <tr>
+                              <Td colSpan={7} className="text-center text-[var(--text-muted)]">
+                                Nenhum inscrito nesta data ainda. Use “Adicionar inscrito”.
+                              </Td>
+                            </tr>
+                          ) : (
+                            group.items.map((row) => (
+                            <tr
+                              key={row.id}
+                              className={
+                                highlightId === row.id
+                                  ? "bg-amber-100/80 dark:bg-amber-900/30"
+                                  : undefined
+                              }
+                            >
                               <Td className="font-medium">
                                 {participantName(row)}
                                 {!row.user ? (
@@ -789,7 +959,8 @@ export function HolidayEventRegistrationsPanel({
                                 </Button>
                               </Td>
                             </tr>
-                          ))}
+                            ))
+                          )}
                         </tbody>
                       </TableShell>
                     </div>

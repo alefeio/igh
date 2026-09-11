@@ -176,13 +176,19 @@ export async function registerUserForHolidayEvent(params: {
   if (!check.ok) return { ok: false as const, message: check.message };
 
   const { holiday } = check;
-  const existing = await prisma.holidayEventRegistration.findUnique({
+  const userContact = await prisma.user.findUnique({
+    where: { id: params.userId },
+    select: { whatsapp: true },
+  });
+  const phoneDigits = userContact?.whatsapp?.replace(/\D/g, "") || null;
+  const existing = await prisma.holidayEventRegistration.findFirst({
     where: {
-      holidayId_userId_occurrenceDate: {
-        holidayId: params.holidayId,
-        userId: params.userId,
-        occurrenceDate: params.occurrenceDate,
-      },
+      holidayId: params.holidayId,
+      occurrenceDate: params.occurrenceDate,
+      OR: [
+        { userId: params.userId },
+        ...(phoneDigits ? [{ guestPhone: phoneDigits }] : []),
+      ],
     },
   });
   if (existing) {
@@ -275,7 +281,7 @@ export async function registerGuestForHolidayEvent(params: {
     where: {
       holidayId: params.holidayId,
       occurrenceDate: params.occurrenceDate,
-      guestPhone: phone,
+      OR: [{ guestPhone: phone }, { user: { whatsapp: phone } }],
     },
   });
   if (existing) {

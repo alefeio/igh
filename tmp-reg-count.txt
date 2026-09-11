@@ -1,0 +1,46 @@
+﻿npx : node:internal/process/promises:391
+No C:\Users\IGH\AppData\Local\Temp\ps-script-3f5280ac-8b0e-4116-9a89-457eca11d8d9.ps1:102 caractere:1
++ npx tsx -e "import { prisma } from './src/lib/prisma.ts'; const n = a ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (node:internal/process/promises:391:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+
+Error: Transform failed with 1 error:
+/eval.ts:1:144: ERROR: Syntax error "("
+    at failureErrorWithLog (D:\IGH\Projetos\CadastroCursos\cadastro-cursos\node_modules\esbuild\lib\main.js:1467:15)
+    at D:\IGH\Projetos\CadastroCursos\cadastro-cursos\node_modules\esbuild\lib\main.js:736:50
+    at responseCallbacks.<computed> 
+(D:\IGH\Projetos\CadastroCursos\cadastro-cursos\node_modules\esbuild\lib\main.js:603:9)
+    at handleIncomingPacket (D:\IGH\Projetos\CadastroCursos\cadastro-cursos\node_modules\esbuild\lib\main.js:658:12)
+    at Socket.readFromStdout (D:\IGH\Projetos\CadastroCursos\cadastro-cursos\node_modules\esbuild\lib\main.js:581:7)
+    at Socket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23) {
+  errors: [
+    {
+      detail: undefined,
+      id: '',
+      location: {
+        column: 144,
+        file: '/eval.ts',
+        length: 0,
+        line: 1,
+        lineText: "import { prisma } from './src/lib/prisma.ts'; const n = await 
+prisma.holidayEventRegistration.count(); console.log('COUNT=' + n); await prisma.\\();",
+        namespace: '',
+        suggestion: ''
+      },
+      notes: [],
+      pluginName: '',
+      text: 'Syntax error "("'
+    }
+  ],
+  warnings: []
+}
+
+Node.js v20.20.0
