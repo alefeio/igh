@@ -10,6 +10,7 @@ import {
   holidayRegistrationUserInclude,
   resolveHolidayRegistrationStudentLinks,
 } from "@/lib/holiday-event-registration-stats";
+import { resolveHolidayEventReferrer } from "@/lib/holiday-event-referral";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
 import { prisma } from "@/lib/prisma";
@@ -210,7 +211,8 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos.", 400);
   }
 
-  const { holidayId, occurrenceDate, userEmail, name, phone, email, cpf } = parsed.data;
+  const { holidayId, occurrenceDate, userEmail, name, phone, email, cpf, referrerUserId, referrerQuery } =
+    parsed.data;
 
   const holidayOk = await prisma.holiday.findFirst({
     where: {
@@ -225,6 +227,11 @@ export async function POST(request: Request) {
 
   const check = await validateHolidayOccurrenceDate(holidayId, occurrenceDate);
   const canUsePublicFlow = check.ok;
+  const referralFields = {
+    referrerUserId: referrerUserId ?? null,
+    referrerQuery: referrerQuery ?? null,
+    skipReferralRequirement: true as const,
+  };
 
   if (userEmail) {
     const user = await prisma.user.findUnique({
@@ -245,7 +252,7 @@ export async function POST(request: Request) {
         userName: user.name,
         holidayId,
         occurrenceDate,
-        skipReferralRequirement: true,
+        ...referralFields,
       });
       if (!result.ok) return jsonErr("VALIDATION_ERROR", result.message, 400);
       return jsonOk(
@@ -277,8 +284,24 @@ export async function POST(request: Request) {
         participantName: user.name,
       });
     }
+
+    const referral = await resolveHolidayEventReferrer({
+      holiday: holidayOk,
+      referrerUserId,
+      selfUserId: user.id,
+      selfEmail: user.email,
+      skipRequirement: true,
+    });
+    if (!referral.ok) return jsonErr("VALIDATION_ERROR", referral.message, 400);
+
     const registration = await prisma.holidayEventRegistration.create({
-      data: { holidayId, userId: user.id, occurrenceDate },
+      data: {
+        holidayId,
+        userId: user.id,
+        occurrenceDate,
+        referrerUserId: referral.referrerUserId,
+        referrerQuery: referral.referrerUserId ? referrerQuery : null,
+      },
     });
     return jsonOk(
       { registration, alreadyRegistered: false, participantName: user.name },
@@ -298,7 +321,7 @@ export async function POST(request: Request) {
       phone,
       email,
       cpf,
-      skipReferralRequirement: true,
+      ...referralFields,
     });
     if (!result.ok) return jsonErr("VALIDATION_ERROR", result.message, 400);
     return jsonOk(
@@ -328,6 +351,15 @@ export async function POST(request: Request) {
     });
   }
 
+  const referral = await resolveHolidayEventReferrer({
+    holiday: holidayOk,
+    referrerUserId,
+    selfPhone: phoneDigits,
+    selfEmail: email,
+    skipRequirement: true,
+  });
+  if (!referral.ok) return jsonErr("VALIDATION_ERROR", referral.message, 400);
+
   const registration = await prisma.holidayEventRegistration.create({
     data: {
       holidayId,
@@ -336,6 +368,8 @@ export async function POST(request: Request) {
       guestPhone: phoneDigits,
       guestEmail: email || null,
       guestCpf: cpf || null,
+      referrerUserId: referral.referrerUserId,
+      referrerQuery: referral.referrerUserId ? referrerQuery : null,
     },
   });
   return jsonOk(

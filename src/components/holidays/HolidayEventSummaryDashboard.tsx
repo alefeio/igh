@@ -80,6 +80,7 @@ export function HolidayEventSummaryDashboard({
 
     const courseMap = new Map<string, { name: string; count: number }>();
     const referrerMap = new Map<string, { name: string; total: number; present: number }>();
+    const presentReferrerMap = new Map<string, { name: string; total: number }>();
 
     for (const row of items) {
       if (row.studentLink) students += 1;
@@ -101,6 +102,15 @@ export function HolidayEventSummaryDashboard({
         entry.total += 1;
         if (row.present === true) entry.present += 1;
         referrerMap.set(key, entry);
+
+        if (row.present === true) {
+          const presentEntry = presentReferrerMap.get(key) ?? {
+            name: row.referrerUser.name,
+            total: 0,
+          };
+          presentEntry.total += 1;
+          presentReferrerMap.set(key, presentEntry);
+        }
       }
 
       if (row.confirmationEmailSentAt) confirmationSent += 1;
@@ -125,6 +135,10 @@ export function HolidayEventSummaryDashboard({
 
     const topReferrers = [...referrerMap.values()]
       .sort((a, b) => b.total - a.total || b.present - a.present || a.name.localeCompare(b.name, "pt-BR"))
+      .slice(0, 8);
+
+    const topPresentReferrers = [...presentReferrerMap.values()]
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "pt-BR"))
       .slice(0, 8);
 
     const profileChart = [
@@ -152,6 +166,7 @@ export function HolidayEventSummaryDashboard({
       reminderSent,
       topCourses,
       topReferrers,
+      topPresentReferrers,
       profileChart,
       presenceChart,
       capacityFill:
@@ -303,39 +318,40 @@ export function HolidayEventSummaryDashboard({
         </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-            Cursos com mais participantes alunos
-          </div>
-          {stats.topCourses.length === 0 ? (
-            <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-              Nenhum inscrito identificado como aluno com matrícula.
-            </p>
-          ) : (
-            <div className="h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.topCourses} layout="vertical" margin={{ left: 4, right: 12, top: 4, bottom: 4 }}>
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 11 }} />
-                  <Tooltip
-                    formatter={(value) => [value ?? 0, "Alunos"]}
-                    labelFormatter={(_, payload) => {
-                      const row = payload?.[0]?.payload as { fullName?: string } | undefined;
-                      return row?.fullName ?? "";
-                    }}
-                  />
-                  <Bar dataKey="count" fill="#059669" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+      <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          Cursos com mais participantes alunos
         </div>
+        {stats.topCourses.length === 0 ? (
+          <p className="py-6 text-center text-sm text-[var(--text-muted)]">
+            Nenhum inscrito identificado como aluno com matrícula.
+          </p>
+        ) : (
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.topCourses} layout="vertical" margin={{ left: 4, right: 12, top: 4, bottom: 4 }}>
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  formatter={(value) => [value ?? 0, "Alunos"]}
+                  labelFormatter={(_, payload) => {
+                    const row = payload?.[0]?.payload as { fullName?: string } | undefined;
+                    return row?.fullName ?? "";
+                  }}
+                />
+                <Bar dataKey="count" fill="#059669" radius={[0, 6, 6, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
 
+      <div className="grid gap-3 lg:grid-cols-2">
         <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Ranking de indicações
           </div>
+          <p className="mb-2 text-[11px] text-[var(--text-muted)]">Todas as inscrições com indicador.</p>
           {stats.topReferrers.length === 0 ? (
             <p className="py-6 text-center text-sm text-[var(--text-muted)]">
               Nenhuma indicação registrada nesta ocorrência.
@@ -345,7 +361,7 @@ export function HolidayEventSummaryDashboard({
               {stats.topReferrers.map((r, idx) => {
                 const width = Math.max(8, Math.round((r.total / (stats.topReferrers[0]?.total || 1)) * 100));
                 return (
-                  <li key={`${r.name}-${idx}`} className="text-sm">
+                  <li key={`all-${r.name}-${idx}`} className="text-sm">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="min-w-0 truncate font-medium text-[var(--text-primary)]">
                         <span className="mr-1.5 text-xs text-[var(--text-muted)]">{idx + 1}.</span>
@@ -358,6 +374,48 @@ export function HolidayEventSummaryDashboard({
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--card-border)]">
                       <div
                         className="h-full rounded-full bg-violet-500/80"
+                        style={{ width: `${width}%` }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Ranking de indicações dos presentes
+          </div>
+          <p className="mb-2 text-[11px] text-[var(--text-muted)]">
+            Só conta quem já confirmou presença.
+          </p>
+          {stats.topPresentReferrers.length === 0 ? (
+            <p className="py-6 text-center text-sm text-[var(--text-muted)]">
+              Ainda não há presentes com indicação.
+            </p>
+          ) : (
+            <ol className="max-h-52 space-y-2 overflow-y-auto pr-1">
+              {stats.topPresentReferrers.map((r, idx) => {
+                const width = Math.max(
+                  8,
+                  Math.round((r.total / (stats.topPresentReferrers[0]?.total || 1)) * 100),
+                );
+                return (
+                  <li key={`present-${r.name}-${idx}`} className="text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 truncate font-medium text-[var(--text-primary)]">
+                        <span className="mr-1.5 text-xs text-[var(--text-muted)]">{idx + 1}.</span>
+                        {r.name}
+                      </span>
+                      <span className="shrink-0 text-xs text-[var(--text-secondary)]">
+                        {r.total} presente{r.total === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--card-border)]">
+                      <div
+                        className="h-full rounded-full bg-emerald-500/80"
                         style={{ width: `${width}%` }}
                       />
                     </div>

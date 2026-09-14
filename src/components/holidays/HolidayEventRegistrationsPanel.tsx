@@ -18,6 +18,7 @@ import {
 import { SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { HolidayEventSummaryDashboard } from "@/components/holidays/HolidayEventSummaryDashboard";
+import { ReferrerPicker, type ReferrerOption } from "@/components/site/ReferrerPicker";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -157,6 +158,8 @@ export function HolidayEventRegistrationsPanel({
   const [guestPhone, setGuestPhone] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestCpf, setGuestCpf] = useState("");
+  const [referrer, setReferrer] = useState<ReferrerOption | null>(null);
+  const [referrerQuery, setReferrerQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [exportingKey, setExportingKey] = useState<string | null>(null);
@@ -308,6 +311,8 @@ export function HolidayEventRegistrationsPanel({
     setGuestPhone("");
     setGuestEmail("");
     setGuestCpf("");
+    setReferrer(null);
+    setReferrerQuery("");
     setExpanded((prev) => new Set(prev).add(key));
   }
 
@@ -315,9 +320,12 @@ export function HolidayEventRegistrationsPanel({
     if (saving) return;
     setSaving(true);
     try {
+      const referralPayload = referrer
+        ? { referrerUserId: referrer.id, referrerQuery: referrerQuery || referrer.name }
+        : {};
       const body =
         mode === "user"
-          ? { holidayId, occurrenceDate, userEmail }
+          ? { holidayId, occurrenceDate, userEmail, ...referralPayload }
           : {
               holidayId,
               occurrenceDate,
@@ -325,6 +333,7 @@ export function HolidayEventRegistrationsPanel({
               phone: guestPhone,
               email: guestEmail || undefined,
               cpf: guestCpf || undefined,
+              ...referralPayload,
             };
       const res = await fetch("/api/holidays/registrations", {
         method: "POST",
@@ -870,6 +879,19 @@ export function HolidayEventRegistrationsPanel({
                               </div>
                             </div>
                           )}
+                          <div className="mt-3">
+                            <label className="text-xs font-medium">Quem indicou (opcional)</label>
+                            <div className="mt-1">
+                              <ReferrerPicker
+                                inputId={`admin-add-referrer-${group.key}`}
+                                value={referrer}
+                                onChange={(option, query) => {
+                                  setReferrer(option);
+                                  setReferrerQuery(query);
+                                }}
+                              />
+                            </div>
+                          </div>
                           <div className="mt-3 flex justify-end gap-2">
                             <Button type="button" variant="secondary" size="sm" onClick={() => setAddingFor(null)}>
                               Cancelar

@@ -89,6 +89,8 @@ export const adminHolidayEventRegisterSchema = z
       .refine((v) => v == null || (v.length >= 10 && v.length <= 11), "Telefone deve ter 10 ou 11 dígitos."),
     email: optionalEmail,
     cpf: optionalCpf,
+    referrerUserId: optionalReferrerUserId,
+    referrerQuery: optionalReferrerQuery,
   })
   .superRefine((data, ctx) => {
     if (data.userEmail) return;

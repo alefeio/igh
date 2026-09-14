@@ -24,6 +24,7 @@ import {
   type EventSummaryRegistration,
 } from "@/components/holidays/HolidayEventSummaryDashboard";
 import { RaffleDrawPanel, type RaffleItem } from "@/components/holidays/RaffleDrawPanel";
+import { ReferrerPicker, type ReferrerOption } from "@/components/site/ReferrerPicker";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -166,6 +167,8 @@ export function HolidayEventCheckinClient({
   const [guestPhone, setGuestPhone] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestCpf, setGuestCpf] = useState("");
+  const [referrer, setReferrer] = useState<ReferrerOption | null>(null);
+  const [referrerQuery, setReferrerQuery] = useState("");
   const [savingAdd, setSavingAdd] = useState(false);
 
   const load = useCallback(
@@ -300,9 +303,12 @@ export function HolidayEventCheckinClient({
     if (!data || savingAdd) return;
     setSavingAdd(true);
     try {
+      const referralPayload = referrer
+        ? { referrerUserId: referrer.id, referrerQuery: referrerQuery || referrer.name }
+        : {};
       const body =
         addMode === "user"
-          ? { holidayId, occurrenceDate: data.occurrenceDate, userEmail }
+          ? { holidayId, occurrenceDate: data.occurrenceDate, userEmail, ...referralPayload }
           : {
               holidayId,
               occurrenceDate: data.occurrenceDate,
@@ -310,6 +316,7 @@ export function HolidayEventCheckinClient({
               phone: guestPhone,
               email: guestEmail || undefined,
               cpf: guestCpf || undefined,
+              ...referralPayload,
             };
       const res = await fetch("/api/holidays/registrations", {
         method: "POST",
@@ -341,6 +348,8 @@ export function HolidayEventCheckinClient({
       setGuestPhone("");
       setGuestEmail("");
       setGuestCpf("");
+      setReferrer(null);
+      setReferrerQuery("");
       await load(data.occurrenceDate, { silent: true });
       focusSearch();
     } finally {
@@ -537,6 +546,8 @@ export function HolidayEventCheckinClient({
                 onClick={() => {
                   setAdding((v) => !v);
                   setAddMode("guest");
+                  setReferrer(null);
+                  setReferrerQuery("");
                 }}
               >
                 <Plus className="mr-1.5 h-4 w-4" aria-hidden />
@@ -643,6 +654,19 @@ export function HolidayEventCheckinClient({
                     </div>
                   </div>
                 )}
+                <div className="mt-3">
+                  <label className="text-xs font-medium">Quem indicou (opcional)</label>
+                  <div className="mt-1">
+                    <ReferrerPicker
+                      inputId="checkin-add-referrer"
+                      value={referrer}
+                      onChange={(option, query) => {
+                        setReferrer(option);
+                        setReferrerQuery(query);
+                      }}
+                    />
+                  </div>
+                </div>
                 <div className="mt-3 flex justify-end gap-2">
                   <Button type="button" variant="secondary" size="sm" onClick={() => setAdding(false)}>
                     Cancelar
