@@ -169,6 +169,7 @@ export function HolidayEventCheckinClient({
   const [guestCpf, setGuestCpf] = useState("");
   const [referrer, setReferrer] = useState<ReferrerOption | null>(null);
   const [referrerQuery, setReferrerQuery] = useState("");
+  const [markPresent, setMarkPresent] = useState(true);
   const [savingAdd, setSavingAdd] = useState(false);
 
   const load = useCallback(
@@ -308,7 +309,13 @@ export function HolidayEventCheckinClient({
         : {};
       const body =
         addMode === "user"
-          ? { holidayId, occurrenceDate: data.occurrenceDate, userEmail, ...referralPayload }
+          ? {
+              holidayId,
+              occurrenceDate: data.occurrenceDate,
+              userEmail,
+              markPresent,
+              ...referralPayload,
+            }
           : {
               holidayId,
               occurrenceDate: data.occurrenceDate,
@@ -316,6 +323,7 @@ export function HolidayEventCheckinClient({
               phone: guestPhone,
               email: guestEmail || undefined,
               cpf: guestCpf || undefined,
+              markPresent,
               ...referralPayload,
             };
       const res = await fetch("/api/holidays/registrations", {
@@ -326,22 +334,36 @@ export function HolidayEventCheckinClient({
       const json = await parseApiJson<{
         alreadyRegistered?: boolean;
         participantName?: string;
+        markedPresent?: boolean;
+        raffleNumber?: number | null;
+        markPresentError?: string;
       }>(res);
       if (!res.ok || !json?.ok) {
         toast.push("error", json && !json.ok ? json.error.message : "Falha ao cadastrar inscrição.");
         return;
       }
       const who = json.data.participantName?.trim();
-      toast.push(
-        "success",
-        json.data.alreadyRegistered
-          ? who
-            ? `${who} já estava inscrito(a).`
-            : "Participante já estava inscrito."
-          : who
-            ? `${who} inscrito(a).`
-            : "Inscrição cadastrada.",
-      );
+      const marked = Boolean(json.data.markedPresent);
+      const raffleNumber = json.data.raffleNumber;
+      if (json.data.markPresentError) {
+        toast.push("error", `Inscrito, mas o check-in falhou: ${json.data.markPresentError}`);
+      } else if (marked && raffleNumber != null) {
+        setLastIssued({ name: who || "Participante", number: raffleNumber });
+        toast.push("success", `${who ?? "Participante"} · Nº ${raffleNumber}`);
+      } else if (marked) {
+        toast.push("success", `${who ?? "Participante"} inscrito(a) e presente.`);
+      } else {
+        toast.push(
+          "success",
+          json.data.alreadyRegistered
+            ? who
+              ? `${who} já estava inscrito(a).`
+              : "Participante já estava inscrito."
+            : who
+              ? `${who} inscrito(a).`
+              : "Inscrição cadastrada.",
+        );
+      }
       setAdding(false);
       setUserEmail("");
       setGuestName("");
@@ -350,6 +372,7 @@ export function HolidayEventCheckinClient({
       setGuestCpf("");
       setReferrer(null);
       setReferrerQuery("");
+      setMarkPresent(true);
       await load(data.occurrenceDate, { silent: true });
       focusSearch();
     } finally {
@@ -548,6 +571,7 @@ export function HolidayEventCheckinClient({
                   setAddMode("guest");
                   setReferrer(null);
                   setReferrerQuery("");
+                  setMarkPresent(true);
                 }}
               >
                 <Plus className="mr-1.5 h-4 w-4" aria-hidden />
@@ -667,12 +691,26 @@ export function HolidayEventCheckinClient({
                     />
                   </div>
                 </div>
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={markPresent}
+                    onChange={(e) => setMarkPresent(e.target.checked)}
+                    className="h-4 w-4 rounded border-[var(--card-border)]"
+                  />
+                  <span>
+                    <span className="font-medium text-[var(--text-primary)]">Presente</span>
+                    <span className="ml-1 text-xs text-[var(--text-muted)]">
+                      — cadastra e faz o check-in automaticamente
+                    </span>
+                  </span>
+                </label>
                 <div className="mt-3 flex justify-end gap-2">
                   <Button type="button" variant="secondary" size="sm" onClick={() => setAdding(false)}>
                     Cancelar
                   </Button>
                   <Button type="button" size="sm" disabled={savingAdd} onClick={() => void submitAdd()}>
-                    {savingAdd ? "Salvando…" : "Salvar inscrição"}
+                    {savingAdd ? "Salvando…" : markPresent ? "Salvar e confirmar presença" : "Salvar inscrição"}
                   </Button>
                 </div>
               </div>

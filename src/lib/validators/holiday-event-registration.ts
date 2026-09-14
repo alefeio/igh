@@ -91,6 +91,8 @@ export const adminHolidayEventRegisterSchema = z
     cpf: optionalCpf,
     referrerUserId: optionalReferrerUserId,
     referrerQuery: optionalReferrerQuery,
+    /** Se true, marca presença (check-in) logo após cadastrar. */
+    markPresent: z.boolean().optional().default(false),
   })
   .superRefine((data, ctx) => {
     if (data.userEmail) return;

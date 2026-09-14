@@ -160,6 +160,7 @@ export function HolidayEventRegistrationsPanel({
   const [guestCpf, setGuestCpf] = useState("");
   const [referrer, setReferrer] = useState<ReferrerOption | null>(null);
   const [referrerQuery, setReferrerQuery] = useState("");
+  const [markPresent, setMarkPresent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [exportingKey, setExportingKey] = useState<string | null>(null);
@@ -313,6 +314,7 @@ export function HolidayEventRegistrationsPanel({
     setGuestCpf("");
     setReferrer(null);
     setReferrerQuery("");
+    setMarkPresent(false);
     setExpanded((prev) => new Set(prev).add(key));
   }
 
@@ -325,7 +327,7 @@ export function HolidayEventRegistrationsPanel({
         : {};
       const body =
         mode === "user"
-          ? { holidayId, occurrenceDate, userEmail, ...referralPayload }
+          ? { holidayId, occurrenceDate, userEmail, markPresent, ...referralPayload }
           : {
               holidayId,
               occurrenceDate,
@@ -333,6 +335,7 @@ export function HolidayEventRegistrationsPanel({
               phone: guestPhone,
               email: guestEmail || undefined,
               cpf: guestCpf || undefined,
+              markPresent,
               ...referralPayload,
             };
       const res = await fetch("/api/holidays/registrations", {
@@ -344,6 +347,9 @@ export function HolidayEventRegistrationsPanel({
         alreadyRegistered?: boolean;
         participantName?: string;
         registration?: { id: string };
+        markedPresent?: boolean;
+        raffleNumber?: number | null;
+        markPresentError?: string;
       }>(res);
       if (!res.ok || !json?.ok) {
         toast.push("error", json && !json.ok ? json.error.message : "Falha ao cadastrar inscrição.");
@@ -352,14 +358,37 @@ export function HolidayEventRegistrationsPanel({
 
       const already = Boolean(json.data.alreadyRegistered);
       const who = json.data.participantName?.trim();
-      toast.push(
-        "success",
-        already
-          ? who
-            ? `${who} já estava inscrito(a). A busca foi limpa para exibir na lista.`
-            : "Participante já estava inscrito. A busca foi limpa para exibir na lista."
-          : "Inscrição cadastrada.",
-      );
+      const marked = Boolean(json.data.markedPresent);
+      const raffleNumber = json.data.raffleNumber;
+      if (json.data.markPresentError) {
+        toast.push(
+          "error",
+          `Inscrito, mas o check-in falhou: ${json.data.markPresentError}`,
+        );
+      } else if (marked && raffleNumber != null) {
+        toast.push(
+          "success",
+          already
+            ? `${who ?? "Participante"} já estava inscrito(a) · presença + Nº ${raffleNumber}.`
+            : `${who ?? "Participante"} inscrito(a) e presente · Nº ${raffleNumber}.`,
+        );
+      } else if (marked) {
+        toast.push(
+          "success",
+          already
+            ? `${who ?? "Participante"} já estava inscrito(a) · presença confirmada.`
+            : `${who ?? "Participante"} inscrito(a) e presente.`,
+        );
+      } else {
+        toast.push(
+          "success",
+          already
+            ? who
+              ? `${who} já estava inscrito(a). A busca foi limpa para exibir na lista.`
+              : "Participante já estava inscrito. A busca foi limpa para exibir na lista."
+            : "Inscrição cadastrada.",
+        );
+      }
 
       // Força listagem completa: a pessoa podia existir no banco e estar oculta pelo filtro/busca.
       setQuery("");
@@ -892,6 +921,20 @@ export function HolidayEventRegistrationsPanel({
                               />
                             </div>
                           </div>
+                          <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-[var(--text-secondary)]">
+                            <input
+                              type="checkbox"
+                              checked={markPresent}
+                              onChange={(e) => setMarkPresent(e.target.checked)}
+                              className="h-4 w-4 rounded border-[var(--card-border)]"
+                            />
+                            <span>
+                              <span className="font-medium text-[var(--text-primary)]">Presente</span>
+                              <span className="ml-1 text-xs text-[var(--text-muted)]">
+                                — cadastra e faz o check-in automaticamente
+                              </span>
+                            </span>
+                          </label>
                           <div className="mt-3 flex justify-end gap-2">
                             <Button type="button" variant="secondary" size="sm" onClick={() => setAddingFor(null)}>
                               Cancelar
@@ -902,7 +945,11 @@ export function HolidayEventRegistrationsPanel({
                               disabled={saving}
                               onClick={() => void submitAdd(group.holidayId, group.occurrenceDate)}
                             >
-                              {saving ? "Salvando…" : "Salvar"}
+                              {saving
+                                ? "Salvando…"
+                                : markPresent
+                                  ? "Salvar e confirmar presença"
+                                  : "Salvar"}
                             </Button>
                           </div>
                         </div>

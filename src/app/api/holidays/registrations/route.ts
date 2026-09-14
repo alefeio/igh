@@ -11,6 +11,7 @@ import {
   resolveHolidayRegistrationStudentLinks,
 } from "@/lib/holiday-event-registration-stats";
 import { resolveHolidayEventReferrer } from "@/lib/holiday-event-referral";
+import { setHolidayEventAttendance } from "@/lib/holiday-event-attendance";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
 import { prisma } from "@/lib/prisma";
@@ -197,8 +198,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  let staff;
   try {
-    await requireStaffWrite();
+    staff = await requireStaffWrite();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "UNAUTHENTICATED") return jsonErr("UNAUTHENTICATED", "Não autenticado.", 401);
@@ -211,8 +213,18 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos.", 400);
   }
 
-  const { holidayId, occurrenceDate, userEmail, name, phone, email, cpf, referrerUserId, referrerQuery } =
-    parsed.data;
+  const {
+    holidayId,
+    occurrenceDate,
+    userEmail,
+    name,
+    phone,
+    email,
+    cpf,
+    referrerUserId,
+    referrerQuery,
+    markPresent,
+  } = parsed.data;
 
   const holidayOk = await prisma.holiday.findFirst({
     where: {
@@ -232,6 +244,56 @@ export async function POST(request: Request) {
     referrerQuery: referrerQuery ?? null,
     skipReferralRequirement: true as const,
   };
+
+  async function finish(params: {
+    registration: { id: string; present?: boolean | null };
+    alreadyRegistered: boolean;
+    participantName: string;
+  }) {
+    let raffleNumber: number | null = null;
+    let markedPresent = params.registration.present === true;
+
+    if (markPresent && !markedPresent) {
+      const att = await setHolidayEventAttendance({
+        registrationId: params.registration.id,
+        present: true,
+        markedBy: { kind: "staff", userId: staff.id, userName: staff.name },
+        notifyParticipant: true,
+      });
+      if (!att.ok) {
+        return jsonOk(
+          {
+            registration: params.registration,
+            alreadyRegistered: params.alreadyRegistered,
+            participantName: params.participantName,
+            markedPresent: false,
+            raffleNumber: null,
+            markPresentError: att.message,
+          },
+          { status: params.alreadyRegistered ? 200 : 201 },
+        );
+      }
+      markedPresent = true;
+      raffleNumber = att.raffleNumber;
+    } else if (markedPresent) {
+      const ticket = await prisma.holidayEventRaffleTicket.findUnique({
+        where: { registrationId: params.registration.id },
+        select: { number: true },
+      });
+      raffleNumber = ticket?.number ?? null;
+    }
+
+    return jsonOk(
+      {
+        registration: params.registration,
+        alreadyRegistered: params.alreadyRegistered,
+        participantName: params.participantName,
+        markedPresent,
+        raffleNumber,
+      },
+      { status: params.alreadyRegistered ? 200 : 201 },
+    );
+  }
 
   if (userEmail) {
     const user = await prisma.user.findUnique({
@@ -255,14 +317,11 @@ export async function POST(request: Request) {
         ...referralFields,
       });
       if (!result.ok) return jsonErr("VALIDATION_ERROR", result.message, 400);
-      return jsonOk(
-        {
-          registration: result.registration,
-          alreadyRegistered: result.alreadyRegistered,
-          participantName: user.name,
-        },
-        { status: result.alreadyRegistered ? 200 : 201 },
-      );
+      return finish({
+        registration: result.registration,
+        alreadyRegistered: result.alreadyRegistered,
+        participantName: user.name,
+      });
     }
 
     const existing = await prisma.holidayEventRegistration.findFirst({
@@ -271,14 +330,12 @@ export async function POST(request: Request) {
         occurrenceDate,
         OR: [
           { userId: user.id },
-          ...(user.whatsapp
-            ? [{ guestPhone: user.whatsapp.replace(/\D/g, "") }]
-            : []),
+          ...(user.whatsapp ? [{ guestPhone: user.whatsapp.replace(/\D/g, "") }] : []),
         ],
       },
     });
     if (existing) {
-      return jsonOk({
+      return finish({
         registration: existing,
         alreadyRegistered: true,
         participantName: user.name,
@@ -303,10 +360,11 @@ export async function POST(request: Request) {
         referrerQuery: referral.referrerUserId ? referrerQuery : null,
       },
     });
-    return jsonOk(
-      { registration, alreadyRegistered: false, participantName: user.name },
-      { status: 201 },
-    );
+    return finish({
+      registration,
+      alreadyRegistered: false,
+      participantName: user.name,
+    });
   }
 
   if (!name || !phone) {
@@ -324,14 +382,11 @@ export async function POST(request: Request) {
       ...referralFields,
     });
     if (!result.ok) return jsonErr("VALIDATION_ERROR", result.message, 400);
-    return jsonOk(
-      {
-        registration: result.registration,
-        alreadyRegistered: result.alreadyRegistered,
-        participantName: name.trim(),
-      },
-      { status: result.alreadyRegistered ? 200 : 201 },
-    );
+    return finish({
+      registration: result.registration,
+      alreadyRegistered: result.alreadyRegistered,
+      participantName: name.trim(),
+    });
   }
 
   const phoneDigits = phone.replace(/\D/g, "");
@@ -344,7 +399,7 @@ export async function POST(request: Request) {
     include: { user: { select: { name: true } } },
   });
   if (existingGuest) {
-    return jsonOk({
+    return finish({
       registration: existingGuest,
       alreadyRegistered: true,
       participantName: existingGuest.user?.name ?? existingGuest.guestName ?? name.trim(),
@@ -372,8 +427,10 @@ export async function POST(request: Request) {
       referrerQuery: referral.referrerUserId ? referrerQuery : null,
     },
   });
-  return jsonOk(
-    { registration, alreadyRegistered: false, participantName: name.trim() },
-    { status: 201 },
-  );
+  return finish({
+    registration,
+    alreadyRegistered: false,
+    participantName: name.trim(),
+  });
 }
+
