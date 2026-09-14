@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
+import { formatDaysShortPtBr } from "@/lib/turma-display";
 
 /** Cópia mutável — Prisma não aceita `readonly string[]` em `status.in`. */
 const visibleEnrollmentStatuses: string[] = [...STUDENT_VISIBLE_ENROLLMENT_STATUSES];
@@ -12,8 +13,11 @@ const enrollmentSelect = {
   status: true,
   classGroup: {
     select: {
-      name: true,
       status: true,
+      location: true,
+      daysOfWeek: true,
+      startTime: true,
+      endTime: true,
       course: { select: { id: true, name: true } },
     },
   },
@@ -34,20 +38,30 @@ export type HolidayEventStudentLink = {
   courses: HolidayEventStudentCourse[];
 };
 
-function mapCourses(
-  enrollments: Array<{
+type EnrollmentForMap = {
+  status: string;
+  classGroup: {
     status: string;
-    classGroup: {
-      name: string;
-      status: string;
-      course: { id: string; name: string };
-    };
-  }>,
-): HolidayEventStudentCourse[] {
+    location: string | null;
+    daysOfWeek: string[];
+    startTime: string;
+    endTime: string;
+    course: { id: string; name: string };
+  };
+};
+
+function formatClassGroupName(cg: EnrollmentForMap["classGroup"]): string {
+  const loc = cg.location?.trim();
+  const days = formatDaysShortPtBr(cg.daysOfWeek);
+  const time = cg.startTime && cg.endTime ? `${cg.startTime}–${cg.endTime}` : "";
+  return [loc, days, time].filter(Boolean).join(" · ") || "Turma";
+}
+
+function mapCourses(enrollments: EnrollmentForMap[]): HolidayEventStudentCourse[] {
   return enrollments.map((e) => ({
     courseId: e.classGroup.course.id,
     courseName: e.classGroup.course.name,
-    classGroupName: e.classGroup.name,
+    classGroupName: formatClassGroupName(e.classGroup),
     enrollmentStatus: e.status,
     classGroupStatus: e.classGroup.status,
   }));
@@ -78,14 +92,7 @@ export async function resolveHolidayRegistrationStudentLinks(
       student: {
         id: string;
         name: string;
-        enrollments: Array<{
-          status: string;
-          classGroup: {
-            name: string;
-            status: string;
-            course: { id: string; name: string };
-          };
-        }>;
+        enrollments: EnrollmentForMap[];
       } | null;
     } | null;
   }>,
