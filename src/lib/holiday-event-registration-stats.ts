@@ -1,7 +1,12 @@
 import "server-only";
 
+import type { Prisma } from "@/generated/prisma/client";
+
 import { prisma } from "@/lib/prisma";
 import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
+
+/** Cópia mutável — Prisma não aceita `readonly string[]` em `status.in`. */
+const visibleEnrollmentStatuses: string[] = [...STUDENT_VISIBLE_ENROLLMENT_STATUSES];
 
 const enrollmentSelect = {
   status: true,
@@ -12,7 +17,7 @@ const enrollmentSelect = {
       course: { select: { id: true, name: true } },
     },
   },
-} as const;
+} satisfies Prisma.EnrollmentSelect;
 
 export type HolidayEventStudentCourse = {
   courseId: string;
@@ -123,7 +128,7 @@ export async function resolveHolidayRegistrationStudentLinks(
       email: true,
       cpf: true,
       enrollments: {
-        where: { status: { in: [...STUDENT_VISIBLE_ENROLLMENT_STATUSES] } },
+        where: { status: { in: visibleEnrollmentStatuses } },
         select: enrollmentSelect,
       },
     },
@@ -167,9 +172,9 @@ export const holidayRegistrationUserInclude = {
       id: true,
       name: true,
       enrollments: {
-        where: { status: { in: [...STUDENT_VISIBLE_ENROLLMENT_STATUSES] } },
+        where: { status: { in: visibleEnrollmentStatuses } },
         select: enrollmentSelect,
       },
     },
   },
-} as const;
+} satisfies Prisma.UserSelect;
