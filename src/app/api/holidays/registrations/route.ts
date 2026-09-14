@@ -6,6 +6,10 @@ import {
   registerUserForHolidayEvent,
   validateHolidayOccurrenceDate,
 } from "@/lib/holiday-event-registration";
+import {
+  holidayRegistrationUserInclude,
+  resolveHolidayRegistrationStudentLinks,
+} from "@/lib/holiday-event-registration-stats";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { getBrazilTodayDateOnly } from "@/lib/teacher-gamification";
 import { prisma } from "@/lib/prisma";
@@ -87,7 +91,7 @@ export async function GET(request: Request) {
     where,
     orderBy: [{ occurrenceDate: "desc" }, { createdAt: "asc" }],
     include: {
-      user: { select: { id: true, name: true, email: true, whatsapp: true } },
+      user: { select: holidayRegistrationUserInclude },
       referrerUser: { select: { id: true, name: true } },
       raffleTicket: { select: { number: true } },
       holiday: {
@@ -102,10 +106,17 @@ export async function GET(request: Request) {
           allowsRegistration: true,
           allowsReferral: true,
           isActive: true,
+          capacity: true,
         },
       },
     },
   });
+
+  const studentLinks = await resolveHolidayRegistrationStudentLinks(registrations);
+  const registrationsWithStats = registrations.map((row) => ({
+    ...row,
+    studentLink: studentLinks.get(row.id) ?? null,
+  }));
 
   // Com holidayId focado e ainda sem inscritos, devolve o evento para o painel criar o grupo vazio.
   let emptyEvent:
@@ -120,11 +131,12 @@ export async function GET(request: Request) {
         allowsRegistration: boolean;
         allowsReferral: boolean;
         isActive: boolean;
+        capacity: number | null;
         occurrenceDate: string;
       }
     | null = null;
 
-  if (holidayId && registrations.length === 0) {
+  if (holidayId && registrationsWithStats.length === 0) {
     const holiday = await prisma.holiday.findFirst({
       where: {
         id: holidayId,
@@ -143,6 +155,7 @@ export async function GET(request: Request) {
         allowsRegistration: true,
         allowsReferral: true,
         isActive: true,
+        capacity: true,
         date: true,
       },
     });
@@ -165,20 +178,21 @@ export async function GET(request: Request) {
         allowsRegistration: holiday.allowsRegistration,
         allowsReferral: holiday.allowsReferral,
         isActive: holiday.isActive,
+        capacity: holiday.capacity,
         occurrenceDate: date,
       };
     }
   }
 
   if (scope !== "past") {
-    registrations.sort((a, b) => {
+    registrationsWithStats.sort((a, b) => {
       const dateCmp = a.occurrenceDate.localeCompare(b.occurrenceDate);
       if (dateCmp !== 0) return dateCmp;
       return a.createdAt.getTime() - b.createdAt.getTime();
     });
   }
 
-  return jsonOk({ registrations, today, emptyEvent });
+  return jsonOk({ registrations: registrationsWithStats, today, emptyEvent });
 }
 
 export async function POST(request: Request) {

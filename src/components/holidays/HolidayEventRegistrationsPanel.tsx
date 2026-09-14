@@ -17,11 +17,24 @@ import {
 
 import { SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { HolidayEventSummaryDashboard } from "@/components/holidays/HolidayEventSummaryDashboard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+
+type StudentLink = {
+  studentId: string;
+  name: string;
+  match: "user" | "email" | "cpf";
+  courses: Array<{
+    courseId: string;
+    courseName: string;
+    classGroupName: string;
+    enrollmentStatus: string;
+  }>;
+};
 
 type RegistrationRow = {
   id: string;
@@ -39,6 +52,7 @@ type RegistrationRow = {
   user: { id: string; name: string; email: string; whatsapp: string | null } | null;
   referrerUser: { id: string; name: string } | null;
   raffleTicket: { number: number } | null;
+  studentLink: StudentLink | null;
   holiday: {
     id: string;
     name: string | null;
@@ -50,6 +64,7 @@ type RegistrationRow = {
     allowsRegistration: boolean;
     allowsReferral: boolean;
     isActive: boolean;
+    capacity: number | null;
   };
 };
 
@@ -171,6 +186,7 @@ export function HolidayEventRegistrationsPanel({
           allowsRegistration: boolean;
           allowsReferral: boolean;
           isActive: boolean;
+          capacity: number | null;
           occurrenceDate: string;
         } | null;
       }>(res);
@@ -193,6 +209,7 @@ export function HolidayEventRegistrationsPanel({
                   allowsRegistration: empty.allowsRegistration,
                   allowsReferral: empty.allowsReferral,
                   isActive: empty.isActive,
+                  capacity: empty.capacity ?? null,
                 },
               }
             : null,
@@ -362,6 +379,7 @@ export function HolidayEventRegistrationsPanel({
             allowsRegistration: boolean;
             allowsReferral: boolean;
             isActive: boolean;
+            capacity: number | null;
             occurrenceDate: string;
           } | null;
         }>(reloadRes);
@@ -384,6 +402,7 @@ export function HolidayEventRegistrationsPanel({
                     allowsRegistration: empty.allowsRegistration,
                     allowsReferral: empty.allowsReferral,
                     isActive: empty.isActive,
+                    capacity: empty.capacity ?? null,
                   },
                 }
               : null,
@@ -867,6 +886,19 @@ export function HolidayEventRegistrationsPanel({
                         </div>
                       ) : null}
 
+                      <HolidayEventSummaryDashboard
+                        items={group.items.map((row) => ({
+                          id: row.id,
+                          present: row.present,
+                          confirmationEmailSentAt: row.confirmationEmailSentAt,
+                          reminderEmailSentAt: row.reminderEmailSentAt,
+                          user: row.user ? { id: row.user.id } : null,
+                          referrerUser: row.referrerUser,
+                          studentLink: row.studentLink ?? null,
+                        }))}
+                        capacity={group.holiday.capacity ?? null}
+                      />
+
                       <TableShell className="mt-3">
                         <thead>
                           <tr>
@@ -898,7 +930,14 @@ export function HolidayEventRegistrationsPanel({
                             >
                               <Td className="font-medium">
                                 {participantName(row)}
-                                {!row.user ? (
+                                {row.studentLink ? (
+                                  <span className="mt-0.5 block text-[10px] font-normal uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                                    Aluno
+                                    {row.studentLink.courses[0]
+                                      ? ` · ${row.studentLink.courses[0].courseName}`
+                                      : ""}
+                                  </span>
+                                ) : !row.user ? (
                                   <span className="mt-0.5 block text-[10px] font-normal uppercase tracking-wide text-[var(--text-muted)]">
                                     Sem conta
                                   </span>
