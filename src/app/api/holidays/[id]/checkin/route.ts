@@ -6,6 +6,10 @@ import {
   resolveHolidayEventOccurrence,
 } from "@/lib/holiday-event-public";
 import { listRafflesForOccurrence } from "@/lib/holiday-event-raffle";
+import {
+  holidayRegistrationUserInclude,
+  resolveHolidayRegistrationStudentLinks,
+} from "@/lib/holiday-event-registration-stats";
 import { prisma } from "@/lib/prisma";
 import { isTimedHolidayEvent } from "@/lib/public-calendar-shared";
 
@@ -62,13 +66,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         guestEmail: true,
         guestCpf: true,
         createdAt: true,
-        user: { select: { id: true, name: true, email: true, whatsapp: true } },
+        confirmationEmailSentAt: true,
+        reminderEmailSentAt: true,
+        user: { select: holidayRegistrationUserInclude },
         referrerUser: { select: { id: true, name: true } },
         raffleTicket: { select: { number: true } },
       },
     }),
     listRafflesForOccurrence(id, occurrenceDate),
   ]);
+
+  const studentLinks = await resolveHolidayRegistrationStudentLinks(rows);
 
   const registrations = rows.map((r) => ({
     id: r.id,
@@ -79,12 +87,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     checkinCode: r.checkinCode,
     isGuest: !r.user,
     present: r.present,
-    attendanceMarkedAt: r.attendanceMarkedAt,
+    attendanceMarkedAt: r.attendanceMarkedAt?.toISOString() ?? null,
     raffleNumber: r.raffleTicket?.number ?? null,
     referrerName: r.referrerUser?.name ?? null,
+    referrerUser: r.referrerUser ? { id: r.referrerUser.id, name: r.referrerUser.name } : null,
     certificateUrl: r.certificateUrl,
     certificateFileName: r.certificateFileName,
-    createdAt: r.createdAt,
+    createdAt: r.createdAt.toISOString(),
+    confirmationEmailSentAt: r.confirmationEmailSentAt?.toISOString() ?? null,
+    reminderEmailSentAt: r.reminderEmailSentAt?.toISOString() ?? null,
+    user: r.user ? { id: r.user.id } : null,
+    studentLink: studentLinks.get(r.id) ?? null,
   }));
 
   return jsonOk({
