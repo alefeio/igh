@@ -198,7 +198,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  let staff;
+  let staff: Awaited<ReturnType<typeof requireStaffWrite>>;
   try {
     staff = await requireStaffWrite();
   } catch (e) {
