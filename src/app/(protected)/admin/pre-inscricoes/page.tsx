@@ -1,15 +1,48 @@
 "use client";
 
-import { BookOpen, CalendarDays, ClipboardList, Sparkles, Users } from "lucide-react";
+import {
+  BookOpen,
+  CalendarDays,
+  ClipboardList,
+  MessageCircle,
+  PhoneCall,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 import { StatTile } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
+
+type ContactItem = {
+  id: string;
+  contactedAt: string;
+  gotResponse: boolean;
+  notes: string | null;
+  contactedByName: string;
+  contactedByUserId: string;
+};
+
+type SystemUserInfo = {
+  userId: string;
+  userName: string;
+  studentId: string | null;
+  enrolledInCurrentCycle: boolean;
+  enrollments: Array<{
+    enrollmentId: string;
+    status: string;
+    isPreEnrollment: boolean;
+    courseName: string;
+    classGroupLabel: string;
+  }>;
+};
 
 type NextCycleInterestItem = {
   id: string;
@@ -21,6 +54,10 @@ type NextCycleInterestItem = {
   customCourseName: string | null;
   source: string | null;
   createdAt: string;
+  contactsCount: number;
+  lastContact: ContactItem | null;
+  contacts: ContactItem[];
+  systemUser: SystemUserInfo | null;
 };
 
 function formatPhone(digits: string): string {
@@ -51,12 +88,147 @@ function startOfLocalDay(d = new Date()): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+function enrollmentLabel(systemUser: SystemUserInfo | null): {
+  short: string;
+  detail: string | null;
+  tone: "ok" | "warn" | "muted";
+} {
+  if (!systemUser) {
+    return { short: "Sem conta", detail: null, tone: "muted" };
+  }
+  if (systemUser.enrolledInCurrentCycle) {
+    const first = systemUser.enrollments.find((e) => e.status === "ACTIVE" && !e.isPreEnrollment);
+    const detail = first
+      ? `${first.courseName}${first.classGroupLabel ? ` · ${first.classGroupLabel}` : ""}`
+      : systemUser.userName;
+    return { short: "Matriculado", detail, tone: "ok" };
+  }
+  if (systemUser.enrollments.length > 0) {
+    const first = systemUser.enrollments[0];
+    const statusHint = first.isPreEnrollment
+      ? "pré-matrícula"
+      : first.status === "SUSPENDED"
+        ? "suspensa"
+        : first.status === "COMPLETED"
+          ? "concluída"
+          : first.status.toLowerCase();
+    return {
+      short: `Conta · ${statusHint}`,
+      detail: `${first.courseName}${first.classGroupLabel ? ` · ${first.classGroupLabel}` : ""}`,
+      tone: "warn",
+    };
+  }
+  return {
+    short: "Conta · sem matrícula",
+    detail: systemUser.userName,
+    tone: "warn",
+  };
+}
+
+function ContactForm({
+  target,
+  gotResponse,
+  setGotResponse,
+  contactNotes,
+  setContactNotes,
+  savingContact,
+  onCancel,
+  onSubmit,
+}: {
+  target: NextCycleInterestItem;
+  gotResponse: boolean;
+  setGotResponse: (v: boolean) => void;
+  contactNotes: string;
+  setContactNotes: (v: string) => void;
+  savingContact: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  const enrollment = enrollmentLabel(target.systemUser);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-[var(--text-muted)]">
+        Registre que a equipe entrou em contato com este interessado. Seu nome será gravado
+        automaticamente.
+      </p>
+
+      {target.systemUser ? (
+        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm">
+          <div className="font-medium text-[var(--text-primary)]">
+            Conta no sistema: {target.systemUser.userName}
+          </div>
+          <div className="mt-0.5 text-[var(--text-secondary)]">
+            {enrollment.short}
+            {enrollment.detail ? ` — ${enrollment.detail}` : ""}
+          </div>
+        </div>
+      ) : null}
+
+      <label className="flex cursor-pointer items-start gap-2.5 text-sm text-[var(--text-primary)]">
+        <Checkbox
+          checked={gotResponse}
+          onCheckedChange={setGotResponse}
+          className="mt-0.5"
+          aria-label="Conseguiu resposta do interessado"
+        />
+        <span>
+          <span className="font-medium">Conseguiu resposta</span>
+          <span className="mt-0.5 block text-xs text-[var(--text-muted)]">
+            Marque se o interessado respondeu ao contato.
+          </span>
+        </span>
+      </label>
+
+      <div>
+        <label
+          htmlFor="contact-notes"
+          className="mb-1 block text-xs font-medium text-[var(--text-muted)]"
+        >
+          Observações (opcional)
+        </label>
+        <textarea
+          id="contact-notes"
+          value={contactNotes}
+          onChange={(e) => setContactNotes(e.target.value.slice(0, 500))}
+          rows={3}
+          maxLength={500}
+          placeholder="Ex.: ligou às 14h, pediu retorno amanhã…"
+          className="w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--igh-primary)]"
+        />
+      </div>
+
+      {target.lastContact ? (
+        <div className="text-xs text-[var(--text-muted)]">
+          Último contato: {target.lastContact.contactedByName} em{" "}
+          {formatDateTime(target.lastContact.contactedAt)} (
+          {target.lastContact.gotResponse ? "com resposta" : "sem resposta"}).
+        </div>
+      ) : null}
+
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={savingContact}>
+          Cancelar
+        </Button>
+        <Button type="button" onClick={onSubmit} disabled={savingContact}>
+          {savingContact ? "Salvando…" : "Registrar contato"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPreInscricoesPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<NextCycleInterestItem[]>([]);
   const [query, setQuery] = useState("");
   const [exporting, setExporting] = useState(false);
+
+  const [contactTarget, setContactTarget] = useState<NextCycleInterestItem | null>(null);
+  const [gotResponse, setGotResponse] = useState(false);
+  const [contactNotes, setContactNotes] = useState("");
+  const [savingContact, setSavingContact] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -84,6 +256,7 @@ export default function AdminPreInscricoesPage() {
     const q = normalizeSearch(query.trim());
     if (!q) return items;
     return items.filter((item) => {
+      const enrollment = enrollmentLabel(item.systemUser);
       const haystack = normalizeSearch(
         [
           item.name,
@@ -93,6 +266,9 @@ export default function AdminPreInscricoesPage() {
           item.courseNames.join(" "),
           item.customCourseName ?? "",
           item.source ?? "",
+          item.lastContact?.contactedByName ?? "",
+          enrollment.short,
+          enrollment.detail ?? "",
         ].join(" "),
       );
       return haystack.includes(q);
@@ -109,6 +285,8 @@ export default function AdminPreInscricoesPage() {
     let withCustomCourse = 0;
     let multiCourse = 0;
     let courseSelections = 0;
+    let contacted = 0;
+    let enrolled = 0;
     const courseCounts = new Map<string, number>();
 
     for (const item of items) {
@@ -116,6 +294,8 @@ export default function AdminPreInscricoesPage() {
       if (created >= todayStart) today += 1;
       if (created >= weekStart) last7Days += 1;
       if (item.customCourseName?.trim()) withCustomCourse += 1;
+      if (item.contactsCount > 0) contacted += 1;
+      if (item.systemUser?.enrolledInCurrentCycle) enrolled += 1;
 
       const listed = item.courseNames.filter((n) => !n.startsWith("Outro:"));
       const totalCourses = listed.length + (item.customCourseName?.trim() ? 1 : 0);
@@ -143,21 +323,91 @@ export default function AdminPreInscricoesPage() {
       avgCourses,
       topCourses,
       distinctCourses: courseCounts.size,
+      contacted,
+      enrolled,
     };
   }, [items]);
+
+  function openContactModal(item: NextCycleInterestItem) {
+    setContactTarget(item);
+    setGotResponse(false);
+    setContactNotes("");
+  }
+
+  function closeContactModal() {
+    if (savingContact) return;
+    setContactTarget(null);
+    setGotResponse(false);
+    setContactNotes("");
+  }
+
+  async function submitContact() {
+    if (!contactTarget || savingContact) return;
+    setSavingContact(true);
+    try {
+      const res = await fetch("/api/admin/next-cycle-interests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          interestId: contactTarget.id,
+          gotResponse,
+          notes: contactNotes.trim() || null,
+        }),
+      });
+      const json = (await res.json()) as ApiResponse<{ contact: ContactItem }>;
+      if (!res.ok || !json?.ok) {
+        toast.push(
+          "error",
+          json && !json.ok && "error" in json ? json.error.message : "Falha ao registrar contato.",
+        );
+        return;
+      }
+      const contact = json.data.contact;
+      setItems((prev) =>
+        prev.map((item) => {
+          if (item.id !== contactTarget.id) return item;
+          return {
+            ...item,
+            contactsCount: item.contactsCount + 1,
+            lastContact: contact,
+            contacts: [contact, ...item.contacts].slice(0, 5),
+          };
+        }),
+      );
+      toast.push("success", "Contato registrado.");
+      setContactTarget(null);
+      setGotResponse(false);
+      setContactNotes("");
+    } finally {
+      setSavingContact(false);
+    }
+  }
 
   function exportExcel() {
     if (exporting || filtered.length === 0) return;
     setExporting(true);
     try {
-      const rows = filtered.map((item) => ({
-        Data: formatDateTime(item.createdAt),
-        Nome: item.name,
-        "E-mail": item.email,
-        Telefone: formatPhone(item.phone),
-        Cursos: item.courseNames.join("; "),
-        Origem: item.source ?? "",
-      }));
+      const rows = filtered.map((item) => {
+        const enrollment = enrollmentLabel(item.systemUser);
+        return {
+          Data: formatDateTime(item.createdAt),
+          Nome: item.name,
+          "E-mail": item.email,
+          Telefone: formatPhone(item.phone),
+          Cursos: item.courseNames.join("; "),
+          Contatos: item.contactsCount,
+          "Último contato por": item.lastContact?.contactedByName ?? "",
+          "Último contato em": item.lastContact ? formatDateTime(item.lastContact.contactedAt) : "",
+          "Teve resposta": item.lastContact
+            ? item.lastContact.gotResponse
+              ? "Sim"
+              : "Não"
+            : "",
+          "Matrícula ciclo atual": enrollment.short,
+          "Detalhe matrícula": enrollment.detail ?? "",
+          Origem: item.source ?? "",
+        };
+      });
       const ws = XLSX.utils.json_to_sheet(rows);
       ws["!cols"] = [
         { wch: 20 },
@@ -165,6 +415,12 @@ export default function AdminPreInscricoesPage() {
         { wch: 32 },
         { wch: 16 },
         { wch: 50 },
+        { wch: 10 },
+        { wch: 22 },
+        { wch: 20 },
+        { wch: 12 },
+        { wch: 22 },
+        { wch: 40 },
         { wch: 12 },
       ];
       const wb = XLSX.utils.book_new();
@@ -188,8 +444,8 @@ export default function AdminPreInscricoesPage() {
             Pré-inscrições — próximo ciclo
           </div>
           <div className="text-sm text-[var(--text-muted)]">
-            Interessados cadastrados pelo formulário público /pre-inscricao. Inclui nome, contato e
-            cursos pretendidos.
+            Interessados cadastrados pelo formulário público /pre-inscricao. Registre contatos da
+            equipe e acompanhe matrícula no ciclo atual.
           </div>
         </div>
         <Button
@@ -218,20 +474,18 @@ export default function AdminPreInscricoesPage() {
           sublabel="cadastradas neste dia"
         />
         <StatTile
-          label="Últimos 7 dias"
-          value={loading ? "—" : summary.last7Days}
-          icon={CalendarDays}
+          label="Contactados"
+          value={loading ? "—" : summary.contacted}
+          icon={PhoneCall}
           accent="sky"
-          sublabel="incluindo hoje"
+          sublabel="com ao menos um contato"
         />
         <StatTile
-          label="Cursos distintos"
-          value={loading ? "—" : summary.distinctCourses}
-          icon={BookOpen}
+          label="Matriculados"
+          value={loading ? "—" : summary.enrolled}
+          icon={Users}
           accent="amber"
-          sublabel={
-            loading ? undefined : `média ${summary.avgCourses} curso(s) por pessoa`
-          }
+          sublabel="conta + matrícula no ciclo atual"
         />
       </div>
 
@@ -323,7 +577,7 @@ export default function AdminPreInscricoesPage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Nome, e-mail, telefone ou curso..."
+          placeholder="Nome, e-mail, telefone, curso ou contato..."
         />
       </div>
 
@@ -342,65 +596,158 @@ export default function AdminPreInscricoesPage() {
                 <tr>
                   <Th>Data</Th>
                   <Th>Nome</Th>
-                  <Th>E-mail</Th>
-                  <Th>Telefone</Th>
+                  <Th>Contato</Th>
                   <Th>Cursos</Th>
+                  <Th>Último contato</Th>
+                  <Th>Matrícula</Th>
+                  <Th>Ação</Th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <Td colSpan={5} className="text-center text-[var(--text-muted)]">
+                    <Td colSpan={7} className="text-center text-[var(--text-muted)]">
                       {items.length === 0
                         ? "Nenhuma pré-inscrição recebida."
                         : "Nenhum resultado para a busca."}
                     </Td>
                   </tr>
                 ) : (
-                  filtered.map((item) => (
-                    <tr key={item.id}>
-                      <Td className="whitespace-nowrap text-sm text-[var(--text-muted)]">
-                        {formatDateTime(item.createdAt)}
-                      </Td>
-                      <Td className="font-medium text-[var(--text-primary)]">{item.name}</Td>
-                      <Td>
-                        <a
-                          href={`mailto:${item.email}`}
-                          className="text-[var(--igh-primary)] hover:underline"
-                        >
-                          {item.email}
-                        </a>
-                      </Td>
-                      <Td className="whitespace-nowrap">
-                        <a
-                          href={whatsAppLink(item.phone)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[var(--igh-primary)] hover:underline"
-                          title="Abrir no WhatsApp"
-                        >
-                          {formatPhone(item.phone)}
-                        </a>
-                      </Td>
-                      <Td className="max-w-md text-sm text-[var(--text-secondary)]">
-                        {item.courseNames.length > 0 ? (
-                          <ul className="list-disc space-y-0.5 pl-4">
-                            {item.courseNames.map((name) => (
-                              <li key={`${item.id}-${name}`}>{name}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          "—"
-                        )}
-                      </Td>
-                    </tr>
-                  ))
+                  filtered.map((item) => {
+                    const enrollment = enrollmentLabel(item.systemUser);
+                    const last = item.lastContact;
+                    return (
+                      <tr key={item.id}>
+                        <Td className="whitespace-nowrap text-sm text-[var(--text-muted)]">
+                          {formatDateTime(item.createdAt)}
+                        </Td>
+                        <Td className="font-medium text-[var(--text-primary)]">{item.name}</Td>
+                        <Td className="text-sm">
+                          <div className="flex flex-col gap-0.5">
+                            <a
+                              href={`mailto:${item.email}`}
+                              className="text-[var(--igh-primary)] hover:underline"
+                            >
+                              {item.email}
+                            </a>
+                            <a
+                              href={whatsAppLink(item.phone)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="whitespace-nowrap text-[var(--igh-primary)] hover:underline"
+                              title="Abrir no WhatsApp"
+                            >
+                              {formatPhone(item.phone)}
+                            </a>
+                          </div>
+                        </Td>
+                        <Td className="max-w-xs text-sm text-[var(--text-secondary)]">
+                          {item.courseNames.length > 0 ? (
+                            <ul className="list-disc space-y-0.5 pl-4">
+                              {item.courseNames.map((name) => (
+                                <li key={`${item.id}-${name}`}>{name}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            "—"
+                          )}
+                        </Td>
+                        <Td className="min-w-[10rem] text-sm">
+                          {last ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium text-[var(--text-primary)]">
+                                {last.contactedByName}
+                              </span>
+                              <span className="text-xs text-[var(--text-muted)]">
+                                {formatDateTime(last.contactedAt)}
+                              </span>
+                              <span
+                                className={
+                                  last.gotResponse
+                                    ? "text-xs font-medium text-emerald-700 dark:text-emerald-400"
+                                    : "text-xs text-[var(--text-muted)]"
+                                }
+                              >
+                                {last.gotResponse ? "Com resposta" : "Sem resposta"}
+                                {item.contactsCount > 1
+                                  ? ` · ${item.contactsCount} contatos`
+                                  : ""}
+                              </span>
+                              {last.notes ? (
+                                <span
+                                  className="line-clamp-2 text-xs text-[var(--text-secondary)]"
+                                  title={last.notes}
+                                >
+                                  {last.notes}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="text-[var(--text-muted)]">Ainda não contactado</span>
+                          )}
+                        </Td>
+                        <Td className="min-w-[9rem] text-sm">
+                          <span
+                            className={
+                              enrollment.tone === "ok"
+                                ? "font-medium text-emerald-700 dark:text-emerald-400"
+                                : enrollment.tone === "warn"
+                                  ? "font-medium text-amber-700 dark:text-amber-400"
+                                  : "text-[var(--text-muted)]"
+                            }
+                          >
+                            {enrollment.short}
+                          </span>
+                          {enrollment.detail ? (
+                            <div
+                              className="mt-0.5 line-clamp-2 text-xs text-[var(--text-secondary)]"
+                              title={enrollment.detail}
+                            >
+                              {enrollment.detail}
+                            </div>
+                          ) : null}
+                        </Td>
+                        <Td>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="whitespace-nowrap"
+                            onClick={() => openContactModal(item)}
+                          >
+                            <MessageCircle className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                            Contato
+                          </Button>
+                        </Td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </Table>
           </div>
         </>
       )}
+
+      <Modal
+        open={!!contactTarget}
+        onClose={closeContactModal}
+        title={contactTarget ? `Registrar contato — ${contactTarget.name}` : "Registrar contato"}
+        size="small"
+      >
+        {contactTarget ? (
+          <ContactForm
+            target={contactTarget}
+            gotResponse={gotResponse}
+            setGotResponse={setGotResponse}
+            contactNotes={contactNotes}
+            setContactNotes={setContactNotes}
+            savingContact={savingContact}
+            onCancel={closeContactModal}
+            onSubmit={() => void submitContact()}
+          />
+        ) : null}
+      </Modal>
     </div>
   );
 }

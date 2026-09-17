@@ -46,6 +46,7 @@ export const createPublicStudentSchema = z
       .optional()
       .transform((s) => (typeof s === "string" && s.trim() ? s.trim() : null)),
     referralCode: z.string().optional().nullable(),
+    referrerUserId: z.string().uuid().optional().nullable(),
   })
   .refine(
     (data) => {
@@ -98,4 +99,6 @@ export const createPublicStudentSchema = z
 export const createPreEnrollmentSchema = z.object({
   classGroupId: z.string().uuid(),
   studentToken: z.string().optional(),
+  referrerUserId: z.string().uuid().optional().nullable(),
+  referralCode: z.string().optional().nullable(),
 });

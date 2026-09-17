@@ -256,6 +256,7 @@ export default function ClassGroupsPage() {
   const [downloadingCycleCertsId, setDownloadingCycleCertsId] = useState<string | null>(null);
   const [downloadingCycleReportId, setDownloadingCycleReportId] = useState<string | null>(null);
   const [cycleReportMenuId, setCycleReportMenuId] = useState<string | null>(null);
+  const [downloadingSlipsId, setDownloadingSlipsId] = useState<string | null>(null);
   const [downloadingSelected, setDownloadingSelected] = useState(false);
   const [certificatePagesMode, setCertificatePagesMode] = useState<CertificatePagesMode>("both");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -835,6 +836,26 @@ export default function ClassGroupsPage() {
     }
   }
 
+  async function downloadEnrollmentSlips(c: Cycle) {
+    if (downloadingSlipsId) return;
+    setCycleReportMenuId(null);
+    setDownloadingSlipsId(c.id);
+    try {
+      const res = await fetch(`/api/cycles/${c.id}/enrollment-slips`, { credentials: "include" });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        toast.push("error", apiErrorMessage(json, "Falha ao gerar os comprovantes de matrícula."));
+        return;
+      }
+      await downloadBlobResponse(res, `comprovantes-matricula-ciclo-${c.cycle}-${c.year}.pdf`);
+      toast.push("success", "Comprovantes gerados: 4 vias por folha A4, prontas para preencher.");
+    } catch {
+      toast.push("error", "Falha ao gerar os comprovantes de matrícula.");
+    } finally {
+      setDownloadingSlipsId(null);
+    }
+  }
+
   async function downloadSelectedCertificates() {
     const ids = [...selectedIds];
     if (ids.length === 0 || downloadingSelected) return;
@@ -1233,6 +1254,14 @@ export default function ClassGroupsPage() {
                         </div>
                       ) : null}
                     </div>
+                    <Button
+                      variant="secondary"
+                      disabled={downloadingSlipsId != null}
+                      title="Comprovante de matrícula em branco para preencher à mão no atendimento presencial (4 vias por folha A4, com os cursos do ciclo)"
+                      onClick={() => void downloadEnrollmentSlips(c)}
+                    >
+                      {downloadingSlipsId === c.id ? "Gerando…" : "Comprovantes p/ preencher"}
+                    </Button>
                     <Button
                       variant="secondary"
                       disabled={downloadingCycleCertsId != null || downloadingCycleReportId != null}

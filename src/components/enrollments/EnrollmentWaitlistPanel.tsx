@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { StudentForm } from "@/components/students/StudentForm";
+import { ReferrerPicker, type ReferrerOption } from "@/components/site/ReferrerPicker";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import type { ApiResponse } from "@/lib/api-types";
@@ -77,6 +78,7 @@ export function EnrollmentWaitlistPanel({
   const [students, setStudents] = useState<StudentOpt[]>([]);
   const [studentId, setStudentId] = useState("");
   const [classGroupId, setClassGroupId] = useState("");
+  const [referrer, setReferrer] = useState<ReferrerOption | null>(null);
   const [studentSearchQuery, setStudentSearchQuery] = useState("");
   const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
   const studentComboboxRef = useRef<HTMLDivElement>(null);
@@ -130,6 +132,7 @@ export function EnrollmentWaitlistPanel({
   function openCreate() {
     setStudentId("");
     setClassGroupId("");
+    setReferrer(null);
     setStudentSearchQuery("");
     setStudentDropdownOpen(false);
     setOpen(true);
@@ -152,7 +155,11 @@ export function EnrollmentWaitlistPanel({
       const res = await fetch("/api/enrollments/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, classGroupId }),
+        body: JSON.stringify({
+          studentId,
+          classGroupId,
+          ...(referrer?.id ? { referrerUserId: referrer.id } : {}),
+        }),
       });
       const json = (await res.json()) as ApiResponse<{ waitlist: { id: string } }>;
       if (!res.ok || !json?.ok) {
@@ -164,6 +171,7 @@ export function EnrollmentWaitlistPanel({
         "Cadastro de reserva criado. O aluno será matriculado automaticamente quando houver vaga.",
       );
       setOpen(false);
+      setReferrer(null);
       await load();
     } finally {
       setSubmitting(false);
@@ -358,6 +366,21 @@ export function EnrollmentWaitlistPanel({
             <p className="mt-1 text-xs text-[var(--text-muted)]">
               Só aparecem turmas sem vagas disponíveis.
             </p>
+          </div>
+          <div>
+            <label htmlFor="waitlist-referrer" className="text-sm font-medium">
+              Indicado por (opcional)
+            </label>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Se o aluno foi indicado por alguém cadastrado, busque o nome na lista.
+            </p>
+            <div className="mt-2">
+              <ReferrerPicker
+                inputId="waitlist-referrer"
+                value={referrer}
+                onChange={(option) => setReferrer(option)}
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>

@@ -60,6 +60,11 @@ type Props = {
   initialObjetivo?: string;
   /** Base path for filter links (e.g. "/formacoes" or "/"). Course links always go to /cursos/[slug]. */
   basePath?: string;
+  /**
+   * Na home: só cursos com turma no ciclo visível.
+   * Botão "Inscrever-se" (com vaga) ou "Lista de espera" (lotado); sem "Em breve".
+   */
+  enrollableOnly?: boolean;
 };
 
 function isObjectiveId(v: string | undefined): v is ObjectiveId {
@@ -73,6 +78,7 @@ export function FormacoesSection({
   initialQuery = "",
   initialObjetivo,
   basePath = "/formacoes",
+  enrollableOnly = false,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -110,6 +116,7 @@ export function FormacoesSection({
 
   const filtered = useMemo(() => {
     const byFormacaoAndQuery = (c: CourseForSite) => {
+      if (enrollableOnly && !(c.hasOpenClassGroups || c.hasWaitlistClassGroups)) return false;
       if (formacaoSlug && c.formationSlug !== formacaoSlug) return false;
       if (!matchesQuery(c, query)) return false;
       return true;
@@ -126,7 +133,7 @@ export function FormacoesSection({
       return courses.filter(byFormacaoAndQuery);
     }
     return withObjective;
-  }, [courses, formacaoSlug, objetivo, query]);
+  }, [courses, enrollableOnly, formacaoSlug, objetivo, query]);
 
   const objectiveSoftFallback =
     !!objetivo &&
@@ -237,19 +244,23 @@ export function FormacoesSection({
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--igh-border)] bg-[var(--igh-surface)] px-4 py-10 text-center">
           <p className="text-sm text-[var(--igh-muted)]">
-            Tente outro termo, limpe os filtros ou explore todas as formações.
+            {enrollableOnly
+              ? "Não há cursos com turmas abertas neste ciclo no momento."
+              : "Tente outro termo, limpe os filtros ou explore todas as formações."}
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setQuery("");
-                pushFilters({ formacao: null, q: "", objetivo: null });
-              }}
-              className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white"
-            >
-              Ver todos os cursos
-            </button>
+            {!enrollableOnly ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  pushFilters({ formacao: null, q: "", objetivo: null });
+                }}
+                className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Ver todos os cursos
+              </button>
+            ) : null}
             <Link
               href="/inscreva"
               className="rounded-lg border border-[var(--igh-border)] px-4 py-2 text-sm font-medium text-[var(--igh-secondary)]"
@@ -308,7 +319,7 @@ export function FormacoesSection({
                     >
                       Inscrever-se
                     </Link>
-                  ) : hasWaitlist ? (
+                  ) : hasWaitlist || enrollableOnly ? (
                     <Link
                       href={enrollHref}
                       className="inline-flex w-full min-h-[44px] items-center justify-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--igh-primary-hover)]"

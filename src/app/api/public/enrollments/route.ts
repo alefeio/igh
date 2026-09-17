@@ -7,6 +7,7 @@ import { createPreEnrollmentSchema } from "@/lib/validators/public-enrollment";
 import { verifyStudentToken } from "@/lib/student-token";
 import { classGroupAllowsPublicEnrollment } from "@/lib/class-group-scope";
 import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
+import { attributeStudentReferral } from "@/lib/student-referrals";
 
 function toDateOnlyString(value: Date | string | null | undefined): string | null {
   if (value == null) return null;
@@ -41,22 +42,33 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { classGroupId, studentToken } = parsed.data;
+  const { classGroupId, studentToken, referrerUserId, referralCode } = parsed.data;
 
   let studentId: string | null = null;
+  let studentUserId: string | null = null;
 
   const session = await getSessionUserFromCookie();
   if (session?.role === "STUDENT") {
     const student = await prisma.student.findFirst({
       where: { userId: session.id },
-      select: { id: true },
+      select: { id: true, userId: true },
     });
-    if (student) studentId = student.id;
+    if (student) {
+      studentId = student.id;
+      studentUserId = student.userId;
+    }
   }
 
   if (!studentId && studentToken) {
     const payload = await verifyStudentToken(studentToken);
-    if (payload) studentId = payload.studentId;
+    if (payload) {
+      studentId = payload.studentId;
+      const st = await prisma.student.findUnique({
+        where: { id: payload.studentId },
+        select: { userId: true },
+      });
+      studentUserId = st?.userId ?? null;
+    }
   }
 
   if (!studentId) {
@@ -166,6 +178,14 @@ export async function POST(request: Request) {
       student: { select: { id: true, name: true } },
       classGroup: { include: { course: { select: { name: true } } } },
     },
+  });
+
+  await attributeStudentReferral({
+    studentId,
+    studentUserId,
+    referrerUserId: referrerUserId ?? null,
+    referralCodeFromBody: referralCode,
+    allowCookie: true,
   });
 
   return jsonOk(

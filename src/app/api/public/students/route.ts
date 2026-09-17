@@ -27,7 +27,8 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { name, cpf, birthDate, phone, email, guardianCpf, referralCode } = parsed.data;
+  const { name, cpf, birthDate, phone, email, guardianCpf, referralCode, referrerUserId: referrerUserIdFromBody } =
+    parsed.data;
   const emailNormalized = email && email.trim() ? email.trim().toLowerCase() : null;
   const cpfDigits = cpf ? onlyDigits(cpf, 11) : "";
   const cpfNormalized =
@@ -67,7 +68,14 @@ export async function POST(request: Request) {
       birthDateToStudentPasswordParts(birthDateValue);
     const passwordHash = await hashPassword(birthDateAsPassword);
 
-    const referrerUserId = await resolveReferrerUserId({ referralCodeFromBody: referralCode });
+    let referrerUserId = await resolveReferrerUserId({ referralCodeFromBody: referralCode });
+    if (referrerUserIdFromBody) {
+      const explicit = await prisma.user.findFirst({
+        where: { id: referrerUserIdFromBody, isActive: true },
+        select: { id: true },
+      });
+      if (explicit) referrerUserId = explicit.id;
+    }
 
     const user = await prisma.user.create({
       data: {
@@ -112,6 +120,7 @@ export async function POST(request: Request) {
     await attributeStudentReferral({
       studentId: student.id,
       studentUserId: user.id,
+      referrerUserId: referrerUserIdFromBody,
       referralCodeFromBody: referralCode,
     });
 
@@ -175,6 +184,7 @@ export async function POST(request: Request) {
   await attributeStudentReferral({
     studentId: student.id,
     studentUserId: null,
+    referrerUserId: referrerUserIdFromBody,
     referralCodeFromBody: referralCode,
   });
 

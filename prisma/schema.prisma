@@ -133,6 +133,8 @@ model User {
   classGroupsCreated                 ClassGroup[]               @relation("ClassGroupCreatedBy")
   /// * Cursos criados por este usuário (admin/master).
   coursesCreated                     Course[]                   @relation("CourseCreatedBy")
+  /// * Contatos registrados em pré-inscrições do próximo ciclo.
+  nextCycleInterestContactsMade      NextCycleInterestContact[] @relation("NextCycleInterestContactedBy")
 
   @@index([referredByUserId])
 }
@@ -2397,20 +2399,37 @@ model ContactMessage {
 
 /// * Pré-inscrição de interesse no próximo ciclo (formulário público, sem conta obrigatória).
 model NextCycleInterest {
-  id               String   @id @default(uuid())
+  id               String                     @id @default(uuid())
   name             String
   phone            String
   email            String
   /// * Cursos da lista (ciclos 1–3) selecionados.
-  courseIds        String[] @default([])
+  courseIds        String[]                   @default([])
   /// * Nome digitado quando o curso não está na lista (opção “Outro”).
   customCourseName String?
-  source           String?  @default("site")
-  createdAt        DateTime @default(now())
+  source           String?                    @default("site")
+  createdAt        DateTime                   @default(now())
+  contacts         NextCycleInterestContact[]
 
   @@index([email])
   @@index([phone])
   @@index([createdAt])
+}
+
+/// * Registro de contato da equipe com um interessado da pré-inscrição.
+model NextCycleInterestContact {
+  id                String            @id @default(uuid())
+  interestId        String
+  contactedByUserId String
+  contactedAt       DateTime          @default(now())
+  /// * Se a equipe conseguiu resposta do interessado.
+  gotResponse       Boolean           @default(false)
+  notes             String?
+  interest          NextCycleInterest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+  contactedByUser   User              @relation("NextCycleInterestContactedBy", fields: [contactedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([interestId, contactedAt(sort: Desc)])
+  @@index([contactedByUserId])
 }
 
 /// * Chamado de suporte do aluno (área logada).

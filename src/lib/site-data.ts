@@ -682,6 +682,7 @@ export async function getCourseEnrollmentAvailability(): Promise<{
     const { publicInscrevaClassGroupWhere } = await import(
       "@/lib/public-enrollment-availability"
     );
+    const { ENROLLMENT_STATUSES_OCCUPYING_SEAT } = await import("@/lib/enrollment-seat");
     const rows = await unstable_cache(
       async () => {
         const classGroups = await prisma.classGroup.findMany({
@@ -689,19 +690,25 @@ export async function getCourseEnrollmentAvailability(): Promise<{
           select: {
             courseId: true,
             capacity: true,
-            enrollments: { where: { status: "ACTIVE" }, select: { id: true } },
+            _count: {
+              select: {
+                enrollments: {
+                  where: { status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
+                },
+              },
+            },
           },
         });
         const open = new Set<string>();
         const listed = new Set<string>();
         for (const cg of classGroups) {
           listed.add(cg.courseId);
-          if (cg.enrollments.length < cg.capacity) open.add(cg.courseId);
+          if (cg._count.enrollments < cg.capacity) open.add(cg.courseId);
         }
         const waitlist = [...listed].filter((id) => !open.has(id));
         return { open: [...open], waitlist };
       },
-      ["course-enrollment-availability-v2"],
+      ["course-enrollment-availability-v3"],
       { revalidate: 60 }
     )();
     return {

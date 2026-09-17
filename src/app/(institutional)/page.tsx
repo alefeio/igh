@@ -31,6 +31,7 @@ import {
   getPublicPlatformExperienceBlock,
   getPublicMotherCampaignMessages,
 } from "@/lib/site-data";
+import { hasVisibleEnrollmentCycle } from "@/lib/public-enrollment-availability";
 import { getPublicMultiCertifiedShowcase } from "@/lib/student-multi-certification";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { BRAND } from "@/lib/brand";
@@ -64,9 +65,9 @@ export default async function HomePage({ searchParams }: Props) {
     platformExperienceBlock,
     mothersDaySection,
     sessionUser,
+    cycleVisible,
   ] = await Promise.all([
     getFormationsForFilter(),
-    // Catálogo amplo: carrega todos para busca/objetivo client-side
     getCoursesForSite(),
     getBanners(),
     getPartners(),
@@ -78,7 +79,10 @@ export default async function HomePage({ searchParams }: Props) {
     getPublicPlatformExperienceBlock(),
     getPublicMotherCampaignMessages(18),
     getSessionUserFromCookie(),
+    hasVisibleEnrollmentCycle(),
   ]);
+
+  const showPreInscricao = !cycleVisible;
 
   const recentPosts = newsPosts.slice(0, 2).map((p) => {
     let date = "";
@@ -96,7 +100,10 @@ export default async function HomePage({ searchParams }: Props) {
     };
   });
 
-  const courses = coursesFull;
+  // Home: só cursos com turma no ciclo visível (com vaga ou lista de espera).
+  const courses = coursesFull.filter(
+    (c) => c.hasOpenClassGroups === true || c.hasWaitlistClassGroups === true,
+  );
   const faqItems = faqItemsFromDb.map((i) => ({ pergunta: i.question, resposta: i.answer }));
   const depoimentos = testimonialsFromDb.map((t) => ({
     nome: t.name,
@@ -109,15 +116,19 @@ export default async function HomePage({ searchParams }: Props) {
     <>
       {banners.length > 0 ? <HeroBannerCarousel banners={banners} /> : null}
 
-      <HomeAudiencePathsStrip />
-      <HomeNextCycleInterestSection />
+      <HomeAudiencePathsStrip showPreInscricao={showPreInscricao} />
+      {showPreInscricao ? <HomeNextCycleInterestSection /> : null}
       <HomePublicRatingStrip block={platformExperienceBlock} stats={[]} />
       <HomeObjectiveTrails basePath="/" />
 
       <div id="catalogo" className="scroll-mt-24">
         <Section
           title="Formações e Cursos"
-          subtitle="Catálogo amplo: busque por tema, filtre por formação ou escolha um objetivo acima."
+          subtitle={
+            cycleVisible
+              ? "Cursos com turmas abertas neste ciclo. Com vaga, inscreva-se; sem vaga, entre na lista de espera."
+              : "Quando um ciclo estiver aberto para matrículas, os cursos com turmas aparecerão aqui."
+          }
         >
           <FormacoesSection
             formations={formations}
@@ -126,13 +137,20 @@ export default async function HomePage({ searchParams }: Props) {
             initialQuery={searchQuery ?? ""}
             initialObjetivo={objetivo}
             basePath="/"
+            enrollableOnly
           />
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Button as="link" href="/inscreva" variant="primary" size="lg">
-              Quero me inscrever
-            </Button>
-            <Button as="link" href="/pre-inscricao" variant="accent" size="lg">
-              Pré-inscrição próximo ciclo
+            {cycleVisible ? (
+              <Button as="link" href="/inscreva" variant="primary" size="lg">
+                Quero me inscrever
+              </Button>
+            ) : (
+              <Button as="link" href="/pre-inscricao" variant="accent" size="lg">
+                Pré-inscrição próximo ciclo
+              </Button>
+            )}
+            <Button as="link" href="/formacoes" variant="outline" size="lg">
+              Ver catálogo completo
             </Button>
           </div>
         </Section>
@@ -168,12 +186,24 @@ export default async function HomePage({ searchParams }: Props) {
 
       <CTASection
         title="Pronto para começar sua formação?"
-        subtitle={`Inscreva-se em uma turma e acompanhe suas aulas na plataforma do ${BRAND.shortName}. Se o próximo ciclo ainda não abriu, deixe sua pré-inscrição.`}
-        primaryCTA={{ label: "Quero me inscrever", href: "/inscreva" }}
-        secondaryCTAs={[
-          { label: "Pré-inscrição próximo ciclo", href: "/pre-inscricao" },
-          { label: "Ver todas as formações", href: "/formacoes" },
-        ]}
+        subtitle={
+          cycleVisible
+            ? `Inscreva-se em uma turma e acompanhe suas aulas na plataforma do ${BRAND.shortName}.`
+            : `As matrículas do ciclo ainda não estão abertas. Deixe sua pré-inscrição e o ${BRAND.shortName} avisa quando as turmas liberarem.`
+        }
+        primaryCTA={
+          cycleVisible
+            ? { label: "Quero me inscrever", href: "/inscreva" }
+            : { label: "Pré-inscrição próximo ciclo", href: "/pre-inscricao" }
+        }
+        secondaryCTAs={
+          cycleVisible
+            ? [{ label: "Ver todas as formações", href: "/formacoes" }]
+            : [
+                { label: "Ver formações", href: "/formacoes" },
+                { label: "Ir para inscrição", href: "/inscreva" },
+              ]
+        }
       />
 
       <Testimonials
@@ -197,7 +227,6 @@ export default async function HomePage({ searchParams }: Props) {
         <FAQ items={faqItems} title={`Dúvidas sobre matrícula e o ${BRAND.shortName}`} />
       )}
 
-      {/* Secundário: comunidade, ranking compacto, avaliações, projetos, notícias */}
       <CommunityCtaHomeSection
         sessionUser={sessionUser ? { name: sessionUser.name, role: sessionUser.role } : null}
       />

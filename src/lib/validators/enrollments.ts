@@ -3,6 +3,8 @@ import { z } from "zod";
 export const createEnrollmentSchema = z.object({
   studentId: z.string().uuid(),
   classGroupId: z.string().uuid(),
+  /** Usuário que indicou o aluno (opcional; só grava se ainda não houver StudentReferral). */
+  referrerUserId: z.string().uuid().optional().nullable(),
 });
 
 export const updateEnrollmentSchema = z.object({

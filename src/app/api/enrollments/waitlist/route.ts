@@ -15,6 +15,7 @@ import {
 } from "@/lib/class-group-teachers";
 import type { Prisma } from "@/generated/prisma/client";
 import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
+import { attributeStudentReferral } from "@/lib/student-referrals";
 
 /** Lista reservas (WAITING por padrão). Query: classGroupId, status, all=1. */
 export async function GET(request: Request) {
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { studentId, classGroupId, notes } = parsed.data;
+  const { studentId, classGroupId, notes, referrerUserId } = parsed.data;
 
   if (user.role === "POLO_COORDINATOR") {
     const ok = await poloCoordinatorOwnsClassGroup(user.id, classGroupId);
@@ -127,6 +128,17 @@ export async function POST(request: Request) {
   }
 
   const entry = await createWaitlistEntry({ studentId, classGroupId, notes });
+
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { userId: true },
+  });
+  await attributeStudentReferral({
+    studentId,
+    studentUserId: student?.userId ?? null,
+    referrerUserId: referrerUserId ?? null,
+    allowCookie: false,
+  });
 
   await createAuditLog({
     entityType: "EnrollmentWaitlist",
