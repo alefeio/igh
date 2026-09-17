@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { ReferrerPicker, type ReferrerOption } from "@/components/site/ReferrerPicker";
 import type { ApiResponse } from "@/lib/api-types";
 import { formatClassGroupTurmaLine, formatDaysOrderedPt, formatEnrollmentClassGroupOptionLabel } from "@/lib/turma-display";
 import { isExactMaster, isMasterOrGeneralAdmin } from "@/lib/rbac";
@@ -295,6 +296,7 @@ export default function EnrollmentsPage() {
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [studentId, setStudentId] = useState("");
   const [classGroupId, setClassGroupId] = useState("");
+  const [referrer, setReferrer] = useState<ReferrerOption | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -1141,6 +1143,7 @@ export default function EnrollmentsPage() {
   function openCreate() {
     setStudentId("");
     setClassGroupId("");
+    setReferrer(null);
     setStudentSearchQuery("");
     setStudentDropdownOpen(false);
     setOpen(true);
@@ -1216,7 +1219,11 @@ export default function EnrollmentsPage() {
       const res = await fetch("/api/enrollments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, classGroupId }),
+        body: JSON.stringify({
+          studentId,
+          classGroupId,
+          ...(referrer?.id ? { referrerUserId: referrer.id } : {}),
+        }),
       });
       const json = await parseJson<{ enrollment: Enrollment; emailSent: boolean; studentHadNoEmail?: boolean }>(res);
       if (!res.ok || !json?.ok) {
@@ -1234,6 +1241,7 @@ export default function EnrollmentsPage() {
             : "Matrícula criada. E-mail não foi enviado (verifique configuração)."
       );
       setOpen(false);
+      setReferrer(null);
       await load();
     } finally {
       setSubmitting(false);
@@ -2307,6 +2315,21 @@ export default function EnrollmentsPage() {
             <p className="mt-1 text-xs text-[var(--text-muted)]">
               Inscritos / capacidade. Turmas lotadas só podem receber mais alunos se você for Master ou Administrador Geral.
             </p>
+          </div>
+          <div>
+            <label htmlFor="enrollment-referrer" className="text-sm font-medium">
+              Indicado por (opcional)
+            </label>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Se o aluno foi indicado por alguém cadastrado, busque o nome na lista.
+            </p>
+            <div className="mt-2">
+              <ReferrerPicker
+                inputId="enrollment-referrer"
+                value={referrer}
+                onChange={(option) => setReferrer(option)}
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>

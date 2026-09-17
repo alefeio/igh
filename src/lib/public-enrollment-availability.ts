@@ -21,6 +21,14 @@ export function publicInscrevaClassGroupWhere(): Prisma.ClassGroupWhereInput {
   };
 }
 
+/** Há ao menos um ciclo liberado para matrículas no site (`isVisibleForEnrollments`). */
+export async function hasVisibleEnrollmentCycle(): Promise<boolean> {
+  const count = await prisma.cycle.count({
+    where: { isVisibleForEnrollments: true },
+  });
+  return count > 0;
+}
+
 /** Quantas turmas o público consegue escolher agora (já descontando as lotadas). */
 export async function countOpenPublicClassGroups(): Promise<number> {
   await applyClassGroupAutomaticStatusUpdatesCached();

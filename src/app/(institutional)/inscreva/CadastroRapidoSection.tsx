@@ -50,9 +50,15 @@ function ageFromBirthDate(birthDate: string): number | null {
 type CadastroRapidoSectionProps = {
   onRegistered: (student: StudentData, studentToken: string) => void;
   onCancel: () => void;
+  /** Indicador escolhido no formulário de inscrição (opcional). */
+  referrerUserId?: string | null;
 };
 
-export function CadastroRapidoSection({ onRegistered, onCancel }: CadastroRapidoSectionProps) {
+export function CadastroRapidoSection({
+  onRegistered,
+  onCancel,
+  referrerUserId,
+}: CadastroRapidoSectionProps) {
   const toast = useToast();
   const sectionRef = useRef<HTMLDivElement>(null);
   const [name, setName] = useState("");
@@ -111,6 +117,7 @@ export function CadastroRapidoSection({ onRegistered, onCancel }: CadastroRapido
           ...(normalizedEmail ? { email: normalizedEmail } : {}),
           ...(isMinor && digitsGuardianCpf ? { guardianCpf } : {}),
           referralCode: readStoredReferralCode(),
+          ...(referrerUserId ? { referrerUserId } : {}),
         }),
       });
       const json = (await res.json()) as ApiResponse<{ student: StudentData; studentToken: string }>;

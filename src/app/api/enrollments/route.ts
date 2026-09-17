@@ -12,6 +12,7 @@ import {
 import { classGroupAllowsStaffEnrollment } from "@/lib/class-group-scope";
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
+import { attributeStudentReferral } from "@/lib/student-referrals";
 
 export async function GET() {
   const user = await requireRole(["ADMIN", "MASTER", "TEACHER", "POLO_COORDINATOR"]);
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
     return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
   }
 
-  const { studentId, classGroupId } = parsed.data;
+  const { studentId, classGroupId, referrerUserId } = parsed.data;
 
   if (user.role === "POLO_COORDINATOR") {
     const ok = await poloCoordinatorOwnsClassGroup(user.id, classGroupId);
@@ -203,6 +204,13 @@ export async function POST(request: Request) {
       classGroupId,
       status: "ACTIVE",
     },
+  });
+
+  await attributeStudentReferral({
+    studentId,
+    studentUserId: student.userId,
+    referrerUserId: referrerUserId ?? null,
+    allowCookie: false,
   });
 
   await createAuditLog({

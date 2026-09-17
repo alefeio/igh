@@ -150,7 +150,7 @@ export async function resolveHolidayEventReferrer(params: {
 
 /** Dados públicos (mascarados) de um indicador já resolvido, para pré-preencher o formulário. */
 export async function describeReferrerByCode(code: string): Promise<ReferrerCandidate | null> {
-  const trimmed = code.trim();
+  const trimmed = code.trim().toLowerCase();
   if (!trimmed) return null;
 
   const row = await prisma.userReferralCode.findUnique({

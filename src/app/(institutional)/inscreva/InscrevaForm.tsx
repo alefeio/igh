@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/site";
+import { ReferrerPicker, type ReferrerOption } from "@/components/site/ReferrerPicker";
 import type { ApiResponse } from "@/lib/api-types";
+import { readStoredReferralCode } from "@/lib/referral-client";
 import { CadastroRapidoSection, INSCREVA_CADASTRO_RAPIDO_ID } from "./CadastroRapidoSection";
 import { ClassGroupPicker } from "./ClassGroupPicker";
 import { doOverlap, formatDateOnlyBR, type ClassGroupOption } from "./class-group-options";
@@ -118,6 +120,35 @@ export function InscrevaForm() {
   const [maxPerCycle, setMaxPerCycle] = useState(MAX_ENROLLMENTS_PER_CYCLE);
   const [enrollmentSuccess, setEnrollmentSuccess] = useState<EnrollmentSuccess | null>(null);
   const successRef = useRef<HTMLDivElement>(null);
+  const [referrer, setReferrer] = useState<ReferrerOption | null>(null);
+  const [referrerLocked, setReferrerLocked] = useState(false);
+  const initialReferrerLoaded = useRef(false);
+
+  useEffect(() => {
+    if (initialReferrerLoaded.current) return;
+    const code = readStoredReferralCode() ?? searchParams.get("ref");
+    if (!code) return;
+    initialReferrerLoaded.current = true;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/public/holiday-events/referrers?code=${encodeURIComponent(code)}`,
+        );
+        const json = (await res.json().catch(() => null)) as ApiResponse<{
+          candidate: ReferrerOption | null;
+        }> | null;
+        if (cancelled || !json?.ok || !json.data.candidate) return;
+        setReferrer(json.data.candidate);
+        setReferrerLocked(true);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   const load = useCallback(async (options?: { ignoreCourseId?: boolean }) => {
     setLoading(true);
@@ -345,8 +376,18 @@ export function InscrevaForm() {
       for (const classGroupId of selectedClassGroupIds) {
         const cg = classGroups.find((c) => c.id === classGroupId);
         if (!cg) continue;
-        const body: { classGroupId: string; studentToken?: string } = { classGroupId };
+        const body: {
+          classGroupId: string;
+          studentToken?: string;
+          referrerUserId?: string;
+          referralCode?: string;
+        } = { classGroupId };
         if (studentToken) body.studentToken = studentToken;
+        if (referrer?.id) body.referrerUserId = referrer.id;
+        else {
+          const code = readStoredReferralCode();
+          if (code) body.referralCode = code;
+        }
         const isWaitlist = !!cg.waitlistOnly || (typeof cg.seatsLeft === "number" && cg.seatsLeft <= 0);
         const res = await fetch(isWaitlist ? "/api/public/waitlist" : "/api/public/enrollments", {
           method: "POST",
@@ -656,7 +697,31 @@ export function InscrevaForm() {
           </div>
 
           {classGroups.length > 0 ? (
-            <div className={`${cardClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+            <div className={`${cardClass} flex flex-col gap-4`}>
+              <div>
+                <label
+                  htmlFor="inscreva-referrer"
+                  className="text-sm font-medium text-[var(--text-primary)]"
+                >
+                  Quem indicou você (opcional)
+                </label>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  Se alguém te indicou, busque o nome na lista. Só é possível indicar quem já tem
+                  cadastro.
+                </p>
+                <div className="mt-2">
+                  <ReferrerPicker
+                    inputId="inscreva-referrer"
+                    value={referrer}
+                    locked={referrerLocked}
+                    onChange={(option) => {
+                      setReferrer(option);
+                      if (!option) setReferrerLocked(false);
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0" aria-live="polite">
                 <p className="text-sm font-semibold text-[var(--text-primary)]">
                   {selectedClassGroups.length === 0
@@ -683,6 +748,7 @@ export function InscrevaForm() {
                     ? "Enviar pré-matrícula"
                     : "Continuar"}
               </Button>
+              </div>
             </div>
           ) : null}
         </form>
@@ -718,7 +784,11 @@ export function InscrevaForm() {
       )}
 
       {!student && showCadastro && (
-        <CadastroRapidoSection onRegistered={handleRegistered} onCancel={closeCadastroRapido} />
+        <CadastroRapidoSection
+          onRegistered={handleRegistered}
+          onCancel={closeCadastroRapido}
+          referrerUserId={referrer?.id ?? null}
+        />
       )}
 
       {student && (

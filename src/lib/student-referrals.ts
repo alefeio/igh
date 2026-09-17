@@ -103,12 +103,14 @@ export async function attachReferrerToUser(userId: string, referrerUserId: strin
 }
 
 /**
- * Cria StudentReferral na criação do aluno.
- * Fontes: referrer explícito, User.referredByUserId, ou código body/cookie.
+ * Cria StudentReferral na criação do aluno (ou na 1ª matrícula, se ainda não houver).
+ * Fontes (nessa ordem): referrerUserId explícito, User.referredByUserId, código body/cookie.
  */
 export async function attributeStudentReferral(opts: {
   studentId: string;
   studentUserId?: string | null;
+  /** Indicador escolhido no formulário (matrícula / evento / staff). */
+  referrerUserId?: string | null;
   referralCodeFromBody?: string | null;
   /** Default true. Desligar em APIs de staff. */
   allowCookie?: boolean;
@@ -121,7 +123,16 @@ export async function attributeStudentReferral(opts: {
 
   let referrerUserId: string | null = null;
 
-  if (opts.studentUserId) {
+  const explicitId = opts.referrerUserId?.trim() || null;
+  if (explicitId) {
+    const referrer = await prisma.user.findFirst({
+      where: { id: explicitId, isActive: true },
+      select: { id: true },
+    });
+    referrerUserId = referrer?.id ?? null;
+  }
+
+  if (!referrerUserId && opts.studentUserId) {
     const u = await prisma.user.findUnique({
       where: { id: opts.studentUserId },
       select: { referredByUserId: true },
@@ -139,6 +150,10 @@ export async function attributeStudentReferral(opts: {
 
   if (!referrerUserId) return;
   if (opts.studentUserId && referrerUserId === opts.studentUserId) return;
+
+  if (opts.studentUserId) {
+    await attachReferrerToUser(opts.studentUserId, referrerUserId);
+  }
 
   try {
     await prisma.studentReferral.create({
