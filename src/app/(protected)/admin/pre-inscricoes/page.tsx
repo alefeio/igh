@@ -223,6 +223,7 @@ export default function AdminPreInscricoesPage() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<NextCycleInterestItem[]>([]);
   const [query, setQuery] = useState("");
+  const [onlyNotEnrolled, setOnlyNotEnrolled] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const [contactTarget, setContactTarget] = useState<NextCycleInterestItem | null>(null);
@@ -254,8 +255,9 @@ export default function AdminPreInscricoesPage() {
 
   const filtered = useMemo(() => {
     const q = normalizeSearch(query.trim());
-    if (!q) return items;
     return items.filter((item) => {
+      if (onlyNotEnrolled && item.systemUser?.enrolledInCurrentCycle) return false;
+      if (!q) return true;
       const enrollment = enrollmentLabel(item.systemUser);
       const haystack = normalizeSearch(
         [
@@ -273,7 +275,7 @@ export default function AdminPreInscricoesPage() {
       );
       return haystack.includes(q);
     });
-  }, [items, query]);
+  }, [items, query, onlyNotEnrolled]);
 
   const summary = useMemo(() => {
     const todayStart = startOfLocalDay();
@@ -565,20 +567,30 @@ export default function AdminPreInscricoesPage() {
         </div>
       </div>
 
-      <div className="max-w-md">
-        <label
-          htmlFor="pre-inscricoes-search"
-          className="mb-1 block text-xs font-medium text-[var(--text-muted)]"
-        >
-          Buscar
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+        <div className="max-w-md flex-1">
+          <label
+            htmlFor="pre-inscricoes-search"
+            className="mb-1 block text-xs font-medium text-[var(--text-muted)]"
+          >
+            Buscar
+          </label>
+          <Input
+            id="pre-inscricoes-search"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Nome, e-mail, telefone, curso ou contato..."
+          />
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm text-[var(--text-primary)] sm:pb-2.5">
+          <Checkbox
+            checked={onlyNotEnrolled}
+            onCheckedChange={setOnlyNotEnrolled}
+            aria-label="Somente não matriculados no ciclo atual"
+          />
+          <span>Somente não matriculados no ciclo atual</span>
         </label>
-        <Input
-          id="pre-inscricoes-search"
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Nome, e-mail, telefone, curso ou contato..."
-        />
       </div>
 
       {loading ? (
