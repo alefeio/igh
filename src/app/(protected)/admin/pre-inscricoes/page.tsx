@@ -513,8 +513,8 @@ export default function AdminPreInscricoesPage() {
             Pré-inscrições — próximo ciclo
           </div>
           <div className="text-sm text-[var(--text-muted)]">
-            Interessados cadastrados pelo formulário público /pre-inscricao. Registre contatos da
-            equipe e acompanhe matrícula no ciclo atual.
+            Interessados do ciclo atual (formulário /pre-inscricao). Ao avançar o ciclo, a lista
+            anterior some automaticamente. Registre contatos e acompanhe matrícula.
           </div>
         </div>
         <Button

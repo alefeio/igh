@@ -47,6 +47,8 @@ type Cycle = {
   cycle: number;
   year: number;
   isVisibleForEnrollments: boolean;
+  /** YYYY-MM-DD ou null */
+  enrollmentDeadlineDate: string | null;
 };
 
 type ClassGroup = {
@@ -251,6 +253,7 @@ export default function ClassGroupsPage() {
   const [cycleNumber, setCycleNumber] = useState("1");
   const [cycleYear, setCycleYear] = useState(String(new Date().getFullYear()));
   const [cycleVisible, setCycleVisible] = useState(true);
+  const [cycleDeadline, setCycleDeadline] = useState("");
   const [cycleSaving, setCycleSaving] = useState(false);
   const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
   const [downloadingCycleCertsId, setDownloadingCycleCertsId] = useState<string | null>(null);
@@ -286,6 +289,7 @@ export default function ClassGroupsPage() {
   const [cycleEditNumber, setCycleEditNumber] = useState("1");
   const [cycleEditYear, setCycleEditYear] = useState(String(new Date().getFullYear()));
   const [cycleEditVisible, setCycleEditVisible] = useState(true);
+  const [cycleEditDeadline, setCycleEditDeadline] = useState("");
 
   const locationSuggestions = useMemo(() => {
     const set = new Set<string>();
@@ -424,6 +428,7 @@ export default function ClassGroupsPage() {
     setCycleEditNumber(String(c.cycle));
     setCycleEditYear(String(c.year));
     setCycleEditVisible(!!c.isVisibleForEnrollments);
+    setCycleEditDeadline(c.enrollmentDeadlineDate ?? "");
     setOpenCycleEdit(true);
   }
 
@@ -1173,7 +1178,7 @@ export default function ClassGroupsPage() {
 
       <SectionCard
         title="Ciclos"
-        description="Gerencie os ciclos (número, ano e visibilidade para matrículas no painel e no site)."
+        description="Gerencie os ciclos (número, ano, visibilidade e data limite de inscrição no site)."
         action={
           canMutate ? (
             <Button variant="secondary" onClick={() => setOpenCycle(true)} className="w-full sm:w-auto">
@@ -1194,6 +1199,7 @@ export default function ClassGroupsPage() {
               <Th>Ciclo</Th>
               <Th>Ano</Th>
               <Th>Visível p/ matrículas</Th>
+              <Th>Limite de inscrição</Th>
               <Th />
             </tr>
           </thead>
@@ -1206,6 +1212,11 @@ export default function ClassGroupsPage() {
                   <Badge tone={c.isVisibleForEnrollments ? "green" : "zinc"}>
                     {c.isVisibleForEnrollments ? "Sim" : "Não"}
                   </Badge>
+                </Td>
+                <Td className="whitespace-nowrap text-sm text-[var(--text-secondary)]">
+                  {c.enrollmentDeadlineDate
+                    ? new Date(`${c.enrollmentDeadlineDate}T12:00:00`).toLocaleDateString("pt-BR")
+                    : "—"}
                 </Td>
                 <Td>
                   <div className="flex flex-wrap justify-end gap-2">
@@ -1701,6 +1712,7 @@ export default function ClassGroupsPage() {
                 cycle: Number(cycleEditNumber),
                 year: Number(cycleEditYear),
                 isVisibleForEnrollments: cycleEditVisible,
+                enrollmentDeadlineDate: cycleEditDeadline.trim() || null,
               };
               const res = await fetch(`/api/cycles/${editingCycle.id}`, {
                 method: "PATCH",
@@ -1743,6 +1755,23 @@ export default function ClassGroupsPage() {
             />
             Visível para matrículas (painel e site)
           </label>
+          <div>
+            <label className="text-sm font-medium" htmlFor="cycle-edit-deadline">
+              Data limite para inscrições no site
+            </label>
+            <div className="mt-1">
+              <Input
+                id="cycle-edit-deadline"
+                type="date"
+                value={cycleEditDeadline}
+                onChange={(e) => setCycleEditDeadline(e.target.value)}
+              />
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Enquanto o ciclo estiver visível e nesta data (inclusive), as matrículas ficam abertas e a
+              pré-inscrição do próximo ciclo fica oculta. Deixe em branco para não limitar por data.
+            </p>
+          </div>
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => { setOpenCycleEdit(false); setEditingCycle(null); }}>
               Cancelar
@@ -1766,6 +1795,7 @@ export default function ClassGroupsPage() {
                 cycle: Number(cycleNumber),
                 year: Number(cycleYear),
                 isVisibleForEnrollments: cycleVisible,
+                enrollmentDeadlineDate: cycleDeadline.trim() || null,
               };
               const res = await fetch("/api/cycles", {
                 method: "POST",
@@ -1807,6 +1837,23 @@ export default function ClassGroupsPage() {
             />
             Visível para matrículas (painel e site)
           </label>
+          <div>
+            <label className="text-sm font-medium" htmlFor="cycle-create-deadline">
+              Data limite para inscrições no site
+            </label>
+            <div className="mt-1">
+              <Input
+                id="cycle-create-deadline"
+                type="date"
+                value={cycleDeadline}
+                onChange={(e) => setCycleDeadline(e.target.value)}
+              />
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Enquanto o ciclo estiver visível e nesta data (inclusive), as matrículas ficam abertas e a
+              pré-inscrição do próximo ciclo fica oculta. Deixe em branco para não limitar por data.
+            </p>
+          </div>
           <div className="flex items-center justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setOpenCycle(false)}>
               Cancelar

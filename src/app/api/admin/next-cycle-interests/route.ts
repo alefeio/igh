@@ -1,18 +1,25 @@
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import { getCurrentCycleId } from "@/lib/current-cycle";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { resolveNextCycleInterestEnrollmentMap } from "@/lib/next-cycle-interest-admin";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Lista pré-inscrições do próximo ciclo (formulário público /pre-inscricao),
- * com histórico de contatos e status de matrícula no ciclo atual (quando houver conta).
+ * Lista pré-inscrições vinculadas ao ciclo atual (último cadastrado).
+ * Ao criar/avançar o ciclo, os nomes do ciclo anterior deixam de aparecer.
  */
 export async function GET() {
   await requireRole(["ADMIN", "MASTER", "SITE_ADMIN"]);
 
+  const currentCycleId = await getCurrentCycleId();
+  if (!currentCycleId) {
+    return jsonOk({ items: [], cycleId: null });
+  }
+
   const items = await prisma.nextCycleInterest.findMany({
+    where: { cycleId: currentCycleId },
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { contacts: true } },
@@ -44,6 +51,7 @@ export async function GET() {
   );
 
   return jsonOk({
+    cycleId: currentCycleId,
     items: items.map((item) => {
       const courseNames = item.courseIds
         .map((id) => courseNameById.get(id) ?? `Curso removido (${id.slice(0, 8)})`)

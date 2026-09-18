@@ -10,14 +10,17 @@ datasource db {
 /// * Ciclo de matrículas (ex.: Ciclo 1 / 2026). Controla visibilidade para matrículas no painel e no site.
 model Cycle {
   /// * ID fixo para o seed inicial (ciclo 1 / 2026) e defaults.
-  id                      String      @id @default(uuid())
+  id                      String              @id @default(uuid())
   cycle                   Int
   year                    Int
-  isVisibleForEnrollments Boolean     @default(true)
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
+  isVisibleForEnrollments Boolean             @default(true)
+  /// * Último dia em que o site aceita matrículas neste ciclo (inclusive). Null = sem prazo além da flag de visibilidade.
+  enrollmentDeadlineDate  DateTime?           @db.Date
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
 
-  classGroups ClassGroup[]
+  classGroups          ClassGroup[]
+  nextCycleInterests   NextCycleInterest[]
 
   @@unique([cycle, year])
   @@index([year, cycle])
@@ -2400,6 +2403,8 @@ model ContactMessage {
 /// * Pré-inscrição de interesse no próximo ciclo (formulário público, sem conta obrigatória).
 model NextCycleInterest {
   id               String                     @id @default(uuid())
+  /// * Ciclo vigente no momento da pré-inscrição (último cadastrado). Ao mudar o ciclo atual, a listagem admin deixa de exibir estes registros.
+  cycleId          String
   name             String
   phone            String
   email            String
@@ -2409,8 +2414,10 @@ model NextCycleInterest {
   customCourseName String?
   source           String?                    @default("site")
   createdAt        DateTime                   @default(now())
+  cycle            Cycle                      @relation(fields: [cycleId], references: [id], onDelete: Restrict)
   contacts         NextCycleInterestContact[]
 
+  @@index([cycleId, createdAt(sort: Desc)])
   @@index([email])
   @@index([phone])
   @@index([createdAt])
