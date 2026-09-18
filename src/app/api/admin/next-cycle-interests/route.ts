@@ -18,7 +18,6 @@ export async function GET() {
       _count: { select: { contacts: true } },
       contacts: {
         orderBy: { contactedAt: "desc" },
-        take: 5,
         select: {
           id: true,
           contactedAt: true,

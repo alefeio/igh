@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ClipboardList,
   MessageCircle,
+  Pencil,
   PhoneCall,
   Sparkles,
   Users,
@@ -31,7 +32,7 @@ type ContactItem = {
 };
 
 type SystemUserInfo = {
-  userId: string;
+  userId: string | null;
   userName: string;
   studentId: string | null;
   enrolledInCurrentCycle: boolean;
@@ -91,42 +92,56 @@ function startOfLocalDay(d = new Date()): Date {
 function enrollmentLabel(systemUser: SystemUserInfo | null): {
   short: string;
   detail: string | null;
+  lines: string[];
   tone: "ok" | "warn" | "muted";
 } {
   if (!systemUser) {
-    return { short: "Sem conta", detail: null, tone: "muted" };
+    return { short: "Sem cadastro", detail: null, lines: [], tone: "muted" };
   }
+
+  const active = systemUser.enrollments.filter((e) => e.status === "ACTIVE");
+  const others = systemUser.enrollments.filter((e) => e.status !== "ACTIVE");
+  const lines = [...active, ...others].map((e) => {
+    const hint = e.isPreEnrollment
+      ? "pré-matrícula"
+      : e.status === "SUSPENDED"
+        ? "suspensa"
+        : e.status === "COMPLETED"
+          ? "concluída"
+          : e.status === "ACTIVE"
+            ? null
+            : e.status.toLowerCase();
+    const course = `${e.courseName}${e.classGroupLabel ? ` · ${e.classGroupLabel}` : ""}`;
+    return hint ? `${course} (${hint})` : course;
+  });
+
   if (systemUser.enrolledInCurrentCycle) {
-    const first = systemUser.enrollments.find((e) => e.status === "ACTIVE" && !e.isPreEnrollment);
-    const detail = first
-      ? `${first.courseName}${first.classGroupLabel ? ` · ${first.classGroupLabel}` : ""}`
-      : systemUser.userName;
-    return { short: "Matriculado", detail, tone: "ok" };
+    return {
+      short: active.length > 1 ? `Matriculado (${active.length})` : "Matriculado",
+      detail: lines.join(" · "),
+      lines,
+      tone: "ok",
+    };
   }
   if (systemUser.enrollments.length > 0) {
-    const first = systemUser.enrollments[0];
-    const statusHint = first.isPreEnrollment
-      ? "pré-matrícula"
-      : first.status === "SUSPENDED"
-        ? "suspensa"
-        : first.status === "COMPLETED"
-          ? "concluída"
-          : first.status.toLowerCase();
     return {
-      short: `Conta · ${statusHint}`,
-      detail: `${first.courseName}${first.classGroupLabel ? ` · ${first.classGroupLabel}` : ""}`,
+      short: "Conta · sem matrícula ativa",
+      detail: lines.join(" · "),
+      lines,
       tone: "warn",
     };
   }
   return {
-    short: "Conta · sem matrícula",
+    short: systemUser.studentId ? "Cadastro · sem matrícula" : "Conta · sem matrícula",
     detail: systemUser.userName,
+    lines: systemUser.userName ? [systemUser.userName] : [],
     tone: "warn",
   };
 }
 
 function ContactForm({
   target,
+  mode,
   gotResponse,
   setGotResponse,
   contactNotes,
@@ -136,6 +151,7 @@ function ContactForm({
   onSubmit,
 }: {
   target: NextCycleInterestItem;
+  mode: "create" | "edit";
   gotResponse: boolean;
   setGotResponse: (v: boolean) => void;
   contactNotes: string;
@@ -145,23 +161,62 @@ function ContactForm({
   onSubmit: () => void;
 }) {
   const enrollment = enrollmentLabel(target.systemUser);
+  const history = target.contacts;
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-[var(--text-muted)]">
-        Registre que a equipe entrou em contato com este interessado. Seu nome será gravado
-        automaticamente.
+        {mode === "edit"
+          ? "Adicione uma nova interação. O histórico anterior é preservado."
+          : "Registre que a equipe entrou em contato com este interessado. Seu nome será gravado automaticamente."}
       </p>
 
       {target.systemUser ? (
         <div className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-3 py-2 text-sm">
           <div className="font-medium text-[var(--text-primary)]">
-            Conta no sistema: {target.systemUser.userName}
+            Cadastro: {target.systemUser.userName}
           </div>
-          <div className="mt-0.5 text-[var(--text-secondary)]">
-            {enrollment.short}
-            {enrollment.detail ? ` — ${enrollment.detail}` : ""}
+          <div className="mt-0.5 text-[var(--text-secondary)]">{enrollment.short}</div>
+          {enrollment.lines.length > 0 ? (
+            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-[var(--text-secondary)]">
+              {enrollment.lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {mode === "edit" && history.length > 0 ? (
+        <div>
+          <div className="mb-1.5 text-xs font-medium text-[var(--text-muted)]">
+            Histórico de interações ({history.length})
           </div>
+          <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2">
+            {history.map((c) => (
+              <li
+                key={c.id}
+                className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-2 text-xs"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-medium text-[var(--text-primary)]">{c.contactedByName}</span>
+                  <span className="text-[var(--text-muted)]">{formatDateTime(c.contactedAt)}</span>
+                </div>
+                <div
+                  className={
+                    c.gotResponse
+                      ? "mt-0.5 font-medium text-emerald-700 dark:text-emerald-400"
+                      : "mt-0.5 text-[var(--text-muted)]"
+                  }
+                >
+                  {c.gotResponse ? "Com resposta" : "Sem resposta"}
+                </div>
+                {c.notes ? (
+                  <p className="mt-1 text-[var(--text-secondary)]">{c.notes}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -175,7 +230,7 @@ function ContactForm({
         <span>
           <span className="font-medium">Conseguiu resposta</span>
           <span className="mt-0.5 block text-xs text-[var(--text-muted)]">
-            Marque se o interessado respondeu ao contato.
+            Marque se o interessado respondeu a esta interação.
           </span>
         </span>
       </label>
@@ -198,20 +253,16 @@ function ContactForm({
         />
       </div>
 
-      {target.lastContact ? (
-        <div className="text-xs text-[var(--text-muted)]">
-          Último contato: {target.lastContact.contactedByName} em{" "}
-          {formatDateTime(target.lastContact.contactedAt)} (
-          {target.lastContact.gotResponse ? "com resposta" : "sem resposta"}).
-        </div>
-      ) : null}
-
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={savingContact}>
           Cancelar
         </Button>
         <Button type="button" onClick={onSubmit} disabled={savingContact}>
-          {savingContact ? "Salvando…" : "Registrar contato"}
+          {savingContact
+            ? "Salvando…"
+            : mode === "edit"
+              ? "Adicionar interação"
+              : "Registrar contato"}
         </Button>
       </div>
     </div>
@@ -224,9 +275,11 @@ export default function AdminPreInscricoesPage() {
   const [items, setItems] = useState<NextCycleInterestItem[]>([]);
   const [query, setQuery] = useState("");
   const [onlyNotEnrolled, setOnlyNotEnrolled] = useState(false);
+  const [onlyNotContacted, setOnlyNotContacted] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const [contactTarget, setContactTarget] = useState<NextCycleInterestItem | null>(null);
+  const [contactMode, setContactMode] = useState<"create" | "edit">("create");
   const [gotResponse, setGotResponse] = useState(false);
   const [contactNotes, setContactNotes] = useState("");
   const [savingContact, setSavingContact] = useState(false);
@@ -257,6 +310,7 @@ export default function AdminPreInscricoesPage() {
     const q = normalizeSearch(query.trim());
     return items.filter((item) => {
       if (onlyNotEnrolled && item.systemUser?.enrolledInCurrentCycle) return false;
+      if (onlyNotContacted && item.contactsCount > 0) return false;
       if (!q) return true;
       const enrollment = enrollmentLabel(item.systemUser);
       const haystack = normalizeSearch(
@@ -271,11 +325,12 @@ export default function AdminPreInscricoesPage() {
           item.lastContact?.contactedByName ?? "",
           enrollment.short,
           enrollment.detail ?? "",
+          ...enrollment.lines,
         ].join(" "),
       );
       return haystack.includes(q);
     });
-  }, [items, query, onlyNotEnrolled]);
+  }, [items, query, onlyNotEnrolled, onlyNotContacted]);
 
   const summary = useMemo(() => {
     const todayStart = startOfLocalDay();
@@ -330,8 +385,9 @@ export default function AdminPreInscricoesPage() {
     };
   }, [items]);
 
-  function openContactModal(item: NextCycleInterestItem) {
+  function openContactModal(item: NextCycleInterestItem, mode: "create" | "edit") {
     setContactTarget(item);
+    setContactMode(mode);
     setGotResponse(false);
     setContactNotes("");
   }
@@ -339,6 +395,7 @@ export default function AdminPreInscricoesPage() {
   function closeContactModal() {
     if (savingContact) return;
     setContactTarget(null);
+    setContactMode("create");
     setGotResponse(false);
     setContactNotes("");
   }
@@ -365,21 +422,31 @@ export default function AdminPreInscricoesPage() {
         return;
       }
       const contact = json.data.contact;
+      let updatedItem: NextCycleInterestItem | null = null;
       setItems((prev) =>
         prev.map((item) => {
           if (item.id !== contactTarget.id) return item;
-          return {
+          const contacts = [contact, ...item.contacts];
+          updatedItem = {
             ...item,
             contactsCount: item.contactsCount + 1,
             lastContact: contact,
-            contacts: [contact, ...item.contacts].slice(0, 5),
+            contacts,
           };
+          return updatedItem;
         }),
       );
-      toast.push("success", "Contato registrado.");
-      setContactTarget(null);
-      setGotResponse(false);
-      setContactNotes("");
+      toast.push("success", contactMode === "edit" ? "Interação adicionada." : "Contato registrado.");
+      if (contactMode === "edit" && updatedItem) {
+        setContactTarget(updatedItem);
+        setGotResponse(false);
+        setContactNotes("");
+      } else {
+        setContactTarget(null);
+        setContactMode("create");
+        setGotResponse(false);
+        setContactNotes("");
+      }
     } finally {
       setSavingContact(false);
     }
@@ -406,7 +473,7 @@ export default function AdminPreInscricoesPage() {
               : "Não"
             : "",
           "Matrícula ciclo atual": enrollment.short,
-          "Detalhe matrícula": enrollment.detail ?? "",
+          "Cursos matriculados": enrollment.lines.join("; ") || enrollment.detail || "",
           Origem: item.source ?? "",
         };
       });
@@ -422,7 +489,7 @@ export default function AdminPreInscricoesPage() {
         { wch: 20 },
         { wch: 12 },
         { wch: 22 },
-        { wch: 40 },
+        { wch: 50 },
         { wch: 12 },
       ];
       const wb = XLSX.utils.book_new();
@@ -567,7 +634,7 @@ export default function AdminPreInscricoesPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
         <div className="max-w-md flex-1">
           <label
             htmlFor="pre-inscricoes-search"
@@ -583,14 +650,24 @@ export default function AdminPreInscricoesPage() {
             placeholder="Nome, e-mail, telefone, curso ou contato..."
           />
         </div>
-        <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm text-[var(--text-primary)] sm:pb-2.5">
-          <Checkbox
-            checked={onlyNotEnrolled}
-            onCheckedChange={setOnlyNotEnrolled}
-            aria-label="Somente não matriculados no ciclo atual"
-          />
-          <span>Somente não matriculados no ciclo atual</span>
-        </label>
+        <div className="flex flex-col gap-2 pb-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:pb-2.5">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-primary)]">
+            <Checkbox
+              checked={onlyNotEnrolled}
+              onCheckedChange={setOnlyNotEnrolled}
+              aria-label="Somente não matriculados no ciclo atual"
+            />
+            <span>Somente não matriculados no ciclo atual</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-primary)]">
+            <Checkbox
+              checked={onlyNotContacted}
+              onCheckedChange={setOnlyNotContacted}
+              aria-label="Somente ainda não contactados"
+            />
+            <span>Somente ainda não contactados</span>
+          </label>
+        </div>
       </div>
 
       {loading ? (
@@ -698,7 +775,7 @@ export default function AdminPreInscricoesPage() {
                             <span className="text-[var(--text-muted)]">Ainda não contactado</span>
                           )}
                         </Td>
-                        <Td className="min-w-[9rem] text-sm">
+                        <Td className="min-w-[11rem] text-sm">
                           <span
                             className={
                               enrollment.tone === "ok"
@@ -710,26 +787,44 @@ export default function AdminPreInscricoesPage() {
                           >
                             {enrollment.short}
                           </span>
-                          {enrollment.detail ? (
-                            <div
-                              className="mt-0.5 line-clamp-2 text-xs text-[var(--text-secondary)]"
-                              title={enrollment.detail}
-                            >
+                          {enrollment.lines.length > 0 ? (
+                            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-[var(--text-secondary)]">
+                              {enrollment.lines.map((line) => (
+                                <li key={`${item.id}-${line}`} title={line}>
+                                  {line}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : enrollment.detail ? (
+                            <div className="mt-0.5 text-xs text-[var(--text-secondary)]">
                               {enrollment.detail}
                             </div>
                           ) : null}
                         </Td>
                         <Td>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="whitespace-nowrap"
-                            onClick={() => openContactModal(item)}
-                          >
-                            <MessageCircle className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                            Contato
-                          </Button>
+                          {item.contactsCount > 0 ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="whitespace-nowrap"
+                              onClick={() => openContactModal(item, "edit")}
+                            >
+                              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                              Editar
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="whitespace-nowrap"
+                              onClick={() => openContactModal(item, "create")}
+                            >
+                              <MessageCircle className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                              Contato
+                            </Button>
+                          )}
                         </Td>
                       </tr>
                     );
@@ -744,12 +839,19 @@ export default function AdminPreInscricoesPage() {
       <Modal
         open={!!contactTarget}
         onClose={closeContactModal}
-        title={contactTarget ? `Registrar contato — ${contactTarget.name}` : "Registrar contato"}
+        title={
+          contactTarget
+            ? contactMode === "edit"
+              ? `Editar contatos — ${contactTarget.name}`
+              : `Registrar contato — ${contactTarget.name}`
+            : "Contato"
+        }
         size="small"
       >
         {contactTarget ? (
           <ContactForm
             target={contactTarget}
+            mode={contactMode}
             gotResponse={gotResponse}
             setGotResponse={setGotResponse}
             contactNotes={contactNotes}
