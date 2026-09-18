@@ -4,11 +4,13 @@ import {
   isTurnstileConfigured,
   verifyTurnstileToken,
 } from "@/lib/bot-protection";
+import { getCurrentCycleId } from "@/lib/current-cycle";
 import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { templateNextCycleInterestConfirmation } from "@/lib/email/templates";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { findEligibleCoursesForInterest } from "@/lib/next-cycle-interest";
 import { prisma } from "@/lib/prisma";
+import { areSiteEnrollmentsOpen } from "@/lib/public-enrollment-availability";
 import { checkRateLimit } from "@/lib/rate-limit-memory";
 import { nextCycleInterestSchema } from "@/lib/validators/next-cycle-interest";
 
@@ -17,10 +19,23 @@ const MAX_PER_IP = 15;
 
 /**
  * Registra interesse / pré-inscrição no próximo ciclo (sem conta obrigatória)
- * e envia e-mail de confirmação.
+ * e envia e-mail de confirmação. Bloqueado enquanto as matrículas do ciclo atual estiverem abertas.
  */
 export async function POST(request: Request) {
   try {
+    if (await areSiteEnrollmentsOpen()) {
+      return jsonErr(
+        "ENROLLMENTS_OPEN",
+        "As matrículas do ciclo atual estão abertas. Use a inscrição em /inscreva.",
+        403,
+      );
+    }
+
+    const currentCycleId = await getCurrentCycleId();
+    if (!currentCycleId) {
+      return jsonErr("NO_CYCLE", "Não há ciclo cadastrado para vincular a pré-inscrição.", 400);
+    }
+
     const body = await request.json().catch(() => null);
     if (isHoneypotFilled(body as Record<string, unknown> | null)) {
       return jsonOk({ id: "ok", message: "Pré-inscrição registrada." }, { status: 201 });
@@ -68,6 +83,7 @@ export async function POST(request: Request) {
 
     const created = await prisma.nextCycleInterest.create({
       data: {
+        cycleId: currentCycleId,
         name: parsed.data.name,
         phone: parsed.data.phone,
         email: parsed.data.email,

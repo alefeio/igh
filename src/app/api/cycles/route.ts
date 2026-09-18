@@ -3,10 +3,22 @@ import { requireRole, requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { z } from "zod";
 
+const dateOnlySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.")
+  .nullable()
+  .optional()
+  .transform((v) => {
+    if (v == null || v === "") return null;
+    const [y, m, d] = v.split("-").map(Number);
+    return new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1));
+  });
+
 const createCycleSchema = z.object({
   cycle: z.number().int().positive(),
   year: z.number().int().min(2000).max(3000),
   isVisibleForEnrollments: z.boolean().optional(),
+  enrollmentDeadlineDate: dateOnlySchema,
 });
 
 export async function GET() {
@@ -15,7 +27,14 @@ export async function GET() {
   const cycles = await prisma.cycle.findMany({
     orderBy: [{ year: "desc" }, { cycle: "desc" }],
   });
-  return jsonOk({ cycles });
+  return jsonOk({
+    cycles: cycles.map((c) => ({
+      ...c,
+      enrollmentDeadlineDate: c.enrollmentDeadlineDate
+        ? c.enrollmentDeadlineDate.toISOString().slice(0, 10)
+        : null,
+    })),
+  });
 }
 
 export async function POST(request: Request) {
@@ -32,16 +51,27 @@ export async function POST(request: Request) {
         cycle: parsed.data.cycle,
         year: parsed.data.year,
         isVisibleForEnrollments: parsed.data.isVisibleForEnrollments ?? false,
+        enrollmentDeadlineDate: parsed.data.enrollmentDeadlineDate ?? null,
       },
     });
     if (cycle.isVisibleForEnrollments) {
       void import("@/lib/waitlist-new-cycle-notify")
         .then(({ notifyWaitlistStudentsOfNewCycle }) =>
-          notifyWaitlistStudentsOfNewCycle(cycle.id)
+          notifyWaitlistStudentsOfNewCycle(cycle.id),
         )
         .catch((e) => console.error("[cycle] falha ao notificar lista de espera", e));
     }
-    return jsonOk({ cycle }, { status: 201 });
+    return jsonOk(
+      {
+        cycle: {
+          ...cycle,
+          enrollmentDeadlineDate: cycle.enrollmentDeadlineDate
+            ? cycle.enrollmentDeadlineDate.toISOString().slice(0, 10)
+            : null,
+        },
+      },
+      { status: 201 },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Falha ao criar ciclo.";
     // Único por (cycle, year)
@@ -51,4 +81,3 @@ export async function POST(request: Request) {
     return jsonErr("INTERNAL_ERROR", "Falha ao criar ciclo.", 500);
   }
 }
-

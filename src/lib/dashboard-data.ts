@@ -21,7 +21,8 @@ import {
   type DashboardForumLessonActivity,
 } from "@/lib/dashboard-forum-activity";
 import { formatExperienceAvg } from "@/lib/platform-experience-feedback";
-import { countOpenPublicClassGroups } from "@/lib/public-enrollment-availability";
+import { countOpenPublicClassGroups, shouldShowNextCycleInterest } from "@/lib/public-enrollment-availability";
+import { getCurrentCycleId } from "@/lib/current-cycle";
 import type { StudentRankEntry } from "@/lib/student-gamification-ranking";
 import type {
   DashboardHolidayCalendarItem,
@@ -283,6 +284,10 @@ export type DashboardDataStudent = {
   }[];
   /** Turmas com vaga em /inscreva agora; usado para chamar o aluno sem matrícula para o novo ciclo. */
   openPublicClassGroupsCount: number;
+  /** Exibir CTAs de pré-inscrição (matrículas do ciclo atual fechadas). */
+  showNextCycleInterest: boolean;
+  /** Aluno tem matrícula ACTIVE no ciclo atual (último cadastrado). */
+  enrolledInCurrentCycle: boolean;
 };
 
 export type DashboardData = DashboardDataAdmin | DashboardDataTeacher | DashboardDataStudent;
@@ -310,6 +315,7 @@ export async function loadStudentDashboardMetrics(
         include: {
           course: { select: { id: true, name: true } },
           teacher: { select: { name: true } },
+          cycle: { select: { id: true } },
         },
       },
     },
@@ -536,8 +542,17 @@ export async function loadStudentDashboardMetrics(
     }));
 
   // Só o aluno sem matrícula vê a chamada de inscrição, então nem consultamos as vagas nos outros casos.
-  const openPublicClassGroupsCount =
-    enrollments.length === 0 ? await countOpenPublicClassGroups() : 0;
+  const [openPublicClassGroupsCount, showNextCycleInterest, currentCycleId] = await Promise.all([
+    enrollments.length === 0 ? countOpenPublicClassGroups() : Promise.resolve(0),
+    shouldShowNextCycleInterest(),
+    getCurrentCycleId(),
+  ]);
+
+  const enrolledInCurrentCycle =
+    !!currentCycleId &&
+    enrollmentsRaw.some(
+      (e) => e.status === "ACTIVE" && e.classGroup.cycleId === currentCycleId,
+    );
 
   return {
     role: "STUDENT",
@@ -561,6 +576,8 @@ export async function loadStudentDashboardMetrics(
     welcomeBanners,
     upcomingHolidayEventRegistrations,
     openPublicClassGroupsCount,
+    showNextCycleInterest,
+    enrolledInCurrentCycle,
   };
 }
 
@@ -795,6 +812,8 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
         welcomeBanners,
         upcomingHolidayEventRegistrations: [],
         openPublicClassGroupsCount: await countOpenPublicClassGroups(),
+        showNextCycleInterest: await shouldShowNextCycleInterest(),
+        enrolledInCurrentCycle: false,
       };
     }
     return loadStudentDashboardMetrics(student.id, user.id, roleLabel);

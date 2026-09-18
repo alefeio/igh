@@ -4,11 +4,17 @@ import { CalendarPlus, ChevronRight, GraduationCap } from "lucide-react";
 type EnrollmentCtaProps = {
   /** Turmas com vaga em /inscreva. Sem nenhuma, o banner só avisa que as inscrições vêm depois. */
   openClassGroupsCount: number;
+  /** Quando false (matrículas abertas), não oferece pré-inscrição. */
+  showNextCycleInterest?: boolean;
   className?: string;
 };
 
 /** Chamada de inscrição no painel do aluno que ainda não tem matrícula. */
-export function StudentEnrollmentCtaBanner({ openClassGroupsCount, className = "" }: EnrollmentCtaProps) {
+export function StudentEnrollmentCtaBanner({
+  openClassGroupsCount,
+  showNextCycleInterest = false,
+  className = "",
+}: EnrollmentCtaProps) {
   const isOpen = openClassGroupsCount > 0;
   const optionsLabel =
     openClassGroupsCount === 1
@@ -30,18 +36,24 @@ export function StudentEnrollmentCtaBanner({ openClassGroupsCount, className = "
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--igh-primary)]">
-            Novo ciclo
+            {isOpen ? "Ciclo atual" : "Próximo ciclo"}
           </p>
           <h2
             id="inscricoes-heading"
             className="mt-1 text-xl font-bold text-[var(--text-primary)] sm:text-2xl"
           >
-            {isOpen ? "Inscrições abertas para o novo ciclo" : "Inscrições do novo ciclo em breve"}
+            {isOpen
+              ? "Inscrições abertas"
+              : showNextCycleInterest
+                ? "Inscrições em breve — deixe pré-inscrição"
+                : "Inscrições do ciclo em breve"}
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--text-muted)]">
             {isOpen
-              ? `Escolha o curso e a turma que combinam com a sua rotina e garanta sua vaga. Hoje há ${optionsLabel}. Enquanto isso, você também pode deixar pré-inscrição para o próximo ciclo.`
-              : "Assim que as turmas do novo ciclo forem abertas, a inscrição aparece aqui. Enquanto isso, deixe sua pré-inscrição para ser avisado."}
+              ? `Escolha o curso e a turma que combinam com a sua rotina e garanta sua vaga. Hoje há ${optionsLabel}.`
+              : showNextCycleInterest
+                ? "Assim que as turmas do novo ciclo forem abertas, a inscrição aparece aqui. Enquanto isso, deixe sua pré-inscrição para ser avisado."
+                : "Assim que as turmas do ciclo forem abertas, a inscrição aparece aqui."}
           </p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -54,13 +66,15 @@ export function StudentEnrollmentCtaBanner({ openClassGroupsCount, className = "
               <ChevronRight className="h-4 w-4" aria-hidden />
             </Link>
           ) : null}
-          <Link
-            href="/pre-inscricao"
-            className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-[var(--igh-accent)]/50 bg-[var(--igh-accent)] px-6 py-3 text-sm font-bold text-white shadow-md transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-accent)] focus-visible:ring-offset-2 sm:w-auto"
-          >
-            Pré-inscrição
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          </Link>
+          {showNextCycleInterest ? (
+            <Link
+              href="/pre-inscricao"
+              className="inline-flex w-full items-center justify-center gap-1 rounded-xl border border-[var(--igh-accent)]/50 bg-[var(--igh-accent)] px-6 py-3 text-sm font-bold text-white shadow-md transition hover:opacity-95 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-accent)] focus-visible:ring-offset-2 sm:w-auto"
+            >
+              Pré-inscrição
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Link>
+          ) : null}
         </div>
       </div>
     </section>
@@ -71,7 +85,7 @@ type NextCycleProps = {
   className?: string;
 };
 
-/** Chamada permanente no dashboard do aluno para pré-inscrição do próximo ciclo. */
+/** Chamada no dashboard do aluno (matriculado no ciclo atual) para pré-inscrição do próximo ciclo. */
 export function StudentNextCycleInterestBanner({ className = "" }: NextCycleProps) {
   return (
     <section

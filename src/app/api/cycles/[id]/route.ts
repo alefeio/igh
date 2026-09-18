@@ -3,11 +3,23 @@ import { requireStaffWrite } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { z } from "zod";
 
+const dateOnlySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.")
+  .nullable()
+  .optional()
+  .transform((v) => {
+    if (v == null || v === "") return null;
+    const [y, m, d] = v.split("-").map(Number);
+    return new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1));
+  });
+
 const updateCycleSchema = z
   .object({
     cycle: z.number().int().positive().optional(),
     year: z.number().int().min(2000).max(3000).optional(),
     isVisibleForEnrollments: z.boolean().optional(),
+    enrollmentDeadlineDate: dateOnlySchema,
   })
   .refine((v) => Object.keys(v).length > 0, { message: "Nenhuma alteração enviada." });
 
@@ -34,6 +46,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         cycle: parsed.data.cycle,
         year: parsed.data.year,
         isVisibleForEnrollments: parsed.data.isVisibleForEnrollments,
+        ...(parsed.data.enrollmentDeadlineDate !== undefined
+          ? { enrollmentDeadlineDate: parsed.data.enrollmentDeadlineDate }
+          : {}),
       },
     });
 
@@ -44,12 +59,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       // Dispara em background para não bloquear a resposta do PATCH.
       void import("@/lib/waitlist-new-cycle-notify")
         .then(({ notifyWaitlistStudentsOfNewCycle }) =>
-          notifyWaitlistStudentsOfNewCycle(updated.id)
+          notifyWaitlistStudentsOfNewCycle(updated.id),
         )
         .catch((e) => console.error("[cycle] falha ao notificar lista de espera", e));
     }
 
-    return jsonOk({ cycle: updated });
+    return jsonOk({
+      cycle: {
+        ...updated,
+        enrollmentDeadlineDate: updated.enrollmentDeadlineDate
+          ? updated.enrollmentDeadlineDate.toISOString().slice(0, 10)
+          : null,
+      },
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Falha ao atualizar ciclo.";
     if (msg.toLowerCase().includes("record") && msg.toLowerCase().includes("not found")) {

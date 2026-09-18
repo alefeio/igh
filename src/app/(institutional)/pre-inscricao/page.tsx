@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { getTurnstileSiteKey } from "@/lib/bot-protection";
 import { BRAND } from "@/lib/brand";
 import { listCoursesFromPastCyclesForInterest } from "@/lib/next-cycle-interest";
+import { shouldShowNextCycleInterest } from "@/lib/public-enrollment-availability";
 import { Button, PageHeader, Section } from "@/components/site";
 
 import { NextCycleInterestForm } from "./NextCycleInterestForm";
@@ -13,6 +15,11 @@ export const metadata: Metadata = {
 };
 
 export default async function PreInscricaoPage() {
+  const show = await shouldShowNextCycleInterest();
+  if (!show) {
+    redirect("/inscreva");
+  }
+
   const courses = await listCoursesFromPastCyclesForInterest();
 
   return (

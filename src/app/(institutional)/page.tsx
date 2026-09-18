@@ -31,7 +31,7 @@ import {
   getPublicPlatformExperienceBlock,
   getPublicMotherCampaignMessages,
 } from "@/lib/site-data";
-import { hasVisibleEnrollmentCycle } from "@/lib/public-enrollment-availability";
+import { areSiteEnrollmentsOpen } from "@/lib/public-enrollment-availability";
 import { getPublicMultiCertifiedShowcase } from "@/lib/student-multi-certification";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { BRAND } from "@/lib/brand";
@@ -65,7 +65,7 @@ export default async function HomePage({ searchParams }: Props) {
     platformExperienceBlock,
     mothersDaySection,
     sessionUser,
-    cycleVisible,
+    enrollmentsOpen,
   ] = await Promise.all([
     getFormationsForFilter(),
     getCoursesForSite(),
@@ -79,10 +79,11 @@ export default async function HomePage({ searchParams }: Props) {
     getPublicPlatformExperienceBlock(),
     getPublicMotherCampaignMessages(18),
     getSessionUserFromCookie(),
-    hasVisibleEnrollmentCycle(),
+    areSiteEnrollmentsOpen(),
   ]);
 
-  const showPreInscricao = !cycleVisible;
+  const showPreInscricao = !enrollmentsOpen;
+  const cycleVisible = enrollmentsOpen;
 
   const recentPosts = newsPosts.slice(0, 2).map((p) => {
     let date = "";

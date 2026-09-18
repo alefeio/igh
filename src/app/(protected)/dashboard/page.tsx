@@ -775,6 +775,8 @@ function DashboardStudent({
     welcomeBanners,
     upcomingHolidayEventRegistrations,
     openPublicClassGroupsCount,
+    showNextCycleInterest,
+    enrolledInCurrentCycle,
   } = data;
   const firstName = userName?.split(/\s+/)[0] ?? "Aluno";
   // Sem matrícula, o painel vira uma chamada de inscrição: jornada, progresso e atalhos de turma
@@ -921,13 +923,17 @@ function DashboardStudent({
       accent: "from-[var(--igh-primary)] to-cyan-600",
     },
     ...(hasEnrollment ? forumQuickActions : []),
-    {
-      href: "/pre-inscricao",
-      label: "Pré-inscrição",
-      description: "Interesse no próximo ciclo",
-      icon: CalendarPlus,
-      accent: "from-orange-500 to-amber-600",
-    },
+    ...(showNextCycleInterest && (enrolledInCurrentCycle || !hasEnrollment)
+      ? [
+          {
+            href: "/pre-inscricao",
+            label: "Pré-inscrição",
+            description: "Interesse no próximo ciclo",
+            icon: CalendarPlus,
+            accent: "from-orange-500 to-amber-600",
+          },
+        ]
+      : []),
     {
       href: "/meus-dados",
       label: "Meus dados",
@@ -959,10 +965,15 @@ function DashboardStudent({
       />
 
       {hasEnrollment ? null : (
-        <StudentEnrollmentCtaBanner openClassGroupsCount={openPublicClassGroupsCount} />
+        <StudentEnrollmentCtaBanner
+          openClassGroupsCount={openPublicClassGroupsCount}
+          showNextCycleInterest={showNextCycleInterest}
+        />
       )}
 
-      {hasEnrollment ? <StudentNextCycleInterestBanner /> : null}
+      {hasEnrollment && showNextCycleInterest && enrolledInCurrentCycle ? (
+        <StudentNextCycleInterestBanner />
+      ) : null}
 
       {continueBlock ? <div className="min-w-0">{continueBlock}</div> : null}
 
