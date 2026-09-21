@@ -211,6 +211,7 @@ const ITEMS: Item[] = [
   { href: "/professor/avaliacoes-experiencia", label: "Avaliações de experiência", roles: ["TEACHER"], category: "Professor" },
 
   /* —— Pedagógico —— */
+  { href: "/admin/pedagogico", label: "Dashboard", roles: STAFF, category: "Pedagógico" },
   { href: "/teachers", label: "Professores", roles: STAFF, category: "Pedagógico" },
   { href: "/students", label: "Alunos", roles: STAFF_TEACHER_AND_POLO, category: "Pedagógico" },
   { href: "/courses", label: "Cursos", roles: STAFF_AND_TEACHER, category: "Pedagógico" },
