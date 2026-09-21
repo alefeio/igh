@@ -3,6 +3,8 @@
 import {
   BookOpen,
   ClipboardCheck,
+  FileSpreadsheet,
+  FileText,
   GraduationCap,
   Info,
   Loader2,
@@ -18,6 +20,7 @@ import {
   StatTile,
   TableShell,
 } from "@/components/dashboard/DashboardUI";
+import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Table, Td, Th } from "@/components/ui/Table";
 import type { ApiResponse } from "@/lib/api-types";
@@ -81,6 +84,21 @@ const STATUS_OPTIONS = [
 const selectClass =
   "theme-input w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm text-[var(--text-primary)]";
 
+async function downloadBlobResponse(res: Response, fallbackName: string) {
+  const blob = await res.blob();
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(cd);
+  const fileName = match?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function formatMetricValue(m: Metric): string {
   if (m.value == null) return "—";
   if (typeof m.value === "number" && m.suffix === "%") return `${m.value}${m.suffix}`;
@@ -134,7 +152,9 @@ function pctLabel(n: number | null): string {
 }
 
 export function PedagogicalDashboardClient() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<DashboardPayload | null>(null);
 
@@ -261,6 +281,39 @@ export function PedagogicalDashboardClient() {
     }
   }
 
+  async function exportReport(format: "pdf" | "xlsx") {
+    if (exporting) return;
+    if (cycleIds.length === 0 && !year && !cycleNumber) {
+      toast.push("error", "Selecione ao menos um ciclo (ou ano/número) antes de exportar.");
+      return;
+    }
+    setExporting(format);
+    const label = format === "pdf" ? "PDF" : "Excel";
+    const ext = format === "pdf" ? "pdf" : "xlsx";
+    try {
+      const qs = buildQuery();
+      const params = new URLSearchParams(qs);
+      params.set("format", format);
+      const res = await fetch(`/api/admin/pedagogico/dashboard/export?${params.toString()}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        const message =
+          json && !json.ok ? json.error.message : `Falha ao exportar o dashboard (${label}).`;
+        toast.push("error", message);
+        return;
+      }
+      await downloadBlobResponse(res, `dashboard-pedagogico.${ext}`);
+      toast.push("success", `Download do dashboard (${label}) iniciado.`);
+    } catch {
+      toast.push("error", `Falha ao exportar o dashboard (${label}).`);
+    } finally {
+      setExporting(null);
+    }
+  }
+
   const summaryPrimary = payload?.summary.filter((m) =>
     ["turmas", "alunos", "inscritos", "ocupacao", "frequencia", "formados"].includes(m.key),
   );
@@ -275,16 +328,46 @@ export function PedagogicalDashboardClient() {
         title="Dashboard"
         description="Resumo geral de ciclos, turmas, alunos, frequência e formados. Indicadores só aparecem quando há base real nos filtros — nada é inventado."
         rightSlot={
-          <Button type="button" variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-            {loading ? (
-              <>
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void exportReport("xlsx")}
+              disabled={loading || exporting != null}
+            >
+              {exporting === "xlsx" ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                Atualizando…
-              </>
-            ) : (
-              "Atualizar"
-            )}
-          </Button>
+              ) : (
+                <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden />
+              )}
+              Excel
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void exportReport("pdf")}
+              disabled={loading || exporting != null}
+            >
+              {exporting === "pdf" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <FileText className="mr-2 h-4 w-4" aria-hidden />
+              )}
+              PDF
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => void load()} disabled={loading || exporting != null}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  Atualizando…
+                </>
+              ) : (
+                "Atualizar"
+              )}
+            </Button>
+          </div>
         }
       />
 
