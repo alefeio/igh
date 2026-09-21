@@ -1,10 +1,27 @@
 import "server-only";
 
+import type { ClassGroupStatus, Prisma } from "@/generated/prisma/client";
+
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { enrollmentOccupiesSeat } from "@/lib/enrollment-seat";
 import { prisma } from "@/lib/prisma";
+
+const CLASS_GROUP_STATUSES = [
+  "PLANEJADA",
+  "ABERTA",
+  "EM_ANDAMENTO",
+  "ENCERRADA",
+  "CANCELADA",
+] as const satisfies readonly ClassGroupStatus[];
+
+function parseClassGroupStatus(value: string | null | undefined): ClassGroupStatus | null {
+  if (!value) return null;
+  return (CLASS_GROUP_STATUSES as readonly string[]).includes(value)
+    ? (value as ClassGroupStatus)
+    : null;
+}
 
 export type PedagogicalDashboardFilters = {
   /** Um ou mais ciclos. Vazio = nenhum (sem inventar totais globais misturados). */
@@ -169,30 +186,28 @@ export async function getPedagogicalDashboard(
     notes.push("Nenhum ciclo corresponde ao ano/número selecionado.");
   }
 
+  const statusFilter = parseClassGroupStatus(filters.classGroupStatus);
+  const classGroupWhere: Prisma.ClassGroupWhereInput = {
+    cycleId: { in: cycleIds },
+    // Sem status explícito, exclui canceladas; com filtro, usa exatamente o status pedido.
+    status: statusFilter ?? { not: "CANCELADA" },
+  };
+  if (filters.classGroupId) classGroupWhere.id = filters.classGroupId;
+  if (filters.courseId) classGroupWhere.courseId = filters.courseId;
+  if (filters.isExternal === true) classGroupWhere.isExternal = true;
+  else if (filters.isExternal === false) classGroupWhere.isExternal = false;
+  if (filters.teacherId) {
+    classGroupWhere.OR = [
+      { teacherId: filters.teacherId },
+      { classGroupTeachers: { some: { teacherId: filters.teacherId } } },
+    ];
+  }
+
   const classGroupsRaw =
     cycleIds.length === 0
       ? []
       : await prisma.classGroup.findMany({
-          where: {
-            cycleId: { in: cycleIds },
-            status: { not: "CANCELADA" },
-            ...(filters.classGroupId ? { id: filters.classGroupId } : {}),
-            ...(filters.courseId ? { courseId: filters.courseId } : {}),
-            ...(filters.classGroupStatus ? { status: filters.classGroupStatus } : {}),
-            ...(filters.isExternal === true
-              ? { isExternal: true }
-              : filters.isExternal === false
-                ? { isExternal: false }
-                : {}),
-            ...(filters.teacherId
-              ? {
-                  OR: [
-                    { teacherId: filters.teacherId },
-                    { classGroupTeachers: { some: { teacherId: filters.teacherId } } },
-                  ],
-                }
-              : {}),
-          },
+          where: classGroupWhere,
           select: {
             id: true,
             status: true,
