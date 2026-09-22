@@ -189,9 +189,14 @@ export async function getPedagogicalDashboard(
   const statusFilter = parseClassGroupStatus(filters.classGroupStatus);
   const classGroupWhere: Prisma.ClassGroupWhereInput = {
     cycleId: { in: cycleIds },
-    // Sem status explícito, exclui canceladas; com filtro, usa exatamente o status pedido.
-    status: statusFilter ?? { not: "CANCELADA" },
   };
+  // Sem status explícito, exclui canceladas; com filtro, usa exatamente o status pedido.
+  // Atribuição separada evita união string | { not } que o Prisma tipa de forma estrita.
+  if (statusFilter) {
+    classGroupWhere.status = statusFilter;
+  } else {
+    classGroupWhere.status = { not: "CANCELADA" };
+  }
   if (filters.classGroupId) classGroupWhere.id = filters.classGroupId;
   if (filters.courseId) classGroupWhere.courseId = filters.courseId;
   if (filters.isExternal === true) classGroupWhere.isExternal = true;
