@@ -108,6 +108,12 @@ export function ProfessorTurmasTabs() {
       const cd = res.headers.get("Content-Disposition") ?? "";
       const match = /filename="([^"]+)"/.exec(cd);
       const fileName = match?.[1] ?? `certificados-${cg.id.slice(0, 8)}.zip`;
+      const fileCount = Number.parseInt(res.headers.get("X-Certificate-File-Count") ?? "", 10);
+      const expectedCount = Number.parseInt(
+        res.headers.get("X-Certificate-Expected-Count") ?? "",
+        10,
+      );
+      const errorCount = Number.parseInt(res.headers.get("X-Certificate-Errors") ?? "0", 10);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -116,7 +122,20 @@ export function ProfessorTurmasTabs() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.push("success", "Download dos certificados iniciado.");
+      if (
+        Number.isFinite(fileCount) &&
+        Number.isFinite(expectedCount) &&
+        (errorCount > 0 || fileCount < expectedCount)
+      ) {
+        toast.push(
+          "error",
+          `ZIP baixado com ${fileCount} de ${expectedCount} certificados. Veja falhas.txt dentro do arquivo.`,
+        );
+      } else if (Number.isFinite(fileCount) && fileCount > 0) {
+        toast.push("success", `Download iniciado: ${fileCount} certificado(s) no ZIP.`);
+      } else {
+        toast.push("success", "Download dos certificados iniciado.");
+      }
     } catch {
       toast.push("error", "Falha ao baixar certificados.");
     } finally {

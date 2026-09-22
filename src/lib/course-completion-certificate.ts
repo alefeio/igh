@@ -31,6 +31,29 @@ const BACK_TEMPLATE_PATH = path.join(CERTIFICATE_TEMPLATE_DIR, "course-completio
 const FONT_REGULAR_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Regular.ttf");
 const FONT_BOLD_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Bold.ttf");
 
+/** Cache em memória dos templates/fontes — o ZIP regenera dezenas de PDFs por request. */
+let cachedFrontTemplate: Buffer | null = null;
+let cachedBackTemplate: Buffer | null = null;
+let cachedFontRegular: Buffer | null = null;
+let cachedFontBold: Buffer | null = null;
+
+function readFrontTemplate(): Buffer {
+  if (!cachedFrontTemplate) cachedFrontTemplate = fs.readFileSync(FRONT_TEMPLATE_PATH);
+  return cachedFrontTemplate;
+}
+function readBackTemplate(): Buffer {
+  if (!cachedBackTemplate) cachedBackTemplate = fs.readFileSync(BACK_TEMPLATE_PATH);
+  return cachedBackTemplate;
+}
+function readFontRegular(): Buffer {
+  if (!cachedFontRegular) cachedFontRegular = fs.readFileSync(FONT_REGULAR_PATH);
+  return cachedFontRegular;
+}
+function readFontBold(): Buffer {
+  if (!cachedFontBold) cachedFontBold = fs.readFileSync(FONT_BOLD_PATH);
+  return cachedFontBold;
+}
+
 function formatCertificateDatePtBr(date: Date): string {
   const months = [
     "Janeiro",
@@ -143,15 +166,45 @@ async function embedRemoteImage(pdfDoc: PDFDocument, url: string | null | undefi
     if (!imgRes.ok) return null;
     const contentType = imgRes.headers.get("content-type") ?? "";
     const bytes = new Uint8Array(await imgRes.arrayBuffer());
+    return embedImageBytes(pdfDoc, bytes, contentType);
+  } catch {
+    // ignora falha ao carregar assinatura
+  }
+  return null;
+}
+
+/** Embed PNG/JPEG a partir de bytes já baixados (evita N fetches no ZIP da turma). */
+export async function embedImageBytes(
+  pdfDoc: PDFDocument,
+  bytes: Uint8Array,
+  contentType = "",
+): Promise<PDFImage | null> {
+  try {
     const isPng = contentType.includes("png") || (bytes[0] === 0x89 && bytes[1] === 0x50);
     const isJpeg =
       contentType.includes("jpeg") || contentType.includes("jpg") || (bytes[0] === 0xff && bytes[1] === 0xd8);
     if (isPng) return pdfDoc.embedPng(bytes);
     if (isJpeg) return pdfDoc.embedJpg(bytes);
   } catch {
-    // ignora falha ao carregar assinatura
+    return null;
   }
   return null;
+}
+
+/** Baixa a assinatura uma vez para reutilizar em todos os PDFs do lote. */
+export async function fetchCertificateSignatureBytes(
+  url: string | null | undefined,
+): Promise<{ bytes: Uint8Array; contentType: string } | null> {
+  if (!url?.startsWith("http")) return null;
+  try {
+    const imgRes = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!imgRes.ok) return null;
+    const contentType = imgRes.headers.get("content-type") ?? "";
+    const bytes = new Uint8Array(await imgRes.arrayBuffer());
+    return { bytes, contentType };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -240,7 +293,13 @@ async function drawBackPage(
     if (moduleY < 80) break;
   }
 
-  const signatureImage = await embedRemoteImage(pdfDoc, input.teacherSignatureUrl);
+  const signatureImage = input.teacherSignatureBytes
+    ? await embedImageBytes(
+        pdfDoc,
+        input.teacherSignatureBytes.bytes,
+        input.teacherSignatureBytes.contentType,
+      )
+    : await embedRemoteImage(pdfDoc, input.teacherSignatureUrl);
   if (signatureImage) {
     const box = BACK_LAYOUT.teacherSignature;
     const dims = signatureImage.scale(1);
@@ -273,6 +332,8 @@ export type CourseCompletionCertificateInput = {
   moduleTitles: string[];
   teacherName: string;
   teacherSignatureUrl: string | null;
+  /** Bytes pré-baixados da assinatura (ZIP em lote). */
+  teacherSignatureBytes?: { bytes: Uint8Array; contentType: string } | null;
   issuedAt: Date;
   /** Cidade no verso (ex.: "Brasília"). */
   issueCity?: string | null;
@@ -295,9 +356,9 @@ export async function generateCourseCompletionCertificatePdfBytes(
 ): Promise<Uint8Array> {
   const pagesMode: CertificateZipPages = options?.pages === "front" ? "front" : "both";
 
-  const frontBytes = fs.readFileSync(FRONT_TEMPLATE_PATH);
-  const fontRegularBytes = fs.readFileSync(FONT_REGULAR_PATH);
-  const fontBoldBytes = fs.readFileSync(FONT_BOLD_PATH);
+  const frontBytes = readFrontTemplate();
+  const fontRegularBytes = readFontRegular();
+  const fontBoldBytes = readFontBold();
 
   if (pagesMode === "front") {
     const pdfDoc = await PDFDocument.load(frontBytes);
@@ -312,7 +373,7 @@ export async function generateCourseCompletionCertificatePdfBytes(
     return pdfDoc.save();
   }
 
-  const backBytes = fs.readFileSync(BACK_TEMPLATE_PATH);
+  const backBytes = readBackTemplate();
   const frontSrc = await PDFDocument.load(frontBytes);
   const backSrc = await PDFDocument.load(backBytes);
   if (frontSrc.getPageCount() < 1 || backSrc.getPageCount() < 1) {

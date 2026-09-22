@@ -10,6 +10,8 @@ import {
 import { jsonErr } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
+export const maxDuration = 300;
+
 type RouteCtx = { params: Promise<{ id: string }> };
 
 /**
@@ -55,7 +57,10 @@ export async function GET(request: Request, ctx: RouteCtx) {
 
     if (!classGroup) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
 
-    const { zipBytes, errors, fileCount } = await buildClassGroupCertificatesZip(classGroupId, pages);
+    const { zipBytes, errors, fileCount, expectedCount } = await buildClassGroupCertificatesZip(
+      classGroupId,
+      pages,
+    );
 
     if (fileCount === 0) {
       return jsonErr(
@@ -71,7 +76,7 @@ export async function GET(request: Request, ctx: RouteCtx) {
     const cycleLabel = `${classGroup.cycle.cycle}-${classGroup.cycle.year}`;
     const zipName = `certificados-${courseSlug}-${cycleLabel}.zip`;
 
-    return zipResponse(zipBytes, zipName, errors);
+    return zipResponse(zipBytes, zipName, errors, { fileCount, expectedCount });
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;

@@ -7,6 +7,8 @@ import {
 } from "@/lib/course-certificates-zip";
 import { jsonErr } from "@/lib/http";
 
+export const maxDuration = 300;
+
 /**
  * ZIP externo com um .zip por turma selecionada (cada um com PDFs nome-do-aluno.pdf).
  * Body: { classGroupIds: string[], pages?: "front" | "both" }
@@ -29,10 +31,8 @@ export async function POST(request: Request) {
       return jsonErr("VALIDATION_ERROR", "Selecione ao menos uma turma.", 400);
     }
 
-    const { zipBytes, errors, fileCount } = await buildMultiClassGroupCertificatesZipBundle(
-      classGroupIds,
-      pages,
-    );
+    const { zipBytes, errors, fileCount, expectedCount } =
+      await buildMultiClassGroupCertificatesZipBundle(classGroupIds, pages);
 
     if (fileCount === 0) {
       return jsonErr(
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     }
 
     const zipName = `certificados-${classGroupIds.length}-turmas.zip`;
-    return zipResponse(zipBytes, zipName, errors);
+    return zipResponse(zipBytes, zipName, errors, { fileCount, expectedCount });
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;

@@ -201,6 +201,29 @@ async function downloadBlobResponse(res: Response, fallbackName: string) {
   URL.revokeObjectURL(url);
 }
 
+function certificateZipToastMessage(res: Response, fallbackSuccess: string): {
+  tone: "success" | "error";
+  message: string;
+} {
+  const fileCount = Number.parseInt(res.headers.get("X-Certificate-File-Count") ?? "", 10);
+  const expectedCount = Number.parseInt(res.headers.get("X-Certificate-Expected-Count") ?? "", 10);
+  const errorCount = Number.parseInt(res.headers.get("X-Certificate-Errors") ?? "0", 10);
+  if (
+    Number.isFinite(fileCount) &&
+    Number.isFinite(expectedCount) &&
+    (errorCount > 0 || fileCount < expectedCount)
+  ) {
+    return {
+      tone: "error",
+      message: `ZIP baixado com ${fileCount} de ${expectedCount} certificados. Veja falhas.txt (ou resumo-cursos.txt) dentro do arquivo.`,
+    };
+  }
+  if (Number.isFinite(fileCount) && fileCount > 0) {
+    return { tone: "success", message: `Download iniciado: ${fileCount} certificado(s) no ZIP.` };
+  }
+  return { tone: "success", message: fallbackSuccess };
+}
+
 export default function ClassGroupsPage() {
   const toast = useToast();
   const user = useUser();
@@ -806,7 +829,8 @@ export default function ClassGroupsPage() {
         return;
       }
       await downloadBlobResponse(res, `certificados-${cg.id.slice(0, 8)}.zip`);
-      toast.push("success", "Download dos certificados iniciado.");
+      const feedback = certificateZipToastMessage(res, "Download dos certificados iniciado.");
+      toast.push(feedback.tone, feedback.message);
     } catch {
       toast.push("error", "Falha ao baixar certificados.");
     } finally {
@@ -879,7 +903,8 @@ export default function ClassGroupsPage() {
           return;
         }
         await downloadBlobResponse(res, `certificados-turma.zip`);
-        toast.push("success", "Download dos certificados iniciado.");
+        const feedback = certificateZipToastMessage(res, "Download dos certificados iniciado.");
+        toast.push(feedback.tone, feedback.message);
         return;
       }
       const res = await fetch("/api/class-groups/certificates-zip", {
@@ -894,7 +919,11 @@ export default function ClassGroupsPage() {
         return;
       }
       await downloadBlobResponse(res, `certificados-selecionadas-${ids.length}-turmas.zip`);
-      toast.push("success", "Download dos certificados selecionados iniciado.");
+      const feedback = certificateZipToastMessage(
+        res,
+        "Download dos certificados selecionados iniciado.",
+      );
+      toast.push(feedback.tone, feedback.message);
     } catch {
       toast.push("error", "Falha ao baixar certificados selecionados.");
     } finally {
@@ -1300,10 +1329,11 @@ export default function ClassGroupsPage() {
                             res,
                             `certificados-ciclo-${c.cycle}-${c.year}.zip`,
                           );
-                          toast.push(
-                            "success",
+                          const feedback = certificateZipToastMessage(
+                            res,
                             "Download iniciado: o ZIP contém um arquivo .zip por curso e o resumo-cursos.txt. Só entram alunos com Certificado = Sim.",
                           );
+                          toast.push(feedback.tone, feedback.message);
                         } catch {
                           toast.push("error", "Falha ao baixar certificados do ciclo.");
                         } finally {
