@@ -2,44 +2,269 @@ import "server-only";
 
 import JSZip from "jszip";
 
+import { resolveCertificateIssuedAt } from "@/lib/course-certificate-eligibility";
 import {
   parseCertificateZipPages,
   studentCertificatePdfFileName,
   slugPart,
   type CertificateZipPages,
 } from "@/lib/course-certificate-pdf-naming";
+import {
+  fetchCertificateSignatureBytes,
+  generateCourseCompletionCertificatePdfBytes,
+  type CourseCompletionCertificateInput,
+} from "@/lib/course-completion-certificate";
+import { resolveCertificateIssuePlace } from "@/lib/certificate-issue-place";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
-import { generateEnrollmentCertificatePdf } from "@/lib/ensure-enrollment-certificate";
 import { prisma } from "@/lib/prisma";
 
 export type { CertificateZipPages };
 export { parseCertificateZipPages, slugPart, studentCertificatePdfFileName };
 
-type EnrollmentRow = { id: string; student: { name: string } };
+type EnrollmentRow = {
+  id: string;
+  student: { name: string };
+  certificateUrl?: string | null;
+  certificateIssuedAt?: Date | null;
+  status?: string;
+  updatedAt?: Date;
+};
 
 const ENROLLMENT_STATUSES = ["ACTIVE", "COMPLETED", "SUSPENDED"] as const;
+
+/** Quantos PDFs gerar em paralelo no ZIP (equilíbrio entre latência e memória). */
+const CERTIFICATE_ZIP_CONCURRENCY = 3;
+
+type SharedCourseCertificateContext = {
+  courseName: string;
+  workloadHours: number | null;
+  moduleTitles: string[];
+  teacherName: string;
+  teacherSignatureUrl: string | null;
+  teacherSignatureBytes: { bytes: Uint8Array; contentType: string } | null;
+  classGroupEndDate: Date | null;
+  issueCity: string;
+  issueCityState: string;
+};
+
+async function loadSharedCourseCertificateContext(
+  classGroupId: string,
+): Promise<SharedCourseCertificateContext> {
+  const classGroup = await prisma.classGroup.findUnique({
+    where: { id: classGroupId },
+    select: {
+      endDate: true,
+      course: {
+        select: {
+          id: true,
+          name: true,
+          workloadHours: true,
+          modules: { orderBy: { order: "asc" }, select: { title: true } },
+        },
+      },
+      teacher: { select: { name: true, signatureUrl: true } },
+      poloLocation: { select: { city: true, state: true } },
+    },
+  });
+  if (!classGroup) throw new Error("Turma não encontrada.");
+
+  // Cidade: polo → site → env (mesma ordem de resolveCertificateIssuePlace, sem N queries).
+  let issueCity = classGroup.poloLocation?.city?.trim() ?? "";
+  let issueState = classGroup.poloLocation?.state?.trim() ?? "";
+  if (!issueCity && !issueState) {
+    const settings = await prisma.siteSettings.findFirst({
+      select: { certificateCity: true, certificateCityState: true },
+    });
+    issueCity = settings?.certificateCity?.trim() ?? "";
+    issueState = settings?.certificateCityState?.trim() ?? "";
+  }
+  if (!issueCity && !issueState) {
+    issueCity = process.env.CERTIFICATE_CITY?.trim() ?? "";
+    issueState = process.env.CERTIFICATE_CITY_STATE?.trim() ?? "";
+  }
+  const issueCityState =
+    issueCity && issueState ? `${issueCity}/${issueState}` : issueCity || issueState || "";
+
+  const teacherSignatureUrl = classGroup.teacher.signatureUrl;
+  const teacherSignatureBytes = await fetchCertificateSignatureBytes(teacherSignatureUrl);
+
+  return {
+    courseName: classGroup.course.name,
+    workloadHours: classGroup.course.workloadHours,
+    moduleTitles: classGroup.course.modules.map((m) => m.title).filter(Boolean),
+    teacherName: classGroup.teacher.name,
+    teacherSignatureUrl,
+    teacherSignatureBytes,
+    classGroupEndDate: classGroup.endDate,
+    issueCity,
+    issueCityState,
+  };
+}
+
+async function fetchCachedCertificatePdf(url: string): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) return null;
+    return new Uint8Array(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Gera (ou reutiliza cache) o PDF de um aluno usando o contexto compartilhado da turma.
+ * Evita recarregar módulos/aulas e a assinatura a cada matrícula.
+ */
+async function generateCertificateForZipRow(
+  row: EnrollmentRow,
+  shared: SharedCourseCertificateContext,
+  pages: CertificateZipPages,
+): Promise<{ pdfBytes: Uint8Array; studentName: string }> {
+  const studentName = row.student.name?.trim() || "Aluno";
+
+  // Cache só cobre frente+verso; modo "front" precisa regenerar.
+  if (pages === "both" && row.certificateUrl) {
+    const cached = await fetchCachedCertificatePdf(row.certificateUrl);
+    if (cached) return { pdfBytes: cached, studentName };
+  }
+
+  const issuedAt = resolveCertificateIssuedAt({
+    certificateIssuedAt: row.certificateIssuedAt ?? null,
+    status: row.status ?? "ACTIVE",
+    updatedAt: row.updatedAt ?? new Date(),
+    classGroupEndDate: shared.classGroupEndDate,
+  });
+
+  const input: CourseCompletionCertificateInput = {
+    studentName,
+    courseName: shared.courseName,
+    workloadHours: shared.workloadHours,
+    moduleTitles: shared.moduleTitles,
+    teacherName: shared.teacherName,
+    teacherSignatureUrl: shared.teacherSignatureUrl,
+    teacherSignatureBytes: shared.teacherSignatureBytes,
+    issuedAt,
+    issueCity: shared.issueCity,
+    issueCityState: shared.issueCityState,
+  };
+
+  const pdfBytes = await generateCourseCompletionCertificatePdfBytes(input, { pages });
+  return { pdfBytes, studentName };
+}
+
+async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function run() {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await worker(items[index]!, index);
+    }
+  }
+  const runners = Array.from({ length: Math.min(concurrency, Math.max(items.length, 1)) }, () =>
+    run(),
+  );
+  await Promise.all(runners);
+  return results;
+}
 
 export async function addEnrollmentCertificatesToZip(
   zip: JSZip,
   enrollments: EnrollmentRow[],
   pages: CertificateZipPages,
   errors: string[],
+  sharedByClassGroupId?: Map<string, SharedCourseCertificateContext>,
+  classGroupIdForAll?: string,
 ): Promise<number> {
   const usedNames = new Set<string>();
   let added = 0;
-  for (const row of enrollments) {
+
+  // Quando todas as matrículas são da mesma turma, carrega o contexto uma vez.
+  let shared: SharedCourseCertificateContext | null = null;
+  if (classGroupIdForAll) {
+    shared =
+      sharedByClassGroupId?.get(classGroupIdForAll) ??
+      (await loadSharedCourseCertificateContext(classGroupIdForAll));
+    sharedByClassGroupId?.set(classGroupIdForAll, shared);
+  }
+
+  const outcomes = await mapPool(enrollments, CERTIFICATE_ZIP_CONCURRENCY, async (row) => {
     try {
-      const generated = await generateEnrollmentCertificatePdf(row.id, { pages });
-      const fileName = studentCertificatePdfFileName(
-        row.student.name || generated.studentName,
-        usedNames,
-      );
-      zip.file(fileName, generated.pdfBytes);
-      added += 1;
+      let ctx = shared;
+      if (!ctx) {
+        // Fallback legado (chamadas avulsas): resolve lugar por matrícula.
+        const place = await resolveCertificateIssuePlace(row.id);
+        const enrollment = await prisma.enrollment.findUnique({
+          where: { id: row.id },
+          select: {
+            certificateIssuedAt: true,
+            status: true,
+            updatedAt: true,
+            classGroupId: true,
+            classGroup: {
+              select: {
+                endDate: true,
+                course: {
+                  select: {
+                    name: true,
+                    workloadHours: true,
+                    modules: { orderBy: { order: "asc" }, select: { title: true } },
+                  },
+                },
+                teacher: { select: { name: true, signatureUrl: true } },
+              },
+            },
+          },
+        });
+        if (!enrollment) throw new Error("Matrícula não encontrada.");
+        ctx = {
+          courseName: enrollment.classGroup.course.name,
+          workloadHours: enrollment.classGroup.course.workloadHours,
+          moduleTitles: enrollment.classGroup.course.modules.map((m) => m.title),
+          teacherName: enrollment.classGroup.teacher.name,
+          teacherSignatureUrl: enrollment.classGroup.teacher.signatureUrl,
+          teacherSignatureBytes: await fetchCertificateSignatureBytes(
+            enrollment.classGroup.teacher.signatureUrl,
+          ),
+          classGroupEndDate: enrollment.classGroup.endDate,
+          issueCity: place.city,
+          issueCityState: place.cityState,
+        };
+        row = {
+          ...row,
+          certificateIssuedAt: enrollment.certificateIssuedAt,
+          status: enrollment.status,
+          updatedAt: enrollment.updatedAt,
+        };
+      }
+      const generated = await generateCertificateForZipRow(row, ctx, pages);
+      return { ok: true as const, row, generated };
     } catch (e) {
-      const name = row.student.name || row.id;
-      errors.push(`${name}: ${e instanceof Error ? e.message : "falha"}`);
+      return {
+        ok: false as const,
+        row,
+        message: e instanceof Error ? e.message : "falha",
+      };
     }
+  });
+
+  for (const outcome of outcomes) {
+    if (!outcome.ok) {
+      const name = outcome.row.student.name || outcome.row.id;
+      errors.push(`${name}: ${outcome.message}`);
+      continue;
+    }
+    const fileName = studentCertificatePdfFileName(
+      outcome.row.student.name || outcome.generated.studentName,
+      usedNames,
+    );
+    zip.file(fileName, outcome.generated.pdfBytes);
+    added += 1;
   }
   return added;
 }
@@ -69,11 +294,26 @@ async function prepareCertificateEligibilityForClassGroups(classGroupIds: string
   return { syncedFromAttendance: enabledIds.length };
 }
 
+function appendFailuresFile(zip: JSZip, errors: string[], expected: number, added: number) {
+  if (errors.length === 0 && added === expected) return;
+  const lines = [
+    `Aptos (certificateEligible): ${expected}`,
+    `Incluídos no ZIP: ${added}`,
+    `Falhas: ${errors.length}`,
+    "",
+  ];
+  if (errors.length > 0) {
+    lines.push("Detalhes:");
+    for (const err of errors) lines.push(`- ${err}`);
+  }
+  zip.file("falhas.txt", lines.join("\n") + "\n");
+}
+
 /** ZIP único com PDFs na raiz (uma turma). */
 export async function buildClassGroupCertificatesZip(
   classGroupId: string,
   pages: CertificateZipPages,
-): Promise<{ zipBytes: Uint8Array; errors: string[]; fileCount: number }> {
+): Promise<{ zipBytes: Uint8Array; errors: string[]; fileCount: number; expectedCount: number }> {
   await prepareCertificateEligibilityForClassGroups([classGroupId]);
 
   const enrollments = await prisma.enrollment.findMany({
@@ -83,22 +323,38 @@ export async function buildClassGroupCertificatesZip(
       isPreEnrollment: false,
       certificateEligible: true,
     },
-    select: { id: true, student: { select: { name: true } } },
+    select: {
+      id: true,
+      status: true,
+      updatedAt: true,
+      certificateUrl: true,
+      certificateIssuedAt: true,
+      student: { select: { name: true } },
+    },
     orderBy: { student: { name: "asc" } },
   });
 
   const zip = new JSZip();
   const errors: string[] = [];
-  const fileCount = await addEnrollmentCertificatesToZip(zip, enrollments, pages, errors);
+  const sharedCache = new Map<string, SharedCourseCertificateContext>();
+  const fileCount = await addEnrollmentCertificatesToZip(
+    zip,
+    enrollments,
+    pages,
+    errors,
+    sharedCache,
+    classGroupId,
+  );
+  appendFailuresFile(zip, errors, enrollments.length, fileCount);
   const zipBytes = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
-  return { zipBytes, errors, fileCount };
+  return { zipBytes, errors, fileCount, expectedCount: enrollments.length };
 }
 
 /** ZIP externo com um ZIP interno por curso (ciclo). */
 export async function buildCycleCertificatesZipBundle(
   cycleId: string,
   pages: CertificateZipPages,
-): Promise<{ zipBytes: Uint8Array; errors: string[]; fileCount: number }> {
+): Promise<{ zipBytes: Uint8Array; errors: string[]; fileCount: number; expectedCount: number }> {
   const classGroups = await prisma.classGroup.findMany({
     where: { cycleId, status: { not: "CANCELADA" } },
     select: {
@@ -123,6 +379,10 @@ export async function buildCycleCertificatesZipBundle(
       id: true,
       classGroupId: true,
       certificateEligible: true,
+      certificateUrl: true,
+      certificateIssuedAt: true,
+      status: true,
+      updatedAt: true,
       student: { select: { name: true } },
     },
     orderBy: [{ student: { name: "asc" } }],
@@ -132,13 +392,12 @@ export async function buildCycleCertificatesZipBundle(
     courseId: string;
     courseName: string;
     totalEnrollments: number;
-    eligibleRows: EnrollmentRow[];
+    eligibleRows: Array<EnrollmentRow & { classGroupId: string }>;
   };
 
   const byCourse = new Map<string, CourseBucket>();
   const cgToCourse = new Map(classGroups.map((cg) => [cg.id, cg.course]));
 
-  // Garante uma entrada por curso presente no ciclo (mesmo sem aptos).
   for (const cg of classGroups) {
     if (!byCourse.has(cg.course.id)) {
       byCourse.set(cg.course.id, {
@@ -157,14 +416,16 @@ export async function buildCycleCertificatesZipBundle(
     if (!bucket) continue;
     bucket.totalEnrollments += 1;
     if (row.certificateEligible) {
-      bucket.eligibleRows.push({ id: row.id, student: row.student });
+      bucket.eligibleRows.push(row);
     }
   }
 
   const outer = new JSZip();
   const errors: string[] = [];
   let fileCount = 0;
+  let expectedCount = 0;
   const usedZipNames = new Set<string>();
+  const sharedCache = new Map<string, SharedCourseCertificateContext>();
   const summaryLines: string[] = [
     "Certificados por curso neste pacote:",
     `(Liberados automaticamente por frequência ≥70%: ${prep.syncedFromAttendance})`,
@@ -175,6 +436,7 @@ export async function buildCycleCertificatesZipBundle(
     a[1].courseName.localeCompare(b[1].courseName, "pt-BR"),
   )) {
     const eligibleCount = bucket.eligibleRows.length;
+    expectedCount += eligibleCount;
     if (eligibleCount === 0) {
       summaryLines.push(
         `- ${bucket.courseName}: 0 certificado(s) | ${bucket.totalEnrollments} matrícula(s) | nenhum aluno apto (flag Certificado)`,
@@ -183,7 +445,24 @@ export async function buildCycleCertificatesZipBundle(
     }
 
     const inner = new JSZip();
-    const added = await addEnrollmentCertificatesToZip(inner, bucket.eligibleRows, pages, errors);
+    // Agrupa por turma para reaproveitar o contexto compartilhado.
+    const byCg = new Map<string, EnrollmentRow[]>();
+    for (const row of bucket.eligibleRows) {
+      const list = byCg.get(row.classGroupId) ?? [];
+      list.push(row);
+      byCg.set(row.classGroupId, list);
+    }
+    let added = 0;
+    for (const [cgId, rows] of byCg) {
+      added += await addEnrollmentCertificatesToZip(
+        inner,
+        rows,
+        pages,
+        errors,
+        sharedCache,
+        cgId,
+      );
+    }
     if (added === 0) {
       summaryLines.push(
         `- ${bucket.courseName}: 0 gerado(s) de ${eligibleCount} apto(s) | ${bucket.totalEnrollments} matrícula(s)`,
@@ -222,14 +501,14 @@ export async function buildCycleCertificatesZipBundle(
   outer.file("resumo-cursos.txt", summaryLines.join("\n") + "\n");
 
   const zipBytes = await outer.generateAsync({ type: "uint8array", compression: "DEFLATE" });
-  return { zipBytes, errors, fileCount };
+  return { zipBytes, errors, fileCount, expectedCount };
 }
 
 /** ZIP externo com um ZIP interno por turma (várias turmas selecionadas). */
 export async function buildMultiClassGroupCertificatesZipBundle(
   classGroupIds: string[],
   pages: CertificateZipPages,
-): Promise<{ zipBytes: Uint8Array; errors: string[]; fileCount: number }> {
+): Promise<{ zipBytes: Uint8Array; errors: string[]; fileCount: number; expectedCount: number }> {
   const classGroups = await prisma.classGroup.findMany({
     where: { id: { in: classGroupIds }, status: { not: "CANCELADA" } },
     select: {
@@ -253,6 +532,10 @@ export async function buildMultiClassGroupCertificatesZipBundle(
     select: {
       id: true,
       classGroupId: true,
+      certificateUrl: true,
+      certificateIssuedAt: true,
+      status: true,
+      updatedAt: true,
       student: { select: { name: true } },
     },
     orderBy: [{ student: { name: "asc" } }],
@@ -268,13 +551,22 @@ export async function buildMultiClassGroupCertificatesZipBundle(
   const outer = new JSZip();
   const errors: string[] = [];
   let fileCount = 0;
+  const expectedCount = enrollments.length;
   const usedZipNames = new Set<string>();
+  const sharedCache = new Map<string, SharedCourseCertificateContext>();
 
   for (const cg of classGroups) {
     const rows = byCg.get(cg.id) ?? [];
     if (rows.length === 0) continue;
     const inner = new JSZip();
-    const added = await addEnrollmentCertificatesToZip(inner, rows, pages, errors);
+    const added = await addEnrollmentCertificatesToZip(
+      inner,
+      rows,
+      pages,
+      errors,
+      sharedCache,
+      cg.id,
+    );
     if (added === 0) continue;
     fileCount += added;
     const innerBytes = await inner.generateAsync({ type: "uint8array", compression: "DEFLATE" });
@@ -290,16 +582,25 @@ export async function buildMultiClassGroupCertificatesZipBundle(
   }
 
   const zipBytes = await outer.generateAsync({ type: "uint8array", compression: "DEFLATE" });
-  return { zipBytes, errors, fileCount };
+  return { zipBytes, errors, fileCount, expectedCount };
 }
 
-export function zipResponse(zipBytes: Uint8Array, zipName: string, errors: string[]): Response {
+export function zipResponse(
+  zipBytes: Uint8Array,
+  zipName: string,
+  errors: string[],
+  meta?: { fileCount?: number; expectedCount?: number },
+): Response {
   return new Response(Buffer.from(zipBytes), {
     status: 200,
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${zipName}"`,
       "Cache-Control": "private, no-store",
+      ...(meta?.fileCount != null ? { "X-Certificate-File-Count": String(meta.fileCount) } : {}),
+      ...(meta?.expectedCount != null
+        ? { "X-Certificate-Expected-Count": String(meta.expectedCount) }
+        : {}),
       ...(errors.length ? { "X-Certificate-Errors": String(errors.length) } : {}),
     },
   });

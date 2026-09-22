@@ -8,6 +8,8 @@ import {
 import { jsonErr } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
+export const maxDuration = 300;
+
 type RouteCtx = { params: Promise<{ id: string }> };
 
 /**
@@ -26,7 +28,10 @@ export async function GET(request: Request, ctx: RouteCtx) {
     });
     if (!cycle) return jsonErr("NOT_FOUND", "Ciclo não encontrado.", 404);
 
-    const { zipBytes, errors, fileCount } = await buildCycleCertificatesZipBundle(cycleId, pages);
+    const { zipBytes, errors, fileCount, expectedCount } = await buildCycleCertificatesZipBundle(
+      cycleId,
+      pages,
+    );
 
     if (fileCount === 0) {
       return jsonErr(
@@ -39,7 +44,7 @@ export async function GET(request: Request, ctx: RouteCtx) {
     }
 
     const zipName = `certificados-ciclo-${cycle.cycle}-${cycle.year}.zip`;
-    return zipResponse(zipBytes, zipName, errors);
+    return zipResponse(zipBytes, zipName, errors, { fileCount, expectedCount });
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;
