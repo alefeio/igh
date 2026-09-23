@@ -6,6 +6,10 @@ import * as XLSX from "xlsx";
 
 import { StudentForm } from "@/components/students/StudentForm";
 import { EnrollmentWaitlistPanel } from "@/components/enrollments/EnrollmentWaitlistPanel";
+import {
+  EnrollmentSuccessModal,
+  type EnrollmentSuccessPayload,
+} from "@/components/enrollments/EnrollmentSuccessModal";
 import { buildEnrollmentPdfBlob } from "@/lib/enrollment-pdf";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
@@ -299,6 +303,10 @@ export default function EnrollmentsPage() {
   const [referrer, setReferrer] = useState<ReferrerOption | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [successEnrollment, setSuccessEnrollment] = useState<EnrollmentSuccessPayload | null>(null);
+  const [successEmailSent, setSuccessEmailSent] = useState(false);
+  const [successStudentHadNoEmail, setSuccessStudentHadNoEmail] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportExcelOpen, setExportExcelOpen] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -1231,21 +1239,66 @@ export default function EnrollmentsPage() {
         return;
       }
       const emailSent = json.data.emailSent;
-      const studentHadNoEmail = json.data.studentHadNoEmail;
-      toast.push(
-        "success",
-        emailSent
-          ? "Matrícula criada. E-mail de boas-vindas enviado ao aluno."
-          : studentHadNoEmail
-            ? "Matrícula criada. Aluno sem e-mail; link de confirmação não enviado."
-            : "Matrícula criada. E-mail não foi enviado (verifique configuração)."
-      );
+      const studentHadNoEmail = Boolean(json.data.studentHadNoEmail);
+      const created = json.data.enrollment;
       setOpen(false);
       setReferrer(null);
+      setClassGroupId("");
+      if (created?.student?.id) {
+        setStudents((prev) =>
+          prev.some((s) => s.id === created.student.id)
+            ? prev
+            : [
+                ...prev,
+                {
+                  id: created.student.id,
+                  name: created.student.name,
+                  email: created.student.email,
+                  phone: created.student.phone ?? null,
+                },
+              ],
+        );
+        setSuccessEnrollment(created as EnrollmentSuccessPayload);
+        setSuccessEmailSent(emailSent);
+        setSuccessStudentHadNoEmail(studentHadNoEmail);
+        setSuccessOpen(true);
+      } else {
+        toast.push(
+          "success",
+          emailSent
+            ? "Matrícula criada. E-mail de boas-vindas enviado ao aluno."
+            : studentHadNoEmail
+              ? "Matrícula criada. Aluno sem e-mail; link de confirmação não enviado."
+              : "Matrícula criada. E-mail não foi enviado (verifique configuração).",
+        );
+      }
       await load();
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function closeSuccessModal() {
+    setSuccessOpen(false);
+    setSuccessEnrollment(null);
+  }
+
+  function enrollSameStudentAnotherClass() {
+    const student = successEnrollment?.student;
+    closeSuccessModal();
+    if (!student) return;
+    setStudentId(student.id);
+    setStudents((prev) =>
+      prev.some((s) => s.id === student.id)
+        ? prev
+        : [...prev, { id: student.id, name: student.name, email: student.email, phone: student.phone ?? null }],
+    );
+    setClassGroupId("");
+    setReferrer(null);
+    setStudentSearchQuery("");
+    setStudentDropdownOpen(false);
+    setOpen(true);
+    void loadFormOptions();
   }
 
   async function submitEdit(e: React.FormEvent) {
@@ -2621,6 +2674,15 @@ export default function EnrollmentsPage() {
           isMaster={isMaster}
         />
       </Modal>
+
+      <EnrollmentSuccessModal
+        open={successOpen}
+        enrollment={successEnrollment}
+        emailSent={successEmailSent}
+        studentHadNoEmail={successStudentHadNoEmail}
+        onClose={closeSuccessModal}
+        onEnrollAnotherClass={enrollSameStudentAnotherClass}
+      />
     </div>
   );
 }

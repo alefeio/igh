@@ -14,7 +14,7 @@ import { Modal } from "@/components/ui/Modal";
 import type { ApiResponse } from "@/lib/api-types";
 import { isForumPostEmpty } from "@/lib/forum-question-content";
 import { buildStudentsVcfFile, classGroupVcfFileName, studentVcfContactLabel } from "@/lib/student-vcf";
-import { AlertCircle, Cake, Download, Mail, Presentation } from "lucide-react";
+import { AlertCircle, Cake, Copy, Download, Link2, Mail, Presentation, RefreshCw, Upload } from "lucide-react";
 
 type ClassGroup = {
   id: string;
@@ -232,6 +232,32 @@ export default function ProfessorTurmaDetailPage() {
   const [exportingVcf, setExportingVcf] = useState(false);
   const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
 
+  type InviteInfo = {
+    path: string | null;
+    seatsRemaining: number;
+    capacity: number;
+    occupiedSeats: number;
+  };
+  const [invite, setInvite] = useState<InviteInfo | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteRegenerating, setInviteRegenerating] = useState(false);
+
+  type ImportResult = {
+    createdStudents: number;
+    enrolled: number;
+    skippedExistingEmail: number;
+    errors: Array<{ row: number; message: string }>;
+  };
+  const [importOpen, setImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(typeof window !== "undefined" ? window.location.origin : "");
+  }, []);
+
   type ProfLessonQuestion = {
     id: string;
     lessonId: string;
@@ -266,6 +292,129 @@ export default function ProfessorTurmaDetailPage() {
       setEnrollments(json.data.enrollments.filter((e) => e.status !== "CANCELLED"));
     }
   }, [id]);
+
+  const loadInvite = useCallback(async () => {
+    setInviteLoading(true);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${id}/invite-link`);
+      const json = (await res.json()) as ApiResponse<{
+        invite: {
+          path: string | null;
+          seatsRemaining: number;
+          capacity: number;
+          occupiedSeats: number;
+        };
+      }>;
+      if (res.ok && json?.ok) {
+        setInvite({
+          path: json.data.invite.path,
+          seatsRemaining: json.data.invite.seatsRemaining,
+          capacity: json.data.invite.capacity,
+          occupiedSeats: json.data.invite.occupiedSeats,
+        });
+      }
+    } finally {
+      setInviteLoading(false);
+    }
+  }, [id]);
+
+  async function copyInviteLink() {
+    if (!invite?.path || typeof window === "undefined") return;
+    const url = `${window.location.origin}${invite.path}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.push("success", "Link copiado.");
+    } catch {
+      toast.push("error", "Não foi possível copiar o link.");
+    }
+  }
+
+  async function regenerateInviteLink() {
+    if (inviteRegenerating) return;
+    setInviteRegenerating(true);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${id}/invite-link`, { method: "POST" });
+      const json = (await res.json()) as ApiResponse<{
+        invite: {
+          path: string | null;
+          seatsRemaining: number;
+          capacity: number;
+          occupiedSeats: number;
+        };
+      }>;
+      if (!res.ok || !json?.ok) {
+        toast.push(
+          "error",
+          json && !json.ok && "error" in json ? json.error.message : "Erro ao regenerar link.",
+        );
+        return;
+      }
+      setInvite({
+        path: json.data.invite.path,
+        seatsRemaining: json.data.invite.seatsRemaining,
+        capacity: json.data.invite.capacity,
+        occupiedSeats: json.data.invite.occupiedSeats,
+      });
+      toast.push("success", "Novo link gerado. O anterior deixa de funcionar.");
+    } finally {
+      setInviteRegenerating(false);
+    }
+  }
+
+  async function downloadImportTemplate() {
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${id}/enrollments/import`);
+      if (!res.ok) {
+        toast.push("error", "Não foi possível baixar o modelo.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "modelo-importacao-alunos.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.push("error", "Não foi possível baixar o modelo.");
+    }
+  }
+
+  async function submitImport() {
+    if (!importFile || importing) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const form = new FormData();
+      form.append("file", importFile);
+      const res = await fetch(`/api/teacher/class-groups/${id}/enrollments/import`, {
+        method: "POST",
+        body: form,
+      });
+      const json = (await res.json()) as ApiResponse<ImportResult>;
+      if (!res.ok || !json?.ok) {
+        toast.push(
+          "error",
+          json && !json.ok && "error" in json ? json.error.message : "Erro na importação.",
+        );
+        return;
+      }
+      setImportResult(json.data);
+      void loadEnrollments();
+      void loadClassGroup();
+      void loadInvite();
+      if (json.data.errors.length === 0) {
+        toast.push("success", `${json.data.enrolled} pré-matrícula(s) criada(s).`);
+      } else {
+        toast.push(
+          "success",
+          `Importação concluída com pendências (${json.data.errors.length}).`,
+        );
+      }
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const visibleEnrollments = useMemo(
     () => enrollments.filter((e) => e.status !== "CANCELLED"),
@@ -546,7 +695,13 @@ export default function ProfessorTurmaDetailPage() {
     async function load() {
       setLoading(true);
       try {
-        await Promise.all([loadClassGroup(), loadEnrollments(), loadSessions(), loadExerciseAnswers()]);
+        await Promise.all([
+          loadClassGroup(),
+          loadEnrollments(),
+          loadSessions(),
+          loadExerciseAnswers(),
+          loadInvite(),
+        ]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -555,7 +710,7 @@ export default function ProfessorTurmaDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadClassGroup, loadEnrollments, loadSessions, loadExerciseAnswers]);
+  }, [loadClassGroup, loadEnrollments, loadSessions, loadExerciseAnswers, loadInvite]);
 
   useEffect(() => {
     if (tab === "aulas") loadLessonProgress();
@@ -812,38 +967,105 @@ export default function ProfessorTurmaDetailPage() {
 
       {tab === "alunos" && (
         <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3">
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Alunos da turma</h2>
-            {visibleEnrollments.length > 0 ? (
+          <div className="border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Alunos da turma</h2>
               <div className="flex flex-wrap items-center gap-2">
-                {visibleEnrollments.some((e) => e.welcomeEmailPending) ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={sendingWelcomeEmails}
-                    onClick={() => void sendPendingWelcomeEmails()}
-                    className="gap-1.5"
-                  >
-                    <Mail className="h-3.5 w-3.5" aria-hidden />
-                    {sendingWelcomeEmails
-                      ? "Enviando…"
-                      : `Enviar e-mails pendentes (${visibleEnrollments.filter((e) => e.welcomeEmailPending).length})`}
-                  </Button>
-                ) : null}
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
-                  disabled={exportingVcf}
-                  onClick={() => void exportStudentsVcf()}
+                  onClick={() => {
+                    setImportResult(null);
+                    setImportFile(null);
+                    setImportOpen(true);
+                  }}
                   className="gap-1.5"
                 >
-                  <Download className="h-3.5 w-3.5" aria-hidden />
-                  {exportingVcf ? "Exportando…" : "Exportar .vcf"}
+                  <Upload className="h-3.5 w-3.5" aria-hidden />
+                  Importar planilha
+                </Button>
+                {visibleEnrollments.length > 0 ? (
+                  <>
+                    {visibleEnrollments.some((e) => e.welcomeEmailPending) ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={sendingWelcomeEmails}
+                        onClick={() => void sendPendingWelcomeEmails()}
+                        className="gap-1.5"
+                      >
+                        <Mail className="h-3.5 w-3.5" aria-hidden />
+                        {sendingWelcomeEmails
+                          ? "Enviando…"
+                          : `Enviar e-mails pendentes (${visibleEnrollments.filter((e) => e.welcomeEmailPending).length})`}
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={exportingVcf}
+                      onClick={() => void exportStudentsVcf()}
+                      className="gap-1.5"
+                    >
+                      <Download className="h-3.5 w-3.5" aria-hidden />
+                      {exportingVcf ? "Exportando…" : "Exportar .vcf"}
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Link2 className="h-4 w-4 shrink-0 text-[var(--igh-primary)]" aria-hidden />
+                <p className="text-xs font-semibold text-[var(--text-primary)]">
+                  Link de inscrição desta turma
+                </p>
+                {invite ? (
+                  <span className="text-xs text-[var(--text-muted)]">
+                    {invite.seatsRemaining} vaga{invite.seatsRemaining === 1 ? "" : "s"} restante
+                    {invite.seatsRemaining === 1 ? "" : "s"} ({invite.occupiedSeats}/{invite.capacity})
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1 break-all font-mono text-[11px] text-[var(--text-muted)]">
+                {inviteLoading
+                  ? "Carregando link…"
+                  : invite?.path
+                    ? `${origin}${invite.path}`
+                    : "—"}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!invite?.path}
+                  onClick={() => void copyInviteLink()}
+                  className="gap-1.5"
+                >
+                  <Copy className="h-3.5 w-3.5" aria-hidden />
+                  Copiar
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={inviteRegenerating}
+                  onClick={() => void regenerateInviteLink()}
+                  className="gap-1.5"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                  {inviteRegenerating ? "Gerando…" : "Regenerar link"}
                 </Button>
               </div>
-            ) : null}
+              <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
+                Quem abrir o link preenche um formulário mínimo e entra como matrícula ativa (ocupa vaga).
+              </p>
+            </div>
           </div>
           {visibleEnrollments.length === 0 ? (
             <p className="p-4 text-sm text-[var(--text-muted)]">Nenhum aluno matriculado.</p>
@@ -1344,6 +1566,88 @@ export default function ProfessorTurmaDetailPage() {
           >
             Confirmar
           </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={importOpen}
+        title="Importar planilha"
+        size="default"
+        onClose={() => {
+          if (importing) return;
+          setImportOpen(false);
+        }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[var(--text-secondary)]">
+            Baixe o modelo, preencha os alunos e envie o arquivo (.xlsx ou .csv). Cada linha válida
+            vira uma <strong>pré-matrícula</strong> nesta turma (ocupa vaga). Se o e-mail já existir,
+            o aluno não é recriado — tentamos apenas matricular.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void downloadImportTemplate()}
+              className="gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              Baixar modelo
+            </Button>
+          </div>
+          <div>
+            <label htmlFor="import-file" className="block text-sm font-medium text-[var(--text-primary)]">
+              Arquivo
+            </label>
+            <input
+              id="import-file"
+              type="file"
+              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+              className="mt-1 block w-full text-sm text-[var(--text-secondary)]"
+              onChange={(e) => {
+                setImportFile(e.target.files?.[0] ?? null);
+                setImportResult(null);
+              }}
+            />
+          </div>
+          {importResult ? (
+            <div className="rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-3 text-sm">
+              <p className="font-medium text-[var(--text-primary)]">Resultado</p>
+              <ul className="mt-2 space-y-0.5 text-[var(--text-secondary)]">
+                <li>Alunos criados: {importResult.createdStudents}</li>
+                <li>Pré-matrículas: {importResult.enrolled}</li>
+                <li>E-mails já existentes (reutilizados): {importResult.skippedExistingEmail}</li>
+                <li>Pendências: {importResult.errors.length}</li>
+              </ul>
+              {importResult.errors.length > 0 ? (
+                <ul className="mt-3 max-h-48 overflow-y-auto space-y-1 text-xs text-amber-900 dark:text-amber-100">
+                  {importResult.errors.map((err, idx) => (
+                    <li key={`${err.row}-${idx}`}>
+                      Linha {err.row}: {err.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={importing}
+              onClick={() => setImportOpen(false)}
+            >
+              Fechar
+            </Button>
+            <Button
+              type="button"
+              disabled={!importFile || importing}
+              onClick={() => void submitImport()}
+            >
+              {importing ? "Importando…" : "Importar"}
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

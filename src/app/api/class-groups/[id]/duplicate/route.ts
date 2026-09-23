@@ -4,6 +4,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { createAuditLog } from "@/lib/audit";
 import { getCourseLessonIdsInOrder } from "@/lib/course-modules";
 import { syncClassGroupTeachers } from "@/lib/class-group-teachers";
+import { generateClassGroupInviteToken } from "@/lib/class-group-invite";
 import {
   generateSessionsByWorkload,
   parseDateOnly,
@@ -174,6 +175,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
           location: chosenLocation,
           poloLocationId: source.poloLocationId,
           createdByUserId: user.id,
+          enrollmentInviteToken: generateClassGroupInviteToken(),
         },
       });
 
