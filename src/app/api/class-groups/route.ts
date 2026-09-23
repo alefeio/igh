@@ -19,6 +19,7 @@ import {
   poloCoordinatorOwnsPoloLocation,
 } from "@/lib/polo-coordinator-scope";
 import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
+import { generateClassGroupInviteToken } from "@/lib/class-group-invite";
 
 export async function GET() {
   try {
@@ -263,6 +264,7 @@ export async function POST(request: Request) {
         location: resolvedLocation,
         poloLocationId: resolvedPoloLocationId,
         createdByUserId: user.id,
+        enrollmentInviteToken: generateClassGroupInviteToken(),
       },
     });
 

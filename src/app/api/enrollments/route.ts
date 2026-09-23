@@ -235,14 +235,44 @@ export async function POST(request: Request) {
   const enrollmentWithRelations = await prisma.enrollment.findUnique({
     where: { id: enrollment.id },
     include: {
-      student: { select: { id: true, name: true, email: true } },
-      classGroup: { include: { course: { select: { id: true, name: true } } } },
+      student: { select: { id: true, name: true, email: true, phone: true, birthDate: true } },
+      classGroup: {
+        select: {
+          id: true,
+          startDate: true,
+          daysOfWeek: true,
+          startTime: true,
+          endTime: true,
+          location: true,
+          course: { select: { id: true, name: true } },
+        },
+      },
     },
   });
 
   return jsonOk(
     {
-      enrollment: enrollmentWithRelations,
+      enrollment: enrollmentWithRelations
+        ? {
+            id: enrollmentWithRelations.id,
+            status: enrollmentWithRelations.status,
+            enrolledAt: enrollmentWithRelations.enrolledAt,
+            student: {
+              id: enrollmentWithRelations.student.id,
+              name: enrollmentWithRelations.student.name,
+              email: enrollmentWithRelations.student.email,
+              phone: enrollmentWithRelations.student.phone,
+              birthDate:
+                enrollmentWithRelations.student.birthDate != null
+                  ? enrollmentWithRelations.student.birthDate.toISOString().slice(0, 10)
+                  : null,
+            },
+            classGroup: {
+              ...enrollmentWithRelations.classGroup,
+              startDate: enrollmentWithRelations.classGroup.startDate.toISOString().slice(0, 10),
+            },
+          }
+        : null,
       emailSent,
       studentHadNoEmail: !student.email,
     },

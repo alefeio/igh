@@ -603,6 +603,8 @@ model ClassGroup {
   /// * false = Interna (padrão); true = Externa (fora do site público; matrícula privilegiada).
   isExternal       Boolean          @default(false)
   location         String?
+  /// * Token público para o link de inscrição enviado pelo professor (/turma/[token]).
+  enrollmentInviteToken String?     @unique
   /// * Local do polo (quando definido, a turma pertence ao polo daquele local).
   poloLocationId   String?
   /// * Usuário (admin/master) que criou a turma.
