@@ -39,6 +39,7 @@ type AdminUser = {
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
   isAdminManager?: boolean;
+  canCreateBoardTasks?: boolean;
   isActive: boolean;
   phone?: string | null;
   birthDate?: string | null;
@@ -214,6 +215,7 @@ export default function UsersPage() {
   const [editBirthDate, setEditBirthDate] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
+  const [editCanCreateBoardTasks, setEditCanCreateBoardTasks] = useState(false);
   const [editRoles, setEditRoles] = useState<ManagedAccessRole[]>(["ADMIN"]);
   const [savingCreate, setSavingCreate] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -259,6 +261,7 @@ export default function UsersPage() {
     setEditBirthDate(u.birthDate ?? "");
     setEditPassword("");
     setEditIsActive(u.isActive);
+    setEditCanCreateBoardTasks(Boolean(u.canCreateBoardTasks));
     setEditRoles(managedRolesFromUser(u));
     setEditOpen(true);
   }
@@ -293,6 +296,7 @@ export default function UsersPage() {
         name: string;
         email: string;
         isActive: boolean;
+        canCreateBoardTasks: boolean;
         phone?: string;
         birthDate?: string;
         password?: string;
@@ -301,6 +305,7 @@ export default function UsersPage() {
         name: editName,
         email: editEmail,
         isActive: editIsActive,
+        canCreateBoardTasks: editCanCreateBoardTasks,
         phone: editPhone.replace(/\D/g, ""),
         birthDate: editBirthDate.trim(),
       };
@@ -645,6 +650,17 @@ export default function UsersPage() {
             />
             <label htmlFor="editIsActive" className="text-sm">
               Ativo
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="editCanCreateBoardTasks"
+              type="checkbox"
+              checked={editCanCreateBoardTasks}
+              onChange={(e) => setEditCanCreateBoardTasks(e.target.checked)}
+            />
+            <label htmlFor="editCanCreateBoardTasks" className="text-sm">
+              Pode criar atividades no Quadro de Atividades
             </label>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2">

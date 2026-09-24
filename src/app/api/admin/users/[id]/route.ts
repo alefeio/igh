@@ -45,6 +45,7 @@ const userSelect = {
   isCoordinator: true,
   isPoloCoordinator: true,
   isAdminManager: true,
+  canCreateBoardTasks: true,
   isActive: true,
   whatsapp: true,
   birthDate: true,
@@ -62,6 +63,7 @@ function mapUser(u: {
   isCoordinator: boolean;
   isPoloCoordinator: boolean;
   isAdminManager: boolean;
+  canCreateBoardTasks: boolean;
   isActive: boolean;
   whatsapp: string | null;
   birthDate: Date | null;
@@ -78,6 +80,7 @@ function mapUser(u: {
     isCoordinator: u.isCoordinator,
     isPoloCoordinator: u.isPoloCoordinator,
     isAdminManager: u.isAdminManager,
+    canCreateBoardTasks: u.canCreateBoardTasks,
     isActive: u.isActive,
     phone: u.whatsapp,
     birthDate: u.birthDate ? u.birthDate.toISOString().slice(0, 10) : null,
@@ -131,6 +134,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     name?: string;
     email?: string;
     isActive?: boolean;
+    canCreateBoardTasks?: boolean;
     role?: "GENERAL_ADMIN" | "DIRECTOR" | StaffAccessRole;
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
@@ -151,6 +155,9 @@ export async function PATCH(request: Request, ctx: Ctx) {
       return jsonErr("INVALID_STATE", "Você não pode desativar sua própria conta.", 400);
     }
     data.isActive = parsed.data.isActive;
+  }
+  if (parsed.data.canCreateBoardTasks !== undefined) {
+    data.canCreateBoardTasks = parsed.data.canCreateBoardTasks;
   }
 
   const linkedPoloCount = await prisma.polo.count({

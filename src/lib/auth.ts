@@ -29,6 +29,8 @@ export type SessionUser = Pick<User, "id" | "name" | "email" | "role" | "isActiv
   isCoordinator?: boolean;
   isPoloCoordinator?: boolean;
   isAdminManager?: boolean;
+  /** Pode criar atividades no Quadro de Atividades. */
+  canCreateBoardTasks?: boolean;
   baseRole?: UserRole;
   hasStudentProfile?: boolean;
   hasTeacherProfile?: boolean;
@@ -129,6 +131,7 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
         isCoordinator: true,
         isPoloCoordinator: true,
         isAdminManager: true,
+        canCreateBoardTasks: true,
         isActive: true,
         mustChangePassword: true,
         student: { select: { id: true } },
@@ -182,6 +185,7 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
       isCoordinator: user.isCoordinator ?? false,
       isPoloCoordinator: user.isPoloCoordinator ?? false,
       isAdminManager: user.isAdminManager ?? false,
+      canCreateBoardTasks: user.canCreateBoardTasks ?? false,
       hasStudentProfile: !!user.student,
       hasTeacherProfile: !!user.teacher,
       hasEmployeeProfile:
