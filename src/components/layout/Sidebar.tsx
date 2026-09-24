@@ -28,6 +28,8 @@ type Item = {
   requiresEmployee?: boolean;
   /** Se definido, só aparece para esses cargos de colaborador. */
   employeePositions?: readonly string[];
+  /** Feature flag resolvida no servidor (ex.: Quadro de Atividades). */
+  requiresBoardActivities?: boolean;
 };
 
 const ALL_ROLES = [
@@ -144,6 +146,22 @@ const ITEMS: Item[] = [
     category: "Início",
   },
   { href: "/coordenacao", label: "Coordenação", roles: STAFF_AND_TEACHER, category: "Início" },
+  {
+    href: "/gestao/atividades",
+    label: "Quadro de Atividades",
+    roles: [
+      "MASTER",
+      "GENERAL_ADMIN",
+      "ADMIN",
+      "ADMIN_MANAGER",
+      "SITE_ADMIN",
+      "POLO_COORDINATOR",
+      "DIRECTOR",
+      "TEACHER",
+    ],
+    category: "Início",
+    requiresBoardActivities: true,
+  },
 
   /* —— Colaborador (portal) —— */
   {
@@ -386,6 +404,7 @@ export function Sidebar({
   sidebarExpanded = true,
   onSidebarCollapse,
   onSidebarExpand,
+  showBoardActivities = false,
 }: {
   user: {
     name: string;
@@ -420,6 +439,8 @@ export function Sidebar({
   onSidebarCollapse?: () => void;
   /** md+: restaura barra fixa e fecha o drawer. */
   onSidebarExpand?: () => void;
+  /** Quadro de Atividades visível somente com feature gate ativo no servidor. */
+  showBoardActivities?: boolean;
 }) {
   const pathname = usePathname();
   const resolvedLogoHeight = resolveLogoHeightPx(logoHeightPx);
@@ -433,6 +454,7 @@ export function Sidebar({
       if (i.href === "/dashboard" || i.href === "/onboarding") return false;
     }
     if (i.requiresEmployee && !user.hasEmployeeProfile) return false;
+    if (i.requiresBoardActivities && !showBoardActivities) return false;
     if (i.employeePositions?.length) {
       if (!user.employeePosition || !i.employeePositions.includes(user.employeePosition)) {
         return false;

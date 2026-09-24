@@ -14,6 +14,7 @@ export function ResponsiveShell({
   user,
   logoUrl = null,
   logoHeightPx,
+  showBoardActivities = false,
   children,
 }: {
   user: {
@@ -45,6 +46,7 @@ export function ResponsiveShell({
   };
   logoUrl?: string | null;
   logoHeightPx?: number | null;
+  showBoardActivities?: boolean;
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -105,6 +107,7 @@ export function ResponsiveShell({
         sidebarExpanded={sidebarExpanded}
         onSidebarCollapse={collapseSidebar}
         onSidebarExpand={expandSidebar}
+        showBoardActivities={showBoardActivities}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex shrink-0 items-center gap-2 border-b border-[var(--card-border)] bg-[var(--card-bg)] px-1">

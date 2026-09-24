@@ -7,6 +7,7 @@ import { RequireChangePassword } from "@/components/layout/RequireChangePassword
 import { ResponsiveShell } from "@/components/layout/ResponsiveShell";
 import { UserProvider, type SessionUser } from "@/components/layout/UserProvider";
 import { getSessionUserFromCookie } from "@/lib/auth";
+import { isBoardActivitiesNavVisible } from "@/lib/board-activities-flag";
 import { getSiteSettings } from "@/lib/site-data";
 
 export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -50,6 +51,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
             user={shellUser}
             logoUrl={settings?.logoUrl ?? null}
             logoHeightPx={settings?.logoHeightPx}
+            showBoardActivities={isBoardActivitiesNavVisible()}
           >
             {children}
           </ResponsiveShell>
