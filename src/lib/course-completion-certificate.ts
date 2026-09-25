@@ -363,8 +363,8 @@ export async function generateCourseCompletionCertificatePdfBytes(
   if (pagesMode === "front") {
     const pdfDoc = await PDFDocument.load(frontBytes);
     pdfDoc.registerFontkit(fontkit);
-    const font = await pdfDoc.embedFont(fontRegularBytes, { subset: true });
-    const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: true });
+    const font = await pdfDoc.embedFont(fontRegularBytes, { subset: false });
+    const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: false });
     const frontPages = pdfDoc.getPages();
     if (frontPages.length < 1) {
       throw new Error("Template de frente do certificado inválido.");
@@ -387,8 +387,8 @@ export async function generateCourseCompletionCertificatePdfBytes(
   pdfDoc.addPage(frontPage);
   pdfDoc.addPage(backPage);
 
-  const font = await pdfDoc.embedFont(fontRegularBytes, { subset: true });
-  const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: true });
+  const font = await pdfDoc.embedFont(fontRegularBytes, { subset: false });
+  const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: false });
   const [front, back] = pdfDoc.getPages();
   drawFrontPage(front!, font, fontBold, input);
   await drawBackPage(pdfDoc, back!, font, fontBold, input);

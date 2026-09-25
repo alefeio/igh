@@ -53,6 +53,7 @@ export function ProfessorTurmasTabs() {
   const [loadingTab, setLoadingTab] = useState<TeacherClassGroupTab | null>("em_andamento");
   const [error, setError] = useState<string | null>(null);
   const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
+  const [downloadingListId, setDownloadingListId] = useState<string | null>(null);
   const [certificatePagesMode, setCertificatePagesMode] = useState<CertificatePagesMode>("both");
 
   const loadTab = useCallback(async (tab: TeacherClassGroupTab) => {
@@ -143,7 +144,40 @@ export function ProfessorTurmasTabs() {
     }
   }
 
-  const rows = cache[activeTab];
+  async function downloadSignoffList(cg: ClassGroupRow) {
+    if (downloadingListId) return;
+    setDownloadingListId(cg.id);
+    try {
+      const res = await fetch(`/api/class-groups/${cg.id}/certificate-signoff-list`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        toast.push(
+          "error",
+          json && !json.ok ? json.error.message : "Falha ao baixar a listagem.",
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(cd);
+      const fileName = match?.[1] ?? `listagem-${cg.id.slice(0, 8)}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.push("success", "Download da listagem iniciado.");
+    } catch {
+      toast.push("error", "Falha ao baixar a listagem.");
+    } finally {
+      setDownloadingListId(null);
+    }
+  }
   const isLoading = loadingTab === activeTab && rows === undefined;
 
   return (
@@ -248,6 +282,15 @@ export function ProfessorTurmasTabs() {
                       onClick={() => void downloadCertificates(cg)}
                     >
                       {downloadingCertsId === cg.id ? "Gerando ZIP…" : "Baixar certificados"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={downloadingListId != null || cg.enrollmentsCount === 0}
+                      onClick={() => void downloadSignoffList(cg)}
+                    >
+                      {downloadingListId === cg.id ? "Gerando PDF…" : "Baixar listagem"}
                     </Button>
                     <Link
                       href={`/professor/turmas/${cg.id}`}
