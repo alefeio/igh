@@ -285,7 +285,6 @@ export default function EnrollmentsPage() {
   const canOverrideEnrollment = isMaster;
   const [loading, setLoading] = useState(true);
   const [showEnrollmentList, setShowEnrollmentList] = useState(false);
-  const [listingLoading, setListingLoading] = useState(false);
   const [items, setItems] = useState<Enrollment[]>([]);
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -479,35 +478,26 @@ export default function EnrollmentsPage() {
     turmaFilterIds,
   ]);
 
-  async function load(options?: { enrollments?: boolean }) {
-    const includeEnrollments = options?.enrollments === true;
-    if (includeEnrollments) setListingLoading(true);
-    else setLoading(true);
+  async function load() {
+    setLoading(true);
     try {
       // Professor: API de teachers é só MASTER/ADMIN; seção "Por professor" fica oculta.
       const [enrollmentsRes, teachersRes, cyclesRes, classGroupsRes] = await Promise.all([
-        includeEnrollments
-          ? fetch("/api/enrollments", { cache: "no-store" })
-          : Promise.resolve(null as Response | null),
+        fetch("/api/enrollments", { cache: "no-store" }),
         isTeacher
           ? Promise.resolve(null as Response | null)
           : fetch("/api/teachers?status=active", { cache: "no-store" }),
         fetch("/api/cycles", { cache: "no-store" }),
         fetch("/api/class-groups", { cache: "no-store" }),
       ]);
-      const enrollmentsJson = enrollmentsRes
-        ? await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes)
-        : null;
+      const enrollmentsJson = await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes);
       const teachersJson = teachersRes
         ? await parseJson<{ teachers: Teacher[] }>(teachersRes)
         : null;
       const cyclesJson = await parseJson<{ cycles: Cycle[] }>(cyclesRes);
       const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
-      if (includeEnrollments && enrollmentsRes?.ok && enrollmentsJson?.ok) {
-        setItems(enrollmentsJson.data.enrollments);
-      } else if (includeEnrollments) {
-        toast.push("error", "Falha ao carregar matrículas.");
-      }
+      if (enrollmentsRes.ok && enrollmentsJson?.ok) setItems(enrollmentsJson.data.enrollments);
+      else toast.push("error", "Falha ao carregar matrículas.");
       const loadedClassGroups =
         classGroupsRes.ok && classGroupsJson?.ok ? classGroupsJson.data.classGroups : [];
       if (classGroupsRes.ok && classGroupsJson?.ok) {
@@ -550,7 +540,6 @@ export default function EnrollmentsPage() {
       }
     } finally {
       setLoading(false);
-      setListingLoading(false);
     }
   }
 
@@ -681,7 +670,7 @@ export default function EnrollmentsPage() {
   );
 
   useEffect(() => {
-    void load({ enrollments: showEnrollmentList });
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -812,9 +801,7 @@ export default function EnrollmentsPage() {
       if (allowedClassGroups.size > 0 && !allowedClassGroups.has(cg.id)) continue;
       byClassGroup.set(cg.id, {
         classGroup: cg,
-        count: showEnrollmentList
-          ? (occupiedByClassGroup.get(cg.id) ?? 0)
-          : (cg.enrollmentsCount ?? 0),
+        count: occupiedByClassGroup.get(cg.id) ?? 0,
       });
     }
 
@@ -852,28 +839,17 @@ export default function EnrollmentsPage() {
     );
 
     const byTeacher = new Map<string, { teacher: Teacher; turmas: { classGroup: ClassGroup; count: number }[] }>();
-    const teacherSource = showEnrollmentList
-      ? list.filter((e) => e.status === "ACTIVE")
-      : [];
-    if (showEnrollmentList) {
-      for (const e of teacherSource) {
-        const teacher = e.classGroup.teacher;
-        if (!teacher) continue;
-        const tid = teacher.id;
-        if (!byTeacher.has(tid)) byTeacher.set(tid, { teacher, turmas: [] });
-        const rec = byTeacher.get(tid)!;
-        const cg = e.classGroup;
-        const existing = rec.turmas.find((t) => t.classGroup.id === cg.id);
-        if (existing) existing.count++;
-        else rec.turmas.push({ classGroup: cg, count: 1 });
-      }
-    } else {
-      for (const { classGroup, count } of byClassGroup.values()) {
-        const teacher = classGroup.teacher;
-        if (!teacher || count <= 0) continue;
-        if (!byTeacher.has(teacher.id)) byTeacher.set(teacher.id, { teacher, turmas: [] });
-        byTeacher.get(teacher.id)!.turmas.push({ classGroup, count });
-      }
+    for (const e of list) {
+      if (e.status !== "ACTIVE") continue;
+      const teacher = e.classGroup.teacher;
+      if (!teacher) continue;
+      const tid = teacher.id;
+      if (!byTeacher.has(tid)) byTeacher.set(tid, { teacher, turmas: [] });
+      const rec = byTeacher.get(tid)!;
+      const cg = e.classGroup;
+      const existing = rec.turmas.find((t) => t.classGroup.id === cg.id);
+      if (existing) existing.count++;
+      else rec.turmas.push({ classGroup: cg, count: 1 });
     }
     for (const rec of byTeacher.values()) {
       rec.turmas.sort((a, b) => {
@@ -886,11 +862,8 @@ export default function EnrollmentsPage() {
       .map((r) => ({ ...r, totalAlunos: r.turmas.reduce((s, t) => s + t.count, 0) }))
       .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
 
-    const total = showEnrollmentList
-      ? list.length
-      : Array.from(byClassGroup.values()).reduce((sum, row) => sum + row.count, 0);
-    return { courses, teachers, total, totalCapacity };
-  }, [filteredItems, allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds, turmaFilterIds, showEnrollmentList]);
+    return { courses, teachers, total: list.length, totalCapacity };
+  }, [filteredItems, allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds, turmaFilterIds]);
 
   /** Mantém todos os professores ativos no gráfico, inclusive os que ficaram com zero no recorte. */
   const teachersToDisplay = useMemo(() => {
@@ -1222,7 +1195,7 @@ export default function EnrollmentsPage() {
       return;
     }
     toast.push("success", "Pré-matrícula confirmada.");
-    void load({ enrollments: showEnrollmentList });
+    void load();
   }
 
   async function deleteEnrollment(e: Enrollment) {
@@ -1234,7 +1207,7 @@ export default function EnrollmentsPage() {
       return;
     }
     toast.push("success", "Matrícula excluída.");
-    void load({ enrollments: showEnrollmentList });
+    void load();
     setWaitlistReloadToken((n) => n + 1);
   }
 
@@ -1300,7 +1273,7 @@ export default function EnrollmentsPage() {
               : "Matrícula criada. E-mail não foi enviado (verifique configuração).",
         );
       }
-      await load({ enrollments: showEnrollmentList });
+      await load();
     } finally {
       setSubmitting(false);
     }
@@ -1366,7 +1339,7 @@ export default function EnrollmentsPage() {
       setEditingEnrollment(null);
       setEditStudentId("");
       setEditStudentSearchQuery("");
-      await load({ enrollments: showEnrollmentList });
+      await load();
       setWaitlistReloadToken((n) => n + 1);
     } finally {
       setEditSubmitting(false);
@@ -1944,7 +1917,6 @@ export default function EnrollmentsPage() {
                                     onClick={() => {
                                       setTurmaFilterIds([cg.id]);
                                       setShowEnrollmentList(true);
-                                      void load({ enrollments: true });
                                       document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
                                     }}
                                     className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
@@ -2084,7 +2056,6 @@ export default function EnrollmentsPage() {
                                           onClick={() => {
                                             setTurmaFilterIds([cg.id]);
                                             setShowEnrollmentList(true);
-                                            void load({ enrollments: true });
                                             document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
                                           }}
                                           className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
@@ -2118,12 +2089,10 @@ export default function EnrollmentsPage() {
                 </h2>
                 <p className="mt-0.5 text-sm text-[var(--text-muted)]">
                   {!showEnrollmentList
-                    ? "Marque a opção abaixo para buscar as matrículas."
-                    : listingLoading
-                      ? "Carregando matrículas…"
-                      : totalFiltered === 0
-                        ? "Nenhuma matrícula na listagem"
-                        : `Exibindo ${totalFiltered} matrícula(s)`}
+                    ? "Marque a opção abaixo para ver a tabela."
+                    : totalFiltered === 0
+                      ? "Nenhuma matrícula na listagem"
+                      : `Exibindo ${totalFiltered} matrícula(s)`}
                 </p>
               </div>
               <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
@@ -2132,10 +2101,7 @@ export default function EnrollmentsPage() {
                   className="h-4 w-4 accent-[var(--igh-primary)]"
                   checked={showEnrollmentList}
                   onChange={(event) => {
-                    const checked = event.target.checked;
-                    setShowEnrollmentList(checked);
-                    if (checked) void load({ enrollments: true });
-                    else setItems([]);
+                    setShowEnrollmentList(event.target.checked);
                   }}
                 />
                 Exibir listagem de matrículas
@@ -2159,11 +2125,7 @@ export default function EnrollmentsPage() {
             <div className="card-body overflow-x-auto">
             {!showEnrollmentList ? (
               <p className="px-2 py-8 text-center text-sm text-[var(--text-muted)]">
-                A listagem não foi carregada.
-              </p>
-            ) : listingLoading ? (
-              <p className="px-2 py-8 text-center text-sm text-[var(--text-muted)]" role="status">
-                Carregando matrículas...
+                A listagem não foi exibida.
               </p>
             ) : (
             <Table>
@@ -2294,7 +2256,7 @@ export default function EnrollmentsPage() {
         </Table>
             )}
             </div>
-            {showEnrollmentList && !listingLoading ? (
+            {showEnrollmentList ? (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--card-border)] px-3 py-3 sm:px-4">
               <p className="text-sm text-[var(--text-muted)]">
                 {totalFiltered === 0
