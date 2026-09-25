@@ -1,3 +1,4 @@
+import { PNG } from "pngjs";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -41,6 +42,24 @@ describe("listagem de assinatura do certificado", () => {
     });
     expect(Buffer.from(bytes.subarray(0, 5)).toString("utf8")).toBe("%PDF-");
     expect(bytes.byteLength).toBeGreaterThan(1000);
+  });
+
+  it("inclui a logo baixada quando os bytes são PNG", async () => {
+    const png = PNG.sync.write(new PNG({ width: 8, height: 4, fill: true }));
+    const bytes = await buildCertificateSignoffListPdf({
+      group: {
+        courseName: "Informática",
+        cycle: 4,
+        year: 2026,
+        location: null,
+        daysOfWeek: ["SEG"],
+        startTime: "08:00",
+        endTime: "10:00",
+      },
+      students: [{ name: "Ana" }],
+      logoBytes: png,
+    });
+    expect(Buffer.from(bytes.subarray(0, 5)).toString("utf8")).toBe("%PDF-");
   });
 
   it("ordena os nomes em português", () => {
