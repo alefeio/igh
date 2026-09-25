@@ -284,6 +284,8 @@ export default function EnrollmentsPage() {
   /** Só Master / Admin Geral: matricular em turma lotada e acessar Interno/Externo. */
   const canOverrideEnrollment = isMaster;
   const [loading, setLoading] = useState(true);
+  const [showEnrollmentList, setShowEnrollmentList] = useState(false);
+  const [listingLoading, setListingLoading] = useState(false);
   const [items, setItems] = useState<Enrollment[]>([]);
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -477,26 +479,35 @@ export default function EnrollmentsPage() {
     turmaFilterIds,
   ]);
 
-  async function load() {
-    setLoading(true);
+  async function load(options?: { enrollments?: boolean }) {
+    const includeEnrollments = options?.enrollments === true;
+    if (includeEnrollments) setListingLoading(true);
+    else setLoading(true);
     try {
       // Professor: API de teachers é só MASTER/ADMIN; seção "Por professor" fica oculta.
       const [enrollmentsRes, teachersRes, cyclesRes, classGroupsRes] = await Promise.all([
-        fetch("/api/enrollments", { cache: "no-store" }),
+        includeEnrollments
+          ? fetch("/api/enrollments", { cache: "no-store" })
+          : Promise.resolve(null as Response | null),
         isTeacher
           ? Promise.resolve(null as Response | null)
           : fetch("/api/teachers?status=active", { cache: "no-store" }),
         fetch("/api/cycles", { cache: "no-store" }),
         fetch("/api/class-groups", { cache: "no-store" }),
       ]);
-      const enrollmentsJson = await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes);
+      const enrollmentsJson = enrollmentsRes
+        ? await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes)
+        : null;
       const teachersJson = teachersRes
         ? await parseJson<{ teachers: Teacher[] }>(teachersRes)
         : null;
       const cyclesJson = await parseJson<{ cycles: Cycle[] }>(cyclesRes);
       const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
-      if (enrollmentsRes.ok && enrollmentsJson?.ok) setItems(enrollmentsJson.data.enrollments);
-      else toast.push("error", "Falha ao carregar matrículas.");
+      if (includeEnrollments && enrollmentsRes?.ok && enrollmentsJson?.ok) {
+        setItems(enrollmentsJson.data.enrollments);
+      } else if (includeEnrollments) {
+        toast.push("error", "Falha ao carregar matrículas.");
+      }
       const loadedClassGroups =
         classGroupsRes.ok && classGroupsJson?.ok ? classGroupsJson.data.classGroups : [];
       if (classGroupsRes.ok && classGroupsJson?.ok) {
@@ -539,6 +550,7 @@ export default function EnrollmentsPage() {
       }
     } finally {
       setLoading(false);
+      setListingLoading(false);
     }
   }
 
@@ -669,7 +681,7 @@ export default function EnrollmentsPage() {
   );
 
   useEffect(() => {
-    void load();
+    void load({ enrollments: showEnrollmentList });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -800,7 +812,9 @@ export default function EnrollmentsPage() {
       if (allowedClassGroups.size > 0 && !allowedClassGroups.has(cg.id)) continue;
       byClassGroup.set(cg.id, {
         classGroup: cg,
-        count: occupiedByClassGroup.get(cg.id) ?? 0,
+        count: showEnrollmentList
+          ? (occupiedByClassGroup.get(cg.id) ?? 0)
+          : (cg.enrollmentsCount ?? 0),
       });
     }
 
@@ -838,17 +852,28 @@ export default function EnrollmentsPage() {
     );
 
     const byTeacher = new Map<string, { teacher: Teacher; turmas: { classGroup: ClassGroup; count: number }[] }>();
-    for (const e of list) {
-      if (e.status !== "ACTIVE") continue;
-      const teacher = e.classGroup.teacher;
-      if (!teacher) continue;
-      const tid = teacher.id;
-      if (!byTeacher.has(tid)) byTeacher.set(tid, { teacher, turmas: [] });
-      const rec = byTeacher.get(tid)!;
-      const cg = e.classGroup;
-      const existing = rec.turmas.find((t) => t.classGroup.id === cg.id);
-      if (existing) existing.count++;
-      else rec.turmas.push({ classGroup: cg, count: 1 });
+    const teacherSource = showEnrollmentList
+      ? list.filter((e) => e.status === "ACTIVE")
+      : [];
+    if (showEnrollmentList) {
+      for (const e of teacherSource) {
+        const teacher = e.classGroup.teacher;
+        if (!teacher) continue;
+        const tid = teacher.id;
+        if (!byTeacher.has(tid)) byTeacher.set(tid, { teacher, turmas: [] });
+        const rec = byTeacher.get(tid)!;
+        const cg = e.classGroup;
+        const existing = rec.turmas.find((t) => t.classGroup.id === cg.id);
+        if (existing) existing.count++;
+        else rec.turmas.push({ classGroup: cg, count: 1 });
+      }
+    } else {
+      for (const { classGroup, count } of byClassGroup.values()) {
+        const teacher = classGroup.teacher;
+        if (!teacher || count <= 0) continue;
+        if (!byTeacher.has(teacher.id)) byTeacher.set(teacher.id, { teacher, turmas: [] });
+        byTeacher.get(teacher.id)!.turmas.push({ classGroup, count });
+      }
     }
     for (const rec of byTeacher.values()) {
       rec.turmas.sort((a, b) => {
@@ -861,8 +886,11 @@ export default function EnrollmentsPage() {
       .map((r) => ({ ...r, totalAlunos: r.turmas.reduce((s, t) => s + t.count, 0) }))
       .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
 
-    return { courses, teachers, total: list.length, totalCapacity };
-  }, [filteredItems, allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds, turmaFilterIds]);
+    const total = showEnrollmentList
+      ? list.length
+      : Array.from(byClassGroup.values()).reduce((sum, row) => sum + row.count, 0);
+    return { courses, teachers, total, totalCapacity };
+  }, [filteredItems, allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds, turmaFilterIds, showEnrollmentList]);
 
   /** Mantém todos os professores ativos no gráfico, inclusive os que ficaram com zero no recorte. */
   const teachersToDisplay = useMemo(() => {
@@ -1194,7 +1222,7 @@ export default function EnrollmentsPage() {
       return;
     }
     toast.push("success", "Pré-matrícula confirmada.");
-    void load();
+    void load({ enrollments: showEnrollmentList });
   }
 
   async function deleteEnrollment(e: Enrollment) {
@@ -1206,7 +1234,7 @@ export default function EnrollmentsPage() {
       return;
     }
     toast.push("success", "Matrícula excluída.");
-    void load();
+    void load({ enrollments: showEnrollmentList });
     setWaitlistReloadToken((n) => n + 1);
   }
 
@@ -1272,7 +1300,7 @@ export default function EnrollmentsPage() {
               : "Matrícula criada. E-mail não foi enviado (verifique configuração).",
         );
       }
-      await load();
+      await load({ enrollments: showEnrollmentList });
     } finally {
       setSubmitting(false);
     }
@@ -1338,7 +1366,7 @@ export default function EnrollmentsPage() {
       setEditingEnrollment(null);
       setEditStudentId("");
       setEditStudentSearchQuery("");
-      await load();
+      await load({ enrollments: showEnrollmentList });
       setWaitlistReloadToken((n) => n + 1);
     } finally {
       setEditSubmitting(false);
@@ -1399,7 +1427,7 @@ export default function EnrollmentsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          <section className="card" aria-labelledby="enrollments-filters-heading">
+          <section className="card order-6" aria-labelledby="enrollments-filters-heading">
             <header className="card-header flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 id="enrollments-filters-heading" className="text-base font-semibold text-[var(--text-primary)]">
@@ -1646,7 +1674,7 @@ export default function EnrollmentsPage() {
 
           {kpis.pre > 0 && isMaster && (
             <div
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30"
+              className="order-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30"
               role="status"
             >
               <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
@@ -1666,7 +1694,7 @@ export default function EnrollmentsPage() {
             </div>
           )}
 
-          <section aria-labelledby="enrollments-kpis-heading" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <section aria-labelledby="enrollments-kpis-heading" className="order-1 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <h2 id="enrollments-kpis-heading" className="sr-only">
               Resumo de matrículas
             </h2>
@@ -1728,6 +1756,7 @@ export default function EnrollmentsPage() {
               title="Análise visual"
               description="Distribuição por curso e por data de matrícula."
               variant="elevated"
+              className="order-3"
             >
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {pieData.length > 0 && (
@@ -1822,6 +1851,7 @@ export default function EnrollmentsPage() {
 
           <SectionCard
             id="enrollments-summary-heading"
+            className="order-4"
             title="Vagas por curso e turma"
             description={
               isTeacher
@@ -1913,6 +1943,8 @@ export default function EnrollmentsPage() {
                                     type="button"
                                     onClick={() => {
                                       setTurmaFilterIds([cg.id]);
+                                      setShowEnrollmentList(true);
+                                      void load({ enrollments: true });
                                       document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
                                     }}
                                     className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
@@ -1943,6 +1975,7 @@ export default function EnrollmentsPage() {
           {!isTeacher && (
           <SectionCard
             id="enrollments-by-teacher-heading"
+            className="order-5"
             title="Por professor"
             description="Quantidade de alunos (matrículas ativas) por professor. Use o botão abaixo para ver turmas e listagens."
             variant="elevated"
@@ -2050,6 +2083,8 @@ export default function EnrollmentsPage() {
                                           type="button"
                                           onClick={() => {
                                             setTurmaFilterIds([cg.id]);
+                                            setShowEnrollmentList(true);
+                                            void load({ enrollments: true });
                                             document.getElementById("enrollments-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
                                           }}
                                           className="text-xs font-medium text-[var(--igh-primary)] hover:underline focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 rounded"
@@ -2075,18 +2110,36 @@ export default function EnrollmentsPage() {
           </SectionCard>
           )}
 
-          <section id="enrollments-list" className="card scroll-mt-4" aria-labelledby="enrollments-list-heading">
+          <section id="enrollments-list" className="card order-7 scroll-mt-4" aria-labelledby="enrollments-list-heading">
             <header className="card-header flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
               <div className="min-w-0 flex-1">
                 <h2 id="enrollments-list-heading" className="text-base font-semibold text-[var(--text-primary)]">
                   Listagem de matrículas
                 </h2>
                 <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-                  {totalFiltered === 0
-                    ? "Nenhuma matrícula na listagem"
-                    : `Exibindo ${totalFiltered} matrícula(s)`}
+                  {!showEnrollmentList
+                    ? "Marque a opção abaixo para buscar as matrículas."
+                    : listingLoading
+                      ? "Carregando matrículas…"
+                      : totalFiltered === 0
+                        ? "Nenhuma matrícula na listagem"
+                        : `Exibindo ${totalFiltered} matrícula(s)`}
                 </p>
               </div>
+              <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[var(--igh-primary)]"
+                  checked={showEnrollmentList}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setShowEnrollmentList(checked);
+                    if (checked) void load({ enrollments: true });
+                    else setItems([]);
+                  }}
+                />
+                Exibir listagem de matrículas
+              </label>
               <label htmlFor="enrollments-page-size" className="sr-only">
                 Registros por página
               </label>
@@ -2104,6 +2157,15 @@ export default function EnrollmentsPage() {
               </select>
             </header>
             <div className="card-body overflow-x-auto">
+            {!showEnrollmentList ? (
+              <p className="px-2 py-8 text-center text-sm text-[var(--text-muted)]">
+                A listagem não foi carregada.
+              </p>
+            ) : listingLoading ? (
+              <p className="px-2 py-8 text-center text-sm text-[var(--text-muted)]" role="status">
+                Carregando matrículas...
+              </p>
+            ) : (
             <Table>
           <thead>
             <tr>
@@ -2230,7 +2292,9 @@ export default function EnrollmentsPage() {
             )}
           </tbody>
         </Table>
+            )}
             </div>
+            {showEnrollmentList && !listingLoading ? (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--card-border)] px-3 py-3 sm:px-4">
               <p className="text-sm text-[var(--text-muted)]">
                 {totalFiltered === 0
@@ -2261,6 +2325,7 @@ export default function EnrollmentsPage() {
                 </Button>
               </div>
             </div>
+            ) : null}
           </section>
         </div>
       )}
