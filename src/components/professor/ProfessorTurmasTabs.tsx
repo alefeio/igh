@@ -178,6 +178,7 @@ export function ProfessorTurmasTabs() {
       setDownloadingListId(null);
     }
   }
+  const rows = cache[activeTab];
   const isLoading = loadingTab === activeTab && rows === undefined;
 
   return (
