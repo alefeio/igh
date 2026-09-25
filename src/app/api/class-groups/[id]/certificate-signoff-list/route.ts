@@ -9,6 +9,29 @@ import { prisma } from "@/lib/prisma";
 
 type RouteCtx = { params: Promise<{ id: string }> };
 
+/** URL da logo salva em /admin/site/configuracoes (SiteSettings.logoUrl). */
+function absoluteSiteLogoUrl(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
+  if (!base) return null;
+  return `${base}${trimmed.startsWith("/") ? trimmed : `/${trimmed}`}`;
+}
+
+async function downloadSiteLogoBytes(): Promise<Uint8Array> {
+  const settings = await prisma.siteSettings.findFirst({ select: { logoUrl: true } });
+  const url = absoluteSiteLogoUrl(settings?.logoUrl);
+  if (!url) {
+    throw new Error("A URL da logomarca não está definida em Configurações do site.");
+  }
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) {
+    throw new Error("Não foi possível baixar a logomarca configurada no site.");
+  }
+  return new Uint8Array(await res.arrayBuffer());
+}
+
 /** PDF de assinatura dos alunos habilitados ao certificado da turma. */
 export async function GET(_request: Request, ctx: RouteCtx) {
   try {
@@ -64,6 +87,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
         endTime: classGroup.endTime,
       },
       students: enrollments.map((row) => ({ name: row.student.name })),
+      logoBytes: await downloadSiteLogoBytes(),
     });
 
     const fileName = `listagem-certificados-${slugPart(classGroup.course.name)}-c${classGroup.cycle.cycle}-${classGroup.cycle.year}.pdf`;

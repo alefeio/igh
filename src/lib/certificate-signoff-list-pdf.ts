@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PNG } from "pngjs";
+import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 
 import { formatDaysShortPtBr } from "@/lib/turma-display";
 
@@ -39,6 +40,29 @@ export function sortCertificateSignoffNames(names: string[]): string[] {
   return [...names].sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
 }
 
+function flattenPngOnWhite(bytes: Uint8Array): Uint8Array {
+  const png = PNG.sync.read(Buffer.from(bytes));
+  for (let i = 0; i < png.data.length; i += 4) {
+    const alpha = png.data[i + 3]! / 255;
+    png.data[i] = Math.round(png.data[i]! * alpha + 255 * (1 - alpha));
+    png.data[i + 1] = Math.round(png.data[i + 1]! * alpha + 255 * (1 - alpha));
+    png.data[i + 2] = Math.round(png.data[i + 2]! * alpha + 255 * (1 - alpha));
+    png.data[i + 3] = 255;
+  }
+  return PNG.sync.write(png);
+}
+
+async function embedLogo(doc: PDFDocument, bytes: Uint8Array): Promise<PDFImage | null> {
+  const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+  const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
+  try {
+    if (isPng) return await doc.embedPng(flattenPngOnWhite(bytes));
+    if (isJpeg) return await doc.embedJpg(bytes);
+  } catch {
+    return null;
+  }
+  return null;
+}
 function drawFitted(
   page: PDFPage,
   text: string,
@@ -60,11 +84,17 @@ function drawFitted(
 export async function buildCertificateSignoffListPdf(params: {
   group: CertificateSignoffClassGroup;
   students: CertificateSignoffStudent[];
+  /** Bytes baixados de SiteSettings.logoUrl (Configurações do site). */
+  logoBytes?: Uint8Array | null;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   const regular = await doc.embedFont(fs.readFileSync(FONT_REGULAR_PATH));
   const bold = await doc.embedFont(fs.readFileSync(FONT_BOLD_PATH));
+  const logo = params.logoBytes ? await embedLogo(doc, params.logoBytes) : null;
+  if (params.logoBytes && !logo) {
+    throw new Error("A logomarca configurada não pôde ser incluída no PDF. Use PNG ou JPEG.");
+  }
 
   const pageWidth = 595.28;
   const pageHeight = 841.89;
@@ -79,6 +109,20 @@ export async function buildCertificateSignoffListPdf(params: {
 
   function paintHeader(target: PDFPage, top: number) {
     let cursor = top;
+    if (logo) {
+      const maxW = 140;
+      const maxH = 52;
+      const scale = Math.min(maxW / logo.width, maxH / logo.height);
+      const w = logo.width * scale;
+      const h = logo.height * scale;
+      target.drawImage(logo, {
+        x: (pageWidth - w) / 2,
+        y: cursor - h,
+        width: w,
+        height: h,
+      });
+      cursor -= h + 16;
+    }
     for (const title of titles) {
       drawFitted(target, title, bold, margin, cursor, pageWidth - margin * 2, 14, ink);
       cursor -= 20;
