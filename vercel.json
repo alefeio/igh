@@ -28,7 +28,8 @@
       "feat/listagem-certificados-professor": false,
       "feat/logo-listagem-certificados": false,
       "feat/titulo-professor-listagem": false,
-      "feat/enrollments-listagem-sob-demanda": false
+      "feat/enrollments-listagem-sob-demanda": false,
+      "feat/enrollments-cards-graficos": false
     }
   }
 }
