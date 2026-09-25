@@ -23,7 +23,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "feat/quadro-atividades-belem-clean": false
+      "feat/quadro-atividades-belem-clean": false,
+      "feat/quadro-agenda-e-cadastro": false
     }
   }
 }
