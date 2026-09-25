@@ -13,6 +13,7 @@ describe("listagem de assinatura do certificado", () => {
     expect(
       certificateSignoffTitleLines({
         courseName: "Informática",
+        teacherName: "Maria Silva",
         cycle: 4,
         year: 2026,
         location: "Padre Eutíquio",
@@ -24,6 +25,7 @@ describe("listagem de assinatura do certificado", () => {
       "Ciclo 4/2026",
       "Turma: Padre Eutíquio · seg e qua · 08:00–10:00",
       "Curso: Informática",
+      "Professor: Maria Silva",
     ]);
   });
 
@@ -31,6 +33,7 @@ describe("listagem de assinatura do certificado", () => {
     const bytes = await buildCertificateSignoffListPdf({
       group: {
         courseName: "Informática",
+        teacherName: "Maria Silva",
         cycle: 4,
         year: 2026,
         location: "Padre Eutíquio",
@@ -49,6 +52,7 @@ describe("listagem de assinatura do certificado", () => {
     const bytes = await buildCertificateSignoffListPdf({
       group: {
         courseName: "Informática",
+        teacherName: "Maria Silva",
         cycle: 4,
         year: 2026,
         location: null,

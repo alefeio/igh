@@ -44,6 +44,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
       startTime: true,
       endTime: true,
       course: { select: { name: true } },
+      teacher: { select: { name: true } },
       cycle: { select: { cycle: true, year: true } },
     } as const;
 
@@ -79,6 +80,7 @@ export async function GET(_request: Request, ctx: RouteCtx) {
     const pdf = await buildCertificateSignoffListPdf({
       group: {
         courseName: classGroup.course.name,
+        teacherName: classGroup.teacher.name,
         cycle: classGroup.cycle.cycle,
         year: classGroup.cycle.year,
         location: classGroup.location,
