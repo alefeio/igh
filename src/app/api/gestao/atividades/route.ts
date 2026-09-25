@@ -1,6 +1,7 @@
 import { boardApiErrorResponse } from "@/lib/board-activities-http";
 import {
   belemDayStartUtc,
+  initialStatusOnCreate,
   isActivityOverdue,
   parseIsoDateOnly,
   resolveBoardPeriod,
@@ -138,6 +139,9 @@ export async function POST(request: Request) {
       return jsonErr("VALIDATION_ERROR", "A data final não pode ser anterior à inicial.", 400);
     }
 
+    const status = initialStatusOnCreate(parsed.data.markCompleted);
+    const completedAt = status === "DONE" ? new Date() : null;
+
     const created = await prisma.$transaction(async (tx) => {
       const task = await tx.boardActivity.create({
         data: {
@@ -148,7 +152,8 @@ export async function POST(request: Request) {
           unitId: unit.id,
           plannedStartAt,
           plannedEndAt,
-          status: "PLANNED",
+          status,
+          completedAt,
         },
         include: {
           assignee: { select: { id: true, name: true } },
@@ -160,7 +165,11 @@ export async function POST(request: Request) {
           taskId: task.id,
           actorId: user.id,
           type: "CREATED",
-          payload: { status: "PLANNED", assigneeId: task.assigneeId },
+          payload: {
+            status,
+            assigneeId: task.assigneeId,
+            createdAsCompleted: status === "DONE",
+          },
         },
       });
       return task;
@@ -170,7 +179,10 @@ export async function POST(request: Request) {
       await createUserNotificationIfNew({
         userId: parsed.data.assigneeId,
         kind: "BOARD_ACTIVITY_ASSIGNED",
-        title: "Nova atividade para você",
+        title:
+          status === "DONE"
+            ? "Atividade concluída registrada para você"
+            : "Nova atividade para você",
         body: created.title,
         linkUrl: `/gestao/atividades?task=${created.id}`,
         dedupeKey: `board-assign:${created.id}:${parsed.data.assigneeId}`,

@@ -3,7 +3,7 @@
  * Fuso do piloto: America/Belem.
  */
 
-import type { BoardActivityStatus, UserRole } from "@/generated/prisma/client";
+import type { BoardActivityStatus, ClassGroupStatus, UserRole } from "@/generated/prisma/client";
 
 export const BOARD_TZ = "America/Belem";
 
@@ -253,6 +253,150 @@ export function resolvePilotUnitIdFromEnv(
 ): string | null {
   const id = env.BOARD_ACTIVITIES_POLO_LOCATION_ID?.trim();
   return id && id.length > 0 ? id : null;
+}
+
+/** Data inicial do formulário de criação (AAAA-MM-DD em America/Belem). */
+export function defaultPlannedStartDate(now = new Date()): string {
+  return formatIsoDateOnly(belemDateParts(now));
+}
+
+/**
+ * Status inicial permitido na criação.
+ * Só PLANNED (padrão) ou DONE quando o cliente marca “cadastrar como concluída”.
+ * Qualquer outro valor é ignorado.
+ */
+export function initialStatusOnCreate(markCompleted: boolean): "PLANNED" | "DONE" {
+  return markCompleted === true ? "DONE" : "PLANNED";
+}
+
+/**
+ * Turma fora da Agenda. No cadastro, “inativa” e “cancelada” são o mesmo
+ * valor do enum ClassGroupStatus: CANCELADA. ENCERRADA permanece visível.
+ */
+export const AGENDA_EXCLUDED_CLASS_GROUP_STATUSES: ClassGroupStatus[] = ["CANCELADA"];
+
+export function isAgendaEligibleClassGroupStatus(status: string): boolean {
+  return !AGENDA_EXCLUDED_CLASS_GROUP_STATUSES.includes(status as ClassGroupStatus);
+}
+
+/**
+ * Filtro da Agenda: ClassSession do período (máx. 31 dias), qualquer polo,
+ * exceto turmas CANCELADA. Sem teto de quantidade.
+ */
+export function buildClassSessionAgendaWhere(range: {
+  fromUtc: Date;
+  toExclusiveUtc: Date;
+}): {
+  sessionDate: { gte: Date; lt: Date };
+  classGroup: { status: { notIn: ClassGroupStatus[] } };
+} {
+  return {
+    sessionDate: {
+      gte: range.fromUtc,
+      lt: range.toExclusiveUtc,
+    },
+    classGroup: {
+      status: { notIn: AGENDA_EXCLUDED_CLASS_GROUP_STATUSES },
+    },
+  };
+}
+
+export type AgendaSessionView = {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  courseName: string;
+  classGroupId: string;
+  location: string | null;
+  poloName: string | null;
+  locationName: string | null;
+  isExternal: boolean;
+  teachers: { id: string; name: string }[];
+  conflict: boolean;
+};
+
+/** Monta o card da agenda e ordena por data/horário, sem duplicar sessão. */
+export function mapAgendaSessions(
+  sessions: Array<{
+    id: string;
+    sessionDate: Date;
+    startTime: string;
+    endTime: string;
+    status: string;
+    classGroup: {
+      id: string;
+      location: string | null;
+      isExternal: boolean;
+      course: { name: string };
+      poloLocation: { name: string; polo: { name: string } } | null;
+      teacher: { id: string; name: string };
+      classGroupTeachers: { teacher: { id: string; name: string } }[];
+    };
+  }>,
+): AgendaSessionView[] {
+  const seen = new Set<string>();
+  const slots: AgendaSessionView[] = [];
+  for (const s of sessions) {
+    if (seen.has(s.id)) continue;
+    seen.add(s.id);
+    const teachersMap = new Map<string, { id: string; name: string }>();
+    teachersMap.set(s.classGroup.teacher.id, {
+      id: s.classGroup.teacher.id,
+      name: s.classGroup.teacher.name,
+    });
+    for (const t of s.classGroup.classGroupTeachers) {
+      teachersMap.set(t.teacher.id, t.teacher);
+    }
+    slots.push({
+      id: s.id,
+      date: s.sessionDate.toISOString().slice(0, 10),
+      startTime: s.startTime,
+      endTime: s.endTime,
+      status: s.status,
+      courseName: s.classGroup.course.name,
+      classGroupId: s.classGroup.id,
+      location: s.classGroup.location,
+      poloName: s.classGroup.poloLocation?.polo.name ?? null,
+      locationName: s.classGroup.poloLocation?.name ?? null,
+      isExternal: s.classGroup.isExternal,
+      teachers: [...teachersMap.values()],
+      conflict: false,
+    });
+  }
+  slots.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.startTime.localeCompare(b.startTime) ||
+      a.id.localeCompare(b.id),
+  );
+  return markTeacherScheduleConflicts(slots);
+}
+
+/** Remove turmas inativas/canceladas e só então monta conflitos no conjunto restante. */
+export function assembleAgendaSessions<
+  T extends {
+    id: string;
+    sessionDate: Date;
+    startTime: string;
+    endTime: string;
+    status: string;
+    classGroup: {
+      id: string;
+      status: string;
+      location: string | null;
+      isExternal: boolean;
+      course: { name: string };
+      poloLocation: { name: string; polo: { name: string } } | null;
+      teacher: { id: string; name: string };
+      classGroupTeachers: { teacher: { id: string; name: string } }[];
+    };
+  },
+>(sessions: T[]): AgendaSessionView[] {
+  return mapAgendaSessions(
+    sessions.filter((session) => isAgendaEligibleClassGroupStatus(session.classGroup.status)),
+  );
 }
 
 /** Horários HH:MM (ou HH:MM:SS) — sobreposição estrita de intervalos. */

@@ -34,7 +34,9 @@ import {
   belemDateParts,
   canMoveBoardActivity,
   canTransitionStatus,
+  defaultPlannedStartDate,
   formatIsoDateOnly,
+  initialStatusOnCreate,
   isMasterOrAdminRole,
   startOfWeekMondayBelem,
   type BoardReactionEmoji,
@@ -118,6 +120,9 @@ type AgendaSession = {
   courseName: string;
   classGroupId: string;
   location: string | null;
+  poloName: string | null;
+  locationName: string | null;
+  isExternal: boolean;
   teachers: { id: string; name: string }[];
   conflict: boolean;
 };
@@ -324,8 +329,9 @@ export default function GestaoAtividadesClient() {
   const [createTitle, setCreateTitle] = useState("");
   const [createDesc, setCreateDesc] = useState("");
   const [createAssignee, setCreateAssignee] = useState("");
-  const [createStart, setCreateStart] = useState(from);
+  const [createStart, setCreateStart] = useState("");
   const [createEnd, setCreateEnd] = useState("");
+  const [createAsCompleted, setCreateAsCompleted] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const [detail, setDetail] = useState<ActivityDetail | null>(null);
@@ -371,10 +377,6 @@ export default function GestaoAtividadesClient() {
   useEffect(() => {
     setSearchDraft(q);
   }, [q]);
-
-  useEffect(() => {
-    setCreateStart(from);
-  }, [from]);
 
   const loadAssignees = useCallback(async () => {
     const res = await fetch("/api/gestao/atividades/assignees");
@@ -664,6 +666,7 @@ export default function GestaoAtividadesClient() {
       return;
     }
     setCreating(true);
+    const status = initialStatusOnCreate(createAsCompleted);
     try {
       const res = await fetch("/api/gestao/atividades", {
         method: "POST",
@@ -674,6 +677,7 @@ export default function GestaoAtividadesClient() {
           assigneeId: createAssignee,
           plannedStartAt: createStart,
           plannedEndAt: createEnd || null,
+          markCompleted: createAsCompleted,
         }),
       });
       const json = await parseJson<{ activity: ActivityCard }>(res);
@@ -681,12 +685,14 @@ export default function GestaoAtividadesClient() {
         toast.push("error", json && !json.ok ? json.error.message : "Não foi possível criar.");
         return;
       }
-      toast.push("success", "Atividade criada.");
+      toast.push("success", status === "DONE" ? "Atividade cadastrada como concluída." : "Atividade criada.");
       setCreateOpen(false);
       setCreateTitle("");
       setCreateDesc("");
       setCreateAssignee("");
+      setCreateStart(defaultPlannedStartDate());
       setCreateEnd("");
+      setCreateAsCompleted(false);
       void loadActivities();
       openTask(json.data.activity.id);
     } catch {
@@ -794,7 +800,12 @@ export default function GestaoAtividadesClient() {
               <Button
                 type="button"
                 onClick={() => {
-                  setCreateStart(from);
+                  setCreateTitle("");
+                  setCreateDesc("");
+                  setCreateAssignee("");
+                  setCreateStart(defaultPlannedStartDate());
+                  setCreateEnd("");
+                  setCreateAsCompleted(false);
                   setCreateOpen(true);
                 }}
               >
@@ -1062,9 +1073,11 @@ export default function GestaoAtividadesClient() {
                         <p className="mt-0.5 text-xs text-[var(--text-secondary)] no-underline">
                           {s.teachers.map((t) => t.name).join(", ")}
                         </p>
-                        {s.location ? (
-                          <p className="mt-0.5 text-xs text-[var(--text-muted)] no-underline">{s.location}</p>
-                        ) : null}
+                        <p className="mt-0.5 text-xs text-[var(--text-muted)] no-underline">
+                          {[s.poloName, s.locationName, s.location].filter(Boolean).join(" · ") || "Local não informado"}
+                          {" · "}
+                          {s.isExternal ? "Externa" : "Interna"}
+                        </p>
                         {s.conflict && s.status !== "CANCELED" ? (
                           <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400 no-underline">
                             Possível conflito de horário
@@ -1135,7 +1148,20 @@ export default function GestaoAtividadesClient() {
         </div>
       </Modal>
 
-      <Modal open={createOpen} title="Nova atividade" onClose={() => setCreateOpen(false)} size="small">
+      <Modal
+        open={createOpen}
+        title="Nova atividade"
+        onClose={() => {
+          setCreateOpen(false);
+          setCreateTitle("");
+          setCreateDesc("");
+          setCreateAssignee("");
+          setCreateStart(defaultPlannedStartDate());
+          setCreateEnd("");
+          setCreateAsCompleted(false);
+        }}
+        size="small"
+      >
         <form className="flex flex-col gap-3" onSubmit={submitCreate}>
           <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
             Título *
@@ -1176,8 +1202,29 @@ export default function GestaoAtividadesClient() {
               <Input type="date" value={createEnd} onChange={(e) => setCreateEnd(e.target.value)} />
             </label>
           </div>
+          <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--text-secondary)]">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-[var(--igh-primary)]"
+              checked={createAsCompleted}
+              onChange={(e) => setCreateAsCompleted(e.target.checked)}
+            />
+            <span>Cadastrar como concluída</span>
+          </label>
           <div className="mt-2 flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setCreateOpen(false);
+                setCreateTitle("");
+                setCreateDesc("");
+                setCreateAssignee("");
+                setCreateStart(defaultPlannedStartDate());
+                setCreateEnd("");
+                setCreateAsCompleted(false);
+              }}
+            >
               Cancelar
             </Button>
             <Button type="submit" disabled={creating}>
