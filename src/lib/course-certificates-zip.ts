@@ -15,6 +15,7 @@ import {
   type CourseCompletionCertificateInput,
 } from "@/lib/course-completion-certificate";
 import { resolveCertificateIssuePlace } from "@/lib/certificate-issue-place";
+import { classGroupCertificateEnrollmentWhere } from "@/lib/certificate-zip-enrollment";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { prisma } from "@/lib/prisma";
 
@@ -317,12 +318,7 @@ export async function buildClassGroupCertificatesZip(
   await prepareCertificateEligibilityForClassGroups([classGroupId]);
 
   const enrollments = await prisma.enrollment.findMany({
-    where: {
-      classGroupId,
-      status: { in: [...ENROLLMENT_STATUSES] },
-      isPreEnrollment: false,
-      certificateEligible: true,
-    },
+    where: classGroupCertificateEnrollmentWhere(classGroupId),
     select: {
       id: true,
       status: true,
