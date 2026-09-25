@@ -142,6 +142,7 @@ model User {
   nextCycleInterestContactsMade      NextCycleInterestContact[]      @relation("NextCycleInterestContactedBy")
   boardActivitiesCreated             BoardActivity[]                 @relation("BoardActivityCreator")
   boardActivitiesAssigned            BoardActivity[]                 @relation("BoardActivityAssignee")
+  boardActivityAssigneeLinks         BoardActivityAssignee[]
   boardActivityCommentsAuthored      BoardActivityComment[]          @relation("BoardActivityCommentAuthor")
   boardActivityReactions             BoardActivityReaction[]         @relation("BoardActivityReactionUser")
   boardActivityEventsAuthored        BoardActivityEvent[]            @relation("BoardActivityEventActor")
@@ -3213,12 +3214,15 @@ model BoardActivity {
   startedAt      DateTime?
   completedAt    DateTime?
   archivedAt     DateTime?
+  /// * true: só o criador e os responsáveis abrem o detalhe.
+  isPrivate      Boolean                 @default(false)
   version        Int                     @default(1)
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
   creator        User                    @relation("BoardActivityCreator", fields: [creatorId], references: [id], onDelete: Restrict)
   assignee       User                    @relation("BoardActivityAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
   unit           PoloLocation            @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  assignees      BoardActivityAssignee[]
   comments       BoardActivityComment[]
   reactions      BoardActivityReaction[]
   events         BoardActivityEvent[]
@@ -3228,6 +3232,18 @@ model BoardActivity {
   @@index([creatorId])
   @@index([plannedStartAt, plannedEndAt])
   @@index([startedAt, completedAt])
+  @@index([isPrivate])
+}
+
+model BoardActivityAssignee {
+  id         String        @id @default(uuid())
+  activityId String
+  userId     String
+  activity   BoardActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([activityId, userId])
+  @@index([userId])
 }
 
 model BoardActivityComment {

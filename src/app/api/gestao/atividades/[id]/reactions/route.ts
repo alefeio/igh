@@ -1,5 +1,5 @@
 import { boardApiErrorResponse } from "@/lib/board-activities-http";
-import { requireBoardAccess, resolvePilotUnitOrThrow } from "@/lib/board-activities-server";
+import { assertCanOpenActivity, requireBoardAccess, resolvePilotUnitOrThrow } from "@/lib/board-activities-server";
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { boardReactionSchema } from "@/lib/validators/board-activities";
@@ -19,9 +19,16 @@ export async function POST(request: Request, ctx: Ctx) {
 
     const task = await prisma.boardActivity.findFirst({
       where: { id, unitId: unit.id, archivedAt: null },
-      select: { id: true },
+      select: {
+        id: true,
+        creatorId: true,
+        assigneeId: true,
+        isPrivate: true,
+        assignees: { select: { userId: true } },
+      },
     });
     if (!task) return jsonErr("NOT_FOUND", "Atividade não encontrada.", 404);
+    assertCanOpenActivity(task, user.id);
 
     const existing = await prisma.boardActivityReaction.findUnique({
       where: {

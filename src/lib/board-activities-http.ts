@@ -32,5 +32,8 @@ export function boardApiErrorResponse(e: unknown): Response | null {
   if (e instanceof Error && e.message === "INVALID_ASSIGNEE") {
     return jsonErr("VALIDATION_ERROR", "Responsável inválido ou inelegível.", 400);
   }
+  if (e instanceof Error && e.message === "FORBIDDEN_VIEW") {
+    return jsonErr("FORBIDDEN", "Somente o criador e os responsáveis podem abrir esta atividade.", 403);
+  }
   return authErrorResponse(e);
 }

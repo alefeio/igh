@@ -28,11 +28,14 @@ function mapCard(row: {
   completedAt: Date | null;
   creatorId: string;
   assigneeId: string;
+  isPrivate?: boolean;
   version: number;
   createdAt: Date;
   assignee: { id: string; name: string };
+  assignees?: { user: { id: string; name: string } }[];
   _count: { comments: number; reactions: number };
 }) {
+  const people = row.assignees?.map((a) => a.user) ?? [row.assignee];
   return {
     id: row.id,
     title: row.title,
@@ -43,7 +46,9 @@ function mapCard(row: {
     completedAt: row.completedAt?.toISOString() ?? null,
     creatorId: row.creatorId,
     assigneeId: row.assigneeId,
+    isPrivate: row.isPrivate === true,
     assignee: row.assignee,
+    assignees: people,
     version: row.version,
     createdAt: row.createdAt.toISOString(),
     commentCount: row._count.comments,
@@ -75,6 +80,7 @@ export async function GET(request: Request) {
       unitId: unit.id,
       fromUtc: period.range.fromUtc,
       toExclusiveUtc: period.range.toExclusiveUtc,
+      viewerUserId: user.id,
       mineUserId: mine ? user.id : null,
       assigneeId: assigneeId || null,
       q,
@@ -84,6 +90,7 @@ export async function GET(request: Request) {
       where,
       include: {
         assignee: { select: { id: true, name: true } },
+        assignees: { select: { user: { select: { id: true, name: true } } } },
         _count: {
           select: {
             comments: { where: { deletedAt: null } },
@@ -126,7 +133,10 @@ export async function POST(request: Request) {
       return jsonErr("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Dados inválidos", 400);
     }
 
-    await assertAssigneeEligible(parsed.data.assigneeId);
+    const assigneeIds = [...new Set(parsed.data.assigneeIds)];
+    for (const assigneeId of assigneeIds) {
+      await assertAssigneeEligible(assigneeId);
+    }
 
     const startParts = parseIsoDateOnly(parsed.data.plannedStartAt)!;
     const endParts = parsed.data.plannedEndAt
@@ -148,7 +158,8 @@ export async function POST(request: Request) {
           title: parsed.data.title,
           description: parsed.data.description,
           creatorId: user.id,
-          assigneeId: parsed.data.assigneeId,
+          assigneeId: assigneeIds[0]!,
+          isPrivate: parsed.data.isPrivate,
           unitId: unit.id,
           plannedStartAt,
           plannedEndAt,
@@ -157,6 +168,18 @@ export async function POST(request: Request) {
         },
         include: {
           assignee: { select: { id: true, name: true } },
+          assignees: { select: { user: { select: { id: true, name: true } } } },
+          _count: { select: { comments: true, reactions: true } },
+        },
+      });
+      await tx.boardActivityAssignee.createMany({
+        data: assigneeIds.map((userId) => ({ activityId: task.id, userId })),
+      });
+      const withAssignees = await tx.boardActivity.findUniqueOrThrow({
+        where: { id: task.id },
+        include: {
+          assignee: { select: { id: true, name: true } },
+          assignees: { select: { user: { select: { id: true, name: true } } } },
           _count: { select: { comments: true, reactions: true } },
         },
       });
@@ -167,17 +190,19 @@ export async function POST(request: Request) {
           type: "CREATED",
           payload: {
             status,
-            assigneeId: task.assigneeId,
+            assigneeIds,
+            isPrivate: parsed.data.isPrivate,
             createdAsCompleted: status === "DONE",
           },
         },
       });
-      return task;
+      return withAssignees;
     });
 
-    if (parsed.data.assigneeId !== user.id) {
+    for (const assigneeId of assigneeIds) {
+      if (assigneeId === user.id) continue;
       await createUserNotificationIfNew({
-        userId: parsed.data.assigneeId,
+        userId: assigneeId,
         kind: "BOARD_ACTIVITY_ASSIGNED",
         title:
           status === "DONE"
@@ -185,7 +210,7 @@ export async function POST(request: Request) {
             : "Nova atividade para você",
         body: created.title,
         linkUrl: `/gestao/atividades?task=${created.id}`,
-        dedupeKey: `board-assign:${created.id}:${parsed.data.assigneeId}`,
+        dedupeKey: `board-assign:${created.id}:${assigneeId}`,
       });
     }
 

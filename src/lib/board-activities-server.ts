@@ -3,11 +3,7 @@ import "server-only";
 import type { Prisma, UserRole } from "@/generated/prisma/client";
 import type { SessionUser } from "@/lib/auth";
 import { requireRole } from "@/lib/auth";
-import {
-  BOARD_ELIGIBLE_ROLES,
-  isBoardEligibleRole,
-  isMasterOrAdminRole,
-} from "@/lib/board-activities";
+import { canOpenBoardActivity, BOARD_ELIGIBLE_ROLES, isBoardEligibleRole, isMasterOrAdminRole } from "@/lib/board-activities";
 import {
   boardActivitiesAdminHint,
   getBoardActivitiesGateStatus,
@@ -113,6 +109,7 @@ export function boardActivityListWhere(args: {
   unitId: string;
   fromUtc: Date;
   toExclusiveUtc: Date;
+  viewerUserId: string;
   mineUserId?: string | null;
   assigneeId?: string | null;
   q?: string | null;
@@ -151,19 +148,41 @@ export function boardActivityListWhere(args: {
   const where: Prisma.BoardActivityWhereInput = {
     unitId: args.unitId,
     archivedAt: args.includeArchived ? undefined : null,
-    OR: periodOr,
+    AND: [
+      { OR: periodOr },
+      {
+        OR: [
+          { isPrivate: false },
+          { creatorId: args.viewerUserId },
+          { assigneeId: args.viewerUserId },
+          { assignees: { some: { userId: args.viewerUserId } } },
+        ],
+      },
+    ],
   };
 
   if (args.mineUserId) {
     where.AND = [
-      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      ...(Array.isArray(where.AND) ? where.AND : []),
       {
-        OR: [{ creatorId: args.mineUserId }, { assigneeId: args.mineUserId }],
+        OR: [
+          { creatorId: args.mineUserId },
+          { assigneeId: args.mineUserId },
+          { assignees: { some: { userId: args.mineUserId } } },
+        ],
       },
     ];
   }
   if (args.assigneeId) {
-    where.assigneeId = args.assigneeId;
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : []),
+      {
+        OR: [
+          { assigneeId: args.assigneeId },
+          { assignees: { some: { userId: args.assigneeId } } },
+        ],
+      },
+    ];
   }
   if (args.q?.trim()) {
     where.title = { contains: args.q.trim(), mode: "insensitive" };
@@ -173,4 +192,23 @@ export function boardActivityListWhere(args: {
 
 export function canAdminReassign(actor: SessionUser): boolean {
   return isMasterOrAdminRole(actor.role);
+}
+
+export function assertCanOpenActivity(task: {
+  creatorId: string;
+  assigneeId: string;
+  isPrivate: boolean;
+  assignees: { userId: string }[];
+}, actorId: string): void {
+  if (
+    !canOpenBoardActivity({
+      actorId,
+      creatorId: task.creatorId,
+      isPrivate: task.isPrivate,
+      assigneeId: task.assigneeId,
+      assigneeIds: task.assignees.map((row) => row.userId),
+    })
+  ) {
+    throw new Error("FORBIDDEN_VIEW");
+  }
 }

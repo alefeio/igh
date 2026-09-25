@@ -63,6 +63,8 @@ type ActivityCard = {
   creatorId: string;
   assigneeId: string;
   assignee: { id: string; name: string };
+  assignees?: { id: string; name: string }[];
+  isPrivate?: boolean;
   version: number;
   createdAt: string;
   commentCount: number;
@@ -82,6 +84,8 @@ type ActivityDetail = {
   version: number;
   creator: { id: string; name: string; email: string; isActive: boolean };
   assignee: { id: string; name: string; email: string; isActive: boolean };
+  assignees?: { id: string; name: string }[];
+  isPrivate?: boolean;
   overdue: boolean;
   canMove: boolean;
   canEdit: boolean;
@@ -151,6 +155,27 @@ const STATUSES: BoardStatus[] = ["PLANNED", "IN_PROGRESS", "DONE"];
 
 function isoToDateOnly(iso: string): string {
   return iso.slice(0, 10);
+}
+
+function formatDateTimeBr(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return formatDateBr(iso);
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Belem",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function peopleNames(activity: {
+  assignee: { name: string };
+  assignees?: { name: string }[];
+}): string {
+  const names = activity.assignees?.map((a) => a.name).filter(Boolean) ?? [];
+  return names.length > 0 ? names.join(", ") : activity.assignee.name;
 }
 
 function formatDateBr(isoOrDate: string): string {
@@ -246,14 +271,14 @@ function CardBody({ activity }: { activity: ActivityCard }) {
       <div className="flex items-start gap-2">
         <div
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--igh-primary)]/15 text-xs font-bold text-[var(--igh-primary)]"
-          title={activity.assignee.name}
+          title={peopleNames(activity)}
           aria-hidden
         >
           {initialOf(activity.assignee.name)}
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold leading-snug text-[var(--text-primary)]">{activity.title}</p>
-          <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{activity.assignee.name}</p>
+          <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{peopleNames(activity)}</p>
         </div>
       </div>
       <p className="mt-2 text-xs text-[var(--text-secondary)]">
@@ -328,7 +353,8 @@ export default function GestaoAtividadesClient() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [createDesc, setCreateDesc] = useState("");
-  const [createAssignee, setCreateAssignee] = useState("");
+  const [createAssigneeIds, setCreateAssigneeIds] = useState<string[]>([]);
+  const [createPrivate, setCreatePrivate] = useState(false);
   const [createStart, setCreateStart] = useState("");
   const [createEnd, setCreateEnd] = useState("");
   const [createAsCompleted, setCreateAsCompleted] = useState(false);
@@ -339,6 +365,14 @@ export default function GestaoAtividadesClient() {
   const [commentBody, setCommentBody] = useState("");
   const [commenting, setCommenting] = useState(false);
   const [moving, setMoving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>([]);
+  const [editPrivate, setEditPrivate] = useState(false);
+  const [editStart, setEditStart] = useState("");
+  const [editEnd, setEditEnd] = useState("");
 
   const [agenda, setAgenda] = useState<AgendaSession[]>([]);
   const [agendaLoading, setAgendaLoading] = useState(false);
@@ -558,6 +592,7 @@ export default function GestaoAtividadesClient() {
         actorId: currentUserId,
         creatorId: a.creatorId,
         assigneeId: a.assigneeId,
+        assigneeIds: a.assignees?.map((person) => person.id),
       }),
     [currentUserId],
   );
@@ -640,6 +675,7 @@ export default function GestaoAtividadesClient() {
     setParams({ task: null });
     setDetail(null);
     setCommentBody("");
+    setEditing(false);
   };
 
   const applyPeriodPreset = (preset: "hoje" | "amanha" | "semana" | "limpar") => {
@@ -659,10 +695,23 @@ export default function GestaoAtividadesClient() {
     setParams({ from: formatIsoDateOnly(mon), to: formatIsoDateOnly(sun) });
   };
 
+  const resetCreateForm = () => {
+    setCreateTitle("");
+    setCreateDesc("");
+    setCreateAssigneeIds([]);
+    setCreatePrivate(false);
+    setCreateStart(defaultPlannedStartDate());
+    setCreateEnd("");
+    setCreateAsCompleted(false);
+  };
+
+  const toggleId = (ids: string[], id: string) =>
+    ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id];
+
   const submitCreate = async (e: FormEvent) => {
     e.preventDefault();
-    if (!createTitle.trim() || !createAssignee) {
-      toast.push("error", "Informe título e responsável.");
+    if (!createTitle.trim() || createAssigneeIds.length === 0) {
+      toast.push("error", "Informe título e ao menos um responsável.");
       return;
     }
     setCreating(true);
@@ -674,7 +723,8 @@ export default function GestaoAtividadesClient() {
         body: JSON.stringify({
           title: createTitle.trim(),
           description: createDesc.trim() || null,
-          assigneeId: createAssignee,
+          assigneeIds: createAssigneeIds,
+          isPrivate: createPrivate,
           plannedStartAt: createStart,
           plannedEndAt: createEnd || null,
           markCompleted: createAsCompleted,
@@ -687,12 +737,7 @@ export default function GestaoAtividadesClient() {
       }
       toast.push("success", status === "DONE" ? "Atividade cadastrada como concluída." : "Atividade criada.");
       setCreateOpen(false);
-      setCreateTitle("");
-      setCreateDesc("");
-      setCreateAssignee("");
-      setCreateStart(defaultPlannedStartDate());
-      setCreateEnd("");
-      setCreateAsCompleted(false);
+      resetCreateForm();
       void loadActivities();
       openTask(json.data.activity.id);
     } catch {
@@ -741,6 +786,71 @@ export default function GestaoAtividadesClient() {
     } finally {
       setCommenting(false);
     }
+  };
+
+  const startEdit = () => {
+    if (!detail) return;
+    setEditTitle(detail.title);
+    setEditDesc(detail.description ?? "");
+    setEditAssigneeIds(
+      detail.assignees?.map((person) => person.id) ?? (detail.assignee ? [detail.assignee.id] : []),
+    );
+    setEditPrivate(detail.isPrivate === true);
+    setEditStart(isoToDateOnly(detail.plannedStartAt));
+    setEditEnd(detail.plannedEndAt ? isoToDateOnly(detail.plannedEndAt) : "");
+    setEditing(true);
+  };
+
+  const saveEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!detail) return;
+    if (!editTitle.trim() || editAssigneeIds.length === 0) {
+      toast.push("error", "Informe título e ao menos um responsável.");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/gestao/atividades/${detail.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          description: editDesc.trim() || null,
+          assigneeIds: editAssigneeIds,
+          isPrivate: editPrivate,
+          plannedStartAt: editStart,
+          plannedEndAt: editEnd || null,
+          version: detail.version,
+        }),
+      });
+      const json = await parseJson<{ activity: ActivityDetail | null }>(res);
+      if (!json?.ok) {
+        toast.push("error", json && !json.ok ? json.error.message : "Não foi possível salvar.");
+        return;
+      }
+      if (json.data.activity) setDetail(json.data.activity);
+      setEditing(false);
+      toast.push("success", "Atividade atualizada.");
+      void loadActivities();
+    } catch {
+      toast.push("error", "Falha de rede ao salvar.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const deleteActivity = async () => {
+    if (!detail?.canEdit) return;
+    if (!window.confirm("Excluir esta atividade? Ela sairá do quadro.")) return;
+    const res = await fetch(`/api/gestao/atividades/${detail.id}`, { method: "DELETE" });
+    const json = await parseJson<{ deleted: boolean }>(res);
+    if (!json?.ok) {
+      toast.push("error", json && !json.ok ? json.error.message : "Não foi possível excluir.");
+      return;
+    }
+    toast.push("success", "Atividade excluída.");
+    closeTask();
+    void loadActivities();
   };
 
   const archiveActivity = async () => {
@@ -800,12 +910,7 @@ export default function GestaoAtividadesClient() {
               <Button
                 type="button"
                 onClick={() => {
-                  setCreateTitle("");
-                  setCreateDesc("");
-                  setCreateAssignee("");
-                  setCreateStart(defaultPlannedStartDate());
-                  setCreateEnd("");
-                  setCreateAsCompleted(false);
+                  resetCreateForm();
                   setCreateOpen(true);
                 }}
               >
@@ -1153,12 +1258,7 @@ export default function GestaoAtividadesClient() {
         title="Nova atividade"
         onClose={() => {
           setCreateOpen(false);
-          setCreateTitle("");
-          setCreateDesc("");
-          setCreateAssignee("");
-          setCreateStart(defaultPlannedStartDate());
-          setCreateEnd("");
-          setCreateAsCompleted(false);
+          resetCreateForm();
         }}
         size="small"
       >
@@ -1176,22 +1276,50 @@ export default function GestaoAtividadesClient() {
               maxLength={5000}
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
-            Responsável *
-            <select
-              className="theme-input min-h-[44px] w-full rounded-md border px-3 text-sm sm:h-10 sm:min-h-0"
-              value={createAssignee}
-              onChange={(e) => setCreateAssignee(e.target.value)}
-              required
-            >
-              <option value="">Selecione…</option>
-              {assignees.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <fieldset className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+            <legend>Responsáveis *</legend>
+            <div className="max-h-40 overflow-y-auto rounded-md border border-[var(--card-border)] p-2">
+              {assignees.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">Nenhum responsável elegível.</p>
+              ) : (
+                assignees.map((a) => (
+                  <label key={a.id} className="flex cursor-pointer items-center gap-2 py-1 text-sm text-[var(--text-primary)]">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-[var(--igh-primary)]"
+                      checked={createAssigneeIds.includes(a.id)}
+                      onChange={() => setCreateAssigneeIds((ids) => toggleId(ids, a.id))}
+                    />
+                    {a.name}
+                  </label>
+                ))
+              )}
+            </div>
+          </fieldset>
+          <fieldset className="flex flex-col gap-1 text-sm text-[var(--text-secondary)]">
+            <legend className="text-xs text-[var(--text-muted)]">Visibilidade</legend>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="radio"
+                name="create-visibility"
+                checked={!createPrivate}
+                onChange={() => setCreatePrivate(false)}
+              />
+              Pública
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="radio"
+                name="create-visibility"
+                checked={createPrivate}
+                onChange={() => setCreatePrivate(true)}
+              />
+              Privada
+            </label>
+            <p className="text-xs text-[var(--text-muted)]">
+              Privada: somente o criador e os responsáveis abrem os detalhes.
+            </p>
+          </fieldset>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
               Início planejado *
@@ -1217,12 +1345,7 @@ export default function GestaoAtividadesClient() {
               variant="ghost"
               onClick={() => {
                 setCreateOpen(false);
-                setCreateTitle("");
-                setCreateDesc("");
-                setCreateAssignee("");
-                setCreateStart(defaultPlannedStartDate());
-                setCreateEnd("");
-                setCreateAsCompleted(false);
+                resetCreateForm();
               }}
             >
               Cancelar
@@ -1256,8 +1379,12 @@ export default function GestaoAtividadesClient() {
                 {detail.creator.name}
               </p>
               <p>
-                <span className="text-[var(--text-muted)]">Responsável: </span>
-                {detail.assignee.name}
+                <span className="text-[var(--text-muted)]">Responsáveis: </span>
+                {peopleNames(detail)}
+              </p>
+              <p>
+                <span className="text-[var(--text-muted)]">Visibilidade: </span>
+                {detail.isPrivate ? "Privada" : "Pública"}
               </p>
               <p>
                 <span className="text-[var(--text-muted)]">Planejado: </span>
@@ -1301,6 +1428,80 @@ export default function GestaoAtividadesClient() {
               </div>
             ) : null}
 
+            {detail.canEdit ? (
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="secondary" onClick={startEdit}>
+                  Editar
+                </Button>
+                <Button type="button" size="sm" variant="danger" onClick={() => void deleteActivity()}>
+                  Excluir
+                </Button>
+              </div>
+            ) : null}
+
+            {editing && detail.canEdit ? (
+              <form className="flex flex-col gap-3 rounded-md border border-[var(--card-border)] p-3" onSubmit={saveEdit}>
+                <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                  Título
+                  <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required maxLength={200} />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                  Descrição
+                  <textarea
+                    className="theme-input min-h-[72px] w-full rounded-md border px-3 py-2 text-sm"
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    maxLength={5000}
+                  />
+                </label>
+                <fieldset className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                  <legend>Responsáveis</legend>
+                  <div className="max-h-36 overflow-y-auto rounded-md border border-[var(--card-border)] p-2">
+                    {assignees.map((a) => (
+                      <label key={a.id} className="flex cursor-pointer items-center gap-2 py-1 text-sm text-[var(--text-primary)]">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-[var(--igh-primary)]"
+                          checked={editAssigneeIds.includes(a.id)}
+                          onChange={() => setEditAssigneeIds((ids) => toggleId(ids, a.id))}
+                        />
+                        {a.name}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset className="flex flex-col gap-1 text-sm text-[var(--text-secondary)]">
+                  <legend className="text-xs text-[var(--text-muted)]">Visibilidade</legend>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="radio" name="edit-visibility" checked={!editPrivate} onChange={() => setEditPrivate(false)} />
+                    Pública
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="radio" name="edit-visibility" checked={editPrivate} onChange={() => setEditPrivate(true)} />
+                    Privada
+                  </label>
+                </fieldset>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                    Início planejado
+                    <Input type="date" value={editStart} onChange={(e) => setEditStart(e.target.value)} required />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                    Fim planejado
+                    <Input type="date" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
+                  </label>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" size="sm" disabled={savingEdit}>
+                    {savingEdit ? "Salvando…" : "Salvar"}
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+
             {detail.status === "DONE" && detail.canEdit ? (
               <Button type="button" size="sm" variant="danger" onClick={() => void archiveActivity()}>
                 Arquivar
@@ -1313,20 +1514,30 @@ export default function GestaoAtividadesClient() {
                 {BOARD_REACTION_EMOJIS.map((emoji) => {
                   const mineCount = detail.reactions.filter((r) => r.emoji === emoji && r.mine).length;
                   const total = detail.reactions.filter((r) => r.emoji === emoji).length;
+                  const names = detail.reactions.filter((r) => r.emoji === emoji).map((r) => r.userName);
+                  const who = names.length > 0 ? names.join(", ") : "Ninguém reagiu";
                   return (
-                    <button
-                      key={emoji}
-                      type="button"
-                      className={`cursor-pointer rounded-md border px-2.5 py-1.5 text-sm ${
-                        mineCount
-                          ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10"
-                          : "border-[var(--card-border)]"
-                      }`}
-                      onClick={() => void toggleReaction(emoji)}
-                      aria-pressed={mineCount > 0}
-                    >
-                      {emoji} {total > 0 ? total : ""}
-                    </button>
+                    <span key={emoji} className="group relative inline-flex">
+                      <button
+                        type="button"
+                        title={who}
+                        className={`cursor-pointer rounded-md border px-2.5 py-1.5 text-sm ${
+                          mineCount
+                            ? "border-[var(--igh-primary)] bg-[var(--igh-primary)]/10"
+                            : "border-[var(--card-border)]"
+                        }`}
+                        onClick={() => void toggleReaction(emoji)}
+                        aria-pressed={mineCount > 0}
+                        aria-label={names.length > 0 ? `${emoji}: ${who}` : emoji}
+                      >
+                        {emoji} {total > 0 ? total : ""}
+                      </button>
+                      {names.length > 0 ? (
+                        <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden w-max max-w-56 -translate-x-1/2 rounded-md bg-[var(--text-primary)] px-2 py-1 text-left text-xs font-normal whitespace-normal text-[var(--igh-surface)] group-hover:block">
+                          {who}
+                        </span>
+                      ) : null}
+                    </span>
                   );
                 })}
               </div>
@@ -1341,7 +1552,7 @@ export default function GestaoAtividadesClient() {
                   detail.comments.map((c) => (
                     <li key={c.id} className="rounded-md border border-[var(--card-border)] p-2 text-sm">
                       <p className="text-xs font-medium text-[var(--text-secondary)]">
-                        {c.author.name} · {formatDateBr(c.createdAt)}
+                        {c.author.name} · {formatDateTimeBr(c.createdAt)}
                       </p>
                       <p className="mt-1 whitespace-pre-wrap text-[var(--text-primary)]">{c.body}</p>
                     </li>

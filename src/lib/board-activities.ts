@@ -211,8 +211,24 @@ export function canMoveBoardActivity(args: {
   actorId: string;
   creatorId: string;
   assigneeId: string;
+  assigneeIds?: string[];
 }): boolean {
-  return args.actorId === args.creatorId || args.actorId === args.assigneeId;
+  if (args.actorId === args.creatorId) return true;
+  if (args.assigneeIds?.includes(args.actorId)) return true;
+  return args.actorId === args.assigneeId;
+}
+
+export function canOpenBoardActivity(args: {
+  actorId: string;
+  creatorId: string;
+  isPrivate: boolean;
+  assigneeId: string;
+  assigneeIds?: string[];
+}): boolean {
+  if (!args.isPrivate) return true;
+  if (args.actorId === args.creatorId) return true;
+  if (args.actorId === args.assigneeId) return true;
+  return args.assigneeIds?.includes(args.actorId) ?? false;
 }
 
 export function canEditBoardActivityMain(args: {
