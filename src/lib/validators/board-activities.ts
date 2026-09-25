@@ -20,11 +20,12 @@ export const createBoardActivitySchema = z
       .optional()
       .nullable()
       .transform((v) => (v && v.length > 0 ? v : null)),
-    assigneeId: z.string().uuid("Responsável inválido"),
+    assigneeIds: z.array(z.string().uuid("Responsável inválido")).min(1, "Selecione ao menos um responsável").max(20),
     plannedStartAt: dateOnly,
     plannedEndAt: dateOnly.optional().nullable(),
     /** true cria a atividade já na coluna Concluídas. Status arbitrário não é aceito. */
     markCompleted: z.boolean().optional().default(false),
+    isPrivate: z.boolean().optional().default(false),
   })
   .strict();
 
@@ -37,6 +38,8 @@ export const updateBoardActivitySchema = z.object({
     .optional()
     .nullable(),
   assigneeId: z.string().uuid().optional(),
+  assigneeIds: z.array(z.string().uuid()).min(1).max(20).optional(),
+  isPrivate: z.boolean().optional(),
   plannedStartAt: dateOnly.optional(),
   plannedEndAt: dateOnly.optional().nullable(),
   version: z.number().int().positive().optional(),

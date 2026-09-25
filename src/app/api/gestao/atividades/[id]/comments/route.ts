@@ -1,5 +1,5 @@
 import { boardApiErrorResponse } from "@/lib/board-activities-http";
-import { requireBoardAccess, resolvePilotUnitOrThrow } from "@/lib/board-activities-server";
+import { assertCanOpenActivity, requireBoardAccess, resolvePilotUnitOrThrow } from "@/lib/board-activities-server";
 import { createUserNotificationIfNew } from "@/lib/user-notifications";
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -20,9 +20,17 @@ export async function POST(request: Request, ctx: Ctx) {
 
     const task = await prisma.boardActivity.findFirst({
       where: { id, unitId: unit.id, archivedAt: null },
-      select: { id: true, title: true, creatorId: true, assigneeId: true },
+      select: {
+        id: true,
+        title: true,
+        creatorId: true,
+        assigneeId: true,
+        isPrivate: true,
+        assignees: { select: { userId: true } },
+      },
     });
     if (!task) return jsonErr("NOT_FOUND", "Atividade não encontrada.", 404);
+    assertCanOpenActivity(task, user.id);
 
     const comment = await prisma.boardActivityComment.create({
       data: {
@@ -33,7 +41,7 @@ export async function POST(request: Request, ctx: Ctx) {
       include: { author: { select: { id: true, name: true } } },
     });
 
-    const notifyIds = new Set([task.creatorId, task.assigneeId]);
+    const notifyIds = new Set([task.creatorId, task.assigneeId, ...task.assignees.map((row) => row.userId)]);
     notifyIds.delete(user.id);
     for (const uid of notifyIds) {
       await createUserNotificationIfNew({

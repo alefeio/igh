@@ -11,6 +11,7 @@ import {
   buildClassSessionAgendaWhere,
   canEditBoardActivityMain,
   canMoveBoardActivity,
+  canOpenBoardActivity,
   canTransitionStatus,
   defaultPlannedStartDate,
   initialStatusOnCreate,
@@ -139,6 +140,19 @@ describe("board-activities permissions", () => {
   it("only creator edits main fields", () => {
     expect(canEditBoardActivityMain({ actorId: "a", creatorId: "a" })).toBe(true);
     expect(canEditBoardActivityMain({ actorId: "b", creatorId: "a" })).toBe(false);
+  });
+  it("private activity opens only for creator or any assignee", () => {
+    const base = { creatorId: "a", isPrivate: true, assigneeId: "b", assigneeIds: ["b", "c"] };
+    expect(canOpenBoardActivity({ ...base, actorId: "a" })).toBe(true);
+    expect(canOpenBoardActivity({ ...base, actorId: "b" })).toBe(true);
+    expect(canOpenBoardActivity({ ...base, actorId: "c" })).toBe(true);
+    expect(canOpenBoardActivity({ ...base, actorId: "d" })).toBe(false);
+    expect(canOpenBoardActivity({ ...base, isPrivate: false, actorId: "d" })).toBe(true);
+  });
+  it("any listed assignee can move", () => {
+    expect(
+      canMoveBoardActivity({ actorId: "c", creatorId: "a", assigneeId: "b", assigneeIds: ["b", "c"] }),
+    ).toBe(true);
   });
   it("isMasterOrAdminRole covers Master/Admin only", () => {
     expect(isMasterOrAdminRole("MASTER")).toBe(true);
@@ -366,7 +380,7 @@ describe("início planejado e criação concluída", () => {
   it("rejeita status arbitrário no payload de criação", () => {
     const base = {
       title: "Aula extra",
-      assigneeId: "11111111-1111-4111-8111-111111111111",
+      assigneeIds: ["11111111-1111-4111-8111-111111111111"],
       plannedStartAt: "2026-08-01",
     };
     expect(createBoardActivitySchema.safeParse({ ...base, markCompleted: false }).success).toBe(true);

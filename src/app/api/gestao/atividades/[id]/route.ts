@@ -3,6 +3,7 @@ import {
   belemDayStartUtc,
   canEditBoardActivityMain,
   canMoveBoardActivity,
+  canOpenBoardActivity,
   canTransitionStatus,
   isActivityOverdue,
   parseIsoDateOnly,
@@ -31,6 +32,7 @@ async function loadTask(id: string, unitId: string) {
     include: {
       creator: { select: { id: true, name: true, email: true, isActive: true } },
       assignee: { select: { id: true, name: true, email: true, isActive: true } },
+      assignees: { select: { userId: true, user: { select: { id: true, name: true } } } },
       comments: {
         where: { deletedAt: null },
         orderBy: { createdAt: "asc" },
@@ -71,6 +73,8 @@ function serializeDetail(
     version: task.version,
     creator: task.creator,
     assignee: task.assignee,
+    assignees: task.assignees.map((row) => row.user),
+    isPrivate: task.isPrivate,
     overdue: isActivityOverdue({
       status: task.status,
       plannedStartAt: task.plannedStartAt,
@@ -80,6 +84,7 @@ function serializeDetail(
       actorId: currentUserId,
       creatorId: task.creatorId,
       assigneeId: task.assigneeId,
+      assigneeIds: task.assignees.map((row) => row.userId),
     }),
     canEdit: canEditBoardActivityMain({
       actorId: currentUserId,
@@ -119,6 +124,17 @@ export async function GET(_request: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     const task = await loadTask(id, unit.id);
     if (!task) return jsonErr("NOT_FOUND", "Atividade não encontrada.", 404);
+    if (
+      !canOpenBoardActivity({
+        actorId: user.id,
+        creatorId: task.creatorId,
+        isPrivate: task.isPrivate,
+        assigneeId: task.assigneeId,
+        assigneeIds: task.assignees.map((row) => row.userId),
+      })
+    ) {
+      return jsonErr("FORBIDDEN", "Somente o criador e os responsáveis podem abrir esta atividade.", 403);
+    }
     return jsonOk({ activity: serializeDetail(task, user.id) });
   } catch (e) {
     const auth = boardApiErrorResponse(e);
@@ -142,6 +158,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
       }
       const existing = await prisma.boardActivity.findFirst({
         where: { id, unitId: unit.id, archivedAt: null },
+        include: { assignees: { select: { userId: true } } },
       });
       if (!existing) return jsonErr("NOT_FOUND", "Atividade não encontrada.", 404);
       if (
@@ -149,6 +166,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
           actorId: user.id,
           creatorId: existing.creatorId,
           assigneeId: existing.assigneeId,
+          assigneeIds: existing.assignees.map((row) => row.userId),
         })
       ) {
         return jsonErr("FORBIDDEN", "Somente quem criou ou o responsável pode mudar o status.", 403);
@@ -217,6 +235,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     }
     const existing = await prisma.boardActivity.findFirst({
       where: { id, unitId: unit.id, archivedAt: null },
+      include: { assignees: { select: { userId: true } } },
     });
     if (!existing) return jsonErr("NOT_FOUND", "Atividade não encontrada.", 404);
     if (!canEditBoardActivityMain({ actorId: user.id, creatorId: existing.creatorId })) {
@@ -226,7 +245,18 @@ export async function PATCH(request: Request, ctx: Ctx) {
       return jsonErr("CONFLICT", "A atividade foi atualizada por outra pessoa. Recarregue.", 409);
     }
 
-    if (parsed.data.assigneeId) await assertAssigneeEligible(parsed.data.assigneeId);
+    if (parsed.data.assigneeIds?.length) {
+      for (const assigneeId of [...new Set(parsed.data.assigneeIds)]) {
+        await assertAssigneeEligible(assigneeId);
+      }
+    } else if (parsed.data.assigneeId) {
+      await assertAssigneeEligible(parsed.data.assigneeId);
+    }
+    const nextAssigneeIds = parsed.data.assigneeIds?.length
+      ? [...new Set(parsed.data.assigneeIds)]
+      : parsed.data.assigneeId
+        ? [parsed.data.assigneeId]
+        : null;
 
     let plannedStartAt = existing.plannedStartAt;
     let plannedEndAt = existing.plannedEndAt;
@@ -244,8 +274,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
       return jsonErr("VALIDATION_ERROR", "A data final não pode ser anterior à inicial.", 400);
     }
 
-    const assigneeChanged =
-      parsed.data.assigneeId != null && parsed.data.assigneeId !== existing.assigneeId;
+    const assigneeChanged = nextAssigneeIds != null && nextAssigneeIds[0] !== existing.assigneeId;
     const periodChanged =
       parsed.data.plannedStartAt != null || parsed.data.plannedEndAt !== undefined;
 
@@ -257,19 +286,26 @@ export async function PATCH(request: Request, ctx: Ctx) {
           ...(parsed.data.description !== undefined
             ? { description: parsed.data.description }
             : {}),
-          ...(parsed.data.assigneeId ? { assigneeId: parsed.data.assigneeId } : {}),
+          ...(nextAssigneeIds ? { assigneeId: nextAssigneeIds[0] } : {}),
+          ...(parsed.data.isPrivate != null ? { isPrivate: parsed.data.isPrivate } : {}),
           plannedStartAt,
           plannedEndAt,
           version: { increment: 1 },
         },
       });
+      if (nextAssigneeIds) {
+        await tx.boardActivityAssignee.deleteMany({ where: { activityId: existing.id } });
+        await tx.boardActivityAssignee.createMany({
+          data: nextAssigneeIds.map((userId) => ({ activityId: existing.id, userId })),
+        });
+      }
       if (assigneeChanged) {
         await tx.boardActivityEvent.create({
           data: {
             taskId: existing.id,
             actorId: user.id,
             type: "ASSIGNEE_CHANGED",
-            payload: { from: existing.assigneeId, to: parsed.data.assigneeId },
+            payload: { from: existing.assigneeId, to: nextAssigneeIds?.[0] ?? null, assigneeIds: nextAssigneeIds },
           },
         });
       }
@@ -289,15 +325,20 @@ export async function PATCH(request: Request, ctx: Ctx) {
       return row;
     });
 
-    if (assigneeChanged && parsed.data.assigneeId && parsed.data.assigneeId !== user.id) {
-      await createUserNotificationIfNew({
-        userId: parsed.data.assigneeId,
-        kind: "BOARD_ACTIVITY_ASSIGNED",
-        title: "Atividade atribuída a você",
-        body: updated.title,
-        linkUrl: `/gestao/atividades?task=${updated.id}`,
-        dedupeKey: `board-reassign:${updated.id}:${parsed.data.assigneeId}:${updated.version}`,
-      });
+    if (nextAssigneeIds) {
+      const previous = new Set(existing.assignees.map((row) => row.userId));
+      previous.add(existing.assigneeId);
+      for (const assigneeId of nextAssigneeIds) {
+        if (previous.has(assigneeId) || assigneeId === user.id) continue;
+        await createUserNotificationIfNew({
+          userId: assigneeId,
+          kind: "BOARD_ACTIVITY_ASSIGNED",
+          title: "Atividade atribuída a você",
+          body: updated.title,
+          linkUrl: `/gestao/atividades?task=${updated.id}`,
+          dedupeKey: `board-reassign:${updated.id}:${assigneeId}:${updated.version}`,
+        });
+      }
     }
 
     const detail = await loadTask(updated.id, unit.id);
@@ -382,6 +423,41 @@ export async function POST(request: Request, ctx: Ctx) {
     }
 
     return jsonErr("VALIDATION_ERROR", "Ação inválida.", 400);
+  } catch (e) {
+    const auth = boardApiErrorResponse(e);
+    if (auth) return auth;
+    throw e;
+  }
+}
+
+/** Exclusão pelo criador: arquiva a atividade para sair do quadro e dos detalhes. */
+export async function DELETE(_request: Request, ctx: Ctx) {
+  try {
+    const user = await requireBoardAccess();
+    const unit = await resolvePilotUnitOrThrow();
+    const { id } = await ctx.params;
+    const existing = await prisma.boardActivity.findFirst({
+      where: { id, unitId: unit.id, archivedAt: null },
+    });
+    if (!existing) return jsonErr("NOT_FOUND", "Atividade não encontrada.", 404);
+    if (existing.creatorId !== user.id) {
+      return jsonErr("FORBIDDEN", "Somente quem criou a atividade pode excluí-la.", 403);
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.boardActivity.update({
+        where: { id: existing.id },
+        data: { archivedAt: new Date(), version: { increment: 1 } },
+      });
+      await tx.boardActivityEvent.create({
+        data: {
+          taskId: existing.id,
+          actorId: user.id,
+          type: "ARCHIVED",
+          payload: { deletedByCreator: true },
+        },
+      });
+    });
+    return jsonOk({ deleted: true });
   } catch (e) {
     const auth = boardApiErrorResponse(e);
     if (auth) return auth;
