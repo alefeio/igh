@@ -12,6 +12,7 @@ const FONT_BOLD_PATH = path.join(process.cwd(), "assets", "fonts", "NotoSans-Bol
 
 export type CertificateSignoffClassGroup = {
   courseName: string;
+  teacherName: string;
   cycle: number;
   year: number;
   location: string | null;
@@ -33,6 +34,7 @@ export function certificateSignoffTitleLines(group: CertificateSignoffClassGroup
     `Ciclo ${group.cycle}/${group.year}`,
     `Turma: ${turma}`,
     `Curso: ${group.courseName.trim() || "Curso"}`,
+    `Professor: ${group.teacherName.trim() || "Professor"}`,
   ];
 }
 
