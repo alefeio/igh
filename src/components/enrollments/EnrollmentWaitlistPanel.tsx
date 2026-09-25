@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { StudentForm } from "@/components/students/StudentForm";
 import { ReferrerPicker, type ReferrerOption } from "@/components/site/ReferrerPicker";
@@ -86,6 +85,8 @@ export function EnrollmentWaitlistPanel({
 
   const fullClassGroups = useMemo(() => classGroups.filter(isClassGroupFull), [classGroups]);
 
+  const [listOpen, setListOpen] = useState(false);
+
   const load = useCallback(async () => {
     if (!canManage) return;
     setLoading(true);
@@ -99,8 +100,9 @@ export function EnrollmentWaitlistPanel({
   }, [canManage]);
 
   useEffect(() => {
+    if (!listOpen) return;
     void load();
-  }, [load, reloadToken]);
+  }, [load, reloadToken, listOpen]);
 
   async function searchStudents(q: string) {
     const params = new URLSearchParams({ pageSize: "20", q });
@@ -195,22 +197,24 @@ export function EnrollmentWaitlistPanel({
   return (
     <>
       <div className="flex justify-end">
-        <Button type="button" variant="secondary" onClick={openCreate}>
-          Cadastro de reserva
+        <Button type="button" variant="secondary" onClick={() => setListOpen(true)}>
+          Lista de espera
         </Button>
       </div>
 
-      <SectionCard
-        title="Lista de espera (reservas)"
-        description={
-          loading
-            ? "Carregando reservas…"
-            : items.length === 0
-              ? "Nenhuma reserva aguardando vaga. Use «Cadastro de reserva» para turmas lotadas."
-              : `${items.length} reserva(s) na fila. A primeira de cada turma é matriculada automaticamente quando uma vaga é liberada (cancelamento ou exclusão).`
-        }
-        variant="elevated"
-      >
+      <Modal open={listOpen} title="Lista de espera" onClose={() => setListOpen(false)} size="large">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-[var(--text-muted)]">
+            {loading
+              ? "Carregando reservas…"
+              : items.length === 0
+                ? "Nenhuma reserva aguardando vaga."
+                : `${items.length} reserva(s) na fila. A primeira de cada turma é matriculada automaticamente quando uma vaga é liberada.`}
+          </p>
+          <Button type="button" onClick={openCreate}>
+            Cadastro de reserva
+          </Button>
+        </div>
         {items.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -265,7 +269,7 @@ export function EnrollmentWaitlistPanel({
             </table>
           </div>
         ) : null}
-      </SectionCard>
+      </Modal>
 
       <Modal open={open} title="Cadastro de reserva" onClose={() => setOpen(false)}>
         <form onSubmit={submit} className="flex flex-col gap-4">
