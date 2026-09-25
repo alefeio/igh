@@ -1,5 +1,5 @@
 import { boardApiErrorResponse } from "@/lib/board-activities-http";
-import { markTeacherScheduleConflicts, resolveBoardPeriod } from "@/lib/board-activities";
+import { assembleAgendaSessions, buildClassSessionAgendaWhere, resolveBoardPeriod } from "@/lib/board-activities";
 import { requireBoardAccess, resolvePilotUnitOrThrow } from "@/lib/board-activities-server";
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -19,15 +19,7 @@ export async function GET(request: Request) {
     const teacherQ = url.searchParams.get("teacher")?.trim().toLowerCase() ?? "";
 
     const sessions = await prisma.classSession.findMany({
-      where: {
-        sessionDate: {
-          gte: period.range.fromUtc,
-          lt: period.range.toExclusiveUtc,
-        },
-        classGroup: {
-          poloLocationId: unit.id,
-        },
-      },
+      where: buildClassSessionAgendaWhere(period.range),
       select: {
         id: true,
         sessionDate: true,
@@ -37,13 +29,17 @@ export async function GET(request: Request) {
         classGroup: {
           select: {
             id: true,
+            status: true,
             location: true,
+            isExternal: true,
             course: { select: { name: true } },
+            poloLocation: {
+              select: { name: true, polo: { select: { name: true } } },
+            },
             teacher: {
               select: {
                 id: true,
                 name: true,
-                userId: true,
               },
             },
             classGroupTeachers: {
@@ -54,48 +50,13 @@ export async function GET(request: Request) {
           },
         },
       },
-      orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
-      take: 1000,
+      orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }, { id: "asc" }],
     });
 
-    type Slot = {
-      id: string;
-      date: string;
-      startTime: string;
-      endTime: string;
-      status: string;
-      courseName: string;
-      classGroupId: string;
-      location: string | null;
-      teachers: { id: string; name: string }[];
-      conflict: boolean;
-    };
-
-    const slots: Slot[] = sessions.map((s) => {
-      const titular = s.classGroup.teacher;
-      const co = s.classGroup.classGroupTeachers.map((t) => t.teacher);
-      const teachersMap = new Map<string, { id: string; name: string }>();
-      teachersMap.set(titular.id, { id: titular.id, name: titular.name });
-      for (const t of co) teachersMap.set(t.id, t);
-      return {
-        id: s.id,
-        date: s.sessionDate.toISOString().slice(0, 10),
-        startTime: s.startTime,
-        endTime: s.endTime,
-        status: s.status,
-        courseName: s.classGroup.course.name,
-        classGroupId: s.classGroup.id,
-        location: s.classGroup.location,
-        teachers: [...teachersMap.values()],
-        conflict: false,
-      };
-    });
-
+    const mapped = assembleAgendaSessions(sessions);
     const filtered = teacherQ
-      ? slots.filter((s) => s.teachers.some((t) => t.name.toLowerCase().includes(teacherQ)))
-      : slots;
-
-    markTeacherScheduleConflicts(filtered);
+      ? mapped.filter((s) => s.teachers.some((t) => t.name.toLowerCase().includes(teacherQ)))
+      : mapped;
 
     return jsonOk({
       unit: { id: unit.id, name: unit.name },

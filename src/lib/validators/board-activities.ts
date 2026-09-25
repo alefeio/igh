@@ -10,19 +10,23 @@ const dateOnly = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (AAAA-MM-DD)");
 
-export const createBoardActivitySchema = z.object({
-  title: z.string().trim().min(2, "Título obrigatório").max(BOARD_TITLE_MAX_LEN),
-  description: z
-    .string()
-    .trim()
-    .max(BOARD_DESCRIPTION_MAX_LEN)
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.length > 0 ? v : null)),
-  assigneeId: z.string().uuid("Responsável inválido"),
-  plannedStartAt: dateOnly,
-  plannedEndAt: dateOnly.optional().nullable(),
-});
+export const createBoardActivitySchema = z
+  .object({
+    title: z.string().trim().min(2, "Título obrigatório").max(BOARD_TITLE_MAX_LEN),
+    description: z
+      .string()
+      .trim()
+      .max(BOARD_DESCRIPTION_MAX_LEN)
+      .optional()
+      .nullable()
+      .transform((v) => (v && v.length > 0 ? v : null)),
+    assigneeId: z.string().uuid("Responsável inválido"),
+    plannedStartAt: dateOnly,
+    plannedEndAt: dateOnly.optional().nullable(),
+    /** true cria a atividade já na coluna Concluídas. Status arbitrário não é aceito. */
+    markCompleted: z.boolean().optional().default(false),
+  })
+  .strict();
 
 export const updateBoardActivitySchema = z.object({
   title: z.string().trim().min(2).max(BOARD_TITLE_MAX_LEN).optional(),
