@@ -376,6 +376,7 @@ const ITEMS: Item[] = [
   { href: "/admin/site/banners", label: "Banners", roles: SITE_AND_COMMS, category: "Site" },
   { href: "/admin/tablet/banners", label: "Banners (aluno)", roles: SITE_AND_COMMS, category: "Site" },
   { href: "/admin/site/mensagens-contato", label: "Mensagens de contato", roles: SITE_AND_COMMS, category: "Site" },
+  { href: "/admin/site/avaliacoes-atendimento", label: "Avaliações de atendimento", roles: SITE_AND_COMMS, category: "Site" },
   { href: "/admin/site/contato-pagina", label: "Página de contato", roles: SITE_AND_COMMS, category: "Site" },
   { href: "/admin/site/sobre", label: "Página Sobre", roles: SITE_AND_COMMS, category: "Site" },
   { href: "/admin/site/espaco-maker", label: "Página Espaço Maker", roles: SITE_AND_COMMS, category: "Site" },

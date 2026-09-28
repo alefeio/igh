@@ -146,6 +146,7 @@ model User {
   boardActivityCommentsAuthored      BoardActivityComment[]          @relation("BoardActivityCommentAuthor")
   boardActivityReactions             BoardActivityReaction[]         @relation("BoardActivityReactionUser")
   boardActivityEventsAuthored        BoardActivityEvent[]            @relation("BoardActivityEventActor")
+  serviceAttendanceRatings           ServiceAttendanceRating[]
 
   @@index([referredByUserId])
 }
@@ -2404,6 +2405,32 @@ model SiteUnitCourse {
   @@id([unitId, courseId])
   @@index([courseId])
   @@index([unitId, order])
+}
+
+enum ServiceChannel {
+  PRESENCIAL
+  WHATSAPP
+  TELEFONE
+  EMAIL
+  SITE
+}
+
+/// * Avaliação pública do atendimento. Sem conta obrigatória; userId só quando a pessoa já está logada.
+model ServiceAttendanceRating {
+  id        String         @id @default(uuid())
+  score     Int
+  channel   ServiceChannel
+  comment   String?
+  name      String?
+  email     String?
+  phone     String?
+  userId    String?
+  createdAt DateTime       @default(now())
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([score])
+  @@index([userId])
 }
 
 model ContactMessage {
