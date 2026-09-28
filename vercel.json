@@ -35,7 +35,8 @@
       "feat/avaliacao-atendimento": false,
       "feat/historico-frequencia-alunos": false,
       "feat/lista-matriculas-canceladas": false,
-      "feat/reativar-matricula-cancelada": false
+      "feat/reativar-matricula-cancelada": false,
+      "feat/senha-professor": false
     }
   }
 }
