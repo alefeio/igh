@@ -31,7 +31,8 @@
       "feat/enrollments-listagem-sob-demanda": false,
       "feat/enrollments-cards-graficos": false,
       "feat/quadro-edicao-visibilidade": false,
-      "feat/indice-slides-apresentar": false
+      "feat/indice-slides-apresentar": false,
+      "feat/avaliacao-atendimento": false
     }
   }
 }

@@ -175,6 +175,14 @@ export function Footer({ menuItems, settings }: FooterProps) {
                   </li>
                 ))
               )}
+              <li>
+                <Link
+                  href="/avaliar-atendimento"
+                  className="text-sm font-medium text-white/80 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/50 rounded"
+                >
+                  Avalie o atendimento
+                </Link>
+              </li>
             </ul>
           </div>
           {hasContact ? (

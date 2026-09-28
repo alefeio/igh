@@ -1,6 +1,7 @@
 import { PageHeader, Section, Card } from "@/components/site";
 import { SocialIcons } from "@/components/site/SocialIcons";
 import { getSiteSettings, getContatoPageForSite } from "@/lib/site-data";
+import Link from "next/link";
 import { ContatoForm } from "./ContatoForm";
 
 function normalizeAddresses(value: unknown): { line: string; city: string; state: string; zip: string }[] {
@@ -53,6 +54,13 @@ export default async function ContatoPage() {
         <div className="grid gap-8 lg:grid-cols-3">
           <ContatoForm />
           <div className="space-y-4">
+            <Card>
+              <h3 className="font-semibold text-[var(--igh-secondary)]">Avalie o atendimento</h3>
+              <p className="mt-2 text-sm text-[var(--igh-muted)]">Leva menos de um minuto. Só a nota e o canal são obrigatórios.</p>
+              <Link href="/avaliar-atendimento" className="mt-3 inline-block text-sm font-medium text-[var(--igh-primary)] hover:underline">
+                Avaliar atendimento
+              </Link>
+            </Card>
             {(addresses.length > 0 || settings?.businessHours || socials.length > 0) && (
               <>
                 {addresses.length > 0 && (
