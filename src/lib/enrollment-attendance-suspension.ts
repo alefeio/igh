@@ -50,6 +50,11 @@ type AttendancePatchRow = {
   absenceJustification: string | null;
   /** Grade: P/F/J ou null (desmarcar). Ausente nas APIs que só enviam presença. */
   appliedMark?: "P" | "F" | "J" | null;
+  /**
+   * false: a 4ª falta consecutiva é lançada sem cancelar a matrícula.
+   * undefined: mantém o cancelamento automático das outras APIs.
+   */
+  confirmCancel?: boolean;
 };
 
 /**
@@ -100,7 +105,8 @@ export async function applyAttendanceSuspensionRules(params: {
     if (
       enrollment.status === "SUSPENDED" &&
       markingUnjustifiedAbsence &&
-      streak >= CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT
+      streak >= CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT &&
+      row.confirmCancel !== false
     ) {
       await prisma.enrollment.update({
         where: { id: enrollment.id },

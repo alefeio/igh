@@ -1,7 +1,8 @@
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { applyAttendanceSuspensionRules } from "@/lib/enrollment-attendance-suspension";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
-import { attendancePercent, markToDb, rowToMark, type AttendanceMark } from "@/lib/attendance-mark";
+import { attendancePercent, JUSTIFIED_ABSENCE_DEFAULT, markToDb, rowToMark, type AttendanceMark } from "@/lib/attendance-mark";
+import { trimHistoryBody } from "@/lib/enrollment-history";
 import { processEmailOutboxBatch } from "@/lib/email/outbox";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
@@ -9,6 +10,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { ensureClassSessionsLiberatedForStudent } from "@/lib/student-lesson-liberation";
 import { markReferralFirstAttendanceForPresentEnrollments } from "@/lib/student-referrals";
 import { after } from "next/server";
+import type { Prisma } from "@/generated/prisma/client";
 
 async function getTeacherClassGroup(userId: string, classGroupId: string) {
   const teacher = await prisma.teacher.findFirst({
@@ -78,17 +80,25 @@ export async function GET(
       : [];
 
   const markByKey = new Map<string, AttendanceMark | null>();
+  const justificationByKey = new Map<string, string>();
   for (const a of attendances) {
     markByKey.set(`${a.enrollmentId}:${a.classSessionId}`, rowToMark(a));
+    const text = (a.absenceJustification ?? "").trim();
+    if (text && text !== "FJ" && text !== "J") {
+      justificationByKey.set(`${a.enrollmentId}:${a.classSessionId}`, text);
+    }
   }
 
   const rows = enrollments.map((e) => {
     const cells: Record<string, AttendanceMark | null> = {};
+    const justifications: Record<string, string> = {};
     let presentCount = 0;
     let recordedCount = 0;
     for (const s of sessions) {
       const mark = markByKey.get(`${e.id}:${s.id}`) ?? null;
       cells[s.id] = mark;
+      const note = justificationByKey.get(`${e.id}:${s.id}`);
+      if (note) justifications[s.id] = note;
       if (mark) {
         recordedCount += 1;
         if (mark === "P") presentCount += 1;
@@ -99,6 +109,7 @@ export async function GET(
       studentName: e.student.name,
       enrollmentStatus: e.status,
       cells,
+      justifications,
       presentCount,
       recordedCount,
       frequencyPercent: recordedCount > 0 ? attendancePercent(presentCount, recordedCount) : null,
@@ -132,14 +143,32 @@ export async function PATCH(
 
   const body = await request.json().catch(() => null);
   const rawUpdates = Array.isArray(body?.updates) ? body.updates : [];
-  const updates: { sessionId: string; enrollmentId: string; mark: AttendanceMark | null }[] = [];
+  const updates: {
+    sessionId: string;
+    enrollmentId: string;
+    mark: AttendanceMark | null;
+    justification: string | null;
+    confirmCancel: boolean;
+    cancellationReason: string | null;
+  }[] = [];
 
   for (const u of rawUpdates) {
     if (!u || typeof u !== "object") continue;
     const o = u as Record<string, unknown>;
     if (typeof o.sessionId !== "string" || typeof o.enrollmentId !== "string") continue;
     if (o.mark !== "P" && o.mark !== "F" && o.mark !== "J" && o.mark !== null) continue;
-    updates.push({ sessionId: o.sessionId, enrollmentId: o.enrollmentId, mark: o.mark });
+    const justification =
+      typeof o.justification === "string" ? trimHistoryBody(o.justification) : null;
+    const cancellationReason =
+      typeof o.cancellationReason === "string" ? trimHistoryBody(o.cancellationReason) : null;
+    updates.push({
+      sessionId: o.sessionId,
+      enrollmentId: o.enrollmentId,
+      mark: o.mark,
+      justification: justification && justification.length > 0 ? justification : null,
+      confirmCancel: o.confirmCancel === true,
+      cancellationReason: cancellationReason && cancellationReason.length > 0 ? cancellationReason : null,
+    });
   }
 
   if (updates.length === 0) {
@@ -152,7 +181,7 @@ export async function PATCH(
   const [validSessions, validEnrollments] = await Promise.all([
     prisma.classSession.findMany({
       where: { id: { in: sessionIds }, classGroupId, status: "LIBERADA" },
-      select: { id: true },
+      select: { id: true, sessionDate: true },
     }),
     prisma.enrollment.findMany({
       where: { id: { in: enrollmentIds }, classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
@@ -177,7 +206,9 @@ export async function PATCH(
           where: { classSessionId: u.sessionId, enrollmentId: u.enrollmentId },
         });
       }
-      const { present, absenceJustification } = markToDb(u.mark);
+      const { present } = markToDb(u.mark);
+      const absenceJustification =
+        u.mark === "J" ? (u.justification ?? JUSTIFIED_ABSENCE_DEFAULT) : markToDb(u.mark).absenceJustification;
       return prisma.sessionAttendance.upsert({
         where: {
           classSessionId_enrollmentId: {
@@ -209,8 +240,9 @@ export async function PATCH(
     return {
       enrollmentId: u.enrollmentId,
       present,
-      absenceJustification,
+      absenceJustification: u.mark === "J" ? (u.justification ?? JUSTIFIED_ABSENCE_DEFAULT) : absenceJustification,
       appliedMark: u.mark as AttendanceMark | null,
+      confirmCancel: u.confirmCancel,
     };
   });
 
@@ -242,6 +274,45 @@ export async function PATCH(
     );
   } catch (e) {
     console.error("[attendance-grid] pós-salvamento de frequência", e);
+  }
+
+  const historyRows: Prisma.EnrollmentHistoryEntryCreateManyInput[] = [];
+  for (const row of savedRows) {
+    const session = validSessions.find((s) => s.id === row.sessionId);
+    if (!session) continue;
+    const when = formatSessionDate(session.sessionDate);
+    if (row.mark === "J" && row.justification) {
+      historyRows.push({
+        enrollmentId: row.enrollmentId,
+        authorId: user.id,
+        kind: "JUSTIFICATIVA",
+        body: `Aula ${when}: ${row.justification}`,
+      });
+    } else if (row.mark === "F" && row.confirmCancel && cancelledIds.includes(row.enrollmentId)) {
+      historyRows.push({
+        enrollmentId: row.enrollmentId,
+        authorId: user.id,
+        kind: "CANCELAMENTO",
+        body: row.cancellationReason
+          ? `Aula ${when}: ${row.cancellationReason}`
+          : `Aula ${when}: matrícula cancelada na 4ª falta consecutiva.`,
+      });
+    } else if (row.mark === "F" && !row.confirmCancel && row.cancellationReason) {
+      historyRows.push({
+        enrollmentId: row.enrollmentId,
+        authorId: user.id,
+        kind: "QUARTA_FALTA",
+        body: `Aula ${when}: ${row.cancellationReason}`,
+      });
+    }
+  }
+
+  if (historyRows.length > 0) {
+    try {
+      await prisma.enrollmentHistoryEntry.createMany({ data: historyRows });
+    } catch (e) {
+      console.error("[attendance-grid] histórico da matrícula", e);
+    }
   }
 
   if (suspendedIds.length > 0 || cancelledIds.length > 0) {

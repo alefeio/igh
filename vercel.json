@@ -32,7 +32,8 @@
       "feat/enrollments-cards-graficos": false,
       "feat/quadro-edicao-visibilidade": false,
       "feat/indice-slides-apresentar": false,
-      "feat/avaliacao-atendimento": false
+      "feat/avaliacao-atendimento": false,
+      "feat/historico-frequencia-alunos": false
     }
   }
 }

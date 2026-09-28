@@ -7,6 +7,7 @@ import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/Das
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { AttendanceGrid } from "@/components/professor/AttendanceGrid";
+import { EnrollmentFollowUp, type EnrollmentHistoryItem } from "@/components/professor/EnrollmentFollowUp";
 import { ForumPostBody } from "@/components/forum/ForumPostBody";
 import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
 import { Button } from "@/components/ui/Button";
@@ -52,6 +53,7 @@ type Enrollment = {
   welcomeEmailPending?: boolean;
   enrolledAt: string;
   documentationAlert: "yellow" | "red" | null;
+  history?: EnrollmentHistoryItem[];
 };
 
 type SessionAttendanceSummary = {
@@ -819,7 +821,7 @@ export default function ProfessorTurmaDetailPage() {
         target: "[data-tour=\"pt-tab-frequencia\"]",
         title: "Frequência",
         content:
-          "Grade com todos os alunos e aulas liberadas. Clique em cada célula para alternar P (presente), F (falta) e J (justificado). A coluna de frequência é atualizada automaticamente.",
+          "Grade com todos os alunos e aulas liberadas. Clique em P, F ou J. Em J você pode escrever o motivo. Na quarta falta consecutiva, o cancelamento da matrícula é opcional.",
       },
       {
         target: "[data-tour=\"pt-tab-duvidas\"]",
@@ -1089,8 +1091,8 @@ export default function ProfessorTurmaDetailPage() {
                       )
                     : null;
                 return (
-                <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-                  <div className="flex items-center gap-2">
+                <li key={e.id} className="flex flex-col gap-3 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     {e.documentationAlert && (
                       <span
                         title={e.documentationAlert === "red" ? "Dados incompletos e documentação faltando" : "Documentação incompleta (identidade e/ou comprovante de residência)"}
@@ -1202,7 +1204,6 @@ export default function ProfessorTurmaDetailPage() {
                         </p>
                       )}
                     </div>
-                  </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
                     <span className="text-xs font-medium tabular-nums text-[var(--text-secondary)]">
                       Frequência: {e.attendancePresentCount ?? 0}/{e.attendanceTotalSessions ?? 0}
@@ -1314,6 +1315,14 @@ export default function ProfessorTurmaDetailPage() {
                       </div>
                     )}
                   </div>
+                  </div>
+                  <EnrollmentFollowUp
+                    classGroupId={id}
+                    enrollmentId={e.id}
+                    studentName={e.studentName}
+                    history={e.history ?? []}
+                    onAdded={() => void loadEnrollments()}
+                  />
                 </li>
                 );
               })}

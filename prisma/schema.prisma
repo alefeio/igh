@@ -147,6 +147,7 @@ model User {
   boardActivityReactions             BoardActivityReaction[]         @relation("BoardActivityReactionUser")
   boardActivityEventsAuthored        BoardActivityEvent[]            @relation("BoardActivityEventActor")
   serviceAttendanceRatings           ServiceAttendanceRating[]
+  enrollmentHistoryAuthored          EnrollmentHistoryEntry[]        @relation("EnrollmentHistoryAuthor")
 
   @@index([referredByUserId])
 }
@@ -1082,10 +1083,33 @@ model Enrollment {
   lessonQuestions           EnrollmentLessonQuestion[]
   questionReplies           EnrollmentLessonQuestionReply[]
   sessionAttendances        SessionAttendance[]
+  historyEntries            EnrollmentHistoryEntry[]
   verificationTokens        VerificationToken[]
   examAttempts              ClassGroupExamAttempt[]
   /// * Reserva convertida nesta matrícula (se houver).
   convertedFromWaitlist     EnrollmentWaitlist?
+}
+
+enum EnrollmentHistoryKind {
+  JUSTIFICATIVA
+  CANCELAMENTO
+  QUARTA_FALTA
+  BUSCA_ATIVA
+}
+
+/// * Histórico da matrícula: justificativa, cancelamento e busca ativa.
+model EnrollmentHistoryEntry {
+  id           String                @id @default(uuid())
+  enrollmentId String
+  authorId     String
+  kind         EnrollmentHistoryKind
+  body         String
+  createdAt    DateTime              @default(now())
+  enrollment   Enrollment            @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  author       User                  @relation("EnrollmentHistoryAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([enrollmentId, createdAt])
+  @@index([authorId])
 }
 
 /// * Lista de espera / cadastro de reserva para turmas sem vagas.
