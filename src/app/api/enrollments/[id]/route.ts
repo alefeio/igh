@@ -118,6 +118,41 @@ export async function PATCH(
     certificateFileName?: string | null;
   } = {};
   if (parsed.data.status !== undefined) data.status = parsed.data.status;
+  if (
+    data.status &&
+    enrollmentOccupiesSeat(data.status) &&
+    !enrollmentOccupiesSeat(existing.status)
+  ) {
+    const canOverrideEnrollmentRules =
+      user.role === "MASTER" || user.role === "GENERAL_ADMIN";
+    const duplicate = await prisma.enrollment.findFirst({
+      where: {
+        studentId: existing.studentId,
+        classGroupId: existing.classGroupId,
+        status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
+        id: { not: id },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return jsonErr("VALIDATION_ERROR", "O aluno já está inscrito nesta turma.", 400);
+    }
+    if (!canOverrideEnrollmentRules) {
+      const classGroup = await prisma.classGroup.findUnique({
+        where: { id: existing.classGroupId },
+        select: { capacity: true },
+      });
+      const occupied = await prisma.enrollment.count({
+        where: {
+          classGroupId: existing.classGroupId,
+          status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
+        },
+      });
+      if (classGroup && occupied >= classGroup.capacity) {
+        return jsonErr("VALIDATION_ERROR", "Esta turma não possui vagas disponíveis.", 400);
+      }
+    }
+  }
   if (parsed.data.isPreEnrollment !== undefined) data.isPreEnrollment = parsed.data.isPreEnrollment;
   if (parsed.data.certificateUrl !== undefined) data.certificateUrl = parsed.data.certificateUrl || null;
   if (parsed.data.certificatePublicId !== undefined) data.certificatePublicId = parsed.data.certificatePublicId || null;

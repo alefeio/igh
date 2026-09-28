@@ -1350,7 +1350,8 @@ export default function ProfessorTurmaDetailPage() {
                       const waChat = e.studentPhone ? whatsappChatUrl(e.studentPhone) : null;
                       return (
                         <li key={e.id} className="flex flex-col gap-3 px-4 py-3">
-                          <div className="flex min-w-0 items-start gap-2 text-left">
+                          <div className="flex w-full items-start justify-between gap-3">
+                          <div className="flex min-w-0 flex-1 items-start gap-2 text-left">
                             {e.documentationAlert ? (
                               <span
                                 title={
@@ -1406,6 +1407,24 @@ export default function ProfessorTurmaDetailPage() {
                                 {e.attendancePercent != null ? ` (${e.attendancePercent}%)` : ""}
                               </p>
                             </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="shrink-0"
+                            disabled={updatingEnrollmentId === e.id}
+                            onClick={() =>
+                              requestEnrollmentStatusChange(
+                                e,
+                                "ACTIVE",
+                                "Reativar matrícula",
+                                `Reativar a matrícula de ${e.studentName}? O aluno volta para a lista de matrículas ativas e ocupa uma vaga.`,
+                              )
+                            }
+                          >
+                            Reativar
+                          </Button>
                           </div>
                           <EnrollmentFollowUp
                             classGroupId={id}
