@@ -38,6 +38,16 @@ export async function GET(
       status: true,
       certificateEligible: true,
       convertedFromWaitlist: { select: { id: true } },
+      historyEntries: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          kind: true,
+          body: true,
+          createdAt: true,
+          author: { select: { name: true } },
+        },
+      },
       student: {
         select: {
           id: true,
@@ -135,6 +145,13 @@ export async function GET(
         attendanceTotalSessions: attendance?.totalSessions ?? 0,
         attendancePercent: attendance?.percent ?? null,
         documentationAlert: docsMissing ? (dataComplete ? "yellow" : "red") : null,
+        history: e.historyEntries.map((entry) => ({
+          id: entry.id,
+          kind: entry.kind,
+          body: entry.body,
+          createdAt: entry.createdAt.toISOString(),
+          authorName: entry.author.name,
+        })),
       };
     }),
   });

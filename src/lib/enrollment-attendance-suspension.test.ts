@@ -110,4 +110,37 @@ describe("applyAttendanceSuspensionRules — 4ª falta e fila", () => {
     });
     consoleError.mockRestore();
   });
+
+  it("não cancela quando a grade marca a 4ª falta sem confirmação", async () => {
+    enrollmentFindFirst.mockResolvedValue({
+      id: "enr-susp",
+      status: "SUSPENDED",
+      student: { name: "Aluno Suspenso" },
+    });
+    classSessionFindMany.mockResolvedValue([{ id: "s4" }, { id: "s3" }, { id: "s2" }, { id: "s1" }]);
+    sessionAttendanceFindMany.mockResolvedValue([
+      { classSessionId: "s4", present: false, absenceJustification: null },
+      { classSessionId: "s3", present: false, absenceJustification: null },
+      { classSessionId: "s2", present: false, absenceJustification: null },
+      { classSessionId: "s1", present: false, absenceJustification: null },
+    ]);
+
+    const { applyAttendanceSuspensionRules } = await import("@/lib/enrollment-attendance-suspension");
+    const result = await applyAttendanceSuspensionRules({
+      classGroupId: "cg-1",
+      performedByUserId: "user-1",
+      rows: [
+        {
+          enrollmentId: "enr-susp",
+          present: false,
+          absenceJustification: null,
+          appliedMark: "F",
+          confirmCancel: false,
+        },
+      ],
+    });
+
+    expect(result.cancelledIds).toEqual([]);
+    expect(enrollmentUpdate).not.toHaveBeenCalled();
+  });
 });

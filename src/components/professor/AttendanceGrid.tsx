@@ -25,6 +25,7 @@ type GridRow = {
   studentName: string;
   enrollmentStatus: string;
   cells: Record<string, AttendanceMark | null>;
+  justifications?: Record<string, string>;
   presentCount: number;
   recordedCount: number;
   frequencyPercent: number | null;
@@ -96,11 +97,20 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
   const [rows, setRows] = useState<GridRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [justifyPrompt, setJustifyPrompt] = useState<{
+    enrollmentId: string;
+    sessionId: string;
+    studentName: string;
+    sessionLabel: string;
+  } | null>(null);
+  const [justifyText, setJustifyText] = useState("");
   const [cancelConfirm, setCancelConfirm] = useState<{
     enrollmentId: string;
     sessionId: string;
     studentName: string;
+    sessionLabel: string;
   } | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   const loadGrid = useCallback(async (opts?: { silent?: boolean; excludeEnrollmentIds?: string[] }): Promise<GridRow[] | null> => {
     if (!opts?.silent) setLoading(true);
@@ -160,7 +170,12 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
     enrollmentId: string,
     sessionId: string,
     next: AttendanceMark | null,
-    opts?: { expectCancel?: boolean }
+    opts?: {
+      expectCancel?: boolean;
+      justification?: string;
+      confirmCancel?: boolean;
+      cancellationReason?: string;
+    }
   ) => {
     const rowIdx = rowIndexByEnrollment.get(enrollmentId);
     if (rowIdx === undefined && !opts?.expectCancel) return;
@@ -177,9 +192,14 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
       setRows((prev) => prev.filter((r) => r.enrollmentId !== enrollmentId));
     } else if (row) {
       const newCells = { ...row.cells, [sessionId]: next };
+      const justifications = { ...(row.justifications ?? {}) };
+      if (next === "J" && opts?.justification?.trim()) justifications[sessionId] = opts.justification.trim();
+      else if (next !== "J") delete justifications[sessionId];
       const stats = recomputeRowStats(newCells, sessionIds);
       setRows((prev) =>
-        prev.map((r) => (r.enrollmentId === enrollmentId ? { ...r, cells: newCells, ...stats } : r))
+        prev.map((r) =>
+          r.enrollmentId === enrollmentId ? { ...r, cells: newCells, justifications, ...stats } : r
+        )
       );
     }
     setSavingKey(key);
@@ -198,7 +218,16 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
         body: JSON.stringify({
-          updates: [{ sessionId, enrollmentId, mark: next }],
+          updates: [
+            {
+              sessionId,
+              enrollmentId,
+              mark: next,
+              justification: opts?.justification ?? null,
+              confirmCancel: opts?.confirmCancel === true,
+              cancellationReason: opts?.cancellationReason ?? null,
+            },
+          ],
         }),
       });
       const json = (await res.json().catch(() => null)) as ApiResponse<{
@@ -265,6 +294,8 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
       } else if (reactivated.length > 0) {
         toast.push("success", `${reactivated.length} matrícula(s) reativada(s) após presença registrada.`);
         onEnrollmentChange?.();
+      } else if (opts?.justification?.trim() || opts?.cancellationReason?.trim()) {
+        onEnrollmentChange?.();
       }
     } catch {
       if (opts?.expectCancel) {
@@ -324,9 +355,10 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
         <span className="font-semibold text-emerald-700">P</span> (presente),{" "}
         <span className="font-semibold text-amber-700">J</span> (justificado) ou{" "}
         <span className="font-semibold text-rose-700">F</span> (falta). Clique de novo no mesmo
-        status para desmarcar. Células sem destaque ainda não foram lançadas. A frequência é
-        calculada com base nas aulas já lançadas. Três faltas consecutivas sem justificativa
-        suspendem a matrícula; a quarta falta consecutiva (após a suspensão) cancela a matrícula.
+        status para desmarcar. Clique em J para informar o motivo da justificativa, se quiser. Células sem
+        destaque ainda não foram lançadas. A frequência é calculada com base nas aulas já lançadas. Três
+        faltas consecutivas sem justificativa suspendem a matrícula. Na quarta falta consecutiva você pode
+        registrar só a falta ou cancelar a matrícula, com o motivo por escrito.
       </p>
       <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
         <table className="min-w-full border-collapse text-sm">
@@ -411,7 +443,11 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
                       <div
                         className={`inline-flex items-stretch ${saving ? "pointer-events-none opacity-60" : ""}`}
                         role="group"
-                        title={`${row.studentName} — ${s.sessionDateLabel}: ${markLabel(mark)}`}
+                        title={
+                          row.justifications?.[s.id]
+                            ? `${row.studentName} — ${s.sessionDateLabel}: ${markLabel(mark)}. ${row.justifications[s.id]}`
+                            : `${row.studentName} — ${s.sessionDateLabel}: ${markLabel(mark)}`
+                        }
                         aria-label={`Frequência de ${row.studentName} em ${s.sessionDateLabel}`}
                       >
                         {MARK_BUTTONS.map((btn, btnIndex) => {
@@ -430,6 +466,16 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
                               title={selected ? `${btn.label} — clique para desmarcar` : btn.label}
                               onClick={() => {
                                 const next = mark === btn.mark ? null : btn.mark;
+                                if (next === "J") {
+                                  setJustifyText("");
+                                  setJustifyPrompt({
+                                    enrollmentId: row.enrollmentId,
+                                    sessionId: s.id,
+                                    studentName: row.studentName,
+                                    sessionLabel: s.sessionDateLabel,
+                                  });
+                                  return;
+                                }
                                 if (
                                   wouldCancelEnrollmentOnFourthAbsence({
                                     enrollmentStatus: row.enrollmentStatus,
@@ -439,14 +485,16 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
                                     next,
                                   })
                                 ) {
+                                  setCancelReason("");
                                   setCancelConfirm({
                                     enrollmentId: row.enrollmentId,
                                     sessionId: s.id,
                                     studentName: row.studentName,
+                                    sessionLabel: s.sessionDateLabel,
                                   });
                                   return;
                                 }
-                                void handleMarkChange(row.enrollmentId, s.id, next);
+                                void handleMarkChange(row.enrollmentId, s.id, next, { confirmCancel: false });
                               }}
                               className={markButtonClass(
                                 btn.mark,
@@ -472,19 +520,87 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
       </div>
 
       <Modal
+        open={justifyPrompt != null}
+        title="Justificar falta"
+        size="small"
+        onClose={() => setJustifyPrompt(null)}
+      >
+        <p className="text-sm text-[var(--text-secondary)]">
+          {justifyPrompt
+            ? `Motivo da falta justificada de ${justifyPrompt.studentName} na aula ${justifyPrompt.sessionLabel}. O texto é opcional.`
+            : null}
+        </p>
+        <label className="mt-3 flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+          Motivo
+          <textarea
+            value={justifyText}
+            onChange={(e) => setJustifyText(e.target.value)}
+            maxLength={2000}
+            rows={4}
+            className="theme-input min-h-[88px] w-full rounded-md border px-3 py-2 text-sm text-[var(--text-primary)]"
+          />
+        </label>
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={() => setJustifyPrompt(null)}>
+            Voltar
+          </Button>
+          <Button
+            type="button"
+            disabled={savingKey != null}
+            onClick={() => {
+              if (!justifyPrompt) return;
+              const { enrollmentId, sessionId } = justifyPrompt;
+              const text = justifyText.trim();
+              setJustifyPrompt(null);
+              void handleMarkChange(enrollmentId, sessionId, "J", { justification: text });
+            }}
+          >
+            Salvar
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
         open={cancelConfirm != null}
-        title="Cancelar matrícula"
+        title="4ª falta consecutiva"
         size="small"
         onClose={() => setCancelConfirm(null)}
       >
         <p className="text-sm text-[var(--text-secondary)]">
           {cancelConfirm
-            ? `A 4ª falta consecutiva sem justificativa cancelará a matrícula de ${cancelConfirm.studentName}. Confirma o cancelamento? Se houver aluno na lista de espera, a vaga poderá ser preenchida automaticamente.`
+            ? `${cancelConfirm.studentName} chegou à 4ª falta consecutiva sem justificativa, na aula ${cancelConfirm.sessionLabel}. Você pode só registrar a falta ou cancelar a matrícula. O cancelamento é opcional.`
             : null}
         </p>
+        <label className="mt-3 flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+          Motivo do cancelamento
+          <textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            maxLength={2000}
+            rows={4}
+            className="theme-input min-h-[88px] w-full rounded-md border px-3 py-2 text-sm text-[var(--text-primary)]"
+          />
+        </label>
         <div className="mt-4 flex flex-wrap justify-end gap-2">
           <Button type="button" variant="secondary" onClick={() => setCancelConfirm(null)}>
             Voltar
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={savingKey != null}
+            onClick={() => {
+              if (!cancelConfirm) return;
+              const { enrollmentId, sessionId } = cancelConfirm;
+              const text = cancelReason.trim();
+              setCancelConfirm(null);
+              void handleMarkChange(enrollmentId, sessionId, "F", {
+                confirmCancel: false,
+                cancellationReason: text,
+              });
+            }}
+          >
+            Só registrar a falta
           </Button>
           <Button
             type="button"
@@ -493,11 +609,16 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
             onClick={() => {
               if (!cancelConfirm) return;
               const { enrollmentId, sessionId } = cancelConfirm;
+              const text = cancelReason.trim();
               setCancelConfirm(null);
-              void handleMarkChange(enrollmentId, sessionId, "F", { expectCancel: true });
+              void handleMarkChange(enrollmentId, sessionId, "F", {
+                expectCancel: true,
+                confirmCancel: true,
+                cancellationReason: text,
+              });
             }}
           >
-            Confirmar cancelamento
+            Cancelar matrícula
           </Button>
         </div>
       </Modal>
