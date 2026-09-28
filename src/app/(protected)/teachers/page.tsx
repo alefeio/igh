@@ -33,6 +33,7 @@ type TeacherUnit = { key: string; unitName: string; poloName: string | null };
 
 type Teacher = {
   id: string;
+  userId: string | null;
   name: string;
   email: string | null;
   phone: string | null;
@@ -97,6 +98,12 @@ export default function TeachersPage() {
   const [loadingEligibleUsers, setLoadingEligibleUsers] = useState(false);
 
   const linkingExistingUser = !editing && Boolean(selectedUserId);
+  const canChangePassword =
+    user.role === "MASTER" || user.role === "GENERAL_ADMIN" || user.role === "ADMIN";
+  const [changePasswordTeacher, setChangePasswordTeacher] = useState<Teacher | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
 
   const canSubmit = useMemo(() => {
     if (editing) return name.trim().length >= 2 && email.trim().length > 0;
@@ -161,6 +168,48 @@ export default function TeachersPage() {
     setSignatureUrl(t.signatureUrl ?? "");
     setIsActive(t.isActive);
     setOpen(true);
+  }
+
+  function openChangePassword(t: Teacher) {
+    setChangePasswordTeacher(t);
+    setNewPassword("");
+    setConfirmPassword("");
+  }
+
+  async function submitChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    const teacher = changePasswordTeacher;
+    if (!teacher?.userId) {
+      toast.push("error", "Este professor não possui conta de acesso.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.push("error", "A senha deve ter no mínimo 8 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.push("error", "As senhas não coincidem.");
+      return;
+    }
+    setChangePasswordLoading(true);
+    try {
+      const res = await fetch(`/api/teachers/${teacher.id}/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword }),
+      });
+      const json = await parseResponseJson<{ message?: string }>(res);
+      if (!res.ok || !json?.ok) {
+        toast.push("error", apiErrorMessage(json, "Falha ao alterar senha."));
+        return;
+      }
+      toast.push("success", "Senha alterada com sucesso.");
+      setChangePasswordTeacher(null);
+    } catch {
+      toast.push("error", "Falha de rede ao alterar a senha.");
+    } finally {
+      setChangePasswordLoading(false);
+    }
   }
 
   function onSelectExistingUser(userId: string) {
@@ -419,6 +468,11 @@ export default function TeachersPage() {
                   <div className="flex justify-end gap-2">
                     {!readOnly && (
                       <>
+                        {canChangePassword && t.userId ? (
+                          <Button variant="secondary" onClick={() => openChangePassword(t)}>
+                            Senha
+                          </Button>
+                        ) : null}
                         <Button variant="secondary" onClick={() => openEdit(t)}>
                           Editar
                         </Button>
@@ -616,6 +670,65 @@ export default function TeachersPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={changePasswordTeacher !== null}
+        title="Alterar senha do professor"
+        onClose={() => {
+          setChangePasswordTeacher(null);
+          setNewPassword("");
+          setConfirmPassword("");
+        }}
+      >
+        {changePasswordTeacher ? (
+          <form onSubmit={submitChangePassword} className="flex flex-col gap-4">
+            <p className="text-sm text-[var(--text-muted)]">
+              Defina a nova senha de acesso de <strong>{changePasswordTeacher.name}</strong>. O professor
+              usará essa senha no próximo login.
+            </p>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">Nova senha *</label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                minLength={8}
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">
+                Confirmar nova senha *
+              </label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repita a senha"
+                minLength={8}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setChangePasswordTeacher(null);
+                  setNewPassword("");
+                  setConfirmPassword("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={changePasswordLoading}>
+                {changePasswordLoading ? "Alterando..." : "Alterar senha"}
+              </Button>
+            </div>
+          </form>
+        ) : null}
       </Modal>
     </div>
   );
