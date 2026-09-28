@@ -30,7 +30,8 @@
       "feat/titulo-professor-listagem": false,
       "feat/enrollments-listagem-sob-demanda": false,
       "feat/enrollments-cards-graficos": false,
-      "feat/quadro-edicao-visibilidade": false
+      "feat/quadro-edicao-visibilidade": false,
+      "feat/indice-slides-apresentar": false
     }
   }
 }

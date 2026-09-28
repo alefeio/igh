@@ -11,7 +11,7 @@ import { HighlightableContentViewer, type LessonPassage } from "@/components/les
 import { LessonVideoPlayer } from "@/components/lesson/LessonVideoPlayer";
 import type { ApiResponse } from "@/lib/api-types";
 import { isForumPostEmpty } from "@/lib/forum-question-content";
-import { splitContentByH1 } from "@/lib/lesson-slides";
+import { slideTitleIndex, splitContentByH1 } from "@/lib/lesson-slides";
 import { apimagesUploadHeaders, buildApimagesUploadFormData, parseApimagesUploadJson } from "@/lib/apimages-upload";
 import { hostedRawUrlForDownload } from "@/lib/hosted-file-url";
 import {
@@ -26,6 +26,7 @@ import {
   EyeOff,
   FileText,
   Highlighter,
+  List,
   Maximize2,
   MessageCircleQuestion,
   Minimize2,
@@ -132,6 +133,7 @@ export default function ProfessorApresentarAulaPage() {
   const [exercises, setExercises] = useState<ExercisePayload[]>([]);
   const [contentFontSizePercent, setContentFontSizePercent] = useState(100);
   const [isContentFullscreen, setIsContentFullscreen] = useState(false);
+  const [slideIndexOpen, setSlideIndexOpen] = useState(true);
   const [showExerciseAnswers, setShowExerciseAnswers] = useState(false);
   const contentWrapperRef = useRef<HTMLDivElement>(null);
   const contentPageIndexRef = useRef(0);
@@ -799,6 +801,7 @@ export default function ProfessorApresentarAulaPage() {
   }, []);
 
   const contentPages = useMemo(() => splitContentByH1(lesson?.contentRich?.trim() ?? ""), [lesson?.contentRich]);
+  const slideTitles = useMemo(() => slideTitleIndex(contentPages), [contentPages]);
   const hasMultiplePages = contentPages.length > 1;
   const totalPages = contentPages.length;
 
@@ -1384,8 +1387,8 @@ export default function ProfessorApresentarAulaPage() {
               ref={contentWrapperRef}
               className={
                 isContentFullscreen
-                  ? "flex h-[100dvh] flex-col overflow-hidden bg-[var(--card-bg)]"
-                  : "flex flex-col overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-sm"
+                  ? "relative flex h-[100dvh] flex-col overflow-hidden bg-[var(--card-bg)]"
+                  : "relative flex flex-col overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] shadow-sm"
               }
             >
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-[var(--card-border)] px-3 py-2">
@@ -1443,7 +1446,9 @@ export default function ProfessorApresentarAulaPage() {
               </div>
 
               <div
-                className={`min-h-0 flex-1 overflow-auto px-4 py-4 ${isContentFullscreen ? "sm:px-8" : ""}`}
+                className={`min-h-0 flex-1 overflow-auto px-4 py-4 ${isContentFullscreen ? "sm:px-8" : ""} ${
+                  slideIndexOpen && slideTitles.length > 1 ? "lg:pr-72" : ""
+                }`}
                 style={{ minHeight: isContentFullscreen ? undefined : "12rem" }}
               >
                 <div
@@ -1466,6 +1471,51 @@ export default function ProfessorApresentarAulaPage() {
                   />
                 </div>
               </div>
+
+              {slideTitles.length > 1 && (
+                <div className="pointer-events-none absolute inset-y-16 right-3 z-20 flex max-h-[calc(100%-7.5rem)] min-h-0 flex-col items-end overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setSlideIndexOpen((open) => !open)}
+                    className="pointer-events-auto inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-[var(--card-border)] bg-[var(--card-bg)]/95 px-3 text-sm font-semibold text-[var(--text-primary)] shadow-md backdrop-blur hover:border-[var(--igh-primary)]/40 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+                    aria-expanded={slideIndexOpen}
+                    aria-controls="indice-slides-aula"
+                  >
+                    <List className="h-4 w-4 shrink-0" aria-hidden />
+                    Índice
+                  </button>
+                  {slideIndexOpen ? (
+                    <nav
+                      id="indice-slides-aula"
+                      aria-label="Índice dos slides"
+                      className="pointer-events-auto mt-2 min-h-0 w-[min(16.5rem,calc(100vw-1.5rem))] flex-1 overflow-y-auto rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)]/95 p-1.5 shadow-lg backdrop-blur"
+                    >
+                      <ol className="flex flex-col gap-0.5">
+                        {slideTitles.map((item) => {
+                          const current = item.pageIndex === contentPageIndex;
+                          return (
+                            <li key={item.pageIndex}>
+                              <button
+                                type="button"
+                                onClick={() => goToSlide(item.pageIndex)}
+                                aria-current={current ? "true" : undefined}
+                                title={item.title}
+                                className={`w-full rounded-lg px-2.5 py-2 text-left text-sm leading-snug focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] ${
+                                  current
+                                    ? "bg-[var(--igh-primary)]/15 font-semibold text-[var(--igh-primary)]"
+                                    : "text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+                                }`}
+                              >
+                                {item.title}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    </nav>
+                  ) : null}
+                </div>
+              )}
 
               {(hasMultiplePages || isContentFullscreen) && (
                 <nav
