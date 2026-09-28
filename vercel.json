@@ -33,7 +33,8 @@
       "feat/quadro-edicao-visibilidade": false,
       "feat/indice-slides-apresentar": false,
       "feat/avaliacao-atendimento": false,
-      "feat/historico-frequencia-alunos": false
+      "feat/historico-frequencia-alunos": false,
+      "feat/lista-matriculas-canceladas": false
     }
   }
 }

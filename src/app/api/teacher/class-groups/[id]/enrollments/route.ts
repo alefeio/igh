@@ -28,8 +28,7 @@ export async function GET(
   const enrollments = await prisma.enrollment.findMany({
     where: {
       classGroupId,
-      // Não listar canceladas (nem concluídas) na turma do professor.
-      status: { in: ["ACTIVE", "SUSPENDED"] },
+      status: { in: ["ACTIVE", "SUSPENDED", "CANCELLED"] },
     },
     orderBy: { student: { name: "asc" } },
     select: {
@@ -67,13 +66,14 @@ export async function GET(
   });
 
   const enrollmentIds = enrollments.map((e) => e.id);
+  const activeIds = enrollments.filter((e) => e.status !== "CANCELLED").map((e) => e.id);
   const [summaries, welcomeEmailIds] = await Promise.all([
     getEnrollmentAttendanceSummaries(enrollmentIds),
-    findEnrollmentIdsWithWelcomeEmail(enrollmentIds),
+    findEnrollmentIdsWithWelcomeEmail(activeIds),
   ]);
 
   // Garante ativação automática para quem já tem ≥70% (sem override manual).
-  await syncCertificateEligibleFromAttendance(enrollmentIds);
+  await syncCertificateEligibleFromAttendance(activeIds);
   const refreshedEligible = await prisma.enrollment.findMany({
     where: { id: { in: enrollmentIds } },
     select: { id: true, certificateEligible: true },

@@ -16,7 +16,7 @@ async function loadOwnedEnrollment(userId: string, classGroupId: string, enrollm
     where: {
       id: enrollmentId,
       classGroupId,
-      status: { in: ["ACTIVE", "SUSPENDED"] },
+      status: { in: ["ACTIVE", "SUSPENDED", "CANCELLED"] },
       classGroup: classGroupTeacherAccessWhere(teacher.id),
     },
     select: { id: true },

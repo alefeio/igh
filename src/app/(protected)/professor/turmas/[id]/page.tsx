@@ -289,10 +289,7 @@ export default function ProfessorTurmaDetailPage() {
   const loadEnrollments = useCallback(async () => {
     const res = await fetch(`/api/teacher/class-groups/${id}/enrollments`);
     const json = (await res.json()) as ApiResponse<{ enrollments: Enrollment[] }>;
-    if (res.ok && json?.ok) {
-      // Defesa extra: nunca exibir matrículas canceladas na lista do professor.
-      setEnrollments(json.data.enrollments.filter((e) => e.status !== "CANCELLED"));
-    }
+    if (res.ok && json?.ok) setEnrollments(json.data.enrollments);
   }, [id]);
 
   const loadInvite = useCallback(async () => {
@@ -430,6 +427,14 @@ export default function ProfessorTurmaDetailPage() {
         String(b.enrolledAt).localeCompare(String(a.enrolledAt)),
       ),
     [visibleEnrollments],
+  );
+
+  const cancelledByRecent = useMemo(
+    () =>
+      [...enrollments.filter((e) => e.status === "CANCELLED")].sort((a, b) =>
+        String(b.enrolledAt).localeCompare(String(a.enrolledAt)),
+      ),
+    [enrollments],
   );
 
   async function toggleCertificateEligible(enrollment: Enrollment) {
@@ -1069,9 +1074,13 @@ export default function ProfessorTurmaDetailPage() {
               </p>
             </div>
           </div>
-          {visibleEnrollments.length === 0 ? (
+          {visibleEnrollments.length === 0 && cancelledByRecent.length === 0 ? (
             <p className="p-4 text-sm text-[var(--text-muted)]">Nenhum aluno matriculado.</p>
           ) : (
+            <>
+              {visibleEnrollments.length === 0 ? (
+                <p className="p-4 text-sm text-[var(--text-muted)]">Nenhum aluno com matrícula ativa ou suspensa.</p>
+              ) : (
             <>
               <p className="border-b border-[var(--card-border)] px-4 py-2 text-xs text-[var(--text-muted)]">
                 Ordenados do mais recente ao mais antigo. Clique no celular para abrir o WhatsApp; «Convidar
@@ -1092,11 +1101,12 @@ export default function ProfessorTurmaDetailPage() {
                     : null;
                 return (
                 <li key={e.id} className="flex flex-col gap-3 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex w-full flex-wrap items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 items-start gap-2 text-left">
                     {e.documentationAlert && (
                       <span
                         title={e.documentationAlert === "red" ? "Dados incompletos e documentação faltando" : "Documentação incompleta (identidade e/ou comprovante de residência)"}
-                        className="inline-flex shrink-0"
+                        className="mt-0.5 inline-flex shrink-0"
                       >
                         <AlertCircle
                           className={`h-5 w-5 ${e.documentationAlert === "red" ? "text-red-600" : "text-amber-500"}`}
@@ -1104,9 +1114,9 @@ export default function ProfessorTurmaDetailPage() {
                         />
                       </span>
                     )}
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-[var(--text-primary)]">{e.studentName}</p>
+                    <div className="min-w-0 flex-1 text-left">
+                      <div className="flex flex-wrap items-center justify-start gap-2 text-left">
+                        <p className="text-left font-medium text-[var(--text-primary)]">{e.studentName}</p>
                         {e.fromWaitlist && (
                           <span
                             title="Este aluno entrou na turma pelo cadastro de reserva (lista de espera)."
@@ -1203,6 +1213,7 @@ export default function ProfessorTurmaDetailPage() {
                           ) : null}
                         </p>
                       )}
+                    </div>
                     </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
                     <span className="text-xs font-medium tabular-nums text-[var(--text-secondary)]">
@@ -1327,6 +1338,88 @@ export default function ProfessorTurmaDetailPage() {
                 );
               })}
               </ul>
+            </>
+              )}
+              {cancelledByRecent.length > 0 ? (
+                <div className="border-t border-[var(--card-border)]">
+                  <h3 className="px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">
+                    Matrículas canceladas
+                  </h3>
+                  <ul className="divide-y divide-[var(--card-border)]">
+                    {cancelledByRecent.map((e) => {
+                      const waChat = e.studentPhone ? whatsappChatUrl(e.studentPhone) : null;
+                      return (
+                        <li key={e.id} className="flex flex-col gap-3 px-4 py-3">
+                          <div className="flex min-w-0 items-start gap-2 text-left">
+                            {e.documentationAlert ? (
+                              <span
+                                title={
+                                  e.documentationAlert === "red"
+                                    ? "Dados incompletos e documentação faltando"
+                                    : "Documentação incompleta (identidade e/ou comprovante de residência)"
+                                }
+                                className="mt-0.5 inline-flex shrink-0"
+                              >
+                                <AlertCircle
+                                  className={`h-5 w-5 ${e.documentationAlert === "red" ? "text-red-600" : "text-amber-500"}`}
+                                  aria-hidden
+                                />
+                              </span>
+                            ) : null}
+                            <div className="min-w-0 flex-1 text-left">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-left font-medium text-[var(--text-primary)]">{e.studentName}</p>
+                                <span
+                                  className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${enrollmentStatusBadgeClass("CANCELLED")}`}
+                                >
+                                  {ENROLLMENT_STATUS_LABELS.CANCELLED ?? "Cancelada"}
+                                </span>
+                              </div>
+                              {e.studentEmail ? (
+                                <p className="text-xs text-[var(--text-muted)]">{e.studentEmail}</p>
+                              ) : null}
+                              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                                Matrícula:{" "}
+                                <span className="font-medium text-[var(--text-secondary)]">
+                                  {formatDateTime(e.enrolledAt)}
+                                </span>
+                              </p>
+                              {e.studentPhone ? (
+                                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                                  Cel.:{" "}
+                                  {waChat ? (
+                                    <a
+                                      href={waChat}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-medium text-[var(--igh-primary)] underline-offset-2 hover:underline"
+                                    >
+                                      {formatPhoneBr(e.studentPhone)}
+                                    </a>
+                                  ) : (
+                                    formatPhoneBr(e.studentPhone)
+                                  )}
+                                </p>
+                              ) : null}
+                              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                                Frequência: {e.attendancePresentCount ?? 0}/{e.attendanceTotalSessions ?? 0}
+                                {e.attendancePercent != null ? ` (${e.attendancePercent}%)` : ""}
+                              </p>
+                            </div>
+                          </div>
+                          <EnrollmentFollowUp
+                            classGroupId={id}
+                            enrollmentId={e.id}
+                            studentName={e.studentName}
+                            history={e.history ?? []}
+                            onAdded={() => void loadEnrollments()}
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null}
             </>
           )}
         </section>
