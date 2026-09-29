@@ -18,6 +18,8 @@
     "db:dev:down": "docker compose -f docker-compose.dev.yml down",
     "db:dev:logs": "docker compose -f docker-compose.dev.yml logs -f postgres",
     "db:dev:migrate": "node scripts/with-dev-database.mjs npx prisma migrate deploy",
+    "db:dev:bootstrap": "node scripts/bootstrap-dev-database.mjs",
+    "db:dev:reset": "node scripts/reset-dev-database.mjs",
     "db:dev:seed": "node scripts/with-dev-database.mjs npx prisma db seed",
     "seed:onboarding": "tsx prisma/seed-onboarding-all.ts",
     "seed:about": "tsx prisma/seed-about.ts",

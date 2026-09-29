@@ -34,14 +34,21 @@ As URLs `APP_DATABASE_URL` e `APP_DIRECT_URL` do exemplo apontam para `127.0.0.1
 ## Banco local
 
 ```bash
+npm run db:dev:bootstrap
+npm run dev
+```
+
+`db:dev:bootstrap` sobe o Docker, cria o schema atual no `igh_dev` e marca as migrations antigas como já aplicadas só nesse banco local. As migrations históricas não são editadas e não são executadas em sequência. O comando recusa `db.prisma.io` e qualquer host que não seja localhost. Se o banco local já estiver pronto, ele não apaga nada.
+
+No dia a dia, depois que o banco existe:
+
+```bash
 npm run db:dev:up
 npm run db:dev:migrate
 npm run dev
 ```
 
-`db:dev:migrate` recusa qualquer host que não seja `127.0.0.1` ou `localhost`, e recusa `db.prisma.io`. Ele não lê a URL de um `.env` de produção.
-
-Em banco vazio, a cadeia para na migration `20260225100000_lesson_attachment_names` com `relation "CourseLesson" does not exist`. A tabela `CourseLesson` só é criada depois, em `20260302130405_add_course_modules_lessons`. Isso já existia no histórico: produção foi evoluída com a tabela presente antes dessa migration. Não apague migrations nem use `db push` para contornar. O banco Docker sobe; o schema completo ainda não aplica do zero até esse ponto do histórico ser corrigido com cuidado.
+`db:dev:migrate` aplica só migrations novas.
 
 Abra [http://localhost:3000/setup](http://localhost:3000/setup) e crie um usuário Master fictício (nome, e-mail e senha que não existam em produção). Esse passo só aparece enquanto o banco não tem usuários.
 
@@ -84,12 +91,21 @@ Não rode `npm run seed` enquanto existir um `.env` de produção nesta pasta. E
 Isto apaga somente o volume local `igh_dev_pgdata`. Não faz nada no Prisma Postgres de produção.
 
 ```bash
-npm run db:dev:down
-docker volume rm cadastro-cursos_igh_dev_pgdata
-npm run db:dev:up
-npm run db:dev:migrate
+# Windows PowerShell
+$env:DEV_DB_RESET_CONFIRM="yes"; npm run db:dev:reset
 ```
 
-O nome do volume pode variar com o nome da pasta. Confira com `docker volume ls` e remova só o volume cujo nome termina em `igh_dev_pgdata`.
+```bash
+# macOS / Linux
+DEV_DB_RESET_CONFIRM=yes npm run db:dev:reset
+```
 
-Depois acesse de novo `/setup` para criar outro Master fictício.
+Depois:
+
+```bash
+npm run db:dev:bootstrap
+```
+
+Acesse de novo `/setup` para criar outro Master fictício.
+
+Nunca entregue o arquivo `.env` de produção a quem for desenvolver. O clone novo usa só `.env.local`.
