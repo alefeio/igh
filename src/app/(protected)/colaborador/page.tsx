@@ -85,9 +85,9 @@ export default function ColaboradorPortalPage() {
         accent: "from-emerald-600 to-teal-500",
       },
       {
-        href: "/colaborador/dados",
+        href: "/meus-dados",
         label: "Meus dados",
-        description: "Foto, contato, endereço e PIX/MEI",
+        description: "Foto, nascimento, assinatura e ficha",
         icon: UserCircle,
         accent: "from-slate-600 to-zinc-500",
       },
@@ -224,7 +224,7 @@ export default function ColaboradorPortalPage() {
           label="Cargo"
           value={loading ? "—" : data?.employee.positionLabel ?? "—"}
           icon={UserCircle}
-          href="/colaborador/dados"
+          href="/meus-dados"
         />
       </div>
 
@@ -244,7 +244,7 @@ export default function ColaboradorPortalPage() {
           <div>
             <p className="text-sm text-[var(--text-muted)]">
               JPG, PNG ou WEBP. A gerência também verá esta foto. Mais detalhes em{" "}
-              <a href="/colaborador/dados" className="font-medium text-[var(--igh-primary)] underline">
+              <a href="/meus-dados" className="font-medium text-[var(--igh-primary)] underline">
                 Meus dados
               </a>
               .

@@ -172,7 +172,7 @@ const ITEMS: Item[] = [
     requiresEmployee: true,
   },
   {
-    href: "/colaborador/dados",
+    href: "/meus-dados",
     label: "Meus dados",
     roles: ALL_ROLES,
     category: "Colaborador",
