@@ -51,6 +51,29 @@ export const updateEmployeePortalProfileSchema = z.object({
   pixKey: optionalText,
   meiCnpj: optionalText,
   meiCompanyName: optionalText,
+  name: z.string().trim().min(3, "Nome é obrigatório").optional(),
+  cpf: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/\D/g, ""))
+    .refine((v) => v === "" || v.length === 11, "CPF deve ter 11 dígitos")
+    .transform((v) => (v === "" ? undefined : v))
+    .optional(),
+  rg: optionalText,
+  rgIssuer: optionalText,
+  birthDate: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .optional()
+    .refine((v) => v == null || /^\d{4}-\d{2}-\d{2}$/.test(v), "Data de nascimento inválida"),
+  uniformSize: z
+    .enum(["PP", "P", "M", "G", "GG", "XG", "XGG"])
+    .nullable()
+    .optional()
+    .or(z.literal("").transform(() => null)),
+  shoeSize: optionalText,
 });
 
 export const createInvoiceSubmissionSchema = z.object({
