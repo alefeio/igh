@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SectionCard, TableShell } from "@/components/dashboard/DashboardUI";
+import { useUser } from "@/components/layout/UserProvider";
 import {
   CertificatePagesSelect,
   certificatePagesQuery,
@@ -35,8 +36,17 @@ type ClassGroupRow = {
   status: string;
   capacity: number;
   location: string | null;
+  teacherName?: string;
   enrollmentsCount: number;
 };
+
+function normalizeForSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 function formatDate(s: string) {
   const d = new Date(s);
@@ -48,6 +58,8 @@ function formatDate(s: string) {
 
 export function ProfessorTurmasTabs() {
   const toast = useToast();
+  const user = useUser();
+  const showAdminColumns = user.role === "ADMIN";
   const [activeTab, setActiveTab] = useState<TeacherClassGroupTab>("em_andamento");
   const [cache, setCache] = useState<Partial<Record<TeacherClassGroupTab, ClassGroupRow[]>>>({});
   const [loadingTab, setLoadingTab] = useState<TeacherClassGroupTab | null>("em_andamento");
@@ -55,6 +67,9 @@ export function ProfessorTurmasTabs() {
   const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
   const [downloadingListId, setDownloadingListId] = useState<string | null>(null);
   const [certificatePagesMode, setCertificatePagesMode] = useState<CertificatePagesMode>("both");
+  const [courseFilter, setCourseFilter] = useState("");
+  const [teacherFilter, setTeacherFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
 
   const loadTab = useCallback(async (tab: TeacherClassGroupTab) => {
     setLoadingTab(tab);
@@ -180,15 +195,32 @@ export function ProfessorTurmasTabs() {
   }
   const rows = cache[activeTab];
   const isLoading = loadingTab === activeTab && rows === undefined;
+  const filteredRows = useMemo(() => {
+    if (!rows) return rows;
+    if (!showAdminColumns) return rows;
+    const courseQuery = normalizeForSearch(courseFilter);
+    const teacherQuery = normalizeForSearch(teacherFilter);
+    const locationQuery = normalizeForSearch(locationFilter);
+    if (!courseQuery && !teacherQuery && !locationQuery) return rows;
+    return rows.filter((cg) => {
+      const courseOk = !courseQuery || normalizeForSearch(cg.courseName).includes(courseQuery);
+      const teacherOk = !teacherQuery || normalizeForSearch(cg.teacherName ?? "").includes(teacherQuery);
+      const locationOk = !locationQuery || normalizeForSearch(cg.location ?? "").includes(locationQuery);
+      return courseOk && teacherOk && locationOk;
+    });
+  }, [rows, showAdminColumns, courseFilter, teacherFilter, locationFilter]);
+  const hasAdminFilter = showAdminColumns && (courseFilter.trim() || teacherFilter.trim() || locationFilter.trim());
 
   return (
     <SectionCard
-      title="Suas turmas"
+      title={showAdminColumns ? "Turmas" : "Suas turmas"}
       description={
-        rows !== undefined
-          ? rows.length === 0
-            ? `Nenhuma turma ${TEACHER_CLASS_GROUP_TAB_LABELS[activeTab].toLowerCase()}.`
-            : `${rows.length} ${rows.length === 1 ? "turma" : "turmas"}.`
+        filteredRows !== undefined
+          ? filteredRows.length === 0
+            ? hasAdminFilter
+              ? "Nenhuma turma encontrada com esse filtro."
+              : `Nenhuma turma ${TEACHER_CLASS_GROUP_TAB_LABELS[activeTab].toLowerCase()}.`
+            : `${filteredRows.length} ${filteredRows.length === 1 ? "turma" : "turmas"}.`
           : "Carregando..."
       }
       variant="elevated"
@@ -219,6 +251,41 @@ export function ProfessorTurmasTabs() {
         />
       </div>
 
+      {showAdminColumns ? (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-[var(--text-secondary)]">
+            Curso
+            <input
+              type="search"
+              value={courseFilter}
+              onChange={(e) => setCourseFilter(e.target.value)}
+              placeholder="Nome do curso"
+              className="theme-input h-10 w-full rounded-md border px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--igh-primary)]"
+            />
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-[var(--text-secondary)]">
+            Professor
+            <input
+              type="search"
+              value={teacherFilter}
+              onChange={(e) => setTeacherFilter(e.target.value)}
+              placeholder="Nome do professor"
+              className="theme-input h-10 w-full rounded-md border px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--igh-primary)]"
+            />
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-[var(--text-secondary)]">
+            Local
+            <input
+              type="search"
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              placeholder="Local da turma"
+              className="theme-input h-10 w-full rounded-md border px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--igh-primary)]"
+            />
+          </label>
+        </div>
+      ) : null}
+
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
           {error}
@@ -229,16 +296,18 @@ export function ProfessorTurmasTabs() {
         <div className="rounded-2xl border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-6 py-12 text-center text-[var(--text-muted)]">
           Carregando turmas...
         </div>
-      ) : rows && rows.length === 0 ? (
+      ) : filteredRows && filteredRows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[var(--card-border)] bg-[var(--igh-surface)]/80 px-6 py-12 text-center text-[var(--text-muted)]">
-          Nenhuma turma nesta categoria.
+          {hasAdminFilter ? "Nenhuma turma encontrada com esse filtro." : "Nenhuma turma nesta categoria."}
         </div>
-      ) : rows && rows.length > 0 ? (
+      ) : filteredRows && filteredRows.length > 0 ? (
         <TableShell>
           <thead>
             <tr className="border-b border-[var(--card-border)] bg-[var(--igh-surface)]">
               <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Curso</th>
-              <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Status</th>
+              <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">
+                {showAdminColumns ? "Professor" : "Status"}
+              </th>
               <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Início</th>
               <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Horário</th>
               <th className="px-3 py-2 text-left font-medium text-[var(--text-primary)]">Local</th>
@@ -247,7 +316,7 @@ export function ProfessorTurmasTabs() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((cg) => (
+            {filteredRows.map((cg) => (
               <tr key={cg.id} className="border-b border-[var(--card-border)] last:border-b-0">
                 <td className="px-3 py-2 font-medium text-[var(--text-primary)]">
                   <Link
@@ -257,8 +326,11 @@ export function ProfessorTurmasTabs() {
                     {cg.courseName}
                   </Link>
                 </td>
-                <td className="px-3 py-2 text-[var(--text-secondary)]">
-                  {STATUS_LABELS[cg.status] ?? cg.status}
+                <td
+                  className="max-w-[220px] truncate px-3 py-2 text-[var(--text-secondary)]"
+                  title={showAdminColumns ? cg.teacherName : undefined}
+                >
+                  {showAdminColumns ? cg.teacherName?.trim() || "—" : STATUS_LABELS[cg.status] ?? cg.status}
                 </td>
                 <td className="px-3 py-2 text-[var(--text-secondary)]">{formatDate(cg.startDate)}</td>
                 <td className="px-3 py-2 text-[var(--text-secondary)]">
