@@ -1,6 +1,6 @@
 "use client";
 
-import { Inbox, MessageSquare, Sparkles, Truck } from "lucide-react";
+import { Download, Eye, Inbox, MessageSquare, Sparkles, Truck } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -22,6 +22,27 @@ import {
 import { employeePositionText, type EmployeeView } from "@/lib/employees";
 
 type TabId = "notas" | "mensagens" | "limpeza" | "motorista";
+
+function attachmentPreviewKind(fileName?: string | null, url?: string | null): "pdf" | "image" | "other" {
+  const hay = `${fileName ?? ""} ${url ?? ""}`.toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|bmp)(\?|$)/i.test(hay) || hay.includes("image/")) return "image";
+  if (/\.pdf(\?|$)/i.test(hay) || hay.includes("application/pdf")) return "pdf";
+  return "other";
+}
+
+function submissionFileUrl(id: string, download = false): string {
+  const base = `/api/admin/gerencia/portal/notas/${id}/arquivo`;
+  return download ? `${base}?download=1` : base;
+}
+
+function downloadSubmissionFile(submission: { id: string; fileName: string | null }) {
+  const a = document.createElement("a");
+  a.href = submissionFileUrl(submission.id, true);
+  a.download = submission.fileName || "nota";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
 type Submission = {
   id: string;
@@ -169,6 +190,7 @@ function GerenciaPortalPageInner() {
   });
   const registerFileRef = useRef<HTMLInputElement>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [notePreview, setNotePreview] = useState<Submission | null>(null);
   const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [cleaningReports, setCleaningReports] = useState<CleaningReport[]>([]);
   const [driverLogs, setDriverLogs] = useState<DriverLog[]>([]);
@@ -632,9 +654,32 @@ function GerenciaPortalPageInner() {
                     <Td>{s.referenceMonthLabel}</Td>
                     <Td>{s.amountLabel}</Td>
                     <Td>
-                      <a href={s.fileUrl} target="_blank" rel="noreferrer" className="text-[var(--igh-primary)] underline">
-                        {s.fileName || "Abrir"}
-                      </a>
+                      {s.fileUrl ? (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setNotePreview(s)}
+                            title="Visualizar arquivo"
+                          >
+                            <Eye className="mr-1 h-3.5 w-3.5" aria-hidden />
+                            Ver
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            title="Baixar arquivo"
+                            onClick={() => downloadSubmissionFile(s)}
+                          >
+                            <Download className="mr-1 h-3.5 w-3.5" aria-hidden />
+                            Baixar
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-[var(--text-muted)]">—</span>
+                      )}
                     </Td>
                     <Td>
                       <Badge tone={STATUS_TONE[s.status]}>{STATUS_LABEL[s.status]}</Badge>
@@ -978,6 +1023,37 @@ function GerenciaPortalPageInner() {
           )}
         </SectionCard>
       ) : null}
+
+      <Modal
+        open={notePreview != null}
+        title={notePreview?.fileName || "Arquivo da nota"}
+        onClose={() => setNotePreview(null)}
+        size="large"
+      >
+        {notePreview ? (
+          attachmentPreviewKind(notePreview.fileName, notePreview.fileUrl) === "image" ? (
+            <img
+              src={submissionFileUrl(notePreview.id)}
+              alt={notePreview.fileName || "Nota"}
+              className="mx-auto max-h-[75vh] w-auto max-w-full rounded-md"
+            />
+          ) : (
+            <iframe
+              title={notePreview.fileName || "Nota"}
+              src={submissionFileUrl(notePreview.id)}
+              className="h-[75vh] w-full rounded-md border border-[var(--card-border)] bg-white"
+            />
+          )
+        ) : null}
+        {notePreview ? (
+          <div className="mt-3 flex justify-end">
+            <Button type="button" variant="secondary" onClick={() => downloadSubmissionFile(notePreview)}>
+              <Download className="mr-1.5 h-4 w-4" aria-hidden />
+              Baixar arquivo
+            </Button>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal
         open={registerOpen}
