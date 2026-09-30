@@ -1,31 +1,36 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
-import { jsonErr, jsonOk } from "@/lib/http";
+import { jsonOk } from "@/lib/http";
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
+import type { Prisma } from "@/generated/prisma/client";
 import {
   isTeacherClassGroupTab,
   statusesForTeacherClassGroupTab,
 } from "@/lib/teacher-class-group-tabs";
 
-/** Lista turmas que o professor leciona (apenas TEACHER). Query: ?tab=em_andamento|planejadas|encerradas|canceladas */
+/** Lista turmas do professor (só as dele) ou todas, para o Administrador Pedagógico. Query: ?tab=em_andamento|planejadas|encerradas|canceladas */
 export async function GET(request: Request) {
-  const user = await requireRole(["TEACHER"]);
+  const user = await requireRole(["TEACHER", "ADMIN"]);
   await applyClassGroupAutomaticStatusUpdatesCached();
 
   const tab = new URL(request.url).searchParams.get("tab") ?? "em_andamento";
   const statuses = isTeacherClassGroupTab(tab) ? statusesForTeacherClassGroupTab(tab)! : statusesForTeacherClassGroupTab("em_andamento")!;
 
-  const teacher = await prisma.teacher.findFirst({
-    where: { userId: user.id, deletedAt: null },
-    select: { id: true },
-  });
-  if (!teacher) {
-    return jsonOk({ classGroups: [], tab });
+  let teacherFilter: Prisma.ClassGroupWhereInput = {};
+  if (user.role !== "ADMIN") {
+    const teacher = await prisma.teacher.findFirst({
+      where: { userId: user.id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!teacher) {
+      return jsonOk({ classGroups: [], tab });
+    }
+    teacherFilter = classGroupTeacherAccessWhere(teacher.id);
   }
   const classGroups = await prisma.classGroup.findMany({
     where: {
-      ...classGroupTeacherAccessWhere(teacher.id),
+      ...teacherFilter,
       status: { in: statuses },
     },
     orderBy: [{ startDate: "asc" }, { startTime: "asc" }],

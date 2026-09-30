@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { useUser } from "@/components/layout/UserProvider";
 import { ForumPostBody } from "@/components/forum/ForumPostBody";
 import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
 import { HighlightableContentViewer, type LessonPassage } from "@/components/lesson/HighlightableContentViewer";
@@ -122,6 +123,8 @@ export default function ProfessorApresentarAulaPage() {
   const classGroupId = params.id as string;
   const lessonId = params.lessonId as string;
   const toast = useToast();
+  const user = useUser();
+  const viewOnly = user.role === "ADMIN";
 
   const [loading, setLoading] = useState(true);
   const [courseName, setCourseName] = useState("");
@@ -1069,7 +1072,7 @@ export default function ProfessorApresentarAulaPage() {
     );
   }
 
-  const teacherControlsVisible = !studentPreview;
+  const teacherControlsVisible = !studentPreview && !viewOnly;
 
   return (
     <div className="flex min-w-0 flex-col gap-4 pb-10 pt-1 sm:gap-5">
@@ -1417,7 +1420,7 @@ export default function ProfessorApresentarAulaPage() {
                   </button>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {!studentPreview && (
+                  {teacherControlsVisible && (
                     <button
                       type="button"
                       onClick={() => window.dispatchEvent(new CustomEvent("highlightable-content-destacar"))}
@@ -1464,7 +1467,7 @@ export default function ProfessorApresentarAulaPage() {
                     content={contentToShow}
                     passages={passagesForCurrentPage}
                     onSavePassage={handleSavePassage}
-                    onRemovePassage={studentPreview ? undefined : handleRemovePassage}
+                    onRemovePassage={teacherControlsVisible ? handleRemovePassage : undefined}
                     saving={savingPassage}
                     hideDestacarButton
                     onWarning={(msg) => toast.push("error", msg)}
@@ -1690,7 +1693,7 @@ export default function ProfessorApresentarAulaPage() {
                                       : "Sem data"}
                                   </p>
                                 </div>
-                                {!studentPreview && (
+                                {teacherControlsVisible && (
                                   <button
                                     type="button"
                                     onClick={() => handleRemovePassage(p.id)}

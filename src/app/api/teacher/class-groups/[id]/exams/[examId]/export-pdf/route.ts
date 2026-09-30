@@ -5,7 +5,7 @@ import {
   buildExamAttemptsPdfBytes,
   type ExamAttemptPdfReview,
 } from "@/lib/class-group-exam-export-pdf";
-import { requireTeacherClassGroup } from "@/lib/teacher-class-group-access";
+import { requireReadableClassGroup } from "@/lib/teacher-class-group-access";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -81,7 +81,7 @@ async function loadReviews(classGroupId: string, examId: string, attemptIds: str
 
 export async function POST(request: Request, ctx: RouteCtx) {
   const { id: classGroupId, examId } = await ctx.params;
-  const access = await requireTeacherClassGroup(classGroupId);
+  const access = await requireReadableClassGroup(classGroupId);
   if ("error" in access) return access.error;
 
   const body = await request.json().catch(() => null);
@@ -108,7 +108,7 @@ export async function POST(request: Request, ctx: RouteCtx) {
 
 export async function GET(request: Request, ctx: RouteCtx) {
   const { id: classGroupId, examId } = await ctx.params;
-  const access = await requireTeacherClassGroup(classGroupId);
+  const access = await requireReadableClassGroup(classGroupId);
   if ("error" in access) return access.error;
 
   const { searchParams } = new URL(request.url);

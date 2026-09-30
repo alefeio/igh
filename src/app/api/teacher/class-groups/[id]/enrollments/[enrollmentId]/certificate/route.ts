@@ -1,9 +1,8 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
-import { requireRole } from "@/lib/auth";
-import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { ensureEnrollmentCertificate } from "@/lib/ensure-enrollment-certificate";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { requireReadableClassGroup } from "@/lib/teacher-class-group-access";
 
 type Ctx = { params: Promise<{ id: string; enrollmentId: string }> };
 
@@ -14,22 +13,11 @@ type Ctx = { params: Promise<{ id: string; enrollmentId: string }> };
  */
 export async function GET(request: Request, context: Ctx) {
   try {
-    const user = await requireRole(["TEACHER"]);
     const { id: classGroupId, enrollmentId } = await context.params;
+    const access = await requireReadableClassGroup(classGroupId);
+    if ("error" in access) return access.error;
     const { searchParams } = new URL(request.url);
     const forceDownload = searchParams.get("download") !== "0";
-
-    const teacher = await prisma.teacher.findFirst({
-      where: { userId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    if (!teacher) return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
-
-    const cg = await prisma.classGroup.findFirst({
-      where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
-      select: { id: true },
-    });
-    if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
 
     const enrollment = await prisma.enrollment.findFirst({
       where: {

@@ -38,12 +38,14 @@ export function EnrollmentFollowUp({
   studentName,
   history,
   onAdded,
+  readOnly = false,
 }: {
   classGroupId: string;
   enrollmentId: string;
   studentName: string;
   history: EnrollmentHistoryItem[];
   onAdded: () => void;
+  readOnly?: boolean;
 }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -86,9 +88,11 @@ export function EnrollmentFollowUp({
     <div className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/40 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold text-[var(--text-secondary)]">Histórico</p>
+        {!readOnly ? (
         <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(true)}>
           Adicionar informação
         </Button>
+        ) : null}
       </div>
       {history.length === 0 ? (
         <p className="mt-2 text-xs text-[var(--text-muted)]">Nenhum registro ainda.</p>

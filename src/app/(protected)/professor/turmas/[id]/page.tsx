@@ -215,6 +215,7 @@ export default function ProfessorTurmaDetailPage() {
   const id = params.id as string;
   const toast = useToast();
   const user = useUser();
+  const viewOnly = user.role === "ADMIN";
   const [classGroup, setClassGroup] = useState<ClassGroup | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -870,14 +871,14 @@ export default function ProfessorTurmaDetailPage() {
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <DashboardTutorial
-        showForStudent={user.role !== "MASTER"}
+        showForStudent={user.role === "TEACHER"}
         steps={tutorialSteps}
         storageKey="teacher-turmas-detail-tutorial-done"
       />
       <header className="flex flex-wrap items-start justify-between gap-4" data-tour="pt-header">
         <div>
           <Link href="/professor/turmas" className="text-sm text-[var(--igh-primary)] hover:underline" data-tour="pt-voltar">
-            ← Turmas que leciono
+            ← {viewOnly ? "Turmas" : "Turmas que leciono"}
           </Link>
           <h1 className="mt-2 text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
             {classGroup.courseName}
@@ -978,6 +979,7 @@ export default function ProfessorTurmaDetailPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-[var(--text-primary)]">Alunos da turma</h2>
               <div className="flex flex-wrap items-center gap-2">
+                {!viewOnly ? (
                 <Button
                   type="button"
                   variant="secondary"
@@ -992,9 +994,10 @@ export default function ProfessorTurmaDetailPage() {
                   <Upload className="h-3.5 w-3.5" aria-hidden />
                   Importar planilha
                 </Button>
+                ) : null}
                 {visibleEnrollments.length > 0 ? (
                   <>
-                    {visibleEnrollments.some((e) => e.welcomeEmailPending) ? (
+                    {!viewOnly && visibleEnrollments.some((e) => e.welcomeEmailPending) ? (
                       <Button
                         type="button"
                         variant="secondary"
@@ -1057,6 +1060,7 @@ export default function ProfessorTurmaDetailPage() {
                   <Copy className="h-3.5 w-3.5" aria-hidden />
                   Copiar
                 </Button>
+                {!viewOnly ? (
                 <Button
                   type="button"
                   variant="secondary"
@@ -1068,6 +1072,7 @@ export default function ProfessorTurmaDetailPage() {
                   <RefreshCw className="h-3.5 w-3.5" aria-hidden />
                   {inviteRegenerating ? "Gerando…" : "Regenerar link"}
                 </Button>
+                ) : null}
               </div>
               <p className="mt-1.5 text-[11px] text-[var(--text-muted)]">
                 Quem abrir o link preenche um formulário mínimo e entra como matrícula ativa (ocupa vaga).
@@ -1221,7 +1226,7 @@ export default function ProfessorTurmaDetailPage() {
                       {e.attendancePercent != null ? ` (${e.attendancePercent}%)` : ""}
                     </span>
                     <div className="inline-flex flex-wrap items-center justify-end gap-2 text-xs text-[var(--text-primary)]">
-                      <label className="inline-flex cursor-pointer items-center gap-2">
+                      <label className={`inline-flex items-center gap-2 ${viewOnly ? "cursor-default" : "cursor-pointer"}`}>
                         <span className="text-[var(--text-muted)]">Certificado</span>
                         <button
                           type="button"
@@ -1232,9 +1237,13 @@ export default function ProfessorTurmaDetailPage() {
                               ? `Desabilitar certificado de ${e.studentName}`
                               : `Habilitar certificado de ${e.studentName}`
                           }
-                          disabled={togglingCertificateId === e.id}
-                          onClick={() => void toggleCertificateEligible(e)}
+                          disabled={viewOnly || togglingCertificateId === e.id}
+                          onClick={() => {
+                            if (!viewOnly) void toggleCertificateEligible(e);
+                          }}
                           className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+                            viewOnly ? "cursor-default" : ""
+                          } ${
                             e.certificateEligible
                               ? "bg-emerald-600"
                               : "bg-[var(--card-border)]"
@@ -1268,7 +1277,7 @@ export default function ProfessorTurmaDetailPage() {
                         {downloadingCertificateId === e.id ? "Gerando…" : "Baixar"}
                       </button>
                     </div>
-                    {(e.status === "ACTIVE" || e.status === "SUSPENDED") && (
+                    {(e.status === "ACTIVE" || e.status === "SUSPENDED") && !viewOnly && (
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {e.status === "ACTIVE" && (
                           <Button
@@ -1333,6 +1342,7 @@ export default function ProfessorTurmaDetailPage() {
                     studentName={e.studentName}
                     history={e.history ?? []}
                     onAdded={() => void loadEnrollments()}
+                    readOnly={viewOnly}
                   />
                 </li>
                 );
@@ -1408,6 +1418,7 @@ export default function ProfessorTurmaDetailPage() {
                               </p>
                             </div>
                           </div>
+                          {!viewOnly ? (
                           <Button
                             type="button"
                             variant="secondary"
@@ -1425,6 +1436,7 @@ export default function ProfessorTurmaDetailPage() {
                           >
                             Reativar
                           </Button>
+                          ) : null}
                           </div>
                           <EnrollmentFollowUp
                             classGroupId={id}
@@ -1432,6 +1444,7 @@ export default function ProfessorTurmaDetailPage() {
                             studentName={e.studentName}
                             history={e.history ?? []}
                             onAdded={() => void loadEnrollments()}
+                            readOnly={viewOnly}
                           />
                         </li>
                       );
@@ -1573,14 +1586,25 @@ export default function ProfessorTurmaDetailPage() {
         <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-6">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Provas da turma</h2>
           <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Crie provas com questões das aulas já dadas até hoje, defina tempo e janela de disponibilidade.
+            {viewOnly
+              ? "Consulta das provas da turma. Criar, publicar e encerrar fica com o professor."
+              : "Crie provas com questões das aulas já dadas até hoje, defina tempo e janela de disponibilidade."}
           </p>
+          {!viewOnly ? (
           <Link
             href={`/professor/turmas/${id}/provas`}
             className="mt-4 inline-flex items-center justify-center rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
           >
             Gerenciar provas
           </Link>
+          ) : (
+          <Link
+            href={`/professor/turmas/${id}/provas`}
+            className="mt-4 inline-flex items-center justify-center rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:opacity-90"
+          >
+            Ver provas
+          </Link>
+          )}
         </section>
       )}
 
@@ -1615,7 +1639,7 @@ export default function ProfessorTurmaDetailPage() {
                   />
                   {q.teacherReplies.length > 0 && (
                     <div className="mt-3 rounded-md border border-[var(--igh-primary)]/30 bg-[var(--igh-primary)]/5 p-2">
-                      <p className="text-xs font-semibold text-[var(--igh-primary)]">Suas respostas</p>
+                      <p className="text-xs font-semibold text-[var(--igh-primary)]">{viewOnly ? "Respostas do professor" : "Suas respostas"}</p>
                       {q.teacherReplies.map((r) => (
                         <div key={r.id} className="mt-2">
                           <p className="text-xs text-[var(--text-muted)]">
@@ -1627,6 +1651,7 @@ export default function ProfessorTurmaDetailPage() {
                       ))}
                     </div>
                   )}
+                  {!viewOnly ? (
                   <div className="mt-3">
                     <ForumPostComposer
                       content={replyDrafts[q.id] ?? ""}
@@ -1641,6 +1666,7 @@ export default function ProfessorTurmaDetailPage() {
                       uploadSignaturePath={TEACHER_FORUM_UPLOAD}
                     />
                   </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -1656,6 +1682,7 @@ export default function ProfessorTurmaDetailPage() {
           <AttendanceGrid
             classGroupId={id}
             title={attendanceGridTitle}
+            readOnly={viewOnly}
             onEnrollmentChange={() => {
               void loadEnrollments();
               void loadSessions();

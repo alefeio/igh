@@ -25,6 +25,34 @@ export async function requireTeacherClassGroup(classGroupId: string) {
   return { teacher, classGroup: cg, user };
 }
 
+/** Leitura de qualquer turma para o Administrador Pedagógico; o professor continua limitado às próprias turmas. */
+export async function requireReadableClassGroup(classGroupId: string) {
+  const user = await requireRole(["TEACHER", "ADMIN"]);
+  if (user.role === "ADMIN") {
+    const cg = await prisma.classGroup.findFirst({
+      where: { id: classGroupId },
+      select: { id: true, courseId: true, status: true },
+    });
+    if (!cg) return { error: jsonErr("NOT_FOUND", "Turma não encontrada.", 404) as Response };
+    return { user, classGroup: cg, teacher: null, readOnly: true as const };
+  }
+
+  const teacher = await prisma.teacher.findFirst({
+    where: { userId: user.id, deletedAt: null },
+    select: { id: true },
+  });
+  if (!teacher) {
+    return { error: jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403) as Response };
+  }
+
+  const cg = await prisma.classGroup.findFirst({
+    where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
+    select: { id: true, courseId: true, status: true },
+  });
+  if (!cg) return { error: jsonErr("NOT_FOUND", "Turma não encontrada.", 404) as Response };
+  return { user, classGroup: cg, teacher, readOnly: false as const };
+}
+
 export async function requireStudentEnrollment(enrollmentId: string) {
   const user = await requireRole("STUDENT");
   const student = await prisma.student.findFirst({

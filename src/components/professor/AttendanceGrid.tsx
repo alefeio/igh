@@ -35,6 +35,7 @@ type AttendanceGridProps = {
   classGroupId: string;
   title?: string;
   onEnrollmentChange?: () => void;
+  readOnly?: boolean;
 };
 
 const MARK_BUTTONS: { mark: AttendanceMark; label: string }[] = [
@@ -91,7 +92,7 @@ function markPosition(index: number, total: number): "first" | "middle" | "last"
   return "middle";
 }
 
-export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: AttendanceGridProps) {
+export function AttendanceGrid({ classGroupId, title, onEnrollmentChange, readOnly = false }: AttendanceGridProps) {
   const toast = useToast();
   const [sessions, setSessions] = useState<GridSession[]>([]);
   const [rows, setRows] = useState<GridRow[]>([]);
@@ -456,15 +457,16 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange }: Atte
                             <button
                               key={btn.mark}
                               type="button"
-                              disabled={saving}
+                              disabled={saving || readOnly}
                               aria-pressed={selected}
                               aria-label={
                                 selected
                                   ? `${btn.label} (${btn.mark}), marcado. Clique para desmarcar`
                                   : `${btn.label} (${btn.mark})`
                               }
-                              title={selected ? `${btn.label} — clique para desmarcar` : btn.label}
+                              title={readOnly ? btn.label : selected ? `${btn.label} — clique para desmarcar` : btn.label}
                               onClick={() => {
+                                if (readOnly) return;
                                 const next = mark === btn.mark ? null : btn.mark;
                                 if (next === "J") {
                                   setJustifyText("");
