@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { buildManualExamAnswerKey } from "@/lib/class-group-exam-teacher-view";
-import { requireTeacherClassGroup } from "@/lib/teacher-class-group-access";
+import { requireReadableClassGroup } from "@/lib/teacher-class-group-access";
 
 type RouteCtx = { params: Promise<{ id: string; examId: string }> };
 
 export async function GET(_req: Request, ctx: RouteCtx) {
   const { id: classGroupId, examId } = await ctx.params;
-  const access = await requireTeacherClassGroup(classGroupId);
+  const access = await requireReadableClassGroup(classGroupId);
   if ("error" in access) return access.error;
 
   const exam = await prisma.classGroupExam.findFirst({

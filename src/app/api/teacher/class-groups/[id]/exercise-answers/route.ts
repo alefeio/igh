@@ -1,26 +1,15 @@
 import { prisma } from "@/lib/prisma";
-import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
-import { requireRole } from "@/lib/auth";
-import { jsonErr, jsonOk } from "@/lib/http";
+import { jsonOk } from "@/lib/http";
+import { requireReadableClassGroup } from "@/lib/teacher-class-group-access";
 
-/** Lista exercícios realizados pelos alunos da turma (respostas por matrícula/aula). Apenas professor dono da turma. */
+/** Lista exercícios realizados pelos alunos da turma (respostas por matrícula/aula). */
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["TEACHER"]);
   const { id: classGroupId } = await context.params;
-  const teacher = await prisma.teacher.findFirst({
-    where: { userId: user.id, deletedAt: null },
-    select: { id: true },
-  });
-  if (!teacher) return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
-
-  const cg = await prisma.classGroup.findFirst({
-    where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
-    select: { id: true },
-  });
-  if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+  const access = await requireReadableClassGroup(classGroupId);
+  if ("error" in access) return access.error;
 
   const enrollmentIds = await prisma.enrollment
     .findMany({

@@ -1,35 +1,25 @@
-import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
-import { jsonErr, jsonOk } from "@/lib/http";
+import { jsonOk } from "@/lib/http";
+import { requireReadableClassGroup } from "@/lib/teacher-class-group-access";
 
 function getTodayUtcDate(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-/** Lista sessões da turma (para frequência: sessões com status LIBERADA). Apenas professor dono da turma. */
+/** Lista sessões da turma. O administrador pedagógico consulta sem liberar sessões. */
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["TEACHER"]);
   const { id: classGroupId } = await context.params;
-  const teacher = await prisma.teacher.findFirst({
-    where: { userId: user.id, deletedAt: null },
-    select: { id: true },
-  });
-  if (!teacher) return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
-
-  const cg = await prisma.classGroup.findFirst({
-    where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
-    select: { id: true },
-  });
-  if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+  const access = await requireReadableClassGroup(classGroupId);
+  if ("error" in access) return access.error;
 
   // Garante que sessões até hoje estejam liberadas para o professor também
-  // (antes a liberação era atualizada no fluxo do aluno).
+  // (antes a liberação era atualizada no fluxo do aluno). Consulta do administrador não altera status.
   const today = getTodayUtcDate();
+  if (!access.readOnly) {
   await prisma.classSession.updateMany({
     where: {
       classGroupId,
@@ -38,6 +28,7 @@ export async function GET(
     },
     data: { status: "LIBERADA" },
   });
+  }
 
   const [sessions, activeEnrollmentCount] = await Promise.all([
     prisma.classSession.findMany({

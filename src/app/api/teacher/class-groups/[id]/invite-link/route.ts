@@ -63,12 +63,34 @@ function invitePayload(cg: {
   };
 }
 
-/** GET: token/link atual + vagas. */
+/** GET: token/link atual + vagas. O administrador consulta o link existente, sem gerar outro. */
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const { id: classGroupId } = await context.params;
+  const user = await requireRole(["TEACHER", "ADMIN"]);
+
+  if (user.role === "ADMIN") {
+    const cg = await prisma.classGroup.findFirst({
+      where: { id: classGroupId },
+      select: {
+        id: true,
+        capacity: true,
+        status: true,
+        enrollmentInviteToken: true,
+        course: { select: { name: true } },
+        _count: {
+          select: {
+            enrollments: { where: { status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } } },
+          },
+        },
+      },
+    });
+    if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+    return jsonOk({ invite: invitePayload(cg) });
+  }
+
   const resolved = await resolveTeacherOwnedClassGroup(classGroupId);
   if ("error" in resolved && resolved.error) return resolved.error;
 

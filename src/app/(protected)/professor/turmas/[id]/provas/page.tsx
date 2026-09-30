@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { useUser } from "@/components/layout/UserProvider";
 import type { ApiErr, ApiResponse } from "@/lib/api-types";
 
 type ExamRow = {
@@ -28,6 +29,8 @@ export default function ProfessorTurmaProvasPage() {
   const params = useParams();
   const classGroupId = params.id as string;
   const toast = useToast();
+  const user = useUser();
+  const viewOnly = user.role === "ADMIN";
   const [loading, setLoading] = useState(true);
   const [exams, setExams] = useState<ExamRow[]>([]);
   const [copiedExamId, setCopiedExamId] = useState<string | null>(null);
@@ -94,9 +97,11 @@ export default function ProfessorTurmaProvasPage() {
           </Link>
           <h1 className="mt-2 text-2xl font-bold text-[var(--text-primary)]">Provas</h1>
         </div>
+        {!viewOnly ? (
         <Link href={`/professor/turmas/${classGroupId}/provas/nova`}>
           <Button>Nova prova</Button>
         </Link>
+        ) : null}
       </div>
 
       {loading ? (
@@ -129,19 +134,19 @@ export default function ProfessorTurmaProvasPage() {
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Link href={`/professor/turmas/${classGroupId}/provas/${e.id}`}>
-                  <Button variant="secondary">Editar / resultados</Button>
+                  <Button variant="secondary">{viewOnly ? "Ver resultados" : "Editar / resultados"}</Button>
                 </Link>
                 {e.status !== "DRAFT" && (
                   <Button variant="secondary" onClick={() => void copyShareLink(e.id)}>
                     {copiedExamId === e.id ? "Link copiado" : "Copiar link para alunos"}
                   </Button>
                 )}
-                {e.status === "DRAFT" && (
+                {!viewOnly && e.status === "DRAFT" && (
                   <Button variant="secondary" onClick={() => void publish(e.id)}>
                     Publicar
                   </Button>
                 )}
-                {e.status === "PUBLISHED" && (
+                {!viewOnly && e.status === "PUBLISHED" && (
                   <Button variant="secondary" className="text-red-600" onClick={() => void closeExam(e.id)}>
                     Encerrar
                   </Button>

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
+import { requireReadableClassGroup } from "@/lib/teacher-class-group-access";
 import { requireRole } from "@/lib/auth";
 import { mapStaffOrTeacherReplyName } from "@/lib/course-forum-reply-display";
 import {
@@ -23,22 +24,28 @@ async function assertTeacherOwnsClassGroup(userId: string, classGroupId: string)
   return { teacher, courseId: cg.courseId, courseName: cg.course.name };
 }
 
-/** Lista dúvidas do curso da turma (para o professor responder). */
+/** Lista dúvidas do curso da turma (consulta do administrador; resposta só do professor). */
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["TEACHER"]);
   const { id: classGroupId } = await context.params;
-  const ctx = await assertTeacherOwnsClassGroup(user.id, classGroupId);
-  if (!ctx) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+  const access = await requireReadableClassGroup(classGroupId);
+  if ("error" in access) return access.error;
+
+  const course = await prisma.course.findFirst({
+    where: { id: access.classGroup.courseId },
+    select: { name: true },
+  });
+  const courseName = course?.name ?? "";
+  const viewerTeacherId = access.teacher?.id ?? null;
 
   const { searchParams } = new URL(request.url);
   const lessonIdFilter = searchParams.get("lessonId")?.trim() || null;
 
   const lessonIds = (
     await prisma.courseLesson.findMany({
-      where: { module: { courseId: ctx.courseId } },
+      where: { module: { courseId: access.classGroup.courseId } },
       select: { id: true, title: true, order: true, module: { select: { order: true, title: true } } },
     })
   ).sort((a, b) => {
@@ -51,7 +58,7 @@ export async function GET(
     ? lessonIds.filter((l) => l.id === lessonIdFilter).map((l) => l.id)
     : lessonIds.map((l) => l.id);
   if (ids.length === 0) {
-    return jsonOk({ questions: [], courseName: ctx.courseName, viewerTeacherId: ctx.teacher.id });
+    return jsonOk({ questions: [], courseName, viewerTeacherId });
   }
 
   const questions = await prisma.enrollmentLessonQuestion.findMany({
@@ -80,8 +87,8 @@ export async function GET(
   const lessonMeta = new Map(lessonIds.map((l) => [l.id, l]));
 
   return jsonOk({
-    courseName: ctx.courseName,
-    viewerTeacherId: ctx.teacher.id,
+    courseName,
+    viewerTeacherId,
     questions: questions.map((q) => {
       const les = lessonMeta.get(q.lessonId);
       return {

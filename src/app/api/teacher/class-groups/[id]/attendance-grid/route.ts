@@ -1,4 +1,5 @@
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
+import { requireReadableClassGroup } from "@/lib/teacher-class-group-access";
 import { applyAttendanceSuspensionRules } from "@/lib/enrollment-attendance-suspension";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { attendancePercent, JUSTIFIED_ABSENCE_DEFAULT, markToDb, rowToMark, type AttendanceMark } from "@/lib/attendance-mark";
@@ -37,12 +38,13 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["TEACHER"]);
   const { id: classGroupId } = await context.params;
-  const access = await getTeacherClassGroup(user.id, classGroupId);
-  if (!access) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+  const access = await requireReadableClassGroup(classGroupId);
+  if ("error" in access) return access.error;
 
-  await ensureClassSessionsLiberatedForStudent(classGroupId, access.classGroup.status);
+  if (!access.readOnly) {
+    await ensureClassSessionsLiberatedForStudent(classGroupId, access.classGroup.status);
+  }
 
   const [enrollments, sessions] = await Promise.all([
     prisma.enrollment.findMany({

@@ -1,29 +1,18 @@
-import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { findEnrollmentIdsWithWelcomeEmail } from "@/lib/enrollment-welcome-email";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
-import { jsonErr, jsonOk } from "@/lib/http";
+import { jsonOk } from "@/lib/http";
+import { requireReadableClassGroup } from "@/lib/teacher-class-group-access";
 
-/** Lista alunos (matrículas ativas) da turma. Apenas professor dono da turma. */
+/** Lista alunos da turma. Professor: só as suas. Administrador Pedagógico: qualquer turma, sem alterar aptidão. */
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireRole(["TEACHER"]);
   const { id: classGroupId } = await context.params;
-  const teacher = await prisma.teacher.findFirst({
-    where: { userId: user.id, deletedAt: null },
-    select: { id: true },
-  });
-  if (!teacher) return jsonErr("FORBIDDEN", "Perfil de professor não encontrado.", 403);
-
-  const cg = await prisma.classGroup.findFirst({
-    where: { id: classGroupId, ...classGroupTeacherAccessWhere(teacher.id) },
-    select: { id: true },
-  });
-  if (!cg) return jsonErr("NOT_FOUND", "Turma não encontrada.", 404);
+  const access = await requireReadableClassGroup(classGroupId);
+  if ("error" in access) return access.error;
 
   const enrollments = await prisma.enrollment.findMany({
     where: {
@@ -72,13 +61,16 @@ export async function GET(
     findEnrollmentIdsWithWelcomeEmail(activeIds),
   ]);
 
-  // Garante ativação automática para quem já tem ≥70% (sem override manual).
-  await syncCertificateEligibleFromAttendance(activeIds);
-  const refreshedEligible = await prisma.enrollment.findMany({
-    where: { id: { in: enrollmentIds } },
-    select: { id: true, certificateEligible: true },
-  });
-  const eligibleById = new Map(refreshedEligible.map((r) => [r.id, r.certificateEligible]));
+  let eligibleById = new Map(enrollments.map((e) => [e.id, e.certificateEligible]));
+  if (!access.readOnly) {
+    // Garante ativação automática para quem já tem ≥70% (sem override manual).
+    await syncCertificateEligibleFromAttendance(activeIds);
+    const refreshedEligible = await prisma.enrollment.findMany({
+      where: { id: { in: enrollmentIds } },
+      select: { id: true, certificateEligible: true },
+    });
+    eligibleById = new Map(refreshedEligible.map((r) => [r.id, r.certificateEligible]));
+  }
 
   function isDataComplete(st: {
     name: string | null;
