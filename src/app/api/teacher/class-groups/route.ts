@@ -45,6 +45,8 @@ export async function GET(request: Request) {
       status: true,
       location: true,
       course: { select: { id: true, name: true } },
+      teacher: { select: { id: true, name: true } },
+      classGroupTeachers: { select: { teacher: { select: { id: true, name: true } } } },
       _count: {
         select: {
           enrollments: { where: { status: { in: ["ACTIVE", "SUSPENDED"] } } },
@@ -54,19 +56,29 @@ export async function GET(request: Request) {
   });
   return jsonOk({
     tab,
-    classGroups: classGroups.map((cg) => ({
-      id: cg.id,
-      courseId: cg.course.id,
-      courseName: cg.course.name,
-      startDate: cg.startDate,
-      endDate: cg.endDate,
-      daysOfWeek: cg.daysOfWeek,
-      startTime: cg.startTime,
-      endTime: cg.endTime,
-      capacity: cg.capacity,
-      status: cg.status,
-      location: cg.location,
-      enrollmentsCount: cg._count.enrollments,
-    })),
+    classGroups: classGroups.map((cg) => {
+      const teacherNames: string[] = [];
+      const addTeacherName = (name: string) => {
+        const trimmed = name.trim();
+        if (trimmed && !teacherNames.includes(trimmed)) teacherNames.push(trimmed);
+      };
+      addTeacherName(cg.teacher.name);
+      for (const link of cg.classGroupTeachers) addTeacherName(link.teacher.name);
+      return {
+        id: cg.id,
+        courseId: cg.course.id,
+        courseName: cg.course.name,
+        startDate: cg.startDate,
+        endDate: cg.endDate,
+        daysOfWeek: cg.daysOfWeek,
+        startTime: cg.startTime,
+        endTime: cg.endTime,
+        capacity: cg.capacity,
+        status: cg.status,
+        location: cg.location,
+        teacherName: teacherNames.join(", "),
+        enrollmentsCount: cg._count.enrollments,
+      };
+    }),
   });
 }
