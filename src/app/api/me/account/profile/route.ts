@@ -112,7 +112,7 @@ export async function PATCH(request: Request) {
         name: nameTrim,
         email: emailNorm,
         whatsapp: phoneDigits,
-        birthDate,
+        ...(data.birthDate !== undefined ? { birthDate } : {}),
       },
     });
 

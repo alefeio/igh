@@ -3,9 +3,10 @@ import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { ReferralShareCard } from "@/components/referral/ReferralShareCard";
 import { getSessionUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { MeusDadosContaForm } from "./MeusDadosContaForm";
 import { EmployeeSelfProfileForm } from "@/components/colaborador/EmployeeSelfProfileForm";
+import { MeusDadosContaForm } from "./MeusDadosContaForm";
 import { MeusDadosForm } from "./MeusDadosForm";
+import { MeusDadosIdentidade } from "./MeusDadosIdentidade";
 import { MeusDadosSenhaForm } from "./MeusDadosSenhaForm";
 
 export const metadata = {
@@ -61,12 +62,21 @@ export default async function MeusDadosPage() {
         title="Meus dados"
         description={
           employee
-            ? "Atualize seus dados pessoais, MEI, conta bancária, Pix e endereço."
+            ? "Foto, nascimento, assinatura, dados pessoais, MEI, conta bancária, Pix e endereço."
             : isStudent
               ? "Complete seu cadastro com os dados restantes e anexe documento de identidade e comprovante de residência."
-              : "Atualize seu nome, e-mail, telefone e data de nascimento."
+              : "Atualize foto, data de nascimento, assinatura, nome, e-mail e telefone."
         }
       />
+      {!isStudent || employee ? (
+        <SectionCard
+          title="Perfil"
+          description="Foto, data de nascimento e assinatura do certificado, quando houver perfil de professor."
+          variant="elevated"
+        >
+          <MeusDadosIdentidade />
+        </SectionCard>
+      ) : null}
       {isStudent ? (
         <SectionCard
           title="Cadastro e documentos"

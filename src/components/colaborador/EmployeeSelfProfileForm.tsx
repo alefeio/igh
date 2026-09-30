@@ -21,7 +21,6 @@ type EmployeeProfile = {
   cpf: string;
   rg: string | null;
   rgIssuer: string | null;
-  birthDate: string | null;
   email: string | null;
   phone: string | null;
   uniformSize: string | null;
@@ -49,7 +48,6 @@ type FormState = {
   cpf: string;
   rg: string;
   rgIssuer: string;
-  birthDate: string;
   email: string;
   phone: string;
   uniformSize: string;
@@ -80,7 +78,6 @@ function toForm(e: EmployeeProfile): FormState {
     cpf: formatCpf(e.cpf ?? ""),
     rg: e.rg ?? "",
     rgIssuer: e.rgIssuer ?? "",
-    birthDate: e.birthDate ? e.birthDate.slice(0, 10) : "",
     email: e.email ?? "",
     phone: e.phone ?? "",
     uniformSize: e.uniformSize ?? "",
@@ -160,7 +157,6 @@ export function EmployeeSelfProfileForm() {
           cpf: form.cpf,
           rg: form.rg.trim() || null,
           rgIssuer: form.rgIssuer.trim() || null,
-          birthDate: form.birthDate.trim() || "",
           email: form.email.trim() || null,
           phone: form.phone.replace(/\D/g, "") || null,
           uniformSize: form.uniformSize || null,
@@ -225,14 +221,6 @@ export function EmployeeSelfProfileForm() {
           </Field>
           <Field label="Órgão emissor">
             <Input className="mt-1" value={form.rgIssuer} onChange={(e) => set("rgIssuer", e.target.value)} />
-          </Field>
-          <Field label="Nascimento">
-            <Input
-              className="mt-1"
-              type="date"
-              value={form.birthDate}
-              onChange={(e) => set("birthDate", e.target.value)}
-            />
           </Field>
           <Field label="Telefone">
             <Input

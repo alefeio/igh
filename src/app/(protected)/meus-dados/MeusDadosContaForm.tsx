@@ -38,7 +38,6 @@ export function MeusDadosContaForm({ roleLabel }: { roleLabel: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [birthDate, setBirthDate] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,7 +51,6 @@ export function MeusDadosContaForm({ roleLabel }: { roleLabel: string }) {
       setName(json.data.name);
       setEmail(json.data.email);
       setPhone(json.data.phone ? formatPhoneBr(json.data.phone) : "");
-      setBirthDate(json.data.birthDate ?? "");
     } finally {
       setLoading(false);
     }
@@ -74,7 +72,6 @@ export function MeusDadosContaForm({ roleLabel }: { roleLabel: string }) {
           name: name.trim(),
           email: email.trim(),
           phone: phone.replace(/\D/g, ""),
-          birthDate: birthDate.trim() || "",
         }),
       });
       const json = (await res.json()) as ApiResponse<unknown>;
@@ -140,22 +137,6 @@ export function MeusDadosContaForm({ roleLabel }: { roleLabel: string }) {
           autoComplete="tel"
           placeholder="(00) 00000-0000"
         />
-      </div>
-      <div>
-        <label htmlFor="me-birthDate" className="text-sm font-medium text-[var(--text-primary)]">
-          Data de nascimento
-        </label>
-        <Input
-          id="me-birthDate"
-          type="date"
-          className="mt-1"
-          value={birthDate}
-          onChange={(e) => setBirthDate(e.target.value)}
-          autoComplete="bday"
-        />
-        <p className="mt-1 text-xs text-[var(--text-muted)]">
-          Usada para o e-mail e a notificação de aniversário.
-        </p>
       </div>
       <div>
         <Button type="submit" disabled={saving}>
