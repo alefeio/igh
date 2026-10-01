@@ -32,6 +32,7 @@ const ROLE_LABEL_PT: Record<string, string> = {
   SITE_ADMIN: "Administrador Site",
   POLO_COORDINATOR: "Coordenador de Polos",
   DIRECTOR: "Diretor",
+  COORDINATOR: "Coordenador",
   TEACHER: "Professor",
   STUDENT: "Aluno",
 };
@@ -74,6 +75,7 @@ export async function GET() {
         { role: "SITE_ADMIN" },
         { role: "POLO_COORDINATOR" },
         { role: "DIRECTOR" },
+        { role: "COORDINATOR" },
         { isAdmin: true },
         { isSiteAdmin: true },
         { isPoloCoordinator: true },
@@ -137,6 +139,7 @@ export async function POST(request: Request) {
   );
   const wantsGeneralAdmin = selectedRoles.includes("GENERAL_ADMIN");
   const wantsDirector = selectedRoles.includes("DIRECTOR");
+  const wantsCoordinator = selectedRoles.includes("COORDINATOR");
   if (wantsGeneralAdmin && !isExactMaster(actor)) {
     return jsonErr(
       "FORBIDDEN",
@@ -191,7 +194,7 @@ export async function POST(request: Request) {
         409,
       );
     }
-    if (wantsGeneralAdmin || wantsDirector) {
+    if (wantsGeneralAdmin || wantsDirector || wantsCoordinator) {
       return jsonErr(
         "VALIDATION_ERROR",
         "Para promover a Administrador Geral ou Diretor, edite o usuário na listagem (somente Master).",
@@ -200,7 +203,7 @@ export async function POST(request: Request) {
     }
 
     const staffSelected = selectedRoles.filter(
-      (r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR",
+      (r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR" && r !== "COORDINATOR",
     );
     const newlyGranted = staffSelected.filter((r) => !userHasStaffAccess(existing, r));
     if (newlyGranted.length === 0) {
@@ -299,7 +302,7 @@ export async function POST(request: Request) {
     name: string;
     email: string;
     passwordHash: string;
-    role: "GENERAL_ADMIN" | "DIRECTOR" | StaffAccessRole;
+    role: "GENERAL_ADMIN" | "DIRECTOR" | "COORDINATOR" | StaffAccessRole;
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     isCoordinator?: boolean;
@@ -335,6 +338,22 @@ export async function POST(request: Request) {
       email,
       passwordHash,
       role: "DIRECTOR",
+      isAdmin: false,
+      isSiteAdmin: false,
+      isCoordinator: false,
+      isPoloCoordinator: false,
+      isAdminManager: false,
+      isActive: true,
+      mustChangePassword: true,
+      whatsapp: phone,
+      birthDate: birthDateValue,
+    };
+  } else if (wantsCoordinator) {
+    createData = {
+      name,
+      email,
+      passwordHash,
+      role: "COORDINATOR",
       isAdmin: false,
       isSiteAdmin: false,
       isCoordinator: false,

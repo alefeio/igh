@@ -20,6 +20,8 @@ const STAFF_ROLES = [
   "ADMIN",
   "SITE_ADMIN",
   "POLO_COORDINATOR",
+  "COORDINATOR",
+  "DIRECTOR",
   "TEACHER",
 ] as const;
 
@@ -49,6 +51,10 @@ export default async function MeusDadosPage() {
           ? "Administrador Pedagógico"
           : user.role === "SITE_ADMIN"
             ? "Administrador Site"
+            : user.role === "COORDINATOR"
+              ? "Coordenador"
+            : user.role === "DIRECTOR"
+              ? "Diretor"
             : user.role === "POLO_COORDINATOR"
               ? "Coordenador de Polos"
               : user.role === "TEACHER"

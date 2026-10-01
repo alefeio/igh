@@ -2899,7 +2899,7 @@ enum UserRole {
   DIRECTOR
   TEACHER
   STUDENT
-  /// * Deprecated — migrado para ADMIN; valor mantido no enum do banco.
+  /// * Coordenador: visão estratégica das matrículas do ciclo e acompanhamento da busca ativa.
   COORDINATOR
   /// * Coordena matrículas apenas nas turmas dos polos sob sua responsabilidade.
   POLO_COORDINATOR

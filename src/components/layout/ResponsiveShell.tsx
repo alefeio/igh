@@ -21,8 +21,8 @@ export function ResponsiveShell({
     id: string;
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     isAdminManager?: boolean;

@@ -28,6 +28,7 @@ const adminListFilter = {
     { role: "POLO_COORDINATOR" as const },
     { role: "ADMIN_MANAGER" as const },
     { role: "DIRECTOR" as const },
+    { role: "COORDINATOR" as const },
     { isAdmin: true },
     { isSiteAdmin: true },
     { isPoloCoordinator: true },
@@ -135,7 +136,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     email?: string;
     isActive?: boolean;
     canCreateBoardTasks?: boolean;
-    role?: "GENERAL_ADMIN" | "DIRECTOR" | StaffAccessRole;
+    role?: "GENERAL_ADMIN" | "DIRECTOR" | "COORDINATOR" | StaffAccessRole;
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     isCoordinator?: boolean;
@@ -192,9 +193,23 @@ export async function PATCH(request: Request, ctx: Ctx) {
       data.isCoordinator = false;
       data.isPoloCoordinator = false;
       data.isAdminManager = false;
+    } else if (selectedRoles.includes("COORDINATOR")) {
+      if (hasPoloLinks) {
+        return jsonErr(
+          "INVALID_STATE",
+          "Não é possível definir o perfil Coordenador enquanto o usuário for responsável por polos. Transfira a coordenação antes.",
+          400,
+        );
+      }
+      data.role = "COORDINATOR";
+      data.isAdmin = false;
+      data.isSiteAdmin = false;
+      data.isCoordinator = false;
+      data.isPoloCoordinator = false;
+      data.isAdminManager = false;
     } else {
       const staffSelected = selectedRoles.filter(
-        (r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR",
+        (r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR" && r !== "COORDINATOR",
       );
       const willKeepPolo = staffSelected.includes("POLO_COORDINATOR");
       if (hasPoloLinks && !willKeepPolo) {
