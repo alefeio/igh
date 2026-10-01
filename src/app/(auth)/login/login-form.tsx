@@ -24,6 +24,7 @@ export function LoginForm({ redirectTo, turnstileSiteKey = null }: LoginFormProp
   const [password, setPassword] = useState("");
   const [website, setWebsite] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
   const [setupHint, setSetupHint] = useState(false);
 
   useEffect(() => {
@@ -71,10 +72,14 @@ export function LoginForm({ redirectTo, turnstileSiteKey = null }: LoginFormProp
             ? "Resposta inválida do servidor. Atualize a página e tente de novo."
             : `Erro no login (${res.status}). Tente novamente.`
         );
+        setCaptchaToken(null);
+        setCaptchaKey((key) => key + 1);
         return;
       }
       if (!res.ok || !json.ok) {
         toast.push("error", json.ok === false ? json.error.message : "Falha no login.");
+        setCaptchaToken(null);
+        setCaptchaKey((key) => key + 1);
         return;
       }
       if (json.data?.needsRoleChoice) {
@@ -87,6 +92,10 @@ export function LoginForm({ redirectTo, turnstileSiteKey = null }: LoginFormProp
         const path = redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/dashboard";
         router.replace(path);
       }
+    } catch {
+      toast.push("error", "Falha no login. Tente novamente.");
+      setCaptchaToken(null);
+      setCaptchaKey((key) => key + 1);
     } finally {
       setLoading(false);
     }
@@ -129,7 +138,7 @@ export function LoginForm({ redirectTo, turnstileSiteKey = null }: LoginFormProp
 
       {turnstileSiteKey ? (
         <div className="pt-1">
-          <TurnstileWidget siteKey={turnstileSiteKey} onToken={setCaptchaToken} />
+          <TurnstileWidget key={captchaKey} siteKey={turnstileSiteKey} onToken={setCaptchaToken} />
         </div>
       ) : null}
 
