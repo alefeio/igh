@@ -12,6 +12,7 @@ export type SessionPanelRole =
   | "ADMIN_MANAGER"
   | "SITE_ADMIN"
   | "POLO_COORDINATOR"
+  | "COORDINATOR"
   | "DIRECTOR"
   | "TEACHER"
   | "STUDENT";
