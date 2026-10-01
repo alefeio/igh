@@ -31,6 +31,7 @@ export async function GET(_req: Request, ctx: RouteCtx) {
     items: exams.map((e) => ({
       id: e.id,
       title: e.title,
+      kind: e.kind,
       status: e.status,
       questionCount: e.questionCount,
       durationMinutes: e.durationMinutes,

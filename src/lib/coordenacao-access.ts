@@ -1,8 +1,9 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireRole } from "@/lib/auth";
+import { COORDINATOR_PEDAGOGY_ROLES } from "@/lib/coordinator/access";
 import { prisma } from "@/lib/prisma";
 
-export const COORDENACAO_ROLES = ["COORDINATOR", "DIRECTOR", "MASTER", "GENERAL_ADMIN"] as const;
+export const COORDENACAO_ROLES = COORDINATOR_PEDAGOGY_ROLES;
 
 export async function requireCoordenacaoViewer() {
   return requireRole([...COORDENACAO_ROLES]);

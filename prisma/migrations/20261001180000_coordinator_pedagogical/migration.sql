@@ -70,7 +70,9 @@ CREATE INDEX "CoordinatorIntervention_enrollmentId_idx" ON "CoordinatorIntervent
 CREATE INDEX "CoordinatorIntervention_classGroupId_idx" ON "CoordinatorIntervention"("classGroupId");
 CREATE INDEX "CoordinatorIntervention_cycleId_idx" ON "CoordinatorIntervention"("cycleId");
 CREATE INDEX "CoordinatorIntervention_ownerUserId_idx" ON "CoordinatorIntervention"("ownerUserId");
+CREATE INDEX "CoordinatorIntervention_createdAt_idx" ON "CoordinatorIntervention"("createdAt");
 
 ALTER TABLE "CoordinatorIntervention" ADD CONSTRAINT "CoordinatorIntervention_ownerUserId_fkey" FOREIGN KEY ("ownerUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CoordinatorIntervention" ADD CONSTRAINT "CoordinatorIntervention_enrollmentId_fkey" FOREIGN KEY ("enrollmentId") REFERENCES "Enrollment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "CoordinatorIntervention" ADD CONSTRAINT "CoordinatorIntervention_classGroupId_fkey" FOREIGN KEY ("classGroupId") REFERENCES "ClassGroup"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "CoordinatorIntervention" ADD CONSTRAINT "CoordinatorIntervention_cycleId_fkey" FOREIGN KEY ("cycleId") REFERENCES "Cycle"("id") ON DELETE SET NULL ON UPDATE CASCADE;

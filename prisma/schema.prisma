@@ -1098,6 +1098,7 @@ model Enrollment {
   sessionAttendances        SessionAttendance[]
   historyEntries            EnrollmentHistoryEntry[]
   departures                EnrollmentDeparture[]
+  coordinatorInterventions  CoordinatorIntervention[]
   verificationTokens        VerificationToken[]
   examAttempts              ClassGroupExamAttempt[]
   /// * Reserva convertida nesta matrícula (se houver).
@@ -1184,10 +1185,12 @@ model CoordinatorIntervention {
   createdAt               DateTime                       @default(now())
   updatedAt               DateTime                       @updatedAt
   owner                   User                           @relation("CoordinatorInterventionOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  enrollment              Enrollment?                    @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
   classGroup              ClassGroup?                    @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
   cycle                   Cycle?                         @relation(fields: [cycleId], references: [id], onDelete: SetNull)
 
   @@index([status, dueAt])
+  @@index([createdAt])
   @@index([enrollmentId])
   @@index([classGroupId])
   @@index([cycleId])

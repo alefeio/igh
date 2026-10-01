@@ -293,7 +293,7 @@ export function CoordenacaoPainel({ view }: { view: "painel" | "frequencia" | "r
           )}
           <p className="mt-3 text-sm text-[var(--text-secondary)]">
             {payload.learningGain.available
-              ? `Diagnóstica ${payload.learningGain.initial}% · final ${payload.learningGain.final}% · diferença ${payload.learningGain.gain} pontos percentuais. Isso mostra a diferença das médias, sem atribuir causa.`
+              ? `Diagnóstico: ${payload.learningGain.initial}%. Final: ${payload.learningGain.final}%. Ganho observado: ${payload.learningGain.gain != null && payload.learningGain.gain >= 0 ? "+" : ""}${payload.learningGain.gain} p.p. A média considera só alunos que entregaram os dois tipos.`
               : "Ganho de aprendizagem: dados ainda não disponíveis. As provas existentes ainda não estão classificadas como diagnóstica e final."}
           </p>
         </SectionCard>

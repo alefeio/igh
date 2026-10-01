@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { jwtVerify } from "jose";
+import { canViewCoordinatorPedagogy } from "@/lib/coordinator/access";
 
 const PUBLIC_PATHS = ["/login", "/setup", "/confirmar-inscricao", "/esqueci-senha", "/redefinir-senha"];
 const AUTH_COOKIE_NAME = "auth_token";
@@ -189,7 +190,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/coordenacao/intervencoes") ||
     pathname.startsWith("/coordenacao/alunos")
   ) {
-    if (!["COORDINATOR", "DIRECTOR", "MASTER", "GENERAL_ADMIN"].includes(role ?? "")) {
+    if (!canViewCoordinatorPedagogy(role)) {
       return NextResponse.redirect(dashboardUrl);
     }
   }

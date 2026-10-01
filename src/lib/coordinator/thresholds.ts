@@ -1,10 +1,12 @@
+import { CERTIFICATE_ATTENDANCE_THRESHOLD_PERCENT } from "@/lib/certificate-attendance-threshold";
+
 /**
  * Limites da coordenação pedagógica.
- * O corte de 70% reaproveita a regra já usada para aptidão de certificado.
- * Os demais valores ficam só aqui, para não se espalharem pela interface.
+ * O corte de frequência reutiliza o limiar do certificado.
+ * Os demais valores ficam só aqui.
  */
 export const COORDINATOR_THRESHOLDS = {
-  attendanceRiskPercent: 70,
+  attendanceRiskPercent: CERTIFICATE_ATTENDANCE_THRESHOLD_PERCENT,
   attendanceCriticalPercent: 50,
   consecutiveAbsencesWarning: 2,
   consecutiveAbsencesCritical: 4,
@@ -14,6 +16,8 @@ export const COORDINATOR_THRESHOLDS = {
   lmsInactiveDays: 7,
   classDropoutAttentionShare: 0.2,
   retentionMarks: [25, 50, 75, 100] as const,
+  /** Janela de aulas lançadas antes e depois de uma intervenção. Cursos curtos não usam semanas civis. */
+  interventionSessionWindow: 4,
 } as const;
 
 export type CoordinatorThresholds = typeof COORDINATOR_THRESHOLDS;

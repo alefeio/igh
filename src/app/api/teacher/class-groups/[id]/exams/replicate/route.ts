@@ -74,6 +74,7 @@ export async function POST(request: Request, ctx: RouteCtx) {
       classGroupId,
       createdByTeacherId: access.teacher.id,
       title: (parsed.data.title?.trim() || template.title).trim(),
+      kind: template.kind,
       instructions: template.instructions,
       availableFrom,
       availableUntil,

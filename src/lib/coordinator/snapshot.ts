@@ -2,6 +2,7 @@ import "server-only";
 
 import type { CoordinatorQuery } from "@/lib/coordinator/filters";
 import { buildIndicators, weeklyAttendance } from "@/lib/coordinator/indicators";
+import { learningGainFromAttempts } from "@/lib/coordinator/learning-gain";
 import { DEPARTURE_REASON_LABEL } from "@/lib/coordinator/labels";
 import { COORDINATOR_THRESHOLDS } from "@/lib/coordinator/thresholds";
 import type { DepartureReasonCode, EnrollmentSignalInput } from "@/lib/coordinator/types";
@@ -172,16 +173,19 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
   const completedByEnrollment = new Map(progressCompleted.map((row) => [row.enrollmentId, row._count.id]));
   const accessByEnrollment = new Map(progressAccess.map((row) => [row.enrollmentId, row._max.lastAccessedAt]));
   const scoresByEnrollment = new Map<string, number[]>();
-  const diagnostic: number[] = [];
-  const finalScores: number[] = [];
   for (const attempt of scores) {
     if (attempt.scorePercent == null) continue;
     const list = scoresByEnrollment.get(attempt.enrollmentId) ?? [];
     list.push(attempt.scorePercent);
     scoresByEnrollment.set(attempt.enrollmentId, list);
-    if (attempt.exam.kind === "DIAGNOSTIC") diagnostic.push(attempt.scorePercent);
-    if (attempt.exam.kind === "FINAL") finalScores.push(attempt.scorePercent);
   }
+  const learningGain = learningGainFromAttempts(
+    scores.map((attempt) => ({
+      enrollmentId: attempt.enrollmentId,
+      kind: attempt.exam.kind,
+      scorePercent: attempt.scorePercent,
+    })),
+  );
   const latestDeparture = new Map<string, (typeof departures)[number]>();
   for (const departure of departures) {
     if (!latestDeparture.has(departure.enrollmentId)) latestDeparture.set(departure.enrollmentId, departure);
@@ -214,6 +218,16 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
     };
   });
 
+  const enrollmentById = new Map(enrollments.map((row) => [row.id, row]));
+  const sessionById = new Map(sessions.map((session) => [session.id, session]));
+  const signalsByGroup = new Map<string, EnrollmentSignalInput[]>();
+  for (const signal of signals) {
+    const groupId = enrollmentById.get(signal.id)?.classGroupId;
+    if (!groupId) continue;
+    const list = signalsByGroup.get(groupId) ?? [];
+    list.push(signal);
+    signalsByGroup.set(groupId, list);
+  }
   const report = buildIndicators(signals);
   const classifiedById = new Map(report.classified.map((row) => [row.id, row]));
   const capacity = groups.reduce((sum, group) => sum + group.capacity, 0);
@@ -221,7 +235,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
 
   const weekMap = new Map<string, { present: number; marked: number }>();
   for (const mark of attendance) {
-    const session = sessions.find((item) => item.id === mark.classSessionId);
+    const session = sessionById.get(mark.classSessionId);
     if (!session) continue;
     const key = weekStart(session.sessionDate);
     const current = weekMap.get(key) ?? { present: 0, marked: 0 };
@@ -231,7 +245,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
   }
 
   const classes = groups.map((group) => {
-    const rows = signals.filter((signal) => enrollments.find((item) => item.id === signal.id)?.classGroupId === group.id);
+    const rows = signalsByGroup.get(group.id) ?? [];
     const summary = buildIndicators(rows);
     const withAttendance = summary.classified.filter((row) => row.attendancePercent != null);
     const progressKnown = rows.filter((row) => row.progressPercent != null);
@@ -244,7 +258,10 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
       ),
       enrolled: rows.length,
       capacity: group.capacity,
-      occupancy: group.capacity > 0 ? Math.round((rows.filter((row) => enrollments.find((item) => item.id === row.id && (item.status === "ACTIVE" || item.status === "SUSPENDED"))).length / group.capacity) * 100) : null,
+      occupancy: group.capacity > 0 ? Math.round((rows.filter((row) => {
+        const status = enrollmentById.get(row.id)?.status;
+        return status === "ACTIVE" || status === "SUSPENDED";
+      }).length / group.capacity) * 100) : null,
       started: summary.counts.started,
       attendance: summary.indicators.attendanceRate,
       atRisk: summary.counts.atRisk,
@@ -302,7 +319,6 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
     teacherMap.set(source.teacher.id, current);
   }
 
-  const learningAvailable = diagnostic.length > 0 && finalScores.length > 0;
   const average = (values: number[]) => Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 
   return {
@@ -342,9 +358,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
           : { value: null, available: false },
         inactiveContent: signals.filter((row) => (row.lmsInactiveDays ?? 0) >= COORDINATOR_THRESHOLDS.lmsInactiveDays || (row.progressPercent === 0 && row.lmsInactiveDays == null)).length,
       },
-      learningGain: learningAvailable
-        ? { available: true, initial: average(diagnostic), final: average(finalScores), gain: average(finalScores) - average(diagnostic) }
-        : { available: false, initial: null, final: null, gain: null },
+      learningGain,
       teachers: [...teacherMap.entries()]
         .map(([id, teacher]) => ({
           id,
@@ -416,7 +430,7 @@ function emptyPayload(groups: { course: { id: string; name: string }; teacher: {
       score: { value: null, available: false },
       inactiveContent: 0,
     },
-    learningGain: { available: false, initial: null, final: null, gain: null },
+    learningGain: { available: false, initial: null, final: null, gain: null, comparedStudents: 0, rule: "Compara só quem entregou diagnóstica e final." },
     teachers: [],
     experience: { available: false, count: 0, platform: null, lessons: null, teacher: null },
     tickets: [],
