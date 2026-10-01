@@ -11,6 +11,22 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLETED: "Concluída",
 };
 
+function toHistory(entry: {
+  id: string;
+  kind: string;
+  body: string;
+  createdAt: Date;
+  author: { name: string };
+}) {
+  return {
+    id: entry.id,
+    kind: entry.kind,
+    body: entry.body,
+    createdAt: entry.createdAt.toISOString(),
+    authorName: entry.author.name,
+  };
+}
+
 export async function GET(request: Request) {
   try {
     await requireCoordenacaoViewer();
@@ -23,69 +39,138 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const cycle = await resolveCycle(params.get("cycleId"));
   const q = params.get("q")?.trim() ?? "";
-  const onlyWithHistory = params.get("somenteHistorico") !== "0";
-  if (!cycle) return jsonOk({ cycle: null, enrollments: [] });
+  const classGroupId = params.get("classGroupId")?.trim() ?? "";
+  const teacherId = params.get("teacherId")?.trim() ?? "";
+  if (!cycle) {
+    return jsonOk({ cycle: null, teachers: [], classGroups: [], feed: [], enrollments: [] });
+  }
 
-  const search = q
-    ? {
-        OR: [
-          { student: { name: { contains: q, mode: "insensitive" as const } } },
-          { classGroup: { course: { name: { contains: q, mode: "insensitive" as const } } } },
-          { classGroup: { teacher: { name: { contains: q, mode: "insensitive" as const } } } },
-        ],
-      }
-    : {};
-
-  const enrollments = await prisma.enrollment.findMany({
-    where: {
-      classGroup: { cycleId: cycle.id },
-      ...(onlyWithHistory && !q ? { historyEntries: { some: {} } } : {}),
-      ...search,
-    },
-    orderBy: [{ student: { name: "asc" } }],
-    take: 120,
+  const classGroups = await prisma.classGroup.findMany({
+    where: { cycleId: cycle.id },
+    orderBy: [{ course: { name: "asc" } }, { startTime: "asc" }],
     select: {
       id: true,
-      status: true,
-      student: { select: { name: true } },
-      classGroup: {
-        select: {
-          id: true,
-          course: { select: { name: true } },
-          teacher: { select: { name: true } },
+      startTime: true,
+      location: true,
+      course: { select: { name: true } },
+      teacher: { select: { id: true, name: true } },
+    },
+  });
+
+  const teachers = [...new Map(classGroups.map((group) => [group.teacher.id, group.teacher])).values()].sort((a, b) =>
+    a.name.localeCompare(b.name, "pt-BR"),
+  );
+  const visibleGroups = teacherId
+    ? classGroups.filter(
+        (group) => group.teacher.id === teacherId,
+      )
+    : classGroups;
+  const selectedGroup = visibleGroups.find((group) => group.id === classGroupId) ?? null;
+
+  const catalog = {
+    cycle: { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` },
+    teachers,
+    classGroups: visibleGroups.map((group) => ({
+      id: group.id,
+      teacherId: group.teacher.id,
+      teacherName: group.teacher.name,
+      courseName: group.course.name,
+      label: [group.course.name, group.teacher.name, group.startTime, group.location?.trim()]
+        .filter(Boolean)
+        .join(" · "),
+    })),
+  };
+
+  if (selectedGroup) {
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        classGroupId: selectedGroup.id,
+        ...(q ? { student: { name: { contains: q, mode: "insensitive" } } } : {}),
+      },
+      orderBy: [{ student: { name: "asc" } }],
+      select: {
+        id: true,
+        status: true,
+        student: { select: { name: true } },
+        historyEntries: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            kind: true,
+            body: true,
+            createdAt: true,
+            author: { select: { name: true } },
+          },
         },
       },
-      historyEntries: {
-        orderBy: { createdAt: "desc" },
-        take: 30,
+    });
+
+    return jsonOk({
+      ...catalog,
+      view: "turma",
+      selectedClassGroupId: selectedGroup.id,
+      feed: [],
+      enrollments: enrollments.map((enrollment) => ({
+        id: enrollment.id,
+        status: enrollment.status,
+        statusLabel: STATUS_LABEL[enrollment.status] ?? enrollment.status,
+        studentName: enrollment.student.name,
+        courseName: selectedGroup.course.name,
+        teacherName: selectedGroup.teacher.name,
+        classGroupId: selectedGroup.id,
+        history: enrollment.historyEntries.map(toHistory),
+      })),
+    });
+  }
+
+  const entries = await prisma.enrollmentHistoryEntry.findMany({
+    where: {
+      enrollment: {
+        classGroup: {
+          cycleId: cycle.id,
+          ...(teacherId ? { teacherId } : {}),
+        },
+        ...(q ? { student: { name: { contains: q, mode: "insensitive" } } } : {}),
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    select: {
+      id: true,
+      kind: true,
+      body: true,
+      createdAt: true,
+      author: { select: { name: true } },
+      enrollment: {
         select: {
           id: true,
-          kind: true,
-          body: true,
-          createdAt: true,
-          author: { select: { name: true } },
+          status: true,
+          student: { select: { name: true } },
+          classGroup: {
+            select: {
+              id: true,
+              course: { select: { name: true } },
+              teacher: { select: { name: true } },
+            },
+          },
         },
       },
     },
   });
 
   return jsonOk({
-    cycle: { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` },
-    enrollments: enrollments.map((enrollment) => ({
-      id: enrollment.id,
-      status: enrollment.status,
-      statusLabel: STATUS_LABEL[enrollment.status] ?? enrollment.status,
-      studentName: enrollment.student.name,
-      courseName: enrollment.classGroup.course.name,
-      teacherName: enrollment.classGroup.teacher.name,
-      classGroupId: enrollment.classGroup.id,
-      history: enrollment.historyEntries.map((entry) => ({
-        id: entry.id,
-        kind: entry.kind,
-        body: entry.body,
-        createdAt: entry.createdAt.toISOString(),
-        authorName: entry.author.name,
-      })),
+    ...catalog,
+    view: "cronologico",
+    selectedClassGroupId: null,
+    enrollments: [],
+    feed: entries.map((entry) => ({
+      ...toHistory(entry),
+      enrollmentId: entry.enrollment.id,
+      statusLabel: STATUS_LABEL[entry.enrollment.status] ?? entry.enrollment.status,
+      studentName: entry.enrollment.student.name,
+      courseName: entry.enrollment.classGroup.course.name,
+      teacherName: entry.enrollment.classGroup.teacher.name,
+      classGroupId: entry.enrollment.classGroup.id,
     })),
   });
 }
