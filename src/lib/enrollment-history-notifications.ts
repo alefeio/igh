@@ -43,7 +43,10 @@ export async function notifyEnrollmentHistoryEntry(entryId: string): Promise<voi
   }
 
   const staff = await prisma.user.findMany({
-    where: { isActive: true, role: { in: ["COORDINATOR", "DIRECTOR"] } },
+    where: {
+      isActive: true,
+      OR: [{ role: { in: ["COORDINATOR", "DIRECTOR"] } }, { isCoordinator: true }],
+    },
     select: { id: true, role: true },
   });
   const teacherUsers = teacherUserIds.size

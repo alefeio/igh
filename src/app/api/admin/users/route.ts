@@ -10,10 +10,8 @@ import { sendEmailAndRecord } from "@/lib/email/send-and-record";
 import { isExactMaster } from "@/lib/rbac";
 import {
   normalizeManagedRoles,
-  pickStaffBaseRole,
-  staffOverlaysForBase,
+  resolveManagedAccessUpdate,
   userHasStaffAccess,
-  type ManagedAccessRole,
   type StaffAccessRole,
   MANAGED_ACCESS_LABEL,
 } from "@/lib/staff-access";
@@ -80,6 +78,7 @@ export async function GET() {
         { isSiteAdmin: true },
         { isPoloCoordinator: true },
         { isAdminManager: true },
+        { isCoordinator: true },
       ],
     },
     orderBy: { createdAt: "desc" },
@@ -194,7 +193,7 @@ export async function POST(request: Request) {
         409,
       );
     }
-    if (wantsGeneralAdmin || wantsDirector || wantsCoordinator) {
+    if (wantsGeneralAdmin || wantsDirector) {
       return jsonErr(
         "VALIDATION_ERROR",
         "Para promover a Administrador Geral ou Diretor, edite o usuário na listagem (somente Master).",
@@ -206,7 +205,9 @@ export async function POST(request: Request) {
       (r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR" && r !== "COORDINATOR",
     );
     const newlyGranted = staffSelected.filter((r) => !userHasStaffAccess(existing, r));
-    if (newlyGranted.length === 0) {
+    const grantingCoordinator =
+      wantsCoordinator && existing.role !== "COORDINATOR" && !existing.isCoordinator;
+    if (newlyGranted.length === 0 && !grantingCoordinator) {
       return jsonErr("EMAIL_IN_USE", "Este usuário já possui todos os perfis de acesso selecionados.", 409);
     }
 
@@ -214,7 +215,7 @@ export async function POST(request: Request) {
       isAdmin: existing.isAdmin || (newlyGranted.includes("ADMIN") && existing.role !== "ADMIN"),
       isSiteAdmin:
         existing.isSiteAdmin || (newlyGranted.includes("SITE_ADMIN") && existing.role !== "SITE_ADMIN"),
-      isCoordinator: false,
+      isCoordinator: existing.role === "COORDINATOR" ? false : existing.isCoordinator || grantingCoordinator,
       isPoloCoordinator:
         existing.isPoloCoordinator ||
         (newlyGranted.includes("POLO_COORDINATOR") && existing.role !== "POLO_COORDINATOR"),
@@ -250,7 +251,11 @@ export async function POST(request: Request) {
       entityType: "User",
       entityId: updated.id,
       action: "STAFF_ACCESS_GRANTED",
-      diff: { email: updated.email, grantedRoles: newlyGranted, previousRole: existing.role },
+      diff: {
+        email: updated.email,
+        grantedRoles: grantingCoordinator ? [...newlyGranted, "COORDINATOR"] : newlyGranted,
+        previousRole: existing.role,
+      },
       performedByUserId: actor.id,
     });
 
@@ -348,32 +353,18 @@ export async function POST(request: Request) {
       whatsapp: phone,
       birthDate: birthDateValue,
     };
-  } else if (wantsCoordinator) {
-    createData = {
-      name,
-      email,
-      passwordHash,
-      role: "COORDINATOR",
-      isAdmin: false,
-      isSiteAdmin: false,
-      isCoordinator: false,
-      isPoloCoordinator: false,
-      isAdminManager: false,
-      isActive: true,
-      mustChangePassword: true,
-      whatsapp: phone,
-      birthDate: birthDateValue,
-    };
   } else {
-    const staffRoles = selectedRoles as StaffAccessRole[];
-    const baseRole = pickStaffBaseRole(staffRoles);
-    const overlays = staffOverlaysForBase(staffRoles, baseRole);
+    const access = resolveManagedAccessUpdate("ADMIN", selectedRoles);
     createData = {
       name,
       email,
       passwordHash,
-      role: baseRole,
-      ...overlays,
+      role: access.role ?? "ADMIN",
+      isAdmin: access.isAdmin,
+      isSiteAdmin: access.isSiteAdmin,
+      isCoordinator: access.isCoordinator,
+      isPoloCoordinator: access.isPoloCoordinator,
+      isAdminManager: access.isAdminManager,
       isActive: true,
       mustChangePassword: true,
       whatsapp: phone,

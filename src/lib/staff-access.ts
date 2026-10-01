@@ -49,12 +49,10 @@ export function normalizeManagedRoles(
   if (unique.includes("DIRECTOR")) {
     return ["DIRECTOR"];
   }
-  if (unique.includes("COORDINATOR")) {
-    return ["COORDINATOR"];
-  }
-  return normalizeStaffRoles(
-    unique.filter((r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR" && r !== "COORDINATOR"),
-  );
+  const staff = BASE_PRIORITY.filter((role) => unique.includes(role));
+  const selected: ManagedAccessRole[] = [...staff];
+  if (unique.includes("COORDINATOR")) selected.push("COORDINATOR");
+  return selected.length > 0 ? selected : ["ADMIN"];
 }
 
 export function pickStaffBaseRole(roles: readonly StaffAccessRole[]): StaffAccessRole {
@@ -143,8 +141,11 @@ export function managedRolesFromUser(user: {
 }): ManagedAccessRole[] {
   if (user.role === "GENERAL_ADMIN") return ["GENERAL_ADMIN"];
   if (user.role === "DIRECTOR") return ["DIRECTOR"];
-  if (user.role === "COORDINATOR") return ["COORDINATOR"];
-  return staffRolesFromUser(user);
+  const roles: ManagedAccessRole[] = [...staffRolesFromUser(user)];
+  if ((user.role === "COORDINATOR" || user.isCoordinator) && !roles.includes("COORDINATOR")) {
+    roles.push("COORDINATOR");
+  }
+  return roles;
 }
 
 /**
@@ -190,4 +191,52 @@ export function resolveStaffAccessUpdate(
     role: keepBase,
     ...staffOverlaysForBase(roles, keepBase),
   };
+}
+
+/**
+ * Papel-base e overlays, incluindo Coordenador combinado com os perfis operacionais.
+ * Administrador Geral e Diretor continuam exclusivos e são tratados fora daqui.
+ */
+export function resolveManagedAccessUpdate(
+  currentRole: string,
+  selected: readonly ManagedAccessRole[],
+): {
+  role?: StaffAccessRole | "COORDINATOR";
+  isAdmin: boolean;
+  isSiteAdmin: boolean;
+  isCoordinator: boolean;
+  isPoloCoordinator: boolean;
+  isAdminManager: boolean;
+} {
+  const unique = Array.from(new Set(selected));
+  const wantsCoordinator = unique.includes("COORDINATOR");
+  const staff = BASE_PRIORITY.filter((role) => unique.includes(role));
+
+  if (staff.length === 0) {
+    const frozenBase =
+      currentRole === "STUDENT" ||
+      currentRole === "TEACHER" ||
+      currentRole === "MASTER" ||
+      currentRole === "GENERAL_ADMIN";
+    if (frozenBase) {
+      return {
+        isAdmin: false,
+        isSiteAdmin: false,
+        isCoordinator: wantsCoordinator,
+        isPoloCoordinator: false,
+        isAdminManager: false,
+      };
+    }
+    return {
+      role: "COORDINATOR",
+      isAdmin: false,
+      isSiteAdmin: false,
+      isCoordinator: false,
+      isPoloCoordinator: false,
+      isAdminManager: false,
+    };
+  }
+
+  const access = resolveStaffAccessUpdate(currentRole === "COORDINATOR" ? "ADMIN" : currentRole, staff);
+  return { ...access, isCoordinator: wantsCoordinator };
 }

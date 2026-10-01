@@ -780,16 +780,22 @@ export default function EnrollmentsPage() {
 
   const dashboard = useMemo(() => {
     const list = filteredItems;
-    const byClassGroup = new Map<string, { classGroup: ClassGroup; count: number }>();
+    const byClassGroup = new Map<string, { classGroup: ClassGroup; count: number; active: number; cancelled: number }>();
     const allowedCycles = new Set(cycleFilterIds);
     const allowedClassGroups = new Set(turmaFilterIds);
     const allowedClassGroupStatuses = new Set(classGroupStatusFilter);
     const allowedClassGroupScopes = new Set(classGroupScopeFilter);
     const occupiedByClassGroup = new Map<string, number>();
+    const statusByClassGroup = new Map<string, { active: number; cancelled: number }>();
     for (const enrollment of list) {
-      if (!enrollmentOccupiesSeat(enrollment.status)) continue;
       const id = enrollment.classGroup.id;
-      occupiedByClassGroup.set(id, (occupiedByClassGroup.get(id) ?? 0) + 1);
+      if (enrollmentOccupiesSeat(enrollment.status)) {
+        occupiedByClassGroup.set(id, (occupiedByClassGroup.get(id) ?? 0) + 1);
+      }
+      const statusCount = statusByClassGroup.get(id) ?? { active: 0, cancelled: 0 };
+      if (enrollment.status === "ACTIVE") statusCount.active += 1;
+      else if (enrollment.status === "CANCELLED") statusCount.cancelled += 1;
+      statusByClassGroup.set(id, statusCount);
     }
 
     // A capacidade deve considerar todas as turmas dos ciclos selecionados,
@@ -799,9 +805,12 @@ export default function EnrollmentsPage() {
       if (!cid || !allowedCycles.has(cid)) continue;
       if (!classGroupMatchesListFilters(cg, allowedClassGroupStatuses, allowedClassGroupScopes)) continue;
       if (allowedClassGroups.size > 0 && !allowedClassGroups.has(cg.id)) continue;
+      const statusCount = statusByClassGroup.get(cg.id) ?? { active: 0, cancelled: 0 };
       byClassGroup.set(cg.id, {
         classGroup: cg,
         count: occupiedByClassGroup.get(cg.id) ?? 0,
+        active: statusCount.active,
+        cancelled: statusCount.cancelled,
       });
     }
 
@@ -813,15 +822,21 @@ export default function EnrollmentsPage() {
       const occupiedCount = list.filter(
         (row) => enrollmentOccupiesSeat(row.status) && row.classGroup.id === cg.id,
       ).length;
-      byClassGroup.set(cg.id, { classGroup: cg, count: occupiedCount });
+      const statusCount = statusByClassGroup.get(cg.id) ?? { active: 0, cancelled: 0 };
+      byClassGroup.set(cg.id, {
+        classGroup: cg,
+        count: occupiedCount,
+        active: statusCount.active,
+        cancelled: statusCount.cancelled,
+      });
     }
 
-    const byCourse = new Map<string, { courseName: string; turmas: { classGroup: ClassGroup; count: number }[] }>();
-    for (const { classGroup, count } of byClassGroup.values()) {
+    const byCourse = new Map<string, { courseName: string; turmas: { classGroup: ClassGroup; count: number; active: number; cancelled: number }[] }>();
+    for (const { classGroup, count, active, cancelled } of byClassGroup.values()) {
       const cid = classGroup.course.id;
       const name = classGroup.course.name;
       if (!byCourse.has(cid)) byCourse.set(cid, { courseName: name, turmas: [] });
-      byCourse.get(cid)!.turmas.push({ classGroup, count });
+      byCourse.get(cid)!.turmas.push({ classGroup, count, active, cancelled });
     }
     for (const row of byCourse.values()) {
       row.turmas.sort((a, b) => {
@@ -1896,7 +1911,7 @@ export default function EnrollmentsPage() {
                           {turmas.length === 0 ? (
                             <li className="text-[var(--text-muted)]">Nenhuma turma no momento.</li>
                           ) : (
-                            turmas.map(({ classGroup: cg, count }) => {
+                            turmas.map(({ classGroup: cg, count, active, cancelled }) => {
                               const start = formatDateOnly(cg.startDate).slice(0, 5);
                               const days = Array.isArray(cg.daysOfWeek) ? formatDaysOrderedPt(cg.daysOfWeek) : "";
                               const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}${cg.location ? ` — ${cg.location}` : ""}`;
@@ -1910,7 +1925,10 @@ export default function EnrollmentsPage() {
                                       className={fechada ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
                                     >
                                       {count} / {cap || "—"}
-                                    </strong>
+                                    </strong>{" "}
+                                    <span className="text-[var(--text-muted)]">
+                                      ({active} ativas | {cancelled} canceladas)
+                                    </span>
                                   </span>
                                   <button
                                     type="button"

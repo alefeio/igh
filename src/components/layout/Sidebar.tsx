@@ -444,6 +444,7 @@ export function Sidebar({
       canAdmin: boolean;
       canSiteAdmin?: boolean;
       canPoloCoordinator?: boolean;
+      canCoordinator?: boolean;
       canAdminManager?: boolean;
     };
   };

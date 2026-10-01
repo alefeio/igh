@@ -18,7 +18,8 @@ type RoleOption = {
     | "MASTER"
     | "GENERAL_ADMIN"
     | "DIRECTOR"
-    | "POLO_COORDINATOR";
+    | "POLO_COORDINATOR"
+    | "COORDINATOR";
   label: string;
 };
 
@@ -54,6 +55,7 @@ export function TopBar({
       canAdmin: boolean;
       canSiteAdmin?: boolean;
       canPoloCoordinator?: boolean;
+      canCoordinator?: boolean;
       canAdminManager?: boolean;
     };
   };
@@ -189,6 +191,8 @@ export function TopBar({
     r?.canPoloCoordinator ?? (user.isPoloCoordinator === true || user.baseRole === "POLO_COORDINATOR");
   const canAdminManager =
     r?.canAdminManager ?? (user.isAdminManager === true || user.baseRole === "ADMIN_MANAGER");
+  const canCoordinator =
+    r?.canCoordinator ?? (user.baseRole === "COORDINATOR");
 
   const roleLabels: Record<string, string> = {
     MASTER: "Administrador Master",
@@ -197,6 +201,7 @@ export function TopBar({
     ADMIN_MANAGER: "Gerência Administrativa",
     SITE_ADMIN: "Administrador Site",
     POLO_COORDINATOR: "Coordenador de Polos",
+    COORDINATOR: "Coordenador",
     DIRECTOR: "Diretor",
     TEACHER: "Professor",
     STUDENT: "Aluno",
@@ -219,6 +224,9 @@ export function TopBar({
       : []),
     ...(canPoloCoordinator && !hidesStaffPicker
       ? [{ value: "POLO_COORDINATOR" as const, label: roleLabels.POLO_COORDINATOR }]
+      : []),
+    ...(canCoordinator && !hidesStaffPicker
+      ? [{ value: "COORDINATOR" as const, label: roleLabels.COORDINATOR }]
       : []),
   ];
   if (!roleOptions.some((o) => o.value === user.role)) {

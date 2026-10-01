@@ -35,6 +35,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     canSiteAdmin: user.isSiteAdmin === true || user.baseRole === "SITE_ADMIN",
     canPoloCoordinator: user.isPoloCoordinator === true || user.baseRole === "POLO_COORDINATOR",
     canAdminManager: user.isAdminManager === true || user.baseRole === "ADMIN_MANAGER",
+    canCoordinator: user.isCoordinator === true || user.baseRole === "COORDINATOR",
   };
 
   const shellUser = {

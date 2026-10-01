@@ -15,7 +15,7 @@ const managedAccessRoleSchema = z.enum([
 const managedRolesField = z
   .array(managedAccessRoleSchema)
   .min(1, "Selecione ao menos um tipo de acesso")
-  .max(4)
+  .max(5)
   .optional();
 
 export const createAdminSchema = z

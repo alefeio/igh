@@ -1,4 +1,6 @@
+import { formatDateOnly } from "@/lib/format";
 import { jsonOk } from "@/lib/http";
+import { formatDaysOrderedPt } from "@/lib/turma-display";
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { enrollmentOccupiesSeat } from "@/lib/enrollment-seat";
 import { prisma } from "@/lib/prisma";
@@ -69,8 +71,11 @@ export async function GET(request: Request) {
       capacity: true,
       location: true,
       startTime: true,
-      course: { select: { name: true } },
-      teacher: { select: { name: true } },
+      endTime: true,
+      startDate: true,
+      daysOfWeek: true,
+      course: { select: { id: true, name: true } },
+      teacher: { select: { id: true, name: true } },
       poloLocation: { select: { name: true, polo: { select: { name: true } } } },
       _count: {
         select: { waitlistEntries: { where: { status: "WAITING" } } },
@@ -115,6 +120,10 @@ export async function GET(request: Request) {
       placeColumns: [],
       classStatusColumns: [],
       attentionClasses: [],
+      pieByCourse: [],
+      byDay: [],
+      courses: [],
+      teachers: [],
     });
   }
   const [enrollments, buscaRows] = await Promise.all([
@@ -295,6 +304,75 @@ export async function GET(request: Request) {
       name: CLASS_STATUS_LABEL[status] ?? status,
       value: groups.filter((group) => group.status === status).length,
     })),
+    pieByCourse: [...courseStack.keys()]
+      .map((name) => ({
+        name,
+        value: enrollments.filter((row) => (groupById.get(row.classGroupId)?.course.name ?? "Curso") === name).length,
+      }))
+      .filter((row) => row.value > 0)
+      .sort((a, b) => b.value - a.value),
+    byDay: (() => {
+      const byDay = new Map<string, number>();
+      for (const row of enrollments) {
+        const label = formatDateOnly(row.enrolledAt);
+        if (!label) continue;
+        byDay.set(label, (byDay.get(label) ?? 0) + 1);
+      }
+      return [...byDay.entries()]
+        .sort((a, b) => {
+          const toTime = (value: string) => {
+            const [dd, mm, yyyy] = value.split("/");
+            return new Date(Number(yyyy), Number(mm) - 1, Number(dd)).getTime();
+          };
+          return toTime(a[0]) - toTime(b[0]);
+        })
+        .map(([name, value]) => ({ name, value }));
+    })(),
+    courses: [...(() => {
+      const map = new Map<string, { courseName: string; capacidade: number; alunos: number; turmas: { id: string; label: string; alunos: number; capacidade: number }[] }>();
+      for (const group of groups) {
+        const alunos = enrollments.filter((row) => row.classGroupId === group.id && enrollmentOccupiesSeat(row.status)).length;
+        const start = formatDateOnly(group.startDate);
+        const days = formatDaysOrderedPt(group.daysOfWeek);
+        const label = [
+          start ? `Início ${start.slice(0, 5)}` : null,
+          `${group.startTime}-${group.endTime}`,
+          days || null,
+          group.location?.trim() || null,
+        ].filter(Boolean).join(" · ");
+        const current = map.get(group.course.id) ?? { courseName: group.course.name, capacidade: 0, alunos: 0, turmas: [] };
+        current.capacidade += group.capacity;
+        current.alunos += alunos;
+        current.turmas.push({ id: group.id, label, alunos, capacidade: group.capacity });
+        map.set(group.course.id, current);
+      }
+      return [...map.values()].map((course) => ({
+        ...course,
+        turmas: course.turmas.sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),
+      }));
+    })()].sort((a, b) => b.alunos - a.alunos || a.courseName.localeCompare(b.courseName, "pt-BR")),
+    teachers: [...(() => {
+      const map = new Map<string, { teacherName: string; alunos: number; turmas: { id: string; courseName: string; label: string; alunos: number; capacidade: number }[] }>();
+      for (const group of groups) {
+        const alunos = enrollments.filter((row) => row.classGroupId === group.id && enrollmentOccupiesSeat(row.status)).length;
+        const start = formatDateOnly(group.startDate);
+        const days = formatDaysOrderedPt(group.daysOfWeek);
+        const label = [
+          start ? `Início ${start.slice(0, 5)}` : null,
+          `${group.startTime}-${group.endTime}`,
+          days || null,
+          group.location?.trim() || null,
+        ].filter(Boolean).join(" · ");
+        const current = map.get(group.teacher.id) ?? { teacherName: group.teacher.name, alunos: 0, turmas: [] };
+        current.alunos += alunos;
+        current.turmas.push({ id: group.id, courseName: group.course.name, label, alunos, capacidade: group.capacity });
+        map.set(group.teacher.id, current);
+      }
+      return [...map.values()].map((teacher) => ({
+        ...teacher,
+        turmas: teacher.turmas.sort((a, b) => a.courseName.localeCompare(b.courseName, "pt-BR") || a.label.localeCompare(b.label, "pt-BR")),
+      }));
+    })()].sort((a, b) => b.alunos - a.alunos || a.teacherName.localeCompare(b.teacherName, "pt-BR")),
     attentionClasses: classRows.slice(0, 8),
   });
 }

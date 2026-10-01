@@ -172,6 +172,9 @@ export async function getSessionUserFromCookie(): Promise<SessionUser | null> {
     if (payload.role === "DIRECTOR" && user.role !== "DIRECTOR") {
       return null;
     }
+    if (payload.role === "COORDINATOR" && user.role !== "COORDINATOR" && !user.isCoordinator) {
+      return null;
+    }
     return {
       id: user.id,
       name: user.name,
