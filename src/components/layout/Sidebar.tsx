@@ -84,13 +84,13 @@ const ITEMS: Item[] = [
   },
   {
     href: "/coordenacao/matriculas",
-    label: "Matrículas do ciclo",
+    label: "Dashboard de matrículas",
     roles: COORDENACAO_AREA,
     category: "Coordenação",
   },
   {
     href: "/coordenacao/busca-ativa",
-    label: "Busca ativa",
+    label: "Interações dos professores",
     roles: COORDENACAO_AREA,
     category: "Coordenação",
   },
@@ -489,6 +489,7 @@ export function Sidebar({
   const categoryOrder = [
     "Início",
     "Direção",
+    "Coordenação",
     "Colaborador",
     "Aluno",
     "Professor",
