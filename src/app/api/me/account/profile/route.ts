@@ -15,6 +15,8 @@ const STAFF_ROLES = [
   "SITE_ADMIN",
   "TEACHER",
   "POLO_COORDINATOR",
+  "COORDINATOR",
+  "DIRECTOR",
 ] as const;
 
 function isStaffRole(role: string): role is (typeof STAFF_ROLES)[number] {

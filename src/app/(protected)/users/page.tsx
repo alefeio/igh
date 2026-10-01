@@ -32,6 +32,7 @@ type AdminUser = {
     | "ADMIN_MANAGER"
     | "SITE_ADMIN"
     | "POLO_COORDINATOR"
+    | "COORDINATOR"
     | "STUDENT"
     | "TEACHER";
   isAdmin?: boolean;
@@ -76,6 +77,11 @@ const STAFF_ACCESS_OPTIONS: { value: ManagedAccessRole; label: string; hint: str
     hint: "CMS do site, tablet e comunicação (SMS/e-mail/campanhas)",
   },
   {
+    value: "COORDINATOR",
+    label: "Coordenador",
+    hint: "Dashboard visual das matrículas do ciclo e intervenção na busca ativa",
+  },
+  {
     value: "POLO_COORDINATOR",
     label: "Coordenador de Polos",
     hint: "Matrículas dos seus polos",
@@ -89,6 +95,7 @@ function roleLabel(u: AdminUser): string {
   else if (u.role === "TEACHER") parts.push("Professor");
   else if (u.role === "GENERAL_ADMIN") parts.push("Administrador Geral");
   else if (u.role === "DIRECTOR") parts.push("Diretor");
+  else if (u.role === "COORDINATOR") parts.push("Coordenador");
   else if (u.role === "ADMIN") parts.push("Administrador Pedagógico");
   else if (u.role === "ADMIN_MANAGER") parts.push("Gerência Administrativa");
   else if (u.role === "SITE_ADMIN") parts.push("Administrador Site");
@@ -117,7 +124,7 @@ function AccessTypeCheckboxes({
   onBlockedPoloUncheck?: () => void;
 }) {
   function toggle(role: ManagedAccessRole) {
-    if (role === "GENERAL_ADMIN" || role === "DIRECTOR") {
+    if (role === "GENERAL_ADMIN" || role === "DIRECTOR" || role === "COORDINATOR") {
       if (selected.includes(role)) {
         onChange(lockPoloCoordinator ? ["POLO_COORDINATOR"] : []);
       } else {
@@ -126,7 +133,7 @@ function AccessTypeCheckboxes({
       return;
     }
     const withoutExclusive = selected.filter(
-      (r) => r !== "GENERAL_ADMIN" && r !== "DIRECTOR",
+      (r) => r !== "GENERAL_ADMIN" && r !== "DIRECTOR" && r !== "COORDINATOR",
     ) as StaffAccessRole[];
     if (withoutExclusive.includes(role as StaffAccessRole)) {
       if (role === "POLO_COORDINATOR" && lockPoloCoordinator) {
@@ -141,7 +148,7 @@ function AccessTypeCheckboxes({
 
   const options = STAFF_ACCESS_OPTIONS.filter((o) => !o.masterOnly || allowGeneralAdmin);
   const exclusiveSelected =
-    selected.includes("GENERAL_ADMIN") || selected.includes("DIRECTOR");
+    selected.includes("GENERAL_ADMIN") || selected.includes("DIRECTOR") || selected.includes("COORDINATOR");
 
   return (
     <div className="mt-1 flex flex-col gap-2">
@@ -177,8 +184,7 @@ function AccessTypeCheckboxes({
         );
       })}
       <p className="text-xs text-[var(--text-muted)]">
-        É possível marcar mais de um perfil operacional. Administrador Geral e Diretor são exclusivos e só o
-        Master pode atribuir
+        É possível marcar mais de um perfil operacional. Administrador Geral, Diretor e Coordenador são exclusivos. Administrador Geral e Diretor só o Master pode atribuir.
         {lockPoloCoordinator
           ? "; a responsabilidade pelos polos vinculados é mantida ao promover a Administrador Geral"
           : ""}

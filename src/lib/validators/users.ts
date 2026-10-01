@@ -9,6 +9,7 @@ const managedAccessRoleSchema = z.enum([
   "POLO_COORDINATOR",
   "GENERAL_ADMIN",
   "DIRECTOR",
+  "COORDINATOR",
 ]);
 
 const managedRolesField = z

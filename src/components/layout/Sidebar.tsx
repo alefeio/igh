@@ -14,6 +14,7 @@ type PanelRole =
   | "ADMIN_MANAGER"
   | "SITE_ADMIN"
   | "POLO_COORDINATOR"
+  | "COORDINATOR"
   | "DIRECTOR"
   | "TEACHER"
   | "STUDENT";
@@ -39,6 +40,7 @@ const ALL_ROLES = [
   "ADMIN_MANAGER",
   "SITE_ADMIN",
   "POLO_COORDINATOR",
+  "COORDINATOR",
   "DIRECTOR",
   "TEACHER",
   "STUDENT",
@@ -59,6 +61,7 @@ const PRE_INSCRICOES_ROLES = ["MASTER", "GENERAL_ADMIN", "ADMIN", "SITE_ADMIN"] 
 const ADMIN_MANAGEMENT = ["MASTER", "GENERAL_ADMIN", "ADMIN_MANAGER"] as const;
 /** Área executiva do Diretor (Master também vê para preview). */
 const DIRECTOR_AREA = ["DIRECTOR", "MASTER"] as const;
+const COORDENACAO_AREA = ["COORDINATOR", "DIRECTOR", "MASTER", "GENERAL_ADMIN"] as const;
 
 /**
  * Ordem do array = ordem no menu dentro de cada categoria.
@@ -78,6 +81,18 @@ const ITEMS: Item[] = [
     label: "Visão Geral",
     roles: DIRECTOR_AREA,
     category: "Direção",
+  },
+  {
+    href: "/coordenacao/matriculas",
+    label: "Matrículas do ciclo",
+    roles: COORDENACAO_AREA,
+    category: "Coordenação",
+  },
+  {
+    href: "/coordenacao/busca-ativa",
+    label: "Busca ativa",
+    roles: COORDENACAO_AREA,
+    category: "Coordenação",
   },
   {
     href: "/diretor/prioridades",
@@ -411,8 +426,8 @@ export function Sidebar({
   user: {
     name: string;
     email: string;
-    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
-    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
+    role: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
+    baseRole?: "MASTER" | "GENERAL_ADMIN" | "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR" | "COORDINATOR" | "DIRECTOR" | "TEACHER" | "STUDENT";
     isAdmin?: boolean;
     isSiteAdmin?: boolean;
     isAdminManager?: boolean;
@@ -452,7 +467,7 @@ export function Sidebar({
     /** Overlay de Gerência em /users (papel-base diferente) também vê o menu Gerência. */
     const allowedByGerenciaOverlay = i.category === "Gerência" && user.isAdminManager === true;
     if (!allowedByRole && !allowedByGerenciaOverlay) return false;
-    if (user.role === "DIRECTOR") {
+    if (user.role === "DIRECTOR" || user.role === "COORDINATOR") {
       if (i.href === "/dashboard" || i.href === "/onboarding") return false;
     }
     if (i.requiresEmployee && !user.hasEmployeeProfile) return false;

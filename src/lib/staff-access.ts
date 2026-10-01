@@ -1,5 +1,5 @@
 export type StaffAccessRole = "ADMIN" | "ADMIN_MANAGER" | "SITE_ADMIN" | "POLO_COORDINATOR";
-export type ManagedAccessRole = StaffAccessRole | "GENERAL_ADMIN" | "DIRECTOR";
+export type ManagedAccessRole = StaffAccessRole | "GENERAL_ADMIN" | "DIRECTOR" | "COORDINATOR";
 
 export const STAFF_ACCESS_ROLES: readonly StaffAccessRole[] = [
   "ADMIN",
@@ -19,6 +19,7 @@ export const MANAGED_ACCESS_LABEL: Record<ManagedAccessRole, string> = {
   ...STAFF_ACCESS_LABEL,
   GENERAL_ADMIN: "Administrador Geral",
   DIRECTOR: "Diretor",
+  COORDINATOR: "Coordenador",
 };
 
 /** Prioridade ao escolher o papel-base quando vários tipos são marcados. */
@@ -48,7 +49,12 @@ export function normalizeManagedRoles(
   if (unique.includes("DIRECTOR")) {
     return ["DIRECTOR"];
   }
-  return normalizeStaffRoles(unique.filter((r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR"));
+  if (unique.includes("COORDINATOR")) {
+    return ["COORDINATOR"];
+  }
+  return normalizeStaffRoles(
+    unique.filter((r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR" && r !== "COORDINATOR"),
+  );
 }
 
 export function pickStaffBaseRole(roles: readonly StaffAccessRole[]): StaffAccessRole {
@@ -137,6 +143,7 @@ export function managedRolesFromUser(user: {
 }): ManagedAccessRole[] {
   if (user.role === "GENERAL_ADMIN") return ["GENERAL_ADMIN"];
   if (user.role === "DIRECTOR") return ["DIRECTOR"];
+  if (user.role === "COORDINATOR") return ["COORDINATOR"];
   return staffRolesFromUser(user);
 }
 

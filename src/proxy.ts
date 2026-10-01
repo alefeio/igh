@@ -175,6 +175,15 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  if (
+    pathname.startsWith("/coordenacao/matriculas") ||
+    pathname.startsWith("/coordenacao/busca-ativa")
+  ) {
+    if (!["COORDINATOR", "DIRECTOR", "MASTER", "GENERAL_ADMIN"].includes(role ?? "")) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
   if (pathname.startsWith("/diretor")) {
     if (role !== "DIRECTOR" && role !== "MASTER") {
       return NextResponse.redirect(dashboardUrl);
@@ -226,6 +235,7 @@ export const config = {
     "/admin/calendario/:path*",
     "/master/acessos/:path*",
     "/admin/gerencia/:path*",
+    "/coordenacao/:path*",
     "/diretor/:path*",
   ],
 };

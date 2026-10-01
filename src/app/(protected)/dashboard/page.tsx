@@ -1196,6 +1196,9 @@ export default async function DashboardPage() {
   if (user.role === "POLO_COORDINATOR") {
     redirect("/enrollments");
   }
+  if (user.role === "COORDINATOR") {
+    redirect("/coordenacao/matriculas");
+  }
   if (user.role === "DIRECTOR") {
     const { isDirectorDashboardV2Enabled } = await import("@/lib/diretor/dashboard-v2-flag");
     if (isDirectorDashboardV2Enabled()) {
