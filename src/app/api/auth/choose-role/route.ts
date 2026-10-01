@@ -19,6 +19,7 @@ const ALLOWED_ROLES: UserRole[] = [
   "GENERAL_ADMIN",
   "DIRECTOR",
   "POLO_COORDINATOR",
+  "COORDINATOR",
 ];
 
 function jsonOkWithSession<T>(data: T, user: Parameters<typeof buildAuthSessionToken>[0], effectiveRole: UserRole) {
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
         isAdmin: true,
         isSiteAdmin: true,
         isPoloCoordinator: true,
+        isCoordinator: true,
         isAdminManager: true,
         isActive: true,
         mustChangePassword: true,
@@ -131,6 +133,13 @@ export async function POST(request: Request) {
       return jsonErr("FORBIDDEN", "Você não tem perfil de Coordenador de Polos.", 403);
     }
     return jsonOkWithSession({ role: "POLO_COORDINATOR" as const }, sessionPayload, "POLO_COORDINATOR");
+  }
+
+  if (role === "COORDINATOR") {
+    if (full.role !== "COORDINATOR" && !full.isCoordinator) {
+      return jsonErr("FORBIDDEN", "Você não tem perfil de Coordenador.", 403);
+    }
+    return jsonOkWithSession({ role: "COORDINATOR" as const }, sessionPayload, "COORDINATOR");
   }
 
   if (role === "STUDENT") {

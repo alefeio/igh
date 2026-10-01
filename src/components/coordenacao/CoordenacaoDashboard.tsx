@@ -7,8 +7,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -21,18 +19,16 @@ import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import type { ApiResponse } from "@/lib/api-types";
 
 type Point = { name: string; value: number };
-type CoursePoint = { name: string; ativas: number; canceladas: number; concluidas: number };
-type ClassRow = {
-  id: string;
-  course: string;
-  teacher: string;
-  place: string;
-  status: string;
-  enrolled: number;
-  capacity: number;
-  occupancy: number;
-  waitlist: number;
-  startTime: string;
+type CourseCard = {
+  courseName: string;
+  capacidade: number;
+  alunos: number;
+  turmas: { id: string; label: string; alunos: number; capacidade: number }[];
+};
+type TeacherCard = {
+  teacherName: string;
+  alunos: number;
+  turmas: { id: string; courseName: string; label: string; alunos: number; capacidade: number }[];
 };
 
 type DashboardPayload = {
@@ -43,33 +39,15 @@ type DashboardPayload = {
     active: number;
     preEnrollment: number;
     confirmed: number;
-    suspended: number;
-    cancelled: number;
-    cancelRate: number;
-    completed: number;
-    waitlist: number;
-    openSeats: number;
     occupancyPercent: number;
-    classes: number;
-    lowOccupancyClasses: number;
-    attendanceAverage: number | null;
-    below70: number;
-    occupyingWithoutBusca: number;
-    certificateEligible: number;
-    certificateIssued: number;
-    closedBase: number;
   } | null;
-  statusPie: Point[];
-  confirmationPie: Point[];
-  attendancePie: Point[];
-  timeline: { name: string; novas: number; acumulado: number }[];
-  courseColumns: CoursePoint[];
-  placeColumns: Point[];
-  classStatusColumns: Point[];
-  attentionClasses: ClassRow[];
+  pieByCourse: Point[];
+  byDay: Point[];
+  courses: CourseCard[];
+  teachers: TeacherCard[];
 };
 
-const COLORS = ["#0f766e", "#d97706", "#0284c7", "#e11d48", "#7c3aed", "#64748b", "#65a30d", "#c026d3"];
+const COLORS = ["#0066b3", "#1a365d", "#e87500", "#0d9488", "#7c3aed", "#dc2626", "#65a30d", "#ca8a04"];
 
 function Tip({
   active,
@@ -77,7 +55,7 @@ function Tip({
   label,
 }: {
   active?: boolean;
-  payload?: { name?: string; value?: number; color?: string }[];
+  payload?: { name?: string; value?: number }[];
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
@@ -100,30 +78,6 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint: strin
       <p className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{value}</p>
       <p className="mt-1 text-xs text-[var(--text-muted)]">{hint}</p>
     </div>
-  );
-}
-
-function PieCard({ title, description, data }: { title: string; description: string; data: Point[] }) {
-  return (
-    <SectionCard title={title} description={description} variant="elevated">
-      <div className="h-72">
-        {data.length === 0 ? (
-          <p className="py-16 text-center text-sm text-[var(--text-muted)]">Sem dados neste ciclo.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" innerRadius={48} outerRadius={88}>
-                {data.map((item, index) => (
-                  <Cell key={item.name} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip content={<Tip />} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-    </SectionCard>
   );
 }
 
@@ -151,13 +105,15 @@ export function CoordenacaoDashboard() {
   }, [load]);
 
   const kpis = data?.kpis;
+  const courses = data?.courses ?? [];
+  const teachers = data?.teachers ?? [];
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <DashboardHero
         eyebrow="Coordenação"
         title="Matrículas do ciclo"
-        description="Ocupação, evasão, frequência, pré-matrícula e turmas que pedem ação."
+        description="Compare cursos, turmas e professores pelas vagas e pelas matrículas, no mesmo recorte de Matrículas."
       />
       <label className="flex max-w-xs flex-col gap-1 text-sm text-[var(--text-secondary)]">
         Ciclo
@@ -182,113 +138,128 @@ export function CoordenacaoDashboard() {
         <p className="text-sm text-[var(--text-muted)]">{loading ? "Carregando…" : "Nenhum ciclo encontrado."}</p>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Ocupação" value={`${kpis.occupancyPercent}%`} hint={`${kpis.openSeats} vagas ainda abertas`} />
-            <Kpi label="Ativas" value={String(kpis.active)} hint={`${kpis.confirmed} confirmadas · ${kpis.preEnrollment} pré-matrículas`} />
-            <Kpi label="Evasão" value={`${kpis.cancelRate}%`} hint={`${kpis.cancelled} canceladas de ${kpis.total}`} />
-            <Kpi
-              label="Frequência média"
-              value={kpis.attendanceAverage == null ? "—" : `${kpis.attendanceAverage}%`}
-              hint={`${kpis.below70} alunos abaixo de 70%`}
-            />
-            <Kpi label="Suspensas" value={String(kpis.suspended)} hint="Pedem retorno ou busca ativa" />
-            <Kpi label="Sem busca ativa" value={String(kpis.occupyingWithoutBusca)} hint="Ativos ou suspensos sem registro" />
-            <Kpi label="Lista de espera" value={String(kpis.waitlist)} hint="Ainda aguardando vaga" />
-            <Kpi
-              label="Certificado"
-              value={`${kpis.certificateIssued}/${kpis.certificateEligible}`}
-              hint={`${kpis.closedBase} alunos em turmas encerradas`}
-            />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Kpi label="Total" value={String(kpis.total)} hint="Matrículas do ciclo" />
+            <Kpi label="Ativas" value={String(kpis.active)} hint="Ainda na turma" />
+            <Kpi label="Pré-matrículas" value={String(kpis.preEnrollment)} hint="Aguardando confirmação" />
+            <Kpi label="Confirmadas" value={String(kpis.confirmed)} hint={`${kpis.occupancyPercent}% das vagas preenchidas`} />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            <PieCard title="Situação das matrículas" description="Como o ciclo está distribuído agora." data={data?.statusPie ?? []} />
-            <PieCard title="Confirmação" description="Ativas já confirmadas e pré-matrículas." data={data?.confirmationPie ?? []} />
-            <PieCard title="Frequência de quem ocupa vaga" description="Corte de 70% para certificado." data={data?.attendancePie ?? []} />
-          </div>
-
-          <SectionCard title="Entrada de matrículas" description="Novas no mês e total acumulado no ciclo." variant="elevated">
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data?.timeline ?? []}>
-                  <CartesianGrid stroke="var(--card-border)" />
-                  <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
-                  <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
-                  <Tooltip content={<Tip />} />
-                  <Legend />
-                  <Line type="monotone" dataKey="novas" name="Novas" stroke="#0284c7" strokeWidth={2} />
-                  <Line type="monotone" dataKey="acumulado" name="Acumulado" stroke="#0f766e" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
+          <SectionCard title="Comparação visual" description="Distribuição por curso e por dia de matrícula." variant="elevated">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div>
+                <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">Matrículas por curso</h3>
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={data?.pieByCourse ?? []} dataKey="value" nameKey="name" innerRadius={48} outerRadius={90}>
+                        {(data?.pieByCourse ?? []).map((item, index) => (
+                          <Cell key={item.name} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<Tip />} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">Matrículas por dia</h3>
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data?.byDay ?? []}>
+                      <CartesianGrid stroke="var(--card-border)" />
+                      <XAxis dataKey="name" interval={0} angle={-40} textAnchor="end" height={70} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                      <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
+                      <Tooltip content={<Tip />} />
+                      <Bar dataKey="value" name="Matrículas" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
           </SectionCard>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <SectionCard title="Ativas e canceladas por curso" description="Onde a evasão pesa mais." variant="elevated">
-              <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data?.courseColumns ?? []}>
-                    <CartesianGrid stroke="var(--card-border)" />
-                    <XAxis dataKey="name" interval={0} angle={-25} textAnchor="end" height={80} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
-                    <Tooltip content={<Tip />} />
-                    <Legend />
-                    <Bar dataKey="ativas" name="Ocupando vaga" stackId="a" fill="#0f766e" />
-                    <Bar dataKey="concluidas" name="Concluídas" stackId="a" fill="#0284c7" />
-                    <Bar dataKey="canceladas" name="Canceladas" stackId="a" fill="#e11d48" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </SectionCard>
-            <SectionCard title="Alunos por local" description="Onde a demanda está concentrada." variant="elevated">
-              <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data?.placeColumns ?? []} layout="vertical" margin={{ left: 24 }}>
-                    <CartesianGrid stroke="var(--card-border)" />
-                    <XAxis type="number" allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
-                    <YAxis type="category" dataKey="name" width={140} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                    <Tooltip content={<Tip />} />
-                    <Bar dataKey="value" name="Alunos" fill="#7c3aed" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </SectionCard>
-          </div>
-
           <SectionCard
-            title="Turmas com menor ocupação"
-            description={`${kpis.lowOccupancyClasses} turmas abertas, planejadas ou em andamento estão abaixo de 50%.`}
+            title="Vagas por curso e turma"
+            description="Azul é a capacidade. Vermelho é o que já está preenchido. Abaixo, cada turma do curso."
             variant="elevated"
           >
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--card-border)] text-xs uppercase text-[var(--text-muted)]">
-                    <th className="px-2 py-2">Curso</th>
-                    <th className="px-2 py-2">Professor</th>
-                    <th className="px-2 py-2">Local</th>
-                    <th className="px-2 py-2">Status</th>
-                    <th className="px-2 py-2">Horário</th>
-                    <th className="px-2 py-2">Vagas</th>
-                    <th className="px-2 py-2">Espera</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.attentionClasses ?? []).map((row) => (
-                    <tr key={row.id} className="border-b border-[var(--card-border)] last:border-0">
-                      <td className="px-2 py-2 font-medium text-[var(--text-primary)]">{row.course}</td>
-                      <td className="px-2 py-2 text-[var(--text-secondary)]">{row.teacher}</td>
-                      <td className="px-2 py-2 text-[var(--text-secondary)]">{row.place}</td>
-                      <td className="px-2 py-2 text-[var(--text-secondary)]">{row.status}</td>
-                      <td className="px-2 py-2 text-[var(--text-secondary)]">{row.startTime}</td>
-                      <td className="px-2 py-2 text-[var(--text-secondary)]">
-                        {row.enrolled}/{row.capacity} ({row.occupancy}%)
-                      </td>
-                      <td className="px-2 py-2 text-[var(--text-secondary)]">{row.waitlist}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {courses.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">Nenhuma turma neste ciclo.</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {courses.map((course) => (
+                  <div key={course.courseName} className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
+                    <h3 className="text-sm font-medium text-[var(--text-primary)]">{course.courseName}</h3>
+                    <p className="mb-2 text-xs text-[var(--text-muted)]">
+                      {course.alunos} de {course.capacidade} vagas preenchidas
+                    </p>
+                    <div className="h-40">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={[{ name: course.courseName, capacidade: course.capacidade, alunos: course.alunos }]}>
+                          <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                          <Tooltip content={<Tip />} />
+                          <Legend />
+                          <Bar dataKey="capacidade" name="Total de vagas" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="alunos" name="Vagas preenchidas" fill="#dc2626" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <ul className="mt-3 space-y-1 border-t border-[var(--card-border)] pt-3 text-sm text-[var(--text-secondary)]">
+                      {course.turmas.map((turma) => (
+                        <li key={turma.id} className="flex justify-between gap-3">
+                          <span>{turma.label}</span>
+                          <strong className={turma.capacidade > 0 && turma.alunos >= turma.capacidade ? "text-red-600" : "text-green-600"}>
+                            {turma.alunos}/{turma.capacidade || "—"}
+                          </strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="mt-4 border-t border-[var(--card-border)] pt-3 text-sm font-medium text-[var(--text-primary)]">
+              Total de vagas preenchidas: {courses.reduce((sum, course) => sum + course.alunos, 0)}
+              {courses.some((course) => course.capacidade > 0)
+                ? ` / ${courses.reduce((sum, course) => sum + course.capacidade, 0)}`
+                : ""}
+            </p>
+          </SectionCard>
+
+          <SectionCard title="Por professor" description="Alunos que ocupam vaga, e as turmas de cada professor." variant="elevated">
+            <div className="mb-6 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={teachers.map((teacher) => ({ name: teacher.teacherName, value: teacher.alunos }))}>
+                  <CartesianGrid stroke="var(--card-border)" />
+                  <XAxis dataKey="name" interval={0} angle={-30} textAnchor="end" height={70} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
+                  <Tooltip content={<Tip />} />
+                  <Bar dataKey="value" name="Alunos" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {teachers.map((teacher) => (
+                <div key={teacher.teacherName} className="rounded-lg border border-[var(--card-border)] px-3 py-3">
+                  <p className="font-medium text-[var(--text-primary)]">
+                    {teacher.teacherName} · {teacher.alunos} alunos
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm text-[var(--text-secondary)]">
+                    {teacher.turmas.map((turma) => (
+                      <li key={turma.id} className="flex justify-between gap-3">
+                        <span>
+                          {turma.courseName} · {turma.label}
+                        </span>
+                        <strong>
+                          {turma.alunos}/{turma.capacidade || "—"}
+                        </strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
           </SectionCard>
         </>

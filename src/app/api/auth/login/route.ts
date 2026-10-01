@@ -185,6 +185,7 @@ export async function POST(request: Request) {
     const hasSiteAdminAccess = user.isSiteAdmin === true || user.role === "SITE_ADMIN";
     /** Acesso à Gerência Administrativa (JWT ADMIN_MANAGER). */
     const hasAdminManagerAccess = user.isAdminManager === true || user.role === "ADMIN_MANAGER";
+    const hasCoordinator = user.isCoordinator === true || user.role === "COORDINATOR";
 
     let choiceCount = 0;
     if (hasStudent) choiceCount++;
@@ -196,6 +197,7 @@ export async function POST(request: Request) {
       if (hasAdminAccess) choiceCount++;
       if (hasSiteAdminAccess) choiceCount++;
       if (hasAdminManagerAccess) choiceCount++;
+      if (hasCoordinator) choiceCount++;
     }
     const needsRoleChoice = choiceCount >= 2;
 

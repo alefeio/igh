@@ -11,7 +11,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { isExactMaster } from "@/lib/rbac";
 import {
   normalizeManagedRoles,
-  resolveStaffAccessUpdate,
+  resolveManagedAccessUpdate,
   managedRolesFromUser,
   type ManagedAccessRole,
   type StaffAccessRole,
@@ -33,6 +33,7 @@ const adminListFilter = {
     { isSiteAdmin: true },
     { isPoloCoordinator: true },
     { isAdminManager: true },
+    { isCoordinator: true },
   ],
 };
 
@@ -193,20 +194,6 @@ export async function PATCH(request: Request, ctx: Ctx) {
       data.isCoordinator = false;
       data.isPoloCoordinator = false;
       data.isAdminManager = false;
-    } else if (selectedRoles.includes("COORDINATOR")) {
-      if (hasPoloLinks) {
-        return jsonErr(
-          "INVALID_STATE",
-          "Não é possível definir o perfil Coordenador enquanto o usuário for responsável por polos. Transfira a coordenação antes.",
-          400,
-        );
-      }
-      data.role = "COORDINATOR";
-      data.isAdmin = false;
-      data.isSiteAdmin = false;
-      data.isCoordinator = false;
-      data.isPoloCoordinator = false;
-      data.isAdminManager = false;
     } else {
       const staffSelected = selectedRoles.filter(
         (r): r is StaffAccessRole => r !== "GENERAL_ADMIN" && r !== "DIRECTOR" && r !== "COORDINATOR",
@@ -219,24 +206,21 @@ export async function PATCH(request: Request, ctx: Ctx) {
           400,
         );
       }
+      const access = resolveManagedAccessUpdate(
+        existing.role === "GENERAL_ADMIN" || existing.role === "DIRECTOR" ? "ADMIN" : existing.role,
+        selectedRoles,
+      );
       if (existing.role === "GENERAL_ADMIN" || existing.role === "DIRECTOR") {
         await requireExactMaster();
-        const access = resolveStaffAccessUpdate("ADMIN", staffSelected);
         data.role = access.role ?? "ADMIN";
-        data.isAdmin = access.isAdmin;
-        data.isSiteAdmin = access.isSiteAdmin;
-        data.isCoordinator = access.isCoordinator;
-        data.isPoloCoordinator = access.isPoloCoordinator;
-        data.isAdminManager = access.isAdminManager;
-      } else {
-        const access = resolveStaffAccessUpdate(existing.role, staffSelected);
-        if (access.role !== undefined) data.role = access.role;
-        data.isAdmin = access.isAdmin;
-        data.isSiteAdmin = access.isSiteAdmin;
-        data.isCoordinator = access.isCoordinator;
-        data.isPoloCoordinator = access.isPoloCoordinator;
-        data.isAdminManager = access.isAdminManager;
+      } else if (access.role !== undefined) {
+        data.role = access.role;
       }
+      data.isAdmin = access.isAdmin;
+      data.isSiteAdmin = access.isSiteAdmin;
+      data.isCoordinator = access.isCoordinator;
+      data.isPoloCoordinator = access.isPoloCoordinator;
+      data.isAdminManager = access.isAdminManager;
     }
   }
 
