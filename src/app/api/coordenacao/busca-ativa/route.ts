@@ -1,4 +1,5 @@
 import { ENROLLMENT_HISTORY_BODY_MAX, trimHistoryBody } from "@/lib/enrollment-history";
+import { notifyEnrollmentHistoryEntry } from "@/lib/enrollment-history-notifications";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { coordenacaoAuthResponse, requireCoordenacaoViewer, resolveCycle } from "@/lib/coordenacao-access";
@@ -127,6 +128,12 @@ export async function POST(request: Request) {
       author: { select: { name: true } },
     },
   });
+
+  try {
+    await notifyEnrollmentHistoryEntry(created.id);
+  } catch (error) {
+    console.error("[enrollment-history] notificação", error);
+  }
 
   return jsonOk(
     {

@@ -31,11 +31,11 @@ type Payload = {
   enrollments: EnrollmentRow[];
 };
 
-export function CoordenacaoBuscaAtiva() {
+export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: string }) {
   const toast = useToast();
   const [cycles, setCycles] = useState<{ id: string; label: string }[]>([]);
   const [cycleId, setCycleId] = useState("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [rows, setRows] = useState<EnrollmentRow[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);

@@ -4,6 +4,7 @@ import { applyAttendanceSuspensionRules } from "@/lib/enrollment-attendance-susp
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { attendancePercent, JUSTIFIED_ABSENCE_DEFAULT, markToDb, rowToMark, type AttendanceMark } from "@/lib/attendance-mark";
 import { trimHistoryBody } from "@/lib/enrollment-history";
+import { notifyEnrollmentHistoryEntries } from "@/lib/enrollment-history-notifications";
 import { processEmailOutboxBatch } from "@/lib/email/outbox";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
@@ -310,8 +311,18 @@ export async function PATCH(
   }
 
   if (historyRows.length > 0) {
+    const since = new Date(Date.now() - 2000);
     try {
       await prisma.enrollmentHistoryEntry.createMany({ data: historyRows });
+      const created = await prisma.enrollmentHistoryEntry.findMany({
+        where: {
+          authorId: user.id,
+          createdAt: { gte: since },
+          enrollmentId: { in: historyRows.map((row) => row.enrollmentId) },
+        },
+        select: { id: true },
+      });
+      await notifyEnrollmentHistoryEntries(created.map((row) => row.id));
     } catch (e) {
       console.error("[attendance-grid] histórico da matrícula", e);
     }

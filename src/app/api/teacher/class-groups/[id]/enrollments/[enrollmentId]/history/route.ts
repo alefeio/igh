@@ -1,5 +1,6 @@
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { ENROLLMENT_HISTORY_BODY_MAX, trimHistoryBody } from "@/lib/enrollment-history";
+import { notifyEnrollmentHistoryEntry } from "@/lib/enrollment-history-notifications";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -55,6 +56,12 @@ export async function POST(request: Request, ctx: Ctx) {
       author: { select: { name: true } },
     },
   });
+
+  try {
+    await notifyEnrollmentHistoryEntry(created.id);
+  } catch (error) {
+    console.error("[enrollment-history] notificação", error);
+  }
 
   return jsonOk(
     {
