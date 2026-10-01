@@ -2846,6 +2846,8 @@ enum UserNotificationKind {
   BOARD_ACTIVITY_ASSIGNED
   /// * Novo comentário em atividade do Quadro.
   BOARD_ACTIVITY_COMMENT
+  /// * Novo registro no histórico da matrícula (busca ativa, justificativa, cancelamento).
+  ENROLLMENT_HISTORY
 }
 
 /// * Termos de uso, política de privacidade ou política de cookies (LGPD / ePrivacy).
