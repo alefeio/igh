@@ -81,7 +81,10 @@ export const CANCELLATION_PERIOD_UNAVAILABLE_REASON =
 export const INFERRED_ABSENCE_CANCELLATION_COPY =
   "Cancelamento identificado após sequência de faltas — causa ainda não registrada de forma estruturada.";
 
-export function isCycleEnrollment(): boolean {
+export function isCycleEnrollment(_enrollment?: {
+  isPreEnrollment: boolean;
+  enrollmentConfirmedAt: Date | null;
+}): boolean {
   return true;
 }
 

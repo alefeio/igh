@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 export type ExamTemplateConfig = {
   title: string;
+  kind: "DIAGNOSTIC" | "FORMATIVE" | "FINAL" | "OTHER";
   instructions: string | null;
   durationMinutes: number;
   timingMode: "FROM_STUDENT_START" | "FROM_EXAM_START";
@@ -46,6 +47,7 @@ export async function findReusableExamForTeacher(
 
 export function examToTemplateConfig(exam: {
   title: string;
+  kind: "DIAGNOSTIC" | "FORMATIVE" | "FINAL" | "OTHER";
   instructions: string | null;
   durationMinutes: number;
   timingMode: "FROM_STUDENT_START" | "FROM_EXAM_START";
@@ -61,6 +63,7 @@ export function examToTemplateConfig(exam: {
 }): ExamTemplateConfig {
   return {
     title: exam.title,
+    kind: exam.kind,
     instructions: exam.instructions,
     durationMinutes: exam.durationMinutes,
     timingMode: exam.timingMode,

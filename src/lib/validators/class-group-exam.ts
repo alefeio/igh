@@ -3,6 +3,7 @@ import { z } from "zod";
 export const classGroupExamUpsertSchema = z
   .object({
     title: z.string().min(1, "Título é obrigatório"),
+    kind: z.enum(["DIAGNOSTIC", "FORMATIVE", "FINAL", "OTHER"]).default("OTHER"),
     instructions: z.string().optional().nullable(),
     availableFrom: z.string().min(1),
     availableUntil: z.string().min(1),

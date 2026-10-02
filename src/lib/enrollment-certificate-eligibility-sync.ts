@@ -1,12 +1,12 @@
 import "server-only";
 
+import { CERTIFICATE_ATTENDANCE_THRESHOLD_PERCENT } from "@/lib/certificate-attendance-threshold";
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { prisma } from "@/lib/prisma";
 import { markReferralCertifiedForStudentIds } from "@/lib/student-referrals";
 import { revalidateMultiCertifiedStudentsCache } from "@/lib/student-multi-certification-cache";
 
-/** Limiar de presença (%) para liberar automaticamente a emissão de certificado. */
-export const CERTIFICATE_ATTENDANCE_THRESHOLD_PERCENT = 70;
+export { CERTIFICATE_ATTENDANCE_THRESHOLD_PERCENT };
 
 /**
  * Ativa `certificateEligible` para matrículas com presença ≥ 70% que ainda não foram

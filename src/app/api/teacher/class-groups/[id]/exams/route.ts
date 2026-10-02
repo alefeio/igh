@@ -71,6 +71,7 @@ export async function POST(request: Request, ctx: RouteCtx) {
       classGroupId,
       createdByTeacherId: access.teacher.id,
       title: d.title.trim(),
+      kind: d.kind,
       instructions: d.instructions?.trim() || null,
       availableFrom: new Date(d.availableFrom),
       availableUntil: new Date(d.availableUntil),

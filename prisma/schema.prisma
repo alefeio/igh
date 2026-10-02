@@ -21,6 +21,7 @@ model Cycle {
 
   classGroups        ClassGroup[]
   nextCycleInterests NextCycleInterest[]
+  coordinatorInterventions CoordinatorIntervention[]
 
   @@unique([cycle, year])
   @@index([year, cycle])
@@ -148,6 +149,8 @@ model User {
   boardActivityEventsAuthored        BoardActivityEvent[]            @relation("BoardActivityEventActor")
   serviceAttendanceRatings           ServiceAttendanceRating[]
   enrollmentHistoryAuthored          EnrollmentHistoryEntry[]        @relation("EnrollmentHistoryAuthor")
+  enrollmentDeparturesRecorded       EnrollmentDeparture[]           @relation("EnrollmentDepartureRecordedBy")
+  coordinatorInterventionsOwned      CoordinatorIntervention[]       @relation("CoordinatorInterventionOwner")
 
   @@index([referredByUserId])
 }
@@ -636,6 +639,7 @@ model ClassGroup {
   waitlistEntries       EnrollmentWaitlist[]
   waitlistSeatOffers    WaitlistSeatOffer[]
   exams                 ClassGroupExam[]
+  coordinatorInterventions CoordinatorIntervention[]
 
   @@index([poloLocationId])
   @@index([createdByUserId])
@@ -657,6 +661,13 @@ enum ClassGroupExamStatus {
   DRAFT
   PUBLISHED
   CLOSED
+}
+
+enum ClassGroupExamKind {
+  DIAGNOSTIC
+  FORMATIVE
+  FINAL
+  OTHER
 }
 
 enum ClassGroupExamTimingMode {
@@ -683,6 +694,8 @@ model ClassGroupExam {
   title                String
   instructions         String?
   status               ClassGroupExamStatus        @default(DRAFT)
+  /// * Classificação pedagógica. Provas antigas permanecem OTHER.
+  kind                 ClassGroupExamKind          @default(OTHER)
   availableFrom        DateTime
   availableUntil       DateTime
   durationMinutes      Int
@@ -1084,6 +1097,8 @@ model Enrollment {
   questionReplies           EnrollmentLessonQuestionReply[]
   sessionAttendances        SessionAttendance[]
   historyEntries            EnrollmentHistoryEntry[]
+  departures                EnrollmentDeparture[]
+  coordinatorInterventions  CoordinatorIntervention[]
   verificationTokens        VerificationToken[]
   examAttempts              ClassGroupExamAttempt[]
   /// * Reserva convertida nesta matrícula (se houver).
@@ -1095,6 +1110,91 @@ enum EnrollmentHistoryKind {
   CANCELAMENTO
   QUARTA_FALTA
   BUSCA_ATIVA
+}
+
+enum EnrollmentDepartureReason {
+  WORK_SCHEDULE
+  ADDRESS_CHANGE
+  TRANSPORTATION
+  HEALTH
+  LOSS_OF_INTEREST
+  EXPECTATION_MISMATCH
+  LEARNING_DIFFICULTY
+  METHODOLOGY_OR_TEACHER
+  LACK_OF_EQUIPMENT
+  EMPLOYMENT
+  TRANSFER
+  UNREACHABLE
+  ABANDONMENT_WITHOUT_REASON
+  ADMINISTRATIVE
+  OTHER
+}
+
+/// * Motivo registrado de desligamento. Cada alteração gera um novo registro.
+model EnrollmentDeparture {
+  id                   String                     @id @default(uuid())
+  enrollmentId         String
+  reason               EnrollmentDepartureReason
+  note                 String?
+  courseProgressPercent Int?
+  presentCount         Int?
+  sessionCount         Int?
+  recordedAt           DateTime                   @default(now())
+  recordedByUserId     String
+  enrollment           Enrollment                 @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  recordedBy           User                       @relation("EnrollmentDepartureRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([enrollmentId, recordedAt])
+  @@index([recordedByUserId])
+}
+
+enum CoordinatorInterventionType {
+  ATTENDANCE
+  DROPOUT_RISK
+  PERFORMANCE
+  SUPPORT
+  BEHAVIOR
+  ACCESS
+  OTHER
+}
+
+enum CoordinatorInterventionStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CANCELLED
+}
+
+/// * Ação de acompanhamento da coordenação pedagógica. Não substitui o reporte à coordenação.
+model CoordinatorIntervention {
+  id                      String                         @id @default(uuid())
+  enrollmentId            String?
+  classGroupId            String?
+  cycleId                 String?
+  type                    CoordinatorInterventionType
+  problem                 String
+  action                  String
+  ownerUserId             String
+  dueAt                   DateTime?
+  status                  CoordinatorInterventionStatus  @default(OPEN)
+  notes                   String?
+  resultNote              String?
+  resolvedAt              DateTime?
+  attendancePercentBefore Int?
+  attendancePercentAfter  Int?
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+  owner                   User                           @relation("CoordinatorInterventionOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  enrollment              Enrollment?                    @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  classGroup              ClassGroup?                    @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+  cycle                   Cycle?                         @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+
+  @@index([status, dueAt])
+  @@index([createdAt])
+  @@index([enrollmentId])
+  @@index([classGroupId])
+  @@index([cycleId])
+  @@index([ownerUserId])
 }
 
 /// * Histórico da matrícula: justificativa, cancelamento e busca ativa.

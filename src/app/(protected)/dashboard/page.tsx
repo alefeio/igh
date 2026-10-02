@@ -1197,7 +1197,7 @@ export default async function DashboardPage() {
     redirect("/enrollments");
   }
   if (user.role === "COORDINATOR") {
-    redirect("/coordenacao/matriculas");
+    redirect("/coordenacao/painel");
   }
   if (user.role === "DIRECTOR") {
     const { isDirectorDashboardV2Enabled } = await import("@/lib/diretor/dashboard-v2-flag");

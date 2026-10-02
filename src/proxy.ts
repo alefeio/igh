@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { jwtVerify } from "jose";
+import { canViewCoordinatorPedagogy } from "@/lib/coordinator/access";
 
 const PUBLIC_PATHS = ["/login", "/setup", "/confirmar-inscricao", "/esqueci-senha", "/redefinir-senha"];
 const AUTH_COOKIE_NAME = "auth_token";
@@ -177,9 +178,19 @@ export async function proxy(request: NextRequest) {
 
   if (
     pathname.startsWith("/coordenacao/matriculas") ||
-    pathname.startsWith("/coordenacao/busca-ativa")
+    pathname.startsWith("/coordenacao/busca-ativa") ||
+    pathname.startsWith("/coordenacao/painel") ||
+    pathname.startsWith("/coordenacao/frequencia") ||
+    pathname.startsWith("/coordenacao/risco") ||
+    pathname.startsWith("/coordenacao/evasao") ||
+    pathname.startsWith("/coordenacao/turmas") ||
+    pathname.startsWith("/coordenacao/aproveitamento") ||
+    pathname.startsWith("/coordenacao/experiencia") ||
+    pathname.startsWith("/coordenacao/historico") ||
+    pathname.startsWith("/coordenacao/intervencoes") ||
+    pathname.startsWith("/coordenacao/alunos")
   ) {
-    if (!["COORDINATOR", "DIRECTOR", "MASTER", "GENERAL_ADMIN"].includes(role ?? "")) {
+    if (!canViewCoordinatorPedagogy(role)) {
       return NextResponse.redirect(dashboardUrl);
     }
   }

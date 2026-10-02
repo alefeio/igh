@@ -91,6 +91,7 @@ export async function PATCH(request: Request, ctx: RouteCtx) {
     where: { id: examId },
     data: {
       title: d.title.trim(),
+      kind: d.kind,
       instructions: d.instructions?.trim() || null,
       availableFrom: new Date(d.availableFrom),
       availableUntil: new Date(d.availableUntil),

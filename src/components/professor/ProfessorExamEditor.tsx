@@ -13,6 +13,7 @@ type PoolItem = { id: string; question: string; lessonTitle: string };
 type ReusableExam = {
   id: string;
   title: string;
+  kind?: "DIAGNOSTIC" | "FORMATIVE" | "FINAL" | "OTHER";
   classGroupLabel: string;
   status: string;
   questionCount: number;
@@ -48,6 +49,7 @@ export function ProfessorExamEditor({
   const isNew = !examId;
 
   const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<"DIAGNOSTIC" | "FORMATIVE" | "FINAL" | "OTHER">("OTHER");
   const [instructions, setInstructions] = useState("");
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
@@ -91,6 +93,7 @@ export function ProfessorExamEditor({
 
   function applyReusableTemplate(item: ReusableExam) {
     setTitle(item.title);
+    setKind(item.kind ?? "OTHER");
     setInstructions(item.instructions ?? "");
     setAvailableFrom(toLocalInput(item.availableFrom));
     setAvailableUntil(toLocalInput(item.availableUntil));
@@ -145,6 +148,7 @@ export function ProfessorExamEditor({
       const json = (await res.json()) as ApiResponse<{
         exam: {
           title: string;
+          kind?: "DIAGNOSTIC" | "FORMATIVE" | "FINAL" | "OTHER";
           instructions: string | null;
           availableFrom: string;
           availableUntil: string;
@@ -161,6 +165,7 @@ export function ProfessorExamEditor({
       if (res.ok && json.ok) {
         const e = json.data.exam;
         setTitle(e.title);
+        setKind(e.kind ?? "OTHER");
         setInstructions(e.instructions ?? "");
         setAvailableFrom(toLocalInput(e.availableFrom));
         setAvailableUntil(toLocalInput(e.availableUntil));
@@ -180,6 +185,7 @@ export function ProfessorExamEditor({
   function buildBody() {
     return {
       title,
+      kind,
       instructions: instructions.trim() || null,
       availableFrom: new Date(availableFrom).toISOString(),
       availableUntil: new Date(availableUntil).toISOString(),
@@ -289,6 +295,16 @@ export function ProfessorExamEditor({
         <div className="sm:col-span-2">
           <label className="text-sm font-medium">Título</label>
           <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} disabled={readOnly} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="text-sm font-medium">Tipo da avaliação</label>
+          <select className="theme-input mt-1 w-full rounded-lg border px-3 py-2 text-sm" value={kind} onChange={(event) => setKind(event.target.value as typeof kind)} disabled={readOnly}>
+            <option value="DIAGNOSTIC">Diagnóstica</option>
+            <option value="FORMATIVE">Formativa</option>
+            <option value="FINAL">Final</option>
+            <option value="OTHER">Outra</option>
+          </select>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">Diagnóstica: no início, para conhecimentos prévios. Formativa: durante o curso. Final: resultado ao término. Outra: demais avaliações. Provas antigas permanecem como Outra.</p>
         </div>
         <div className="sm:col-span-2">
           <label className="text-sm font-medium">Instruções para o aluno</label>
