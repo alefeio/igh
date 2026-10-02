@@ -1,5 +1,6 @@
 import { formatDateOnly } from "@/lib/format";
 import { jsonOk } from "@/lib/http";
+import { parseCoordinatorQuery } from "@/lib/coordinator/filters";
 import { formatDaysOrderedPt } from "@/lib/turma-display";
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { enrollmentOccupiesSeat } from "@/lib/enrollment-seat";
@@ -48,6 +49,25 @@ function locationLabel(group: {
   return local || polo || "Sem local";
 }
 
+function filterOptions(
+  groups: { id: string; startTime: string; course: { id: string; name: string }; teacher: { id: string; name: string } }[],
+) {
+  return {
+    courses: [...new Map(groups.map((group) => [group.course.id, group.course.name])).entries()].map(([id, name]) => ({
+      id,
+      name,
+    })),
+    teachers: [...new Map(groups.map((group) => [group.teacher.id, group.teacher.name])).entries()].map(([id, name]) => ({
+      id,
+      name,
+    })),
+    classGroups: groups.map((group) => ({
+      id: group.id,
+      label: `${group.course.name} · ${group.teacher.name} · ${group.startTime}`,
+    })),
+  };
+}
+
 export async function GET(request: Request) {
   try {
     await requireCoordenacaoViewer();
@@ -57,14 +77,36 @@ export async function GET(request: Request) {
     throw error;
   }
 
-  const requested = new URL(request.url).searchParams.get("cycleId");
-  const [cycles, cycle] = await Promise.all([listCycles(), resolveCycle(requested)]);
+  const query = parseCoordinatorQuery(new URL(request.url));
+  const [cycles, cycle] = await Promise.all([listCycles(), resolveCycle(query.cycleId)]);
   if (!cycle) {
-    return jsonOk({ cycles: [], cycle: null, kpis: null });
+    return jsonOk({ cycles: [], cycle: null, kpis: null, filters: { courses: [], teachers: [], classGroups: [] } });
   }
 
+  const optionGroups = await prisma.classGroup.findMany({
+    where: {
+      cycleId: cycle.id,
+      ...(query.scope === "external" ? { isExternal: true } : {}),
+      ...(query.scope === "internal" ? { isExternal: false } : {}),
+    },
+    select: {
+      id: true,
+      startTime: true,
+      course: { select: { id: true, name: true } },
+      teacher: { select: { id: true, name: true } },
+    },
+    orderBy: [{ course: { name: "asc" } }, { startTime: "asc" }],
+  });
+
   const groups = await prisma.classGroup.findMany({
-    where: { cycleId: cycle.id },
+    where: {
+      cycleId: cycle.id,
+      ...(query.courseId ? { courseId: query.courseId } : {}),
+      ...(query.classGroupId ? { id: query.classGroupId } : {}),
+      ...(query.teacherId ? { teacherId: query.teacherId } : {}),
+      ...(query.scope === "external" ? { isExternal: true } : {}),
+      ...(query.scope === "internal" ? { isExternal: false } : {}),
+    },
     select: {
       id: true,
       status: true,
@@ -83,6 +125,7 @@ export async function GET(request: Request) {
     },
   });
   const groupIds = groups.map((group) => group.id);
+  const filters = filterOptions(optionGroups);
   if (groupIds.length === 0) {
     return jsonOk({
       cycles: cycles.map((item) => ({
@@ -91,6 +134,7 @@ export async function GET(request: Request) {
         current: item.isVisibleForEnrollments,
       })),
       cycle: { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` },
+      filters,
       kpis: {
         total: 0,
         active: 0,
@@ -257,6 +301,7 @@ export async function GET(request: Request) {
       current: item.isVisibleForEnrollments,
     })),
     cycle: { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` },
+    filters,
     kpis: {
       total,
       active,

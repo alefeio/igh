@@ -35,6 +35,11 @@ type TeacherCard = {
 type DashboardPayload = {
   cycles: { id: string; label: string; current: boolean }[];
   cycle: { id: string; label: string } | null;
+  filters: {
+    courses: { id: string; name: string }[];
+    teachers: { id: string; name: string }[];
+    classGroups: { id: string; label: string }[];
+  };
   kpis: {
     total: number;
     active: number;
@@ -87,25 +92,37 @@ export function CoordenacaoDashboard() {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async (id: string) => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/coordenacao/matriculas${id ? `?cycleId=${id}` : ""}`, { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (filters.cycleId) params.set("cycleId", filters.cycleId);
+      if (filters.courseId) params.set("courseId", filters.courseId);
+      if (filters.teacherId) params.set("teacherId", filters.teacherId);
+      if (filters.classGroupId) params.set("classGroupId", filters.classGroupId);
+      if (filters.scope && filters.scope !== "all") params.set("scope", filters.scope);
+      const query = params.toString();
+      const res = await fetch(`/api/coordenacao/matriculas${query ? `?${query}` : ""}`, { cache: "no-store" });
       const json = (await res.json()) as ApiResponse<DashboardPayload>;
       if (res.ok && json.ok) setData(json.data);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters.cycleId, filters.courseId, filters.teacherId, filters.classGroupId, filters.scope]);
 
   useEffect(() => {
     if (!hydrated) return;
-    void load(filters.cycleId ?? "");
-  }, [hydrated, filters.cycleId, load]);
+    void load();
+  }, [hydrated, load]);
 
   useEffect(() => {
     if (!data?.cycles.length) return;
-    adoptCatalog({ cycleIds: data.cycles.map((cycle) => cycle.id) });
+    adoptCatalog({
+      cycleIds: data.cycles.map((cycle) => cycle.id),
+      courseIds: data.filters?.courses.map((course) => course.id),
+      teacherIds: data.filters?.teachers.map((teacher) => teacher.id),
+      classGroupIds: data.filters?.classGroups.map((group) => group.id),
+    });
   }, [adoptCatalog, data]);
 
   const kpis = data?.kpis;
@@ -119,30 +136,91 @@ export function CoordenacaoDashboard() {
         title="Matrículas do ciclo"
         description="Compare cursos, turmas e professores pelas vagas e pelas matrículas, no mesmo recorte de Matrículas."
       />
-      <div className="flex flex-wrap items-end gap-3">
-      <label className="flex max-w-xs flex-1 flex-col gap-1 text-sm text-[var(--text-secondary)]">
-        Ciclo
-        <select
-          className="h-10 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3"
-          value={filters.cycleId || data?.cycle?.id || ""}
-          onChange={(event) => update({ cycleId: event.target.value })}
-        >
-          {(data?.cycles ?? []).map((cycle) => (
-            <option key={cycle.id} value={cycle.id}>
-              {cycle.label}
-              {cycle.current ? " (atual)" : ""}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        className="h-10 rounded-md border border-[var(--card-border)] px-3 text-sm text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
-        onClick={clear}
-        disabled={isDefault(data?.cycles.find((cycle) => cycle.current)?.id ?? data?.cycle?.id ?? null)}
-      >
-        Limpar filtros
-      </button>
+      <div className="flex flex-col gap-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="text-sm text-[var(--text-secondary)]">
+            Ciclo
+            <select
+              className="mt-1 h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2"
+              value={filters.cycleId || data?.cycle?.id || ""}
+              onChange={(event) => update({ cycleId: event.target.value, classGroupId: undefined })}
+            >
+              {(data?.cycles ?? []).map((cycle) => (
+                <option key={cycle.id} value={cycle.id}>
+                  {cycle.label}
+                  {cycle.current ? " (atual)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm text-[var(--text-secondary)]">
+            Curso
+            <select
+              className="mt-1 h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2"
+              value={filters.courseId ?? ""}
+              onChange={(event) => update({ courseId: event.target.value || undefined, classGroupId: undefined })}
+            >
+              <option value="">Todos</option>
+              {(data?.filters?.courses ?? []).map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm text-[var(--text-secondary)]">
+            Professor
+            <select
+              className="mt-1 h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2"
+              value={filters.teacherId ?? ""}
+              onChange={(event) => update({ teacherId: event.target.value || undefined, classGroupId: undefined })}
+            >
+              <option value="">Todos</option>
+              {(data?.filters?.teachers ?? []).map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>
+                  {teacher.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm text-[var(--text-secondary)]">
+            Turma
+            <select
+              className="mt-1 h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2"
+              value={filters.classGroupId ?? ""}
+              onChange={(event) => update({ classGroupId: event.target.value || undefined })}
+            >
+              <option value="">Todas</option>
+              {(data?.filters?.classGroups ?? []).map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm text-[var(--text-secondary)]">
+            Vínculo
+            <select
+              className="mt-1 h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2"
+              value={filters.scope ?? "all"}
+              onChange={(event) => update({ scope: event.target.value as "all" | "internal" | "external" })}
+            >
+              <option value="all">Internas e externas</option>
+              <option value="internal">Internas</option>
+              <option value="external">Externas</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <button
+            type="button"
+            className="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={clear}
+            disabled={isDefault(data?.cycles.find((cycle) => cycle.current)?.id ?? data?.cycle?.id ?? null)}
+          >
+            Limpar filtros
+          </button>
+        </div>
       </div>
 
       {loading || !kpis ? (
