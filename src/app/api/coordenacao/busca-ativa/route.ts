@@ -2,7 +2,7 @@ import { ENROLLMENT_HISTORY_BODY_MAX, trimHistoryBody } from "@/lib/enrollment-h
 import { notifyEnrollmentHistoryEntry } from "@/lib/enrollment-history-notifications";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { coordenacaoAuthResponse, requireCoordenacaoViewer, resolveCycle } from "@/lib/coordenacao-access";
+import { coordenacaoAuthResponse, requireBuscaAtivaUser, resolveCycle } from "@/lib/coordenacao-access";
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "Ativa",
@@ -29,7 +29,7 @@ function toHistory(entry: {
 
 export async function GET(request: Request) {
   try {
-    await requireCoordenacaoViewer();
+    await requireBuscaAtivaUser();
   } catch (error) {
     const auth = coordenacaoAuthResponse(error);
     if (auth) return auth;
@@ -178,7 +178,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   let user;
   try {
-    user = await requireCoordenacaoViewer();
+    user = await requireBuscaAtivaUser();
   } catch (error) {
     const auth = coordenacaoAuthResponse(error);
     if (auth) return auth;

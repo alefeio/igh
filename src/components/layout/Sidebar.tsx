@@ -4,6 +4,7 @@ import { PanelLeft, PanelLeftClose } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { BUSCA_ATIVA_ROLES } from "@/lib/coordinator/access";
 import { BRAND } from "@/lib/brand";
 import { resolveLogoHeightPx } from "@/lib/site-types";
 
@@ -145,7 +146,7 @@ const ITEMS: Item[] = [
   {
     href: "/coordenacao/busca-ativa",
     label: "Interações dos professores",
-    roles: COORDENACAO_AREA,
+    roles: BUSCA_ATIVA_ROLES,
     category: "Coordenação",
   },
   {

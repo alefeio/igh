@@ -197,7 +197,7 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
       <DashboardHero
         eyebrow="Coordenação"
         title="Interações dos professores"
-        description="Por padrão, as interações mais recentes. Selecione uma turma para ver os alunos organizados."
+        description="Administrador pedagógico, professor, coordenador e diretor podem registrar a busca ativa de qualquer turma. O histórico guarda o nome de quem preencheu."
       />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label className="flex flex-col gap-1 text-sm text-[var(--text-secondary)]">
