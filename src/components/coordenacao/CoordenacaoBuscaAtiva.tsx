@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useCoordinatorFilters } from "@/components/coordenacao/useCoordinatorFilters";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
@@ -68,10 +69,9 @@ function HistoryList({ items }: { items: HistoryItem[] }) {
 
 export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: string }) {
   const toast = useToast();
-  const [cycles, setCycles] = useState<{ id: string; label: string }[]>([]);
-  const [cycleId, setCycleId] = useState("");
-  const [teacherId, setTeacherId] = useState("");
-  const [classGroupId, setClassGroupId] = useState("");
+  const { filters, hydrated, update, adoptCatalog, clear, isDefault } = useCoordinatorFilters();
+  const [cycles, setCycles] = useState<{ id: string; label: string; current?: boolean }[]>([]);
+  const [fallbackCycleId, setFallbackCycleId] = useState("");
   const [teachers, setTeachers] = useState<{ id: string; name: string }[]>([]);
   const [classGroups, setClassGroups] = useState<{ id: string; label: string }[]>([]);
   const [query, setQuery] = useState(initialQuery);
@@ -84,12 +84,13 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
 
   const loadCycles = useCallback(async () => {
     const res = await fetch("/api/coordenacao/matriculas", { cache: "no-store" });
-    const json = (await res.json()) as ApiResponse<{ cycles: { id: string; label: string }[]; cycle: { id: string } | null }>;
+    const json = (await res.json()) as ApiResponse<{ cycles: { id: string; label: string; current?: boolean }[]; cycle: { id: string } | null }>;
     if (res.ok && json.ok) {
-      setCycles(json.data.cycles.map((cycle) => ({ id: cycle.id, label: cycle.label })));
-      if (json.data.cycle) setCycleId((current) => current || json.data.cycle!.id);
+      setCycles(json.data.cycles);
+      if (json.data.cycle) setFallbackCycleId(json.data.cycle.id);
+      adoptCatalog({ cycleIds: json.data.cycles.map((cycle) => cycle.id) });
     }
-  }, []);
+  }, [adoptCatalog]);
 
   const loadRows = useCallback(async (id: string, q: string, teacher: string, turma: string) => {
     if (!id) return;
@@ -106,21 +107,25 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
       setView(json.data.view);
       setFeed(json.data.feed);
       setRows(json.data.enrollments);
-      if (turma && !json.data.classGroups.some((group) => group.id === turma)) {
-        setClassGroupId("");
-      }
+      adoptCatalog({
+        teacherIds: json.data.teachers.map((teacher) => teacher.id),
+        classGroupIds: json.data.classGroups.map((group) => group.id),
+      });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [adoptCatalog]);
+
+  const cycleForQuery = filters.cycleId || fallbackCycleId;
 
   useEffect(() => {
     void loadCycles();
   }, [loadCycles]);
 
   useEffect(() => {
-    if (cycleId) void loadRows(cycleId, query, teacherId, classGroupId);
-  }, [cycleId, loadRows, query, teacherId, classGroupId]);
+    if (!hydrated || !cycleForQuery) return;
+    void loadRows(cycleForQuery, query, filters.teacherId ?? "", filters.classGroupId ?? "");
+  }, [hydrated, cycleForQuery, loadRows, query, filters.teacherId, filters.classGroupId]);
 
   async function addNote(enrollmentId: string) {
     const text = (drafts[enrollmentId] ?? "").trim();
@@ -197,11 +202,7 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label className="flex flex-col gap-1 text-sm text-[var(--text-secondary)]">
           Ciclo
-          <select className={selectClass} value={cycleId} onChange={(event) => {
-            setCycleId(event.target.value);
-            setClassGroupId("");
-            setTeacherId("");
-          }}>
+          <select className={selectClass} value={filters.cycleId || fallbackCycleId} onChange={(event) => update({ cycleId: event.target.value, classGroupId: undefined })}>
             {cycles.map((cycle) => (
               <option key={cycle.id} value={cycle.id}>
                 {cycle.label}
@@ -213,11 +214,8 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
           Professor
           <select
             className={selectClass}
-            value={teacherId}
-            onChange={(event) => {
-              setTeacherId(event.target.value);
-              setClassGroupId("");
-            }}
+            value={filters.teacherId ?? ""}
+            onChange={(event) => update({ teacherId: event.target.value || undefined, classGroupId: undefined })}
           >
             <option value="">Todos</option>
             {teachers.map((teacher) => (
@@ -229,7 +227,7 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
         </label>
         <label className="flex flex-col gap-1 text-sm text-[var(--text-secondary)]">
           Turma
-          <select className={selectClass} value={classGroupId} onChange={(event) => setClassGroupId(event.target.value)}>
+          <select className={selectClass} value={filters.classGroupId ?? ""} onChange={(event) => update({ classGroupId: event.target.value || undefined })}>
             <option value="">Todas — ordem cronológica</option>
             {classGroups.map((group) => (
               <option key={group.id} value={group.id}>
@@ -247,6 +245,16 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
             placeholder="Nome do aluno"
           />
         </label>
+      </div>
+      <div>
+        <button
+          type="button"
+          className="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={clear}
+          disabled={isDefault(cycles.find((cycle) => cycle.current)?.id ?? (fallbackCycleId || null))}
+        >
+          Limpar filtros
+        </button>
       </div>
       {loading ? <p className="text-sm text-[var(--text-muted)]">Carregando…</p> : null}
       {!loading && view === "cronologico" && feed.length === 0 ? (

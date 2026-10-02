@@ -29,6 +29,24 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
     return { cycles: [], cycle: null, payload: null };
   }
 
+  const optionGroups =
+    options?.includeDetail === false
+      ? null
+      : await prisma.classGroup.findMany({
+          where: {
+            cycleId: cycle.id,
+            ...(query.scope === "external" ? { isExternal: true } : {}),
+            ...(query.scope === "internal" ? { isExternal: false } : {}),
+          },
+          select: {
+            id: true,
+            startTime: true,
+            course: { select: { id: true, name: true } },
+            teacher: { select: { id: true, name: true } },
+          },
+          orderBy: [{ course: { name: "asc" } }, { startTime: "asc" }],
+        });
+
   const groups = await prisma.classGroup.findMany({
     where: {
       cycleId: cycle.id,
@@ -64,7 +82,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
     return {
       cycles: cyclesMeta,
       cycle: cycleMeta,
-      payload: emptyPayload(groups),
+      payload: emptyPayload(optionGroups ?? groups),
     };
   }
 
@@ -382,11 +400,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
         .map((ticket) => ({ subject: ticket.subject, count: ticket._count.id }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 8),
-      filters: {
-        courses: [...new Map(groups.map((group) => [group.course.id, group.course.name])).entries()].map(([id, name]) => ({ id, name })),
-        teachers: [...new Map(groups.map((group) => [group.teacher.id, group.teacher.name])).entries()].map(([id, name]) => ({ id, name })),
-        classGroups: groups.map((group) => ({ id: group.id, label: `${group.course.name} · ${group.teacher.name} · ${group.startTime}` })),
-      },
+      filters: filterOptions(optionGroups ?? groups),
     },
   };
 }
@@ -404,6 +418,14 @@ function countFromSessions(
     count += 1;
   }
   return count;
+}
+
+function filterOptions(groups: { course: { id: string; name: string }; teacher: { id: string; name: string }; id: string; startTime: string }[]) {
+  return {
+    courses: [...new Map(groups.map((group) => [group.course.id, group.course.name])).entries()].map(([id, name]) => ({ id, name })),
+    teachers: [...new Map(groups.map((group) => [group.teacher.id, group.teacher.name])).entries()].map(([id, name]) => ({ id, name })),
+    classGroups: groups.map((group) => ({ id: group.id, label: `${group.course.name} · ${group.teacher.name} · ${group.startTime}` })),
+  };
 }
 
 function emptyPayload(groups: { course: { id: string; name: string }; teacher: { id: string; name: string }; id: string; startTime: string }[]) {
@@ -434,11 +456,7 @@ function emptyPayload(groups: { course: { id: string; name: string }; teacher: {
     teachers: [],
     experience: { available: false, count: 0, platform: null, lessons: null, teacher: null },
     tickets: [],
-    filters: {
-      courses: groups.map((group) => ({ id: group.course.id, name: group.course.name })),
-      teachers: groups.map((group) => ({ id: group.teacher.id, name: group.teacher.name })),
-      classGroups: groups.map((group) => ({ id: group.id, label: `${group.course.name} · ${group.startTime}` })),
-    },
+    filters: filterOptions(groups),
   };
 }
 
