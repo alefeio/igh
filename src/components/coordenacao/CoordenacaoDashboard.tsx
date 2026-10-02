@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { useCoordinatorFilters } from "@/components/coordenacao/useCoordinatorFilters";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import type { ApiResponse } from "@/lib/api-types";
 
@@ -82,7 +83,7 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint: strin
 }
 
 export function CoordenacaoDashboard() {
-  const [cycleId, setCycleId] = useState("");
+  const { filters, hydrated, update, adoptCatalog, clear, isDefault } = useCoordinatorFilters();
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -91,18 +92,21 @@ export function CoordenacaoDashboard() {
     try {
       const res = await fetch(`/api/coordenacao/matriculas${id ? `?cycleId=${id}` : ""}`, { cache: "no-store" });
       const json = (await res.json()) as ApiResponse<DashboardPayload>;
-      if (res.ok && json.ok) {
-        setData(json.data);
-        if (!id && json.data.cycle) setCycleId(json.data.cycle.id);
-      }
+      if (res.ok && json.ok) setData(json.data);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load("");
-  }, [load]);
+    if (!hydrated) return;
+    void load(filters.cycleId ?? "");
+  }, [hydrated, filters.cycleId, load]);
+
+  useEffect(() => {
+    if (!data?.cycles.length) return;
+    adoptCatalog({ cycleIds: data.cycles.map((cycle) => cycle.id) });
+  }, [adoptCatalog, data]);
 
   const kpis = data?.kpis;
   const courses = data?.courses ?? [];
@@ -115,15 +119,13 @@ export function CoordenacaoDashboard() {
         title="Matrículas do ciclo"
         description="Compare cursos, turmas e professores pelas vagas e pelas matrículas, no mesmo recorte de Matrículas."
       />
-      <label className="flex max-w-xs flex-col gap-1 text-sm text-[var(--text-secondary)]">
+      <div className="flex flex-wrap items-end gap-3">
+      <label className="flex max-w-xs flex-1 flex-col gap-1 text-sm text-[var(--text-secondary)]">
         Ciclo
         <select
           className="h-10 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3"
-          value={cycleId}
-          onChange={(event) => {
-            setCycleId(event.target.value);
-            void load(event.target.value);
-          }}
+          value={filters.cycleId || data?.cycle?.id || ""}
+          onChange={(event) => update({ cycleId: event.target.value })}
         >
           {(data?.cycles ?? []).map((cycle) => (
             <option key={cycle.id} value={cycle.id}>
@@ -133,6 +135,15 @@ export function CoordenacaoDashboard() {
           ))}
         </select>
       </label>
+      <button
+        type="button"
+        className="h-10 rounded-md border border-[var(--card-border)] px-3 text-sm text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={clear}
+        disabled={isDefault(data?.cycles.find((cycle) => cycle.current)?.id ?? data?.cycle?.id ?? null)}
+      >
+        Limpar filtros
+      </button>
+      </div>
 
       {loading || !kpis ? (
         <p className="text-sm text-[var(--text-muted)]">{loading ? "Carregando…" : "Nenhum ciclo encontrado."}</p>
