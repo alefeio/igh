@@ -1,12 +1,17 @@
 import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireRole } from "@/lib/auth";
-import { COORDINATOR_PEDAGOGY_ROLES } from "@/lib/coordinator/access";
+import { BUSCA_ATIVA_ROLES, COORDINATOR_PEDAGOGY_ROLES } from "@/lib/coordinator/access";
 import { prisma } from "@/lib/prisma";
 
 export const COORDENACAO_ROLES = COORDINATOR_PEDAGOGY_ROLES;
 
 export async function requireCoordenacaoViewer() {
   return requireRole([...COORDENACAO_ROLES]);
+}
+
+/** Leitura e registro da busca ativa. O autor gravado é sempre o usuário da sessão. */
+export async function requireBuscaAtivaUser() {
+  return requireRole([...BUSCA_ATIVA_ROLES]);
 }
 
 export function coordenacaoAuthResponse(error: unknown) {

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { jwtVerify } from "jose";
-import { canViewCoordinatorPedagogy } from "@/lib/coordinator/access";
+import { canUseBuscaAtiva, canViewCoordinatorPedagogy } from "@/lib/coordinator/access";
 
 const PUBLIC_PATHS = ["/login", "/setup", "/confirmar-inscricao", "/esqueci-senha", "/redefinir-senha"];
 const AUTH_COOKIE_NAME = "auth_token";
@@ -176,9 +176,14 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/coordenacao/busca-ativa")) {
+    if (!canUseBuscaAtiva(role)) {
+      return NextResponse.redirect(dashboardUrl);
+    }
+  }
+
   if (
     pathname.startsWith("/coordenacao/matriculas") ||
-    pathname.startsWith("/coordenacao/busca-ativa") ||
     pathname.startsWith("/coordenacao/painel") ||
     pathname.startsWith("/coordenacao/frequencia") ||
     pathname.startsWith("/coordenacao/risco") ||
