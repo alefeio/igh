@@ -2,7 +2,7 @@ import { ENROLLMENT_HISTORY_BODY_MAX, trimHistoryBody } from "@/lib/enrollment-h
 import { notifyEnrollmentHistoryEntry } from "@/lib/enrollment-history-notifications";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { coordenacaoAuthResponse, requireBuscaAtivaUser, resolveCycle } from "@/lib/coordenacao-access";
+import { coordenacaoAuthResponse, listCycles, requireBuscaAtivaUser, resolveCycle } from "@/lib/coordenacao-access";
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "Ativa",
@@ -37,12 +37,17 @@ export async function GET(request: Request) {
   }
 
   const params = new URL(request.url).searchParams;
-  const cycle = await resolveCycle(params.get("cycleId"));
+  const [cycleRows, cycle] = await Promise.all([listCycles(), resolveCycle(params.get("cycleId"))]);
+  const cycles = cycleRows.map((item) => ({
+    id: item.id,
+    label: `Ciclo ${item.cycle}/${item.year}`,
+    current: item.isVisibleForEnrollments,
+  }));
   const q = params.get("q")?.trim() ?? "";
   const classGroupId = params.get("classGroupId")?.trim() ?? "";
   const teacherId = params.get("teacherId")?.trim() ?? "";
   if (!cycle) {
-    return jsonOk({ cycle: null, teachers: [], classGroups: [], feed: [], enrollments: [] });
+    return jsonOk({ cycles, cycle: null, teachers: [], classGroups: [], view: "cronologico", feed: [], enrollments: [] });
   }
 
   const classGroups = await prisma.classGroup.findMany({
@@ -68,6 +73,7 @@ export async function GET(request: Request) {
   const selectedGroup = visibleGroups.find((group) => group.id === classGroupId) ?? null;
 
   const catalog = {
+    cycles,
     cycle: { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` },
     teachers,
     classGroups: visibleGroups.map((group) => ({

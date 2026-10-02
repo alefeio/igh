@@ -38,6 +38,7 @@ type FeedItem = HistoryItem & {
 };
 
 type Payload = {
+  cycles: { id: string; label: string; current?: boolean }[];
   cycle: { id: string; label: string } | null;
   teachers: { id: string; name: string }[];
   classGroups: { id: string; teacherId: string; label: string }[];
@@ -81,34 +82,35 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const loadCycles = useCallback(async () => {
-    const res = await fetch("/api/coordenacao/matriculas", { cache: "no-store" });
-    const json = (await res.json()) as ApiResponse<{ cycles: { id: string; label: string; current?: boolean }[]; cycle: { id: string } | null }>;
-    if (res.ok && json.ok) {
-      setCycles(json.data.cycles);
-      if (json.data.cycle) setFallbackCycleId(json.data.cycle.id);
-      adoptCatalog({ cycleIds: json.data.cycles.map((cycle) => cycle.id) });
-    }
-  }, [adoptCatalog]);
+  const [loadError, setLoadError] = useState("");
 
   const loadRows = useCallback(async (id: string, q: string, teacher: string, turma: string) => {
-    if (!id) return;
     setLoading(true);
+    setLoadError("");
     try {
-      const params = new URLSearchParams({ cycleId: id, q });
+      const params = new URLSearchParams();
+      if (id) params.set("cycleId", id);
+      if (q) params.set("q", q);
       if (teacher) params.set("teacherId", teacher);
       if (turma) params.set("classGroupId", turma);
       const res = await fetch(`/api/coordenacao/busca-ativa?${params}`, { cache: "no-store" });
-      const json = (await res.json()) as ApiResponse<Payload>;
-      if (!res.ok || !json.ok) return;
+      const json = (await res.json().catch(() => null)) as ApiResponse<Payload> | null;
+      if (!json || !res.ok || !json.ok) {
+        setFeed([]);
+        setRows([]);
+        setLoadError(json && !json.ok ? json.error.message : "Não foi possível carregar a busca ativa.");
+        return;
+      }
+      setCycles(json.data.cycles ?? []);
+      if (json.data.cycle) setFallbackCycleId(json.data.cycle.id);
       setTeachers(json.data.teachers);
       setClassGroups(json.data.classGroups);
       setView(json.data.view);
       setFeed(json.data.feed);
       setRows(json.data.enrollments);
       adoptCatalog({
-        teacherIds: json.data.teachers.map((teacher) => teacher.id),
+        cycleIds: (json.data.cycles ?? []).map((cycle) => cycle.id),
+        teacherIds: json.data.teachers.map((item) => item.id),
         classGroupIds: json.data.classGroups.map((group) => group.id),
       });
     } finally {
@@ -116,16 +118,10 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
     }
   }, [adoptCatalog]);
 
-  const cycleForQuery = filters.cycleId || fallbackCycleId;
-
   useEffect(() => {
-    void loadCycles();
-  }, [loadCycles]);
-
-  useEffect(() => {
-    if (!hydrated || !cycleForQuery) return;
-    void loadRows(cycleForQuery, query, filters.teacherId ?? "", filters.classGroupId ?? "");
-  }, [hydrated, cycleForQuery, loadRows, query, filters.teacherId, filters.classGroupId]);
+    if (!hydrated) return;
+    void loadRows(filters.cycleId ?? "", query, filters.teacherId ?? "", filters.classGroupId ?? "");
+  }, [hydrated, filters.cycleId, loadRows, query, filters.teacherId, filters.classGroupId]);
 
   async function addNote(enrollmentId: string) {
     const text = (drafts[enrollmentId] ?? "").trim();
@@ -257,6 +253,7 @@ export function CoordenacaoBuscaAtiva({ initialQuery = "" }: { initialQuery?: st
         </button>
       </div>
       {loading ? <p className="text-sm text-[var(--text-muted)]">Carregando…</p> : null}
+      {loadError ? <p className="text-sm text-red-600">{loadError}</p> : null}
       {!loading && view === "cronologico" && feed.length === 0 ? (
         <p className="text-sm text-[var(--text-muted)]">Nenhuma interação neste filtro.</p>
       ) : null}
