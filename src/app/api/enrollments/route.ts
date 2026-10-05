@@ -42,7 +42,17 @@ export async function GET() {
         ? poloEnrollmentWhere
         : undefined,
     orderBy: { enrolledAt: "desc" },
-    include: {
+    select: {
+      id: true,
+      studentId: true,
+      classGroupId: true,
+      enrolledAt: true,
+      status: true,
+      isPreEnrollment: true,
+      enrollmentConfirmedAt: true,
+      certificateUrl: true,
+      certificateFileName: true,
+      certificateEligible: true,
       student: {
         select: {
           id: true,
@@ -64,6 +74,23 @@ export async function GET() {
           cycle: { select: { id: true, cycle: true, year: true, isVisibleForEnrollments: true } },
           course: { select: { id: true, name: true } },
           teacher: { select: { id: true, name: true } },
+          classGroupTeachers: {
+            select: { teacher: { select: { id: true, name: true } } },
+            orderBy: { createdAt: "asc" },
+          },
+          poloLocation: {
+            select: {
+              id: true,
+              name: true,
+              polo: {
+                select: {
+                  id: true,
+                  name: true,
+                  coordinator: { select: { name: true } },
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -95,8 +122,15 @@ export async function GET() {
         enrollmentConfirmedAt: e.enrollmentConfirmedAt,
         certificateUrl: e.certificateUrl,
         certificateFileName: e.certificateFileName,
+        certificateEligible: e.certificateEligible,
         student: { ...studentRest },
-        classGroup: e.classGroup,
+        classGroup: (() => {
+          const { classGroupTeachers, ...classGroupRest } = e.classGroup;
+          return {
+            ...classGroupRest,
+            teachers: classGroupTeachers.map((row) => row.teacher),
+          };
+        })(),
         studentDataComplete,
         attendancePresentCount: attendance?.presentCount ?? 0,
         attendanceTotalSessions: attendance?.totalSessions ?? 0,

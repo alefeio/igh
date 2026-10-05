@@ -61,7 +61,13 @@ export async function GET() {
           select: {
             id: true,
             name: true,
-            polo: { select: { id: true, name: true } },
+            polo: {
+              select: {
+                id: true,
+                name: true,
+                coordinator: { select: { name: true } },
+              },
+            },
           },
         },
         classGroupTeachers: { include: { teacher: { select: { id: true, name: true } } } },
