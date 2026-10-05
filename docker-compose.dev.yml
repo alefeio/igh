@@ -1,0 +1,25 @@
+# DEVELOPMENT ONLY
+# Postgres local para o IGH. Credenciais triviais, exclusivas deste container.
+# Nunca reutilize usuário, senha ou volume em produção, Prisma Postgres, Neon ou Vercel.
+# Porta publicada apenas em 127.0.0.1.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: igh-dev-postgres
+    environment:
+      POSTGRES_USER: igh_dev
+      POSTGRES_PASSWORD: igh_dev_local_only
+      POSTGRES_DB: igh_dev
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - igh_dev_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U igh_dev -d igh_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  igh_dev_pgdata:
