@@ -11,6 +11,12 @@ import {
   type EnrollmentSuccessPayload,
 } from "@/components/enrollments/EnrollmentSuccessModal";
 import { buildEnrollmentPdfBlob } from "@/lib/enrollment-pdf";
+import {
+  buildEnrollmentVacancyRows,
+  classGroupLocationLabel,
+  classGroupTeacherLabel,
+  summarizeVacanciesByCourse,
+} from "@/lib/enrollment-vacancy-report";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
@@ -63,10 +69,16 @@ type ClassGroup = {
   location?: string | null;
   course: Course;
   teacher?: Teacher;
+  teachers?: Teacher[];
   cycle?: Cycle;
   status?: string;
   isExternal?: boolean;
   enrollmentsCount?: number;
+  poloLocation?: {
+    id: string;
+    name: string;
+    polo?: { id: string; name: string } | null;
+  } | null;
 };
 type Enrollment = {
   id: string;
@@ -348,6 +360,7 @@ export default function EnrollmentsPage() {
   const [statusFilterState, setStatusFilterState] = useState<string[]>([]);
   const [preEnrollmentFilterState, setPreEnrollmentFilterState] = useState<"" | "pre" | "confirmed">("");
   const [turmaFilterIds, setTurmaFilterIds] = useState<string[]>([]);
+  const [poloFilterIds, setPoloFilterIds] = useState<string[]>([]);
   const [classGroupStatusFilter, setClassGroupStatusFilter] = useState<string[]>([
     ...DEFAULT_CLASS_GROUP_STATUS_FILTERS,
   ]);
@@ -372,7 +385,7 @@ export default function EnrollmentsPage() {
     });
   }, []);
 
-  const filtersStorageKey = `enrollments:filters:v2:${user.id}`;
+  const filtersStorageKey = `enrollments:filters:v3:${user.id}`;
   const defaultScopeFilters = isTeacher
     ? TEACHER_DEFAULT_CLASS_GROUP_SCOPE_FILTERS
     : DEFAULT_CLASS_GROUP_SCOPE_FILTERS;
@@ -386,6 +399,7 @@ export default function EnrollmentsPage() {
           statusFilterState?: string | string[];
           preEnrollmentFilterState?: "" | "pre" | "confirmed";
           turmaFilterIds?: string[];
+          poloFilterIds?: string[];
           classGroupStatusFilter?: string[];
           classGroupScopeFilter?: string[];
           dateFrom?: string;
@@ -411,6 +425,7 @@ export default function EnrollmentsPage() {
         }
         setPreEnrollmentFilterState(saved.preEnrollmentFilterState ?? "");
         setTurmaFilterIds(Array.isArray(saved.turmaFilterIds) ? saved.turmaFilterIds : []);
+        setPoloFilterIds(Array.isArray(saved.poloFilterIds) ? saved.poloFilterIds : []);
         setClassGroupStatusFilter(
           Array.isArray(saved.classGroupStatusFilter)
             ? saved.classGroupStatusFilter.filter((status) =>
@@ -452,6 +467,7 @@ export default function EnrollmentsPage() {
           statusFilterState,
           preEnrollmentFilterState,
           turmaFilterIds,
+          poloFilterIds,
           classGroupStatusFilter,
           classGroupScopeFilter,
           dateFrom,
@@ -476,6 +492,7 @@ export default function EnrollmentsPage() {
     preEnrollmentFilterState,
     statusFilterState,
     turmaFilterIds,
+    poloFilterIds,
   ]);
 
   async function load() {
@@ -702,7 +719,7 @@ export default function EnrollmentsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterIds, classGroupStatusFilter, classGroupScopeFilter, dateFrom, dateTo, cycleFilterIds]);
+  }, [listFilter, pageSize, statusFilterState, preEnrollmentFilterState, turmaFilterIds, poloFilterIds, classGroupStatusFilter, classGroupScopeFilter, dateFrom, dateTo, cycleFilterIds]);
 
   /** Matrículas no intervalo de datas (quando informado); senão todas. Usado em dashboard, listagem e exportações. */
   const itemsForView = useMemo(() => {
@@ -765,6 +782,15 @@ export default function EnrollmentsPage() {
     if (preEnrollmentFilterState === "confirmed") {
       list = list.filter((e) => e.enrollmentConfirmedAt != null);
     }
+    if (poloFilterIds.length > 0) {
+      const allowedPolos = new Set(poloFilterIds);
+      const cgById = new Map(allClassGroups.map((cg) => [cg.id, cg] as const));
+      list = list.filter((enrollment) => {
+        const cg = cgById.get(enrollment.classGroup.id) ?? enrollment.classGroup;
+        const poloId = cg.poloLocation?.polo?.id;
+        return poloId != null && allowedPolos.has(poloId);
+      });
+    }
     if (turmaFilterIds.length > 0) {
       const allowed = new Set(turmaFilterIds);
       list = list.filter((e) => allowed.has(e.classGroup.id));
@@ -776,25 +802,32 @@ export default function EnrollmentsPage() {
     preEnrollmentFilterState,
     statusFilterState,
     turmaFilterIds,
+    poloFilterIds,
+    allClassGroups,
   ]);
 
   const dashboard = useMemo(() => {
     const list = filteredItems;
-    const byClassGroup = new Map<string, { classGroup: ClassGroup; count: number; active: number; cancelled: number }>();
+    const byClassGroup = new Map<
+      string,
+      { classGroup: ClassGroup; count: number; active: number; cancelled: number; completed: number }
+    >();
     const allowedCycles = new Set(cycleFilterIds);
     const allowedClassGroups = new Set(turmaFilterIds);
+    const allowedPolos = new Set(poloFilterIds);
     const allowedClassGroupStatuses = new Set(classGroupStatusFilter);
     const allowedClassGroupScopes = new Set(classGroupScopeFilter);
     const occupiedByClassGroup = new Map<string, number>();
-    const statusByClassGroup = new Map<string, { active: number; cancelled: number }>();
+    const statusByClassGroup = new Map<string, { active: number; cancelled: number; completed: number }>();
     for (const enrollment of list) {
       const id = enrollment.classGroup.id;
       if (enrollmentOccupiesSeat(enrollment.status)) {
         occupiedByClassGroup.set(id, (occupiedByClassGroup.get(id) ?? 0) + 1);
       }
-      const statusCount = statusByClassGroup.get(id) ?? { active: 0, cancelled: 0 };
+      const statusCount = statusByClassGroup.get(id) ?? { active: 0, cancelled: 0, completed: 0 };
       if (enrollment.status === "ACTIVE") statusCount.active += 1;
       else if (enrollment.status === "CANCELLED") statusCount.cancelled += 1;
+      else if (enrollment.status === "COMPLETED") statusCount.completed += 1;
       statusByClassGroup.set(id, statusCount);
     }
 
@@ -804,13 +837,18 @@ export default function EnrollmentsPage() {
       const cid = cg.cycleId ?? cg.cycle?.id;
       if (!cid || !allowedCycles.has(cid)) continue;
       if (!classGroupMatchesListFilters(cg, allowedClassGroupStatuses, allowedClassGroupScopes)) continue;
+      if (allowedPolos.size > 0) {
+        const poloId = cg.poloLocation?.polo?.id;
+        if (!poloId || !allowedPolos.has(poloId)) continue;
+      }
       if (allowedClassGroups.size > 0 && !allowedClassGroups.has(cg.id)) continue;
-      const statusCount = statusByClassGroup.get(cg.id) ?? { active: 0, cancelled: 0 };
+      const statusCount = statusByClassGroup.get(cg.id) ?? { active: 0, cancelled: 0, completed: 0 };
       byClassGroup.set(cg.id, {
         classGroup: cg,
         count: occupiedByClassGroup.get(cg.id) ?? 0,
         active: statusCount.active,
         cancelled: statusCount.cancelled,
+        completed: statusCount.completed,
       });
     }
 
@@ -822,21 +860,28 @@ export default function EnrollmentsPage() {
       const occupiedCount = list.filter(
         (row) => enrollmentOccupiesSeat(row.status) && row.classGroup.id === cg.id,
       ).length;
-      const statusCount = statusByClassGroup.get(cg.id) ?? { active: 0, cancelled: 0 };
+      const statusCount = statusByClassGroup.get(cg.id) ?? { active: 0, cancelled: 0, completed: 0 };
       byClassGroup.set(cg.id, {
         classGroup: cg,
         count: occupiedCount,
         active: statusCount.active,
         cancelled: statusCount.cancelled,
+        completed: statusCount.completed,
       });
     }
 
-    const byCourse = new Map<string, { courseName: string; turmas: { classGroup: ClassGroup; count: number; active: number; cancelled: number }[] }>();
-    for (const { classGroup, count, active, cancelled } of byClassGroup.values()) {
+    const byCourse = new Map<
+      string,
+      {
+        courseName: string;
+        turmas: { classGroup: ClassGroup; count: number; active: number; cancelled: number; completed: number }[];
+      }
+    >();
+    for (const { classGroup, count, active, cancelled, completed } of byClassGroup.values()) {
       const cid = classGroup.course.id;
       const name = classGroup.course.name;
       if (!byCourse.has(cid)) byCourse.set(cid, { courseName: name, turmas: [] });
-      byCourse.get(cid)!.turmas.push({ classGroup, count, active, cancelled });
+      byCourse.get(cid)!.turmas.push({ classGroup, count, active, cancelled, completed });
     }
     for (const row of byCourse.values()) {
       row.turmas.sort((a, b) => {
@@ -878,7 +923,7 @@ export default function EnrollmentsPage() {
       .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
 
     return { courses, teachers, total: list.length, totalCapacity };
-  }, [filteredItems, allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds, turmaFilterIds]);
+  }, [filteredItems, allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds, turmaFilterIds, poloFilterIds]);
 
   /** Mantém todos os professores ativos no gráfico, inclusive os que ficaram com zero no recorte. */
   const teachersToDisplay = useMemo(() => {
@@ -926,8 +971,8 @@ export default function EnrollmentsPage() {
     return { total: filteredItems.length, active, pre, confirmed };
   }, [filteredItems]);
 
-  const turmaOptions = useMemo(() => {
-    const opts: { id: string; label: string }[] = [];
+  const poloOptions = useMemo(() => {
+    const map = new Map<string, string>();
     const allowedCycles = new Set(cycleFilterIds);
     const allowedStatuses = new Set(classGroupStatusFilter);
     const allowedScopes = new Set(classGroupScopeFilter);
@@ -935,10 +980,33 @@ export default function EnrollmentsPage() {
       const cycleId = cg.cycleId ?? cg.cycle?.id;
       if (!cycleId || !allowedCycles.has(cycleId)) continue;
       if (!classGroupMatchesListFilters(cg, allowedStatuses, allowedScopes)) continue;
+      const polo = cg.poloLocation?.polo;
+      if (!polo?.id) continue;
+      map.set(polo.id, polo.name);
+    }
+    return [...map.entries()]
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  }, [allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds]);
+
+  const turmaOptions = useMemo(() => {
+    const opts: { id: string; label: string }[] = [];
+    const allowedCycles = new Set(cycleFilterIds);
+    const allowedStatuses = new Set(classGroupStatusFilter);
+    const allowedScopes = new Set(classGroupScopeFilter);
+    const allowedPolos = new Set(poloFilterIds);
+    for (const cg of allClassGroups) {
+      const cycleId = cg.cycleId ?? cg.cycle?.id;
+      if (!cycleId || !allowedCycles.has(cycleId)) continue;
+      if (!classGroupMatchesListFilters(cg, allowedStatuses, allowedScopes)) continue;
+      if (allowedPolos.size > 0) {
+        const poloId = cg.poloLocation?.polo?.id;
+        if (!poloId || !allowedPolos.has(poloId)) continue;
+      }
       const start = formatDateOnly(cg.startDate);
       const line = formatClassGroupTurmaLine({
         course: { name: cg.course.name },
-        location: cg.location ?? null,
+        location: classGroupLocationLabel(cg) === "—" ? (cg.location ?? null) : classGroupLocationLabel(cg),
         daysOfWeek: cg.daysOfWeek,
         startTime: cg.startTime,
         endTime: cg.endTime,
@@ -949,7 +1017,7 @@ export default function EnrollmentsPage() {
       });
     }
     return opts.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
-  }, [allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds]);
+  }, [allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds, poloFilterIds]);
 
   useEffect(() => {
     if (loading) return;
@@ -959,6 +1027,15 @@ export default function EnrollmentsPage() {
       return next.length === previous.length ? previous : next;
     });
   }, [loading, turmaOptions]);
+
+  useEffect(() => {
+    if (loading) return;
+    const available = new Set(poloOptions.map((option) => option.id));
+    setPoloFilterIds((previous) => {
+      const next = previous.filter((id) => available.has(id));
+      return next.length === previous.length ? previous : next;
+    });
+  }, [loading, poloOptions]);
 
   /** Professor: remove ciclos salvos que não pertencem às turmas dele. */
   useEffect(() => {
@@ -1024,104 +1101,158 @@ export default function EnrollmentsPage() {
       dashboard.courses.map(([courseId, { courseName, turmas }]) => {
         const totalCapacidade = turmas.reduce((s, t) => s + (t.classGroup.capacity ?? 0), 0);
         const totalAlunos = turmas.reduce((s, t) => s + t.count, 0);
+        const totalFormados = turmas.reduce((s, t) => s + t.completed, 0);
         return {
           courseId,
           courseName,
           totalCapacidade,
           totalAlunos,
-          chartData: [{ curso: courseName, capacidade: totalCapacidade, alunos: totalAlunos }],
+          totalFormados,
+          chartData: [{ curso: courseName, capacidade: totalCapacidade, alunos: totalAlunos, formados: totalFormados }],
           turmas,
         };
       }),
     [dashboard.courses]
   );
 
+  const vacancyRows = useMemo(
+    () => buildEnrollmentVacancyRows(dashboard.courses, formatDateOnly),
+    [dashboard.courses],
+  );
+
+  const vacancyByCourseChart = useMemo(
+    () =>
+      summarizeVacanciesByCourse(vacancyRows).map((row) => ({
+        curso: row.courseName,
+        matriculados: row.enrolled,
+        formados: row.graduated,
+        capacidade: row.capacity,
+      })),
+    [vacancyRows],
+  );
+
   const PIE_COLORS = ["#0066b3", "#1a365d", "#e87500", "#0d9488", "#7c3aed", "#dc2626", "#65a30d", "#ca8a04"];
+
+  const canExportReports = filteredItems.length > 0 || vacancyRows.length > 0;
 
   async function exportToExcel() {
     if (exportingExcel) return;
-    if (filteredItems.length === 0) return;
+    if (!canExportReports) return;
 
     const selectedKeys = (Object.keys(excelColumns) as ExcelColumnKey[]).filter((k) => excelColumns[k]);
-    if (selectedKeys.length === 0) {
-      toast.push("error", "Selecione pelo menos uma coluna para exportar.");
+    if (filteredItems.length > 0 && selectedKeys.length === 0) {
+      toast.push("error", "Selecione pelo menos uma coluna para exportar as matrículas.");
       return;
     }
 
     setExportingExcel(true);
     try {
-      const sorted = [...filteredItems].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
+      const wb = XLSX.utils.book_new();
 
-      type AttendanceSummary = {
-        presentCount: number;
-        totalSessions: number;
-        percent: number | null;
-      };
-      const attendanceByEnrollment = new Map<string, AttendanceSummary>();
-
-      if (selectedKeys.includes("frequencia")) {
-        const res = await fetch("/api/enrollments/attendance-summary", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enrollmentIds: sorted.map((e) => e.id) }),
-        });
-        const json = await parseJson<{ summaries: Record<string, AttendanceSummary> }>(res);
-        if (!res.ok || !json?.ok) {
-          toast.push("error", json && "error" in json ? json.error.message : "Falha ao carregar frequência.");
-          return;
-        }
-        for (const [id, summary] of Object.entries(json.data.summaries)) {
-          attendanceByEnrollment.set(id, summary);
-        }
+      const vacancySheetRows = vacancyRows.map((row) => ({
+        Curso: row.courseName,
+        Início: row.startDate,
+        Horários: row.schedule,
+        Dias: row.days,
+        Turma: row.turmaLabel,
+        Local: row.location,
+        Professor: row.teacher,
+        Matriculados: row.enrolled,
+        Formados: row.graduated,
+        Capacidade: row.capacity || "",
+        "Ocupação %": row.occupancyPercent ?? "",
+        Ativas: row.active,
+        Canceladas: row.cancelled,
+      }));
+      if (vacancySheetRows.length > 0) {
+        const vacancySheet = XLSX.utils.json_to_sheet(vacancySheetRows);
+        XLSX.utils.book_append_sheet(wb, vacancySheet, "Vagas por curso e turma");
       }
 
-      const rows = sorted.map((e) => {
-        const row: Record<string, string> = {};
-        for (const key of selectedKeys) {
-          switch (key) {
-            case "aluno":
-              row["Aluno"] = e.student.name ?? "";
-              break;
-            case "curso":
-              row["Curso"] = e.classGroup.course.name ?? "";
-              break;
-            case "cursoTurma":
-              row["Curso/Turma"] = `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${formatDaysOrderedPt(e.classGroup.daysOfWeek)})` : ""}${e.classGroup.location ? ` — ${e.classGroup.location}` : ""}`;
-              break;
-            case "telefone":
-              row["Telefone"] = e.student.phone ?? "";
-              break;
-            case "email":
-              row["Email"] = e.student.email ?? "";
-              break;
-            case "professor":
-              row["Professor"] = e.classGroup.teacher?.name ?? "";
-              break;
-            case "status":
-              row["Status"] = ENROLLMENT_STATUS_LABELS[e.status] ?? e.status;
-              break;
-            case "dataMatricula":
-              row["Data de início da turma"] = formatDateOnly(e.classGroup.startDate);
-              break;
-            case "frequencia": {
-              const summary = attendanceByEnrollment.get(e.id);
-              if (!summary) {
-                row["Frequência"] = "—";
-              } else if (summary.totalSessions === 0) {
-                row["Frequência"] = `${summary.presentCount}/0`;
-              } else {
-                row["Frequência"] = `${summary.presentCount}/${summary.totalSessions} (${summary.percent}%)`;
-              }
-              break;
-            }
+      const summaryRows = summarizeVacanciesByCourse(vacancyRows).map((row) => ({
+        Curso: row.courseName,
+        Turmas: row.classes,
+        Capacidade: row.capacity,
+        Matriculados: row.enrolled,
+        Formados: row.graduated,
+        "Ocupação %": row.capacity > 0 ? Math.round((row.enrolled / row.capacity) * 100) : "",
+      }));
+      if (summaryRows.length > 0) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), "Resumo por curso");
+      }
+
+      if (filteredItems.length > 0 && selectedKeys.length > 0) {
+        const sorted = [...filteredItems].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
+
+        type AttendanceSummary = {
+          presentCount: number;
+          totalSessions: number;
+          percent: number | null;
+        };
+        const attendanceByEnrollment = new Map<string, AttendanceSummary>();
+
+        if (selectedKeys.includes("frequencia")) {
+          const res = await fetch("/api/enrollments/attendance-summary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enrollmentIds: sorted.map((e) => e.id) }),
+          });
+          const json = await parseJson<{ summaries: Record<string, AttendanceSummary> }>(res);
+          if (!res.ok || !json?.ok) {
+            toast.push("error", json && "error" in json ? json.error.message : "Falha ao carregar frequência.");
+            return;
+          }
+          for (const [id, summary] of Object.entries(json.data.summaries)) {
+            attendanceByEnrollment.set(id, summary);
           }
         }
-        return row;
-      });
 
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Matrículas");
+        const rows = sorted.map((e) => {
+          const row: Record<string, string> = {};
+          for (const key of selectedKeys) {
+            switch (key) {
+              case "aluno":
+                row["Aluno"] = e.student.name ?? "";
+                break;
+              case "curso":
+                row["Curso"] = e.classGroup.course.name ?? "";
+                break;
+              case "cursoTurma":
+                row["Curso/Turma"] = `${e.classGroup.course.name} — ${e.classGroup.startTime}-${e.classGroup.endTime}${Array.isArray(e.classGroup.daysOfWeek) && e.classGroup.daysOfWeek.length ? ` (${formatDaysOrderedPt(e.classGroup.daysOfWeek)})` : ""}${e.classGroup.location ? ` — ${e.classGroup.location}` : ""}`;
+                break;
+              case "telefone":
+                row["Telefone"] = e.student.phone ?? "";
+                break;
+              case "email":
+                row["Email"] = e.student.email ?? "";
+                break;
+              case "professor":
+                row["Professor"] = classGroupTeacherLabel(e.classGroup);
+                break;
+              case "status":
+                row["Status"] = ENROLLMENT_STATUS_LABELS[e.status] ?? e.status;
+                break;
+              case "dataMatricula":
+                row["Data de início da turma"] = formatDateOnly(e.classGroup.startDate);
+                break;
+              case "frequencia": {
+                const summary = attendanceByEnrollment.get(e.id);
+                if (!summary) {
+                  row["Frequência"] = "—";
+                } else if (summary.totalSessions === 0) {
+                  row["Frequência"] = `${summary.presentCount}/0`;
+                } else {
+                  row["Frequência"] = `${summary.presentCount}/${summary.totalSessions} (${summary.percent}%)`;
+                }
+                break;
+              }
+            }
+          }
+          return row;
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Matrículas");
+      }
+
       XLSX.writeFile(wb, `matriculas_${new Date().toISOString().slice(0, 10)}.xlsx`);
       toast.push("success", "Planilha exportada.");
       setExportExcelOpen(false);
@@ -1134,6 +1265,7 @@ export default function EnrollmentsPage() {
 
   async function exportToPdf() {
     if (exportingPdf) return;
+    if (!canExportReports) return;
     setExportingPdf(true);
     try {
       const teachersForPdf = teachersToDisplay
@@ -1148,6 +1280,7 @@ export default function EnrollmentsPage() {
         columnData,
         courses: dashboard.courses,
         teachersData: teachersForPdf,
+        vacancyRows,
         formatDateOnly,
       });
       const url = URL.createObjectURL(blob);
@@ -1379,11 +1512,11 @@ export default function EnrollmentsPage() {
               <Button
                 variant="secondary"
                 onClick={() => setExportExcelOpen(true)}
-                disabled={filteredItems.length === 0}
+                disabled={!canExportReports}
               >
                 Exportar Excel
               </Button>
-              <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf || filteredItems.length === 0}>
+              <Button variant="secondary" onClick={exportToPdf} disabled={exportingPdf || !canExportReports}>
                 {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
               </Button>
             </div>
@@ -1429,6 +1562,7 @@ export default function EnrollmentsPage() {
                 statusFilterState.length > 0 ||
                 preEnrollmentFilterState ||
                 turmaFilterIds.length > 0 ||
+                poloFilterIds.length > 0 ||
                 !haveSameValues(classGroupStatusFilter, DEFAULT_CLASS_GROUP_STATUS_FILTERS) ||
                 !haveSameValues(classGroupScopeFilter, defaultScopeFilters) ||
                 dateFrom ||
@@ -1444,6 +1578,7 @@ export default function EnrollmentsPage() {
                     setStatusFilterState([]);
                     setPreEnrollmentFilterState("");
                     setTurmaFilterIds([]);
+                    setPoloFilterIds([]);
                     setClassGroupStatusFilter([...DEFAULT_CLASS_GROUP_STATUS_FILTERS]);
                     setClassGroupScopeFilter([...defaultScopeFilters]);
                     setDateFrom("");
@@ -1575,6 +1710,19 @@ export default function EnrollmentsPage() {
                         );
                       })}
                     </div>
+                  </div>
+                )}
+                {poloOptions.length > 0 && (
+                  <div>
+                    <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">
+                      Polos
+                    </span>
+                    <CheckboxMultiSelect
+                      label="Polos"
+                      options={poloOptions}
+                      selectedIds={poloFilterIds}
+                      onChange={setPoloFilterIds}
+                    />
                   </div>
                 )}
                 {turmaOptions.length > 0 && (
@@ -1852,16 +2000,47 @@ export default function EnrollmentsPage() {
               <p className="mt-3 text-sm text-[var(--text-secondary)]">Nenhuma turma para exibir.</p>
             ) : (
               <>
+                {vacancyByCourseChart.length > 0 && (
+                  <div className="mb-4 h-[260px] w-full min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+                    <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">
+                      Matriculados e formados por curso
+                    </h3>
+                    <ResponsiveContainer width="100%" height="90%">
+                      <BarChart data={vacancyByCourseChart} margin={{ top: 8, right: 8, left: 0, bottom: 24 }}>
+                        <XAxis
+                          dataKey="curso"
+                          tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                          interval={0}
+                          angle={-20}
+                          textAnchor="end"
+                          height={50}
+                        />
+                        <YAxis tick={{ fill: "var(--text-muted)", fontSize: 11 }} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "var(--card-bg)",
+                            border: "1px solid var(--card-border)",
+                            borderRadius: "6px",
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: "11px" }} />
+                        <Bar dataKey="matriculados" fill="#2563eb" radius={[4, 4, 0, 0]} name="Matriculados" />
+                        <Bar dataKey="formados" fill="#059669" radius={[4, 4, 0, 0]} name="Formados" />
+                        <Bar dataKey="capacidade" fill="#94a3b8" radius={[4, 4, 0, 0]} name="Capacidade" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {courseChartsData.map(
-                    ({ courseId, courseName, totalCapacidade, totalAlunos, chartData, turmas }) => (
+                    ({ courseId, courseName, totalCapacidade, totalAlunos, totalFormados, chartData, turmas }) => (
                     <div
                       key={courseId}
                       className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4"
                     >
                       <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-2">{courseName}</h3>
                       <p className="mb-2 text-xs text-[var(--text-muted)]">
-                        {totalAlunos} de {totalCapacidade} vagas preenchidas
+                        {totalAlunos} de {totalCapacidade} vagas preenchidas · {totalFormados} formados
                       </p>
                       <div className="h-[180px] w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
@@ -1911,10 +2090,12 @@ export default function EnrollmentsPage() {
                           {turmas.length === 0 ? (
                             <li className="text-[var(--text-muted)]">Nenhuma turma no momento.</li>
                           ) : (
-                            turmas.map(({ classGroup: cg, count, active, cancelled }) => {
+                            turmas.map(({ classGroup: cg, count, active, cancelled, completed }) => {
                               const start = formatDateOnly(cg.startDate).slice(0, 5);
                               const days = Array.isArray(cg.daysOfWeek) ? formatDaysOrderedPt(cg.daysOfWeek) : "";
-                              const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""}${cg.location ? ` — ${cg.location}` : ""}`;
+                              const teacher = classGroupTeacherLabel(cg);
+                              const local = classGroupLocationLabel(cg);
+                              const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""} — ${local} — Prof. ${teacher}`;
                               const cap = cg.capacity != null ? cg.capacity : 0;
                               const fechada = cap > 0 && count >= cap;
                               return (
@@ -1927,7 +2108,7 @@ export default function EnrollmentsPage() {
                                       {count} / {cap || "—"}
                                     </strong>{" "}
                                     <span className="text-[var(--text-muted)]">
-                                      ({active} ativas | {cancelled} canceladas)
+                                      ({active} ativas | {cancelled} canceladas | {completed} formados)
                                     </span>
                                   </span>
                                   <button
@@ -2612,8 +2793,9 @@ export default function EnrollmentsPage() {
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-[var(--text-muted)]">
-            Serão exportadas <strong className="text-[var(--text-primary)]">{filteredItems.length}</strong> matrículas
-            com os filtros atuais da tela.
+            A planilha inclui a aba <strong className="text-[var(--text-primary)]">Vagas por curso e turma</strong>{" "}
+            (início, horários, dias, turma, local, professor, matriculados e formados) e, quando houver alunos no
+            filtro, a aba de matrículas com as colunas abaixo ({filteredItems.length} registros).
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -2703,7 +2885,7 @@ export default function EnrollmentsPage() {
             <Button
               type="button"
               onClick={exportToExcel}
-              disabled={exportingExcel || filteredItems.length === 0}
+              disabled={exportingExcel || !canExportReports}
             >
               {exportingExcel ? "Exportando…" : "Exportar"}
             </Button>
