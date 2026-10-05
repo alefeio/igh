@@ -1,10 +1,15 @@
 import { prisma } from "@/lib/prisma";
-import { requireMaster, requireStaffRead } from "@/lib/auth";
+import { requireStaffRead } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { createHolidaySchema, normalizeHolidayTimeHm } from "@/lib/validators/holidays";
 import { createAuditLog } from "@/lib/audit";
 import { recalculateAllClassGroupSessionsAfterHolidayChange } from "@/lib/class-sessions-holiday-resync";
 import { ensureUniqueHolidaySlug } from "@/lib/holiday-event-slug";
+import {
+  mapHolidayCreators,
+  requireHolidayCreateUser,
+  serializeHolidayWithCreator,
+} from "@/lib/holiday-access";
 import { SENTINEL_YEAR_RECURRING } from "@/lib/schedule";
 
 export async function GET(request: Request) {
@@ -23,11 +28,22 @@ export async function GET(request: Request) {
     },
   });
 
-  return jsonOk({ holidays });
+  const creators = await mapHolidayCreators(holidays.map((h) => h.id));
+
+  return jsonOk({
+    holidays: holidays.map((h) =>
+      serializeHolidayWithCreator(h, creators.get(h.id) ?? null)
+    ),
+  });
 }
 
 export async function POST(request: Request) {
-  const user = await requireMaster();
+  let user;
+  try {
+    user = await requireHolidayCreateUser();
+  } catch {
+    return jsonErr("FORBIDDEN", "Sem permissão para criar feriados ou eventos.", 403);
+  }
 
   const body = await request.json().catch(() => null);
   const parsed = createHolidaySchema.safeParse(body);
@@ -44,6 +60,14 @@ export async function POST(request: Request) {
   const rawS = parsed.data.eventStartTime?.trim();
   const rawE = parsed.data.eventEndTime?.trim();
   const isEvent = !!(rawS && rawE);
+
+  if (user.role === "ADMIN" && !isEvent) {
+    return jsonErr(
+      "FORBIDDEN",
+      "Administrador pedagógico só pode criar eventos com horário de início e fim.",
+      403
+    );
+  }
   const eventStartTime = isEvent ? normalizeHolidayTimeHm(rawS!) : null;
   const eventEndTime = isEvent ? normalizeHolidayTimeHm(rawE!) : null;
 
@@ -108,5 +132,8 @@ export async function POST(request: Request) {
     scheduleRecalculation = await recalculateAllClassGroupSessionsAfterHolidayChange();
   }
 
-  return jsonOk({ holiday, scheduleRecalculation }, { status: 201 });
+  return jsonOk(
+    { holiday: serializeHolidayWithCreator(holiday, user.id), scheduleRecalculation },
+    { status: 201 }
+  );
 }

@@ -34,6 +34,7 @@ type Holiday = {
   requiresReferral: boolean;
   capacity: number | null;
   responsibleTeacherId?: string | null;
+  createdByUserId?: string | null;
   _count?: { registrations: number };
 };
 
@@ -104,6 +105,15 @@ export default function HolidaysPage() {
   const toast = useToast();
   const user = useUser();
   const isMaster = isMasterOrGeneralAdmin(user);
+  const isPedagogicalAdmin = user.role === "ADMIN";
+
+  function canEditHoliday(h: Holiday): boolean {
+    if (isMaster) return true;
+    if (isPedagogicalAdmin) {
+      return isTimedEvent(h) && h.createdByUserId === user.id;
+    }
+    return false;
+  }
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<Holiday[]>([]);
   const [open, setOpen] = useState(false);
@@ -171,6 +181,7 @@ export default function HolidaysPage() {
   }
 
   function openEdit(h: Holiday) {
+    if (!canEditHoliday(h)) return;
     setIsDuplicating(false);
     setEditing(h);
     setRecurring(h.recurring);
@@ -255,6 +266,12 @@ export default function HolidaysPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (open && isPedagogicalAdmin && !isMaster) {
+      setKind("event");
+    }
+  }, [open, isPedagogicalAdmin, isMaster]);
 
   useEffect(() => {
     if (!isMaster) return;
@@ -354,8 +371,13 @@ export default function HolidaysPage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || saving) return;
+    if (isPedagogicalAdmin && !isMaster && editing && !canEditHoliday(editing)) {
+      toast.push("error", "Sem permissão para editar este evento.");
+      return;
+    }
     setSaving(true);
     try {
+      const effectiveKind = isPedagogicalAdmin && !isMaster ? "event" : kind;
       const dateStr = date.trim();
       const payload: Record<string, unknown> = {
         recurring,
@@ -363,7 +385,7 @@ export default function HolidaysPage() {
         name: name.trim() || undefined,
         isActive,
       };
-      if (kind === "event") {
+      if (effectiveKind === "event") {
         payload.eventStartTime = eventStartTime.trim();
         payload.eventEndTime = eventEndTime.trim();
         payload.allowsRegistration = allowsRegistration;
@@ -493,10 +515,13 @@ export default function HolidaysPage() {
   }
 
   const visibleItems = showInactive ? items : items.filter((h) => h.isActive);
-  const readOnlyEvents = useMemo(
-    () =>
-      visibleItems.filter((h) => isTimedEvent(h) && h.allowsRegistration),
+  const catalogEvents = useMemo(
+    () => visibleItems.filter((h) => isTimedEvent(h)),
     [visibleItems]
+  );
+  const readOnlyEvents = useMemo(
+    () => catalogEvents.filter((h) => h.allowsRegistration),
+    [catalogEvents]
   );
 
   function focusRegistrations(holidayId: string) {
@@ -514,11 +539,19 @@ export default function HolidaysPage() {
     <div className="flex min-w-0 flex-col gap-6 sm:gap-8">
       <DashboardHero
         eyebrow="Calendário público"
-        title={isMaster ? "Inscrições e gestão de eventos" : "Inscrições em eventos"}
+        title={
+          isMaster
+            ? "Inscrições e gestão de eventos"
+            : isPedagogicalAdmin
+              ? "Inscrições e eventos"
+              : "Inscrições em eventos"
+        }
         description={
           isMaster
             ? "Acompanhe quem se inscreveu nos eventos do calendário público. A criação e edição de feriados e eventos é exclusiva do perfil Master."
-            : "Consulte quem se inscreveu nos eventos com inscrições abertas no calendário público. A listagem de feriados e eventos cadastrados fica disponível abaixo, para consulta."
+            : isPedagogicalAdmin
+              ? "Acompanhe inscrições e cadastre eventos no calendário público. Você pode editar apenas os eventos que criou; feriados e demais registros continuam sob gestão do Master."
+              : "Consulte quem se inscreveu nos eventos com inscrições abertas no calendário público. A listagem de feriados e eventos cadastrados fica disponível abaixo, para consulta."
         }
         rightSlot={
           isMaster ? (
@@ -554,11 +587,19 @@ export default function HolidaysPage() {
       </div>
 
       <SectionCard
-        title={isMaster ? "Gestão de eventos e feriados" : "Eventos e feriados cadastrados"}
+        title={
+          isMaster
+            ? "Gestão de eventos e feriados"
+            : isPedagogicalAdmin
+              ? "Eventos cadastrados"
+              : "Eventos e feriados cadastrados"
+        }
         description={
           isMaster
             ? "Cadastro, banner do calendário público e impacto no cronograma das turmas."
-            : "Consulta somente leitura. Para criar ou alterar eventos, solicite ao Master."
+            : isPedagogicalAdmin
+              ? "Crie eventos com horário e edite apenas os que você cadastrou."
+              : "Consulta somente leitura. Para criar ou alterar eventos, solicite ao Master."
         }
         variant="elevated"
       >
@@ -573,7 +614,9 @@ export default function HolidaysPage() {
               ? "Ocultar listagem de eventos e feriados"
               : isMaster
                 ? "Abrir gestão de eventos e feriados"
-                : "Abrir consulta de eventos e feriados"}
+                : isPedagogicalAdmin
+                  ? "Abrir eventos cadastrados"
+                  : "Abrir consulta de eventos e feriados"}
           </span>
           {showEventsCatalog ? (
             <ChevronDown className="h-5 w-5 shrink-0 text-[var(--text-muted)]" aria-hidden />
@@ -813,6 +856,96 @@ export default function HolidaysPage() {
                   )}
                 </SectionCard>
               </>
+            ) : isPedagogicalAdmin ? (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" onClick={() => openCreate("event")}>
+                    Novo evento
+                  </Button>
+                </div>
+
+                <SectionCard
+                  title="Listagem de eventos"
+                  description={
+                    loading
+                      ? "Carregando…"
+                      : `${catalogEvents.length} ${catalogEvents.length === 1 ? "evento" : "eventos"} exibidos.`
+                  }
+                  variant="elevated"
+                >
+                  {loading ? (
+                    <div className="flex flex-col items-center justify-center py-14" role="status">
+                      <div className="h-10 w-10 animate-pulse rounded-xl bg-[var(--igh-primary)]/20" aria-hidden />
+                      <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando…</p>
+                    </div>
+                  ) : (
+                    <TableShell>
+                      <thead>
+                        <tr>
+                          <Th>Data</Th>
+                          <Th>Horário</Th>
+                          <Th>Nome</Th>
+                          <Th>Inscrições</Th>
+                          <Th>Status</Th>
+                          <Th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {catalogEvents.map((h) => (
+                          <tr key={h.id}>
+                            <Td>{formatDateDisplay(h.date, h.recurring)}</Td>
+                            <Td className="text-[var(--text-secondary)]">
+                              {formatHm(h.eventStartTime)} – {formatHm(h.eventEndTime)}
+                            </Td>
+                            <Td>{h.name ?? "—"}</Td>
+                            <Td className="text-[var(--text-secondary)]">
+                              {h.allowsRegistration ? (
+                                <button
+                                  type="button"
+                                  className="text-[var(--igh-primary)] underline hover:no-underline"
+                                  onClick={() => focusRegistrations(h.id)}
+                                >
+                                  {h._count?.registrations ?? 0} inscrito(s)
+                                </button>
+                              ) : (
+                                "—"
+                              )}
+                            </Td>
+                            <Td>
+                              {h.isActive ? (
+                                <Badge tone="green">Ativo</Badge>
+                              ) : (
+                                <Badge tone="red">Inativo</Badge>
+                              )}
+                            </Td>
+                            <Td>
+                              {canEditHoliday(h) ? (
+                                <div className="flex justify-end">
+                                  <Button variant="secondary" onClick={() => openEdit(h)}>
+                                    Editar
+                                  </Button>
+                                </div>
+                              ) : null}
+                            </Td>
+                          </tr>
+                        ))}
+                        {catalogEvents.length === 0 ? (
+                          <tr>
+                            <Td colSpan={6} className="text-[var(--text-secondary)]">
+                              Nenhum evento ativo no momento.
+                            </Td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </TableShell>
+                  )}
+                </SectionCard>
+
+                <p className="text-xs text-[var(--text-muted)]">
+                  Feriados e eventos criados por outras pessoas aparecem somente para consulta. Ao salvar um evento
+                  ativo, o calendário das turmas é recalculado automaticamente.
+                </p>
+              </>
             ) : (
               <>
                 {loading ? (
@@ -877,12 +1010,14 @@ export default function HolidaysPage() {
         ) : null}
       </SectionCard>
 
-      {isMaster ? (
+      {isMaster || isPedagogicalAdmin ? (
       <Modal
         open={open}
         title={
           editing
-            ? "Editar feriado ou evento"
+            ? isPedagogicalAdmin && !isMaster
+              ? "Editar evento"
+              : "Editar feriado ou evento"
             : isDuplicating
               ? kind === "event"
                 ? "Duplicar evento"
@@ -909,29 +1044,36 @@ export default function HolidaysPage() {
               . Salve para criar o novo item.
             </p>
           ) : null}
-          <div>
-            <label className="text-sm font-medium">Tipo</label>
-            <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:gap-6">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="kind"
-                  checked={kind === "holiday"}
-                  onChange={() => setKind("holiday")}
-                />
-                <span>Feriado (dia inteiro — sem aula nesse dia)</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="kind"
-                  checked={kind === "event"}
-                  onChange={() => setKind("event")}
-                />
-                <span>Evento (horário — só turmas que cruzam o intervalo)</span>
-              </label>
+          {isMaster ? (
+            <div>
+              <label className="text-sm font-medium">Tipo</label>
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:gap-6">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="kind"
+                    checked={kind === "holiday"}
+                    onChange={() => setKind("holiday")}
+                  />
+                  <span>Feriado (dia inteiro — sem aula nesse dia)</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="kind"
+                    checked={kind === "event"}
+                    onChange={() => setKind("event")}
+                  />
+                  <span>Evento (horário — só turmas que cruzam o intervalo)</span>
+                </label>
+              </div>
             </div>
-          </div>
+          ) : (
+            <p className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/40 px-3 py-2 text-xs text-[var(--text-secondary)]">
+              Você está cadastrando um <strong>evento com horário</strong>. Feriados de dia inteiro são criados pelo
+              Master.
+            </p>
+          )}
           <div>
             <label className="text-sm font-medium">Recorrência</label>
             <div className="mt-1 flex gap-4">

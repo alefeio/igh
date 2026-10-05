@@ -1,22 +1,18 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
+import { drawGroupedBarChartPng, drawKpiStripPng } from "@/lib/enrollment-chart-canvas";
 import type { EnrollmentVacancyRow } from "@/lib/enrollment-vacancy-report";
-import { summarizeVacanciesByCourse, summarizeVacanciesByLocation, summarizeVacanciesByTeacher } from "@/lib/enrollment-vacancy-report";
+import {
+  groupVacancyRowsByLocation,
+  summarizeVacanciesByCourse,
+  summarizeVacanciesByLocation,
+  summarizeVacanciesByTeacher,
+} from "@/lib/enrollment-vacancy-report";
 
 const MARGIN = 36;
-const PORTRAIT = { width: 595, height: 842 };
+const PAGE = { width: 595, height: 842 };
 const LANDSCAPE = { width: 842, height: 595 };
-const FONT_SIZE_TITLE = 16;
-const FONT_SIZE_HEADING = 12;
-const FONT_SIZE_BODY = 9;
-const LINE_HEIGHT = 13;
-const ROW_HEIGHT = 14;
-const CHART_ROW_HEIGHT = 20;
-const CHART_BAR_X = 260;
-const CHART_MAX_BAR_WIDTH = 300;
-const CHART_BAR_HEIGHT_PX = 12;
 
-/** Converte texto para exibição no PDF (remove caracteres não WinAnsi). */
 function toPdfText(text: string): string {
   const map: Record<string, string> = {
     á: "a",
@@ -63,286 +59,273 @@ interface Kpis {
   confirmed: number;
 }
 
-interface PieItem {
-  name: string;
-  value: number;
-}
-
-interface ColumnItem {
-  data: string;
-  quantidade: number;
-}
-
-interface ClassGroupForPdf {
-  course: { name: string };
-  startDate: string;
-  startTime: string;
-  endTime: string;
-  daysOfWeek: string[];
-  location?: string | null;
-  capacity?: number;
-  teacher?: { name: string } | null;
-}
-
-interface TeacherForPdf {
-  id: string;
-  name: string;
-}
-
+/**
+ * PDF executivo: indicadores + gráficos claros.
+ * Detalhamento por local fica no final, em volume reduzido.
+ */
 export async function buildEnrollmentPdfBlob(params: {
   kpis: Kpis;
-  pieData: PieItem[];
-  columnData: ColumnItem[];
-  courses: Array<[string, { courseName: string; turmas: { classGroup: ClassGroupForPdf; count: number }[] }]>;
-  teachersData: Array<{ teacher: TeacherForPdf; turmas: { classGroup: ClassGroupForPdf; count: number }[]; totalAlunos: number }>;
   vacancyRows: EnrollmentVacancyRow[];
   formatDateOnly: (v: string) => string;
+  /** Mantidos por compatibilidade; o resumo visual usa vacancyRows. */
+  pieData?: unknown;
+  columnData?: unknown;
+  courses?: unknown;
+  teachersData?: unknown;
 }): Promise<Blob> {
-  const { kpis, pieData, columnData, teachersData, vacancyRows, formatDateOnly } = params;
+  const { kpis, vacancyRows } = params;
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const black = rgb(0.15, 0.15, 0.15);
-  const gray = rgb(0.4, 0.4, 0.4);
-  const primary = rgb(0, 0.4, 0.7);
-  const accent = rgb(0.86, 0.15, 0.15);
-  const green = rgb(0.05, 0.55, 0.3);
-
-  let pageSize = PORTRAIT;
-  let y = pageSize.height - MARGIN;
-  let page = doc.addPage([pageSize.width, pageSize.height]);
-
-  function drawText(
-    text: string,
-    opts: { x: number; y: number; size?: number; font?: typeof font | typeof fontBold; color?: ReturnType<typeof rgb> },
-  ) {
-    const f = opts.font ?? font;
-    const size = opts.size ?? FONT_SIZE_BODY;
-    const color = opts.color ?? black;
-    page.drawText(toPdfText(text), { x: opts.x, y: opts.y, size, font: f, color });
-  }
-
-  function ensurePage(needed: number, nextSize = pageSize): void {
-    if (y - needed < MARGIN || nextSize.width !== pageSize.width) {
-      pageSize = nextSize;
-      page = doc.addPage([pageSize.width, pageSize.height]);
-      y = pageSize.height - MARGIN;
-    }
-  }
-
-  function drawBarChart(
-    title: string,
-    items: { label: string; value: number; secondary?: number }[],
-    primaryLabel: string,
-    secondaryLabel?: string,
-  ) {
-    if (items.length === 0) return;
-    ensurePage(70 + items.length * CHART_ROW_HEIGHT);
-    drawText(title, { x: MARGIN, y, size: FONT_SIZE_HEADING, font: fontBold });
-    y -= LINE_HEIGHT + 4;
-    const maxValue = Math.max(...items.map((item) => Math.max(item.value, item.secondary ?? 0)), 1);
-    for (const item of items) {
-      ensurePage(CHART_ROW_HEIGHT + 4);
-      const label = `${toPdfText(item.label).slice(0, 36)}${item.label.length > 36 ? "..." : ""}`;
-      const primaryText =
-        item.secondary == null
-          ? `${item.value}`
-          : `${primaryLabel} ${item.value} | ${secondaryLabel ?? "sec"} ${item.secondary}`;
-      drawText(`${label}  ${primaryText}`, { x: MARGIN, y, size: FONT_SIZE_BODY - 1 });
-      const barW = (item.value / maxValue) * CHART_MAX_BAR_WIDTH;
-      if (barW > 0) {
-        page.drawRectangle({
-          x: CHART_BAR_X,
-          y: y - CHART_BAR_HEIGHT_PX - 2,
-          width: barW,
-          height: CHART_BAR_HEIGHT_PX,
-          color: primary,
-        });
-      }
-      if (item.secondary != null && item.secondary > 0) {
-        const secondaryW = (item.secondary / maxValue) * CHART_MAX_BAR_WIDTH;
-        page.drawRectangle({
-          x: CHART_BAR_X,
-          y: y - CHART_BAR_HEIGHT_PX - 2,
-          width: secondaryW,
-          height: Math.max(4, CHART_BAR_HEIGHT_PX / 2),
-          color: green,
-        });
-      }
-      y -= CHART_ROW_HEIGHT;
-    }
-    y -= 10;
-  }
-
-  drawText("Relatorio de Matriculas", { x: MARGIN, y, size: FONT_SIZE_TITLE, font: fontBold });
-  y -= LINE_HEIGHT + 4;
-  drawText(`Gerado em ${new Date().toLocaleString("pt-BR")}`, { x: MARGIN, y, size: FONT_SIZE_BODY - 1, color: gray });
-  y -= LINE_HEIGHT + 12;
-
-  ensurePage(120);
-  drawText("Resumo", { x: MARGIN, y, size: FONT_SIZE_HEADING, font: fontBold });
-  y -= LINE_HEIGHT;
-  drawText(`Total de matriculas: ${kpis.total}`, { x: MARGIN, y });
-  y -= LINE_HEIGHT;
-  drawText(`Matriculas ativas: ${kpis.active}`, { x: MARGIN, y });
-  y -= LINE_HEIGHT;
-  drawText(`Pre-matriculas: ${kpis.pre}`, { x: MARGIN, y });
-  y -= LINE_HEIGHT;
-  drawText(`Confirmadas: ${kpis.confirmed}`, { x: MARGIN, y });
-  y -= LINE_HEIGHT;
-  const graduatedTotal = vacancyRows.reduce((sum, row) => sum + row.graduated, 0);
-  const enrolledTotal = vacancyRows.reduce((sum, row) => sum + row.enrolled, 0);
-  drawText(`Matriculados nas turmas (ocupacao): ${enrolledTotal}`, { x: MARGIN, y });
-  y -= LINE_HEIGHT;
-  drawText(`Formados (concluidos): ${graduatedTotal}`, { x: MARGIN, y });
-  y -= LINE_HEIGHT + 12;
-
-  if (pieData.length > 0) {
-    ensurePage(60 + pieData.length * CHART_ROW_HEIGHT);
-    drawText("Matriculas por curso", { x: MARGIN, y, size: FONT_SIZE_HEADING, font: fontBold });
-    y -= LINE_HEIGHT + 6;
-    const totalPie = pieData.reduce((sum, item) => sum + item.value, 0);
-    const colors = [
-      rgb(0, 0.4, 0.7),
-      rgb(0.1, 0.2, 0.36),
-      rgb(0.91, 0.46, 0),
-      rgb(0.05, 0.58, 0.53),
-      rgb(0.49, 0.23, 0.93),
-      rgb(0.86, 0.15, 0.15),
-      rgb(0.4, 0.64, 0.05),
-      rgb(0.79, 0.54, 0.02),
-    ];
-    for (let i = 0; i < pieData.length; i++) {
-      const item = pieData[i];
-      const pct = totalPie > 0 ? (item.value / totalPie) * 100 : 0;
-      const barW = totalPie > 0 ? (item.value / totalPie) * CHART_MAX_BAR_WIDTH : 0;
-      const label = `${toPdfText(item.name).slice(0, 32)}${item.name.length > 32 ? "..." : ""}`;
-      drawText(`${label}  ${item.value} (${pct.toFixed(1)}%)`, { x: MARGIN, y, size: FONT_SIZE_BODY - 1 });
-      if (barW > 0) {
-        page.drawRectangle({
-          x: CHART_BAR_X,
-          y: y - CHART_BAR_HEIGHT_PX - 4,
-          width: barW,
-          height: CHART_BAR_HEIGHT_PX,
-          color: colors[i % colors.length],
-        });
-      }
-      y -= CHART_ROW_HEIGHT;
-    }
-    y -= 12;
-  }
-
-  if (columnData.length > 0) {
-    ensurePage(60 + Math.min(columnData.length, 20) * CHART_ROW_HEIGHT);
-    drawText("Matriculas por dia", { x: MARGIN, y, size: FONT_SIZE_HEADING, font: fontBold });
-    y -= LINE_HEIGHT + 6;
-    const maxQty = Math.max(...columnData.map((item) => item.quantidade), 1);
-    for (const item of columnData.slice(-30)) {
-      ensurePage(CHART_ROW_HEIGHT + 4);
-      const barW = (item.quantidade / maxQty) * CHART_MAX_BAR_WIDTH;
-      drawText(`${item.data}  ${item.quantidade}`, { x: MARGIN, y, size: FONT_SIZE_BODY - 1 });
-      if (barW > 0) {
-        page.drawRectangle({
-          x: CHART_BAR_X,
-          y: y - CHART_BAR_HEIGHT_PX - 4,
-          width: barW,
-          height: CHART_BAR_HEIGHT_PX,
-          color: primary,
-        });
-      }
-      y -= CHART_ROW_HEIGHT;
-    }
-    y -= 12;
-  }
+  const black = rgb(0.1, 0.12, 0.16);
+  const gray = rgb(0.4, 0.45, 0.5);
+  const navy = rgb(0.12, 0.3, 0.47);
 
   const byCourse = summarizeVacanciesByCourse(vacancyRows);
-  drawBarChart(
-    "Matriculados x formados por curso",
-    byCourse.map((row) => ({ label: row.courseName, value: row.enrolled, secondary: row.graduated })),
-    "Matriculados",
-    "Formados",
-  );
+  const byTeacher = summarizeVacanciesByTeacher(vacancyRows);
+  const byLocation = summarizeVacanciesByLocation(vacancyRows);
+  const locationSections = groupVacancyRowsByLocation(vacancyRows);
 
-  const byTeacher = summarizeVacanciesByTeacher(vacancyRows).slice(0, 20);
-  drawBarChart(
-    "Matriculados x formados por professor",
-    byTeacher.map((row) => ({ label: row.teacher, value: row.enrolled, secondary: row.graduated })),
-    "Matriculados",
-    "Formados",
-  );
+  const enrolledTotal = vacancyRows.reduce((s, r) => s + r.enrolled, 0);
+  const graduatedTotal = vacancyRows.reduce((s, r) => s + r.graduated, 0);
+  const capacityTotal = vacancyRows.reduce((s, r) => s + r.capacity, 0);
+  const occupancy = capacityTotal > 0 ? Math.round((enrolledTotal / capacityTotal) * 100) : null;
+  const available = Math.max(0, capacityTotal - enrolledTotal);
 
-  const byLocation = summarizeVacanciesByLocation(vacancyRows).slice(0, 20);
-  drawBarChart(
-    "Matriculados por local/polo",
-    byLocation.map((row) => ({ label: row.location, value: row.enrolled, secondary: row.graduated })),
-    "Matriculados",
-    "Formados",
-  );
-
-  if (vacancyRows.length > 0) {
-    ensurePage(80, LANDSCAPE);
-    drawText("Vagas por curso e turma", { x: MARGIN, y, size: FONT_SIZE_HEADING, font: fontBold });
-    y -= LINE_HEIGHT + 2;
-    drawText("Inicio | Horarios | Dias | Turma | Local | Professor | Matriculados | Formados | Capacidade", {
+  // Página 1 — capa / indicadores
+  {
+    const page = doc.addPage([PAGE.width, PAGE.height]);
+    let y = PAGE.height - MARGIN;
+    page.drawText(toPdfText("Relatorio de Vagas e Formacao"), {
       x: MARGIN,
       y,
-      size: FONT_SIZE_BODY - 1,
+      size: 18,
       font: fontBold,
+      color: navy,
+    });
+    y -= 18;
+    page.drawText(toPdfText(`Gerado em ${new Date().toLocaleString("pt-BR")}`), {
+      x: MARGIN,
+      y,
+      size: 9,
+      font,
       color: gray,
     });
-    y -= ROW_HEIGHT;
-    let currentCourse = "";
-    for (const row of vacancyRows) {
-      ensurePage(ROW_HEIGHT * 3, LANDSCAPE);
-      if (row.courseName !== currentCourse) {
-        currentCourse = row.courseName;
-        drawText(toPdfText(row.courseName), { x: MARGIN, y, size: FONT_SIZE_BODY, font: fontBold });
-        y -= ROW_HEIGHT;
-      }
-      const line = [
-        row.startDate,
-        row.schedule,
-        row.days,
-        row.turmaLabel,
-        row.location,
-        row.teacher,
-        String(row.enrolled),
-        String(row.graduated),
-        row.capacity > 0 ? String(row.capacity) : "-",
-      ]
-        .map((part) => toPdfText(part).slice(0, 28))
-        .join(" | ");
-      drawText(line, { x: MARGIN, y, size: FONT_SIZE_BODY - 2, color: row.occupancyPercent != null && row.occupancyPercent >= 100 ? accent : black });
-      y -= ROW_HEIGHT;
+    y -= 28;
+
+    page.drawText(toPdfText("Leitura rapida"), {
+      x: MARGIN,
+      y,
+      size: 12,
+      font: fontBold,
+      color: black,
+    });
+    y -= 16;
+    page.drawText(
+      toPdfText(
+        "Matriculados = alunos que ocupam vaga agora. Formados = aptos a certificado ou concluidos.",
+      ),
+      { x: MARGIN, y, size: 9, font, color: gray },
+    );
+    y -= 24;
+
+    const cards: Array<{ label: string; value: string }> = [
+      { label: "Matriculados", value: String(enrolledTotal) },
+      { label: "Formados", value: String(graduatedTotal) },
+      { label: "Capacidade", value: String(capacityTotal) },
+      { label: "Ocupacao", value: occupancy != null ? `${occupancy}%` : "—" },
+      { label: "Vagas livres", value: String(available) },
+      { label: "Turmas", value: String(vacancyRows.length) },
+    ];
+    const cardW = 160;
+    const cardH = 58;
+    cards.forEach((card, index) => {
+      const col = index % 3;
+      const row = Math.floor(index / 3);
+      const x = MARGIN + col * (cardW + 12);
+      const cy = y - row * (cardH + 12);
+      page.drawRectangle({
+        x,
+        y: cy - cardH,
+        width: cardW,
+        height: cardH,
+        color: rgb(0.96, 0.97, 0.98),
+        borderColor: rgb(0.8, 0.84, 0.88),
+        borderWidth: 1,
+      });
+      page.drawText(toPdfText(card.label), {
+        x: x + 12,
+        y: cy - 18,
+        size: 9,
+        font,
+        color: gray,
+      });
+      page.drawText(toPdfText(card.value), {
+        x: x + 12,
+        y: cy - 42,
+        size: 20,
+        font: fontBold,
+        color: black,
+      });
+    });
+    y -= 2 * (cardH + 12) + 16;
+
+    page.drawText(toPdfText("Contexto do filtro de matriculas"), {
+      x: MARGIN,
+      y,
+      size: 11,
+      font: fontBold,
+      color: black,
+    });
+    y -= 16;
+    const contextLines = [
+      `Total no filtro: ${kpis.total}`,
+      `Ativas: ${kpis.active}`,
+      `Pre-matriculas: ${kpis.pre}`,
+      `Confirmadas: ${kpis.confirmed}`,
+    ];
+    for (const line of contextLines) {
+      page.drawText(toPdfText(line), { x: MARGIN, y, size: 10, font, color: black });
+      y -= 14;
     }
-    y -= 8;
+
+    y -= 10;
+    page.drawText(toPdfText("Top cursos (matriculados / formados)"), {
+      x: MARGIN,
+      y,
+      size: 11,
+      font: fontBold,
+      color: black,
+    });
+    y -= 16;
+    for (const row of byCourse.slice(0, 8)) {
+      page.drawText(
+        toPdfText(`${row.courseName}: ${row.enrolled} matriculados · ${row.graduated} formados`),
+        { x: MARGIN, y, size: 9, font, color: black },
+      );
+      y -= 13;
+      if (y < MARGIN + 40) break;
+    }
   }
 
-  if (teachersData.length > 0) {
-    ensurePage(80, PORTRAIT);
-    drawText("Por professor (detalhe)", { x: MARGIN, y, size: FONT_SIZE_HEADING, font: fontBold });
-    y -= LINE_HEIGHT + 4;
-    for (const { teacher, turmas, totalAlunos } of teachersData) {
-      ensurePage(30 + turmas.length * ROW_HEIGHT, PORTRAIT);
-      drawText(`${toPdfText(teacher.name)}  Total: ${totalAlunos} aluno(s)`, {
+  async function addChartPage(
+    title: string,
+    chart: ReturnType<typeof drawGroupedBarChartPng> | ReturnType<typeof drawKpiStripPng>,
+  ) {
+    if (!chart) return;
+    const page = doc.addPage([LANDSCAPE.width, LANDSCAPE.height]);
+    page.drawText(toPdfText(title), {
+      x: MARGIN,
+      y: LANDSCAPE.height - MARGIN,
+      size: 14,
+      font: fontBold,
+      color: navy,
+    });
+    const png = await doc.embedPng(chart.bytes);
+    const maxW = LANDSCAPE.width - MARGIN * 2;
+    const maxH = LANDSCAPE.height - MARGIN * 2 - 28;
+    const scale = Math.min(maxW / chart.width, maxH / chart.height);
+    const w = chart.width * scale;
+    const h = chart.height * scale;
+    page.drawImage(png, {
+      x: MARGIN,
+      y: LANDSCAPE.height - MARGIN - 24 - h,
+      width: w,
+      height: h,
+    });
+  }
+
+  const kpiStrip = drawKpiStripPng({
+    title: "Indicadores do recorte",
+    metrics: [
+      { label: "Matriculados", value: String(enrolledTotal) },
+      { label: "Formados", value: String(graduatedTotal) },
+      { label: "Capacidade", value: String(capacityTotal) },
+      { label: "Ocupacao", value: occupancy != null ? `${occupancy}%` : "—" },
+    ],
+  });
+  await addChartPage("Visao geral", kpiStrip);
+
+  await addChartPage(
+    "Por curso",
+    drawGroupedBarChartPng({
+      title: "Matriculados x formados por curso",
+      items: byCourse.map((row) => ({
+        label: row.courseName,
+        primary: row.enrolled,
+        secondary: row.graduated,
+      })),
+      primaryLabel: "Matriculados",
+      secondaryLabel: "Formados",
+    }),
+  );
+
+  await addChartPage(
+    "Por local",
+    drawGroupedBarChartPng({
+      title: "Matriculados x formados por local",
+      items: byLocation.slice(0, 12).map((row) => ({
+        label: row.location,
+        primary: row.enrolled,
+        secondary: row.graduated,
+      })),
+      primaryLabel: "Matriculados",
+      secondaryLabel: "Formados",
+    }),
+  );
+
+  await addChartPage(
+    "Por professor",
+    drawGroupedBarChartPng({
+      title: "Matriculados x formados por professor",
+      items: byTeacher.slice(0, 12).map((row) => ({
+        label: row.teacher,
+        primary: row.enrolled,
+        secondary: row.graduated,
+      })),
+      primaryLabel: "Matriculados",
+      secondaryLabel: "Formados",
+    }),
+  );
+
+  // Anexo curto por local (somente subtotais + até 4 turmas por bloco)
+  if (locationSections.length > 0) {
+    let page = doc.addPage([LANDSCAPE.width, LANDSCAPE.height]);
+    let y = LANDSCAPE.height - MARGIN;
+    page.drawText(toPdfText("Anexo: subtotais por local"), {
+      x: MARGIN,
+      y,
+      size: 14,
+      font: fontBold,
+      color: navy,
+    });
+    y -= 22;
+    page.drawText(
+      toPdfText("Detalhe completo das turmas esta na planilha Excel (abas com filtro)."),
+      { x: MARGIN, y, size: 9, font, color: gray },
+    );
+    y -= 20;
+
+    for (const section of locationSections) {
+      if (y < 80) {
+        page = doc.addPage([LANDSCAPE.width, LANDSCAPE.height]);
+        y = LANDSCAPE.height - MARGIN;
+      }
+      page.drawText(toPdfText(section.locationHeader).slice(0, 110), {
         x: MARGIN,
         y,
-        size: FONT_SIZE_BODY,
+        size: 10,
         font: fontBold,
+        color: black,
       });
-      y -= ROW_HEIGHT;
-      for (const t of turmas) {
-        const cg = t.classGroup;
-        const start = formatDateOnly(cg.startDate).slice(0, 5);
-        const days = Array.isArray(cg.daysOfWeek) ? cg.daysOfWeek.join(", ") : "";
-        drawText(`  ${toPdfText(cg.course.name)} · ${start} ${cg.startTime}-${cg.endTime}${days ? ` (${days})` : ""}: ${t.count}`, {
-          x: MARGIN,
-          y,
-          size: FONT_SIZE_BODY - 1,
-        });
-        y -= ROW_HEIGHT;
-      }
-      y -= 4;
+      y -= 14;
+      page.drawText(
+        toPdfText(
+          `Matriculados ${section.subtotal.enrolled} · Formados ${section.subtotal.graduated} · Capacidade ${section.subtotal.capacity} · Livres ${section.subtotal.available}`,
+        ),
+        { x: MARGIN, y, size: 9, font, color: gray },
+      );
+      y -= 18;
     }
   }
 

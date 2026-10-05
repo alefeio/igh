@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BarChart, Bar, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import * as XLSX from "xlsx";
 
 import { StudentForm } from "@/components/students/StudentForm";
 import { EnrollmentWaitlistPanel } from "@/components/enrollments/EnrollmentWaitlistPanel";
@@ -10,11 +9,14 @@ import {
   EnrollmentSuccessModal,
   type EnrollmentSuccessPayload,
 } from "@/components/enrollments/EnrollmentSuccessModal";
+import { buildEnrollmentExcelBlob } from "@/lib/enrollment-excel-export";
 import { buildEnrollmentPdfBlob } from "@/lib/enrollment-pdf";
 import {
   buildEnrollmentVacancyRows,
+  buildVacancyLocationMeta,
   classGroupLocationLabel,
   classGroupTeacherLabel,
+  groupVacancyRowsByLocation,
   summarizeVacanciesByCourse,
 } from "@/lib/enrollment-vacancy-report";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
@@ -29,6 +31,7 @@ import { ReferrerPicker, type ReferrerOption } from "@/components/site/ReferrerP
 import type { ApiResponse } from "@/lib/api-types";
 import { formatClassGroupTurmaLine, formatDaysOrderedPt, formatEnrollmentClassGroupOptionLabel } from "@/lib/turma-display";
 import { isExactMaster, isMasterOrGeneralAdmin } from "@/lib/rbac";
+import { enrollmentCountsAsFormado } from "@/lib/enrollment-graduation";
 import { enrollmentOccupiesSeat } from "@/lib/enrollment-seat";
 
 const ENROLLMENT_STATUS_LABELS: Record<string, string> = {
@@ -56,6 +59,7 @@ type Student = { id: string; name: string; email: string | null; phone?: string 
 type Course = { id: string; name: string };
 type Teacher = { id: string; name: string };
 type Cycle = { id: string; cycle: number; year: number; isVisibleForEnrollments: boolean };
+type Polo = { id: string; name: string };
 type ClassGroup = {
   id: string;
   cycleId?: string;
@@ -77,7 +81,11 @@ type ClassGroup = {
   poloLocation?: {
     id: string;
     name: string;
-    polo?: { id: string; name: string } | null;
+    polo?: {
+      id: string;
+      name: string;
+      coordinator?: { name: string } | null;
+    } | null;
   } | null;
 };
 type Enrollment = {
@@ -88,6 +96,7 @@ type Enrollment = {
   enrollmentConfirmedAt: string | null;
   certificateUrl?: string | null;
   certificateFileName?: string | null;
+  certificateEligible?: boolean;
   student: Student;
   classGroup: ClassGroup;
   studentDataComplete?: boolean;
@@ -309,6 +318,7 @@ export default function EnrollmentsPage() {
   const editStudentComboboxRef = useRef<HTMLDivElement>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [allClassGroups, setAllClassGroups] = useState<ClassGroup[]>([]);
+  const [allPolos, setAllPolos] = useState<Polo[]>([]);
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [studentId, setStudentId] = useState("");
@@ -499,13 +509,14 @@ export default function EnrollmentsPage() {
     setLoading(true);
     try {
       // Professor: API de teachers é só MASTER/ADMIN; seção "Por professor" fica oculta.
-      const [enrollmentsRes, teachersRes, cyclesRes, classGroupsRes] = await Promise.all([
+      const [enrollmentsRes, teachersRes, cyclesRes, classGroupsRes, polosRes] = await Promise.all([
         fetch("/api/enrollments", { cache: "no-store" }),
         isTeacher
           ? Promise.resolve(null as Response | null)
           : fetch("/api/teachers?status=active", { cache: "no-store" }),
         fetch("/api/cycles", { cache: "no-store" }),
         fetch("/api/class-groups", { cache: "no-store" }),
+        fetch("/api/polos", { cache: "no-store" }),
       ]);
       const enrollmentsJson = await parseJson<{ enrollments: Enrollment[] }>(enrollmentsRes);
       const teachersJson = teachersRes
@@ -513,6 +524,7 @@ export default function EnrollmentsPage() {
         : null;
       const cyclesJson = await parseJson<{ cycles: Cycle[] }>(cyclesRes);
       const classGroupsJson = await parseJson<{ classGroups: ClassGroup[] }>(classGroupsRes);
+      const polosJson = await parseJson<{ polos: Polo[] }>(polosRes);
       if (enrollmentsRes.ok && enrollmentsJson?.ok) setItems(enrollmentsJson.data.enrollments);
       else toast.push("error", "Falha ao carregar matrículas.");
       const loadedClassGroups =
@@ -522,6 +534,11 @@ export default function EnrollmentsPage() {
       } else {
         toast.push("error", "Falha ao carregar as turmas.");
       }
+      setAllPolos(
+        polosRes.ok && polosJson?.ok && Array.isArray(polosJson.data.polos)
+          ? polosJson.data.polos
+          : []
+      );
       setAllTeachers(
         !isTeacher &&
           teachersRes?.ok &&
@@ -827,7 +844,7 @@ export default function EnrollmentsPage() {
       const statusCount = statusByClassGroup.get(id) ?? { active: 0, cancelled: 0, completed: 0 };
       if (enrollment.status === "ACTIVE") statusCount.active += 1;
       else if (enrollment.status === "CANCELLED") statusCount.cancelled += 1;
-      else if (enrollment.status === "COMPLETED") statusCount.completed += 1;
+      if (enrollmentCountsAsFormado(enrollment)) statusCount.completed += 1;
       statusByClassGroup.set(id, statusCount);
     }
 
@@ -971,23 +988,13 @@ export default function EnrollmentsPage() {
     return { total: filteredItems.length, active, pre, confirmed };
   }, [filteredItems]);
 
-  const poloOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    const allowedCycles = new Set(cycleFilterIds);
-    const allowedStatuses = new Set(classGroupStatusFilter);
-    const allowedScopes = new Set(classGroupScopeFilter);
-    for (const cg of allClassGroups) {
-      const cycleId = cg.cycleId ?? cg.cycle?.id;
-      if (!cycleId || !allowedCycles.has(cycleId)) continue;
-      if (!classGroupMatchesListFilters(cg, allowedStatuses, allowedScopes)) continue;
-      const polo = cg.poloLocation?.polo;
-      if (!polo?.id) continue;
-      map.set(polo.id, polo.name);
-    }
-    return [...map.entries()]
-      .map(([id, label]) => ({ id, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
-  }, [allClassGroups, classGroupStatusFilter, classGroupScopeFilter, cycleFilterIds]);
+  const poloOptions = useMemo(
+    () =>
+      allPolos
+        .map((polo) => ({ id: polo.id, label: polo.name }))
+        .sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),
+    [allPolos]
+  );
 
   const turmaOptions = useMemo(() => {
     const opts: { id: string; label: string }[] = [];
@@ -1115,9 +1122,19 @@ export default function EnrollmentsPage() {
     [dashboard.courses]
   );
 
+  const vacancyCatalogById = useMemo(
+    () => new Map(allClassGroups.map((cg) => [cg.id, cg] as const)),
+    [allClassGroups],
+  );
+
   const vacancyRows = useMemo(
-    () => buildEnrollmentVacancyRows(dashboard.courses, formatDateOnly),
-    [dashboard.courses],
+    () => buildEnrollmentVacancyRows(dashboard.courses, formatDateOnly, vacancyCatalogById),
+    [dashboard.courses, vacancyCatalogById],
+  );
+
+  const vacancySectionsByLocation = useMemo(
+    () => groupVacancyRowsByLocation(vacancyRows),
+    [vacancyRows],
   );
 
   const vacancyByCourseChart = useMemo(
@@ -1147,49 +1164,16 @@ export default function EnrollmentsPage() {
 
     setExportingExcel(true);
     try {
-      const wb = XLSX.utils.book_new();
-
-      const vacancySheetRows = vacancyRows.map((row) => ({
-        Curso: row.courseName,
-        Início: row.startDate,
-        Horários: row.schedule,
-        Dias: row.days,
-        Turma: row.turmaLabel,
-        Local: row.location,
-        Professor: row.teacher,
-        Matriculados: row.enrolled,
-        Formados: row.graduated,
-        Capacidade: row.capacity || "",
-        "Ocupação %": row.occupancyPercent ?? "",
-        Ativas: row.active,
-        Canceladas: row.cancelled,
-      }));
-      if (vacancySheetRows.length > 0) {
-        const vacancySheet = XLSX.utils.json_to_sheet(vacancySheetRows);
-        XLSX.utils.book_append_sheet(wb, vacancySheet, "Vagas por curso e turma");
-      }
-
-      const summaryRows = summarizeVacanciesByCourse(vacancyRows).map((row) => ({
-        Curso: row.courseName,
-        Turmas: row.classes,
-        Capacidade: row.capacity,
-        Matriculados: row.enrolled,
-        Formados: row.graduated,
-        "Ocupação %": row.capacity > 0 ? Math.round((row.enrolled / row.capacity) * 100) : "",
-      }));
-      if (summaryRows.length > 0) {
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), "Resumo por curso");
-      }
+      type AttendanceSummary = {
+        presentCount: number;
+        totalSessions: number;
+        percent: number | null;
+      };
+      const attendanceByEnrollment = new Map<string, AttendanceSummary>();
+      let enrollmentRows: Record<string, string | number>[] | undefined;
 
       if (filteredItems.length > 0 && selectedKeys.length > 0) {
         const sorted = [...filteredItems].sort((a, b) => a.student.name.localeCompare(b.student.name, "pt-BR"));
-
-        type AttendanceSummary = {
-          presentCount: number;
-          totalSessions: number;
-          percent: number | null;
-        };
-        const attendanceByEnrollment = new Map<string, AttendanceSummary>();
 
         if (selectedKeys.includes("frequencia")) {
           const res = await fetch("/api/enrollments/attendance-summary", {
@@ -1207,8 +1191,8 @@ export default function EnrollmentsPage() {
           }
         }
 
-        const rows = sorted.map((e) => {
-          const row: Record<string, string> = {};
+        enrollmentRows = sorted.map((e) => {
+          const row: Record<string, string | number> = {};
           for (const key of selectedKeys) {
             switch (key) {
               case "aluno":
@@ -1250,11 +1234,19 @@ export default function EnrollmentsPage() {
           }
           return row;
         });
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Matrículas");
       }
 
-      XLSX.writeFile(wb, `matriculas_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      toast.push("success", "Planilha exportada.");
+      const blob = await buildEnrollmentExcelBlob({
+        vacancyRows,
+        enrollmentRows,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `matriculas_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.push("success", "Planilha exportada com tabelas e gráficos.");
       setExportExcelOpen(false);
     } catch {
       toast.push("error", "Falha ao exportar Excel.");
@@ -1268,18 +1260,8 @@ export default function EnrollmentsPage() {
     if (!canExportReports) return;
     setExportingPdf(true);
     try {
-      const teachersForPdf = teachersToDisplay
-        .map((t) => {
-          const found = dashboard.teachers.find((r) => r.teacher.id === t.id);
-          return found ?? { teacher: t, turmas: [], totalAlunos: 0 };
-        })
-        .sort((a, b) => a.teacher.name.localeCompare(b.teacher.name, "pt-BR"));
       const blob = await buildEnrollmentPdfBlob({
         kpis,
-        pieData,
-        columnData,
-        courses: dashboard.courses,
-        teachersData: teachersForPdf,
         vacancyRows,
         formatDateOnly,
       });
@@ -2031,6 +2013,65 @@ export default function EnrollmentsPage() {
                     </ResponsiveContainer>
                   </div>
                 )}
+                {vacancySectionsByLocation.length > 0 && (
+                  <div className="mb-6 space-y-4">
+                    <h3 className="text-sm font-medium text-[var(--text-secondary)]">
+                      Turmas organizadas por local
+                    </h3>
+                    {vacancySectionsByLocation.map((section) => (
+                      <div
+                        key={section.locationKey}
+                        className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)]/40 p-4"
+                      >
+                        <div className="mb-3">
+                          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                            {section.locationName}
+                          </p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {[
+                              section.poloName ? `Polo: ${section.poloName}` : null,
+                              section.coordinatorName ? `Coordenador: ${section.coordinatorName}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || "Sem polo ou coordenador vinculado"}
+                          </p>
+                          <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                            {section.subtotal.enrolled} matriculados · capacidade {section.subtotal.capacity} ·{" "}
+                            {section.subtotal.available} vagas disponíveis
+                          </p>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-left text-xs">
+                            <thead>
+                              <tr className="text-[var(--text-muted)]">
+                                <th className="px-2 py-1 font-medium">Início</th>
+                                <th className="px-2 py-1 font-medium">Horários</th>
+                                <th className="px-2 py-1 font-medium">Dias</th>
+                                <th className="px-2 py-1 font-medium">Turma</th>
+                                <th className="px-2 py-1 font-medium">Professor</th>
+                                <th className="px-2 py-1 font-medium">Matriculados</th>
+                                <th className="px-2 py-1 font-medium">Formados</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {section.rows.map((row) => (
+                                <tr key={`${section.locationKey}-${row.turmaLabel}-${row.schedule}-${row.startDate}`} className="border-t border-[var(--card-border)]/70 text-[var(--text-secondary)]">
+                                  <td className="px-2 py-1.5">{row.startDate}</td>
+                                  <td className="px-2 py-1.5">{row.schedule}</td>
+                                  <td className="px-2 py-1.5">{row.days}</td>
+                                  <td className="px-2 py-1.5">{row.turmaLabel}</td>
+                                  <td className="px-2 py-1.5">{row.teacher}</td>
+                                  <td className="px-2 py-1.5">{row.enrolled}</td>
+                                  <td className="px-2 py-1.5">{row.graduated}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {courseChartsData.map(
                     ({ courseId, courseName, totalCapacidade, totalAlunos, totalFormados, chartData, turmas }) => (
@@ -2091,11 +2132,12 @@ export default function EnrollmentsPage() {
                             <li className="text-[var(--text-muted)]">Nenhuma turma no momento.</li>
                           ) : (
                             turmas.map(({ classGroup: cg, count, active, cancelled, completed }) => {
-                              const start = formatDateOnly(cg.startDate).slice(0, 5);
-                              const days = Array.isArray(cg.daysOfWeek) ? formatDaysOrderedPt(cg.daysOfWeek) : "";
-                              const teacher = classGroupTeacherLabel(cg);
-                              const local = classGroupLocationLabel(cg);
-                              const label = `Início ${start} — ${cg.startTime}-${cg.endTime}${days ? ` • ${days}` : ""} — ${local} — Prof. ${teacher}`;
+                              const fullCg = vacancyCatalogById.get(cg.id) ?? cg;
+                              const start = formatDateOnly(fullCg.startDate).slice(0, 5);
+                              const days = Array.isArray(fullCg.daysOfWeek) ? formatDaysOrderedPt(fullCg.daysOfWeek) : "";
+                              const teacher = classGroupTeacherLabel(fullCg);
+                              const localMeta = buildVacancyLocationMeta(fullCg);
+                              const label = `Início ${start} — ${fullCg.startTime}-${fullCg.endTime}${days ? ` • ${days}` : ""} — ${localMeta.locationHeader} — Prof. ${teacher}`;
                               const cap = cg.capacity != null ? cg.capacity : 0;
                               const fechada = cap > 0 && count >= cap;
                               return (
@@ -2108,7 +2150,7 @@ export default function EnrollmentsPage() {
                                       {count} / {cap || "—"}
                                     </strong>{" "}
                                     <span className="text-[var(--text-muted)]">
-                                      ({active} ativas | {cancelled} canceladas | {completed} formados)
+                                      ({active} ativas | {cancelled} canceladas | {completed} formados/aptos)
                                     </span>
                                   </span>
                                   <button
@@ -2793,9 +2835,10 @@ export default function EnrollmentsPage() {
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-[var(--text-muted)]">
-            A planilha inclui a aba <strong className="text-[var(--text-primary)]">Vagas por curso e turma</strong>{" "}
-            (início, horários, dias, turma, local, professor, matriculados e formados) e, quando houver alunos no
-            filtro, a aba de matrículas com as colunas abaixo ({filteredItems.length} registros).
+            A planilha sai com <strong className="text-[var(--text-primary)]">tabelas formatadas</strong> (filtros
+            por coluna), abas de vagas por turma/local e uma aba <strong className="text-[var(--text-primary)]">Gráficos</strong>{" "}
+            com indicadores visuais. Quando houver alunos no filtro, também exporta a aba de matrículas com as colunas
+            abaixo ({filteredItems.length} registros).
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2">

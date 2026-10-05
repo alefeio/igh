@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { requireMaster, requireStaffRead } from "@/lib/auth";
+import { requireMaster, requireSessionUser, requireStaffRead } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import {
+  assertCanModifyHoliday,
+  resolveHolidayCreator,
+  serializeHolidayWithCreator,
+} from "@/lib/holiday-access";
 import {
   normalizeHolidayTimeHm,
   updateHolidaySchema,
@@ -21,14 +26,14 @@ export async function GET(
   const holiday = await prisma.holiday.findUnique({ where: { id } });
   if (!holiday) return jsonErr("NOT_FOUND", "Feriado não encontrado.", 404);
 
-  return jsonOk({ holiday });
+  const createdByUserId = await resolveHolidayCreator(id);
+  return jsonOk({ holiday: serializeHolidayWithCreator(holiday, createdByUserId) });
 }
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireMaster();
   const { id } = await context.params;
 
   const body = await request.json().catch(() => null);
@@ -39,6 +44,29 @@ export async function PATCH(
 
   const existing = await prisma.holiday.findUnique({ where: { id } });
   if (!existing) return jsonErr("NOT_FOUND", "Feriado não encontrado.", 404);
+
+  const createdByUserId = await resolveHolidayCreator(id);
+  let user;
+  try {
+    user = await requireSessionUser();
+    await assertCanModifyHoliday(user, existing, createdByUserId);
+  } catch {
+    return jsonErr("FORBIDDEN", "Sem permissão para alterar este registro.", 403);
+  }
+
+  if (user.role === "ADMIN") {
+    const pairErr = validateHolidayEventTimesPair(
+      parsed.data.eventStartTime !== undefined
+        ? parsed.data.eventStartTime?.trim() || null
+        : existing.eventStartTime,
+      parsed.data.eventEndTime !== undefined
+        ? parsed.data.eventEndTime?.trim() || null
+        : existing.eventEndTime
+    );
+    if (pairErr) {
+      return jsonErr("FORBIDDEN", "Administrador pedagógico só pode editar eventos com horário.", 403);
+    }
+  }
 
   const recurring = parsed.data.recurring ?? existing.recurring;
   let dateValue: Date | undefined;
@@ -158,7 +186,10 @@ export async function PATCH(
 
   const scheduleRecalculation = await recalculateAllClassGroupSessionsAfterHolidayChange();
 
-  return jsonOk({ holiday: updated, scheduleRecalculation });
+  return jsonOk({
+    holiday: serializeHolidayWithCreator(updated, createdByUserId ?? user.id),
+    scheduleRecalculation,
+  });
 }
 
 export async function DELETE(
