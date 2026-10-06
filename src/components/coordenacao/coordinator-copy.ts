@@ -28,7 +28,8 @@ export const COORDINATOR_GLOSSARY = {
   frequenciaMedia: "Média de presença nas aulas já realizadas. Sem chamada lançada, não conta como zero.",
   alunosEmRisco: "Alunos que ainda estão na turma e apresentaram sinais de atenção (faltas, baixa frequência, etc.).",
   evasao: "Entre quem já começou a frequentar, quantos saíram do curso.",
-  conclusao: "Entre quem começou a frequentar, quantos concluíram.",
+  conclusao:
+    "Formados: alunos aptos a certificado (presença suficiente ou marcação do professor), não só quem tem status de matrícula concluída.",
 } as const;
 
 /** Substitui jargão técnico por linguagem pedagógica nos rótulos de gráficos. */
@@ -47,8 +48,9 @@ export function plainFunnelLabel(label: string): string {
     "Chegou à metade das aulas": "Chegou à metade das aulas",
     "Chegou a 75% das aulas": "Chegou a 3/4 das aulas",
     "Chegou a 3/4 das aulas": "Chegou a 3/4 das aulas",
-    Concluiu: "Concluiu o curso",
-    "Concluiu o curso": "Concluiu o curso",
+    Concluiu: "Formados (apto a certificado)",
+    "Concluiu o curso": "Formados (apto a certificado)",
+    "Formados (apto a certificado)": "Formados (apto a certificado)",
   };
   return map[label] ?? label;
 }
@@ -64,7 +66,7 @@ export type JourneySlice = { name: string; value: number; fill: string };
 /** Fatias da jornada a partir das contagens do snapshot (para pizza). */
 export function buildJourneySlices(counts: SnapshotCounts): JourneySlice[] {
   return [
-    { name: "Concluíram", value: counts.completed, fill: "#059669" },
+    { name: "Formados", value: counts.completed, fill: "#059669" },
     { name: "Veio à 1ª aula", value: Math.max(0, counts.started - counts.completed - counts.earlyDropout - counts.dropout), fill: "#0284c7" },
     { name: "Não compareceram", value: counts.noShow, fill: "#94a3b8" },
     { name: "Saiu no começo", value: counts.earlyDropout, fill: "#ea580c" },
@@ -117,8 +119,8 @@ export function buildPanelInsight(
   if (counts.completed > 0) {
     bullets.push(
       counts.completed === 1
-        ? "1 aluno já concluiu o curso."
-        : `${counts.completed} alunos já concluíram o curso.`,
+        ? "1 aluno já está formado (apto a certificado)."
+        : `${counts.completed} alunos já estão formados (aptos a certificado).`,
     );
   }
 

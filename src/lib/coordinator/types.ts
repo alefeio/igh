@@ -43,6 +43,8 @@ export type EnrollmentSignalInput = {
   status: string;
   isPreEnrollment: boolean;
   confirmed: boolean;
+  /** Apto a certificado (presença ≥70% ou marcação do professor). */
+  certificateEligible?: boolean | null;
   /** Aulas já realizadas da turma (não canceladas, até hoje). */
   heldSessions: number;
   presentCount: number;

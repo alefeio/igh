@@ -405,8 +405,8 @@ export function CoordenacaoPainel({
             tone={toneForRiskCount(payload.counts.atRisk)}
           />
           <PedagogicalMetricCard
-            label="Quem concluiu / saiu"
-            value={`${payload.counts.completed} concl. · ${payload.counts.earlyDropout + payload.counts.dropout} saíram`}
+            label="Quem formou / saiu"
+            value={`${payload.counts.completed} form. · ${payload.counts.earlyDropout + payload.counts.dropout} saíram`}
             meaning={`${COORDINATOR_GLOSSARY.conclusao} ${COORDINATOR_GLOSSARY.evasao}`}
             tone={toneForDropout(payload.definitions.dropoutRate.available ? payload.definitions.dropoutRate.value : null)}
           />
@@ -416,7 +416,7 @@ export function CoordenacaoPainel({
       {payload && (view === "painel" || view === "evasao") && (
         <SectionCard
           title="Jornada dos alunos"
-          description="De quem entrou até quem concluiu ou saiu — sem jargão de coorte."
+          description="De quem entrou até quem se formou (apto a certificado) ou saiu."
           variant="elevated"
         >
           <div className="grid gap-6 lg:grid-cols-2">
@@ -483,7 +483,8 @@ export function CoordenacaoPainel({
           </div>
           <p className="mt-3 text-sm text-[var(--text-secondary)]">
             Não compareceram: {payload.counts.noShow}. Saiu no começo do curso: {payload.counts.earlyDropout}. Saiu
-            depois de começar a frequentar: {payload.counts.dropout}. Concluíram: {payload.counts.completed}.
+            depois de começar a frequentar: {payload.counts.dropout}. Formados (apto a certificado):{" "}
+            {payload.counts.completed}.
           </p>
           {!payload.reasonsAvailable ? (
             <p className="mt-2 text-sm text-[var(--text-muted)]">Motivos de saída ainda não registrados neste recorte.</p>
@@ -604,7 +605,7 @@ export function CoordenacaoPainel({
                 tone={toneForDropout(payload.definitions.dropoutRate.available ? payload.definitions.dropoutRate.value : null)}
               />
               <PedagogicalMetricCard
-                label="Conclusão"
+                label="Formados"
                 value={showValue(payload.definitions.completionRate)}
                 meaning={COORDINATOR_GLOSSARY.conclusao}
               />
@@ -627,7 +628,7 @@ export function CoordenacaoPainel({
                   <th className="px-2 py-2">Frequência</th>
                   <th className="px-2 py-2">Risco</th>
                   <th className="px-2 py-2">Evasão</th>
-                  <th className="px-2 py-2">Conclusão</th>
+                  <th className="px-2 py-2">Formados</th>
                 </tr>
               </thead>
               <tbody>
@@ -729,7 +730,7 @@ export function CoordenacaoPainel({
                 {row.label}: {row.enrollments} matrículas, vagas preenchidas{" "}
                 {row.occupation == null ? "sem dado" : `${row.occupation}%`}, iniciaram {row.started}, frequência{" "}
                 {row.attendance == null ? "sem dado" : `${row.attendance}%`}, evasão{" "}
-                {row.dropout == null ? "sem dado" : `${row.dropout}%`}, conclusão{" "}
+                {row.dropout == null ? "sem dado" : `${row.dropout}%`}, formados{" "}
                 {row.completion == null ? "sem dado" : `${row.completion}%`}, progresso{" "}
                 {row.progress == null ? "sem dado" : `${row.progress}%`}.
               </li>

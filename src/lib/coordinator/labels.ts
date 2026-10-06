@@ -31,4 +31,5 @@ export const COORDINATOR_PLAIN_LABEL = {
   dropoutAfterAttendance: "Saiu depois de começar a frequentar",
   confirmedInCohort: "Matrícula confirmada",
   percentagePoints: "pontos percentuais",
+  completed: "Formados (apto a certificado)",
 } as const;
