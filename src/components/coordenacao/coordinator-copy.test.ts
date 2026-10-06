@@ -28,7 +28,7 @@ describe("coordinator-copy", () => {
       completed: 2,
     });
     expect(slices.every((slice) => slice.value > 0)).toBe(true);
-    expect(slices.some((slice) => slice.name === "Não compareceram")).toBe(true);
+    expect(slices.some((slice) => slice.name === "Formados")).toBe(true);
     expect(slices.some((slice) => slice.name === "Saiu no começo")).toBe(true);
   });
 

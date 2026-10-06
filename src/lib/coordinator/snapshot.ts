@@ -8,6 +8,7 @@ import { COORDINATOR_THRESHOLDS } from "@/lib/coordinator/thresholds";
 import type { DepartureReasonCode, EnrollmentSignalInput } from "@/lib/coordinator/types";
 import { listCycles, resolveCycle } from "@/lib/coordenacao-access";
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
+import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { prisma } from "@/lib/prisma";
 
 function weekStart(date: Date): string {
@@ -96,6 +97,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
         status: true,
         isPreEnrollment: true,
         enrollmentConfirmedAt: true,
+        certificateEligible: true,
         studentId: true,
         classGroupId: true,
         student: { select: { id: true, name: true, userId: true } },
@@ -113,6 +115,15 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
   ]);
 
   const enrollmentIds = enrollments.map((row) => row.id);
+  if (enrollmentIds.length > 0) {
+    const { enabledIds } = await syncCertificateEligibleFromAttendance(enrollmentIds);
+    if (enabledIds.length > 0) {
+      const enabled = new Set(enabledIds);
+      for (const enrollment of enrollments) {
+        if (enabled.has(enrollment.id)) enrollment.certificateEligible = true;
+      }
+    }
+  }
   const sessionIds = sessions.map((session) => session.id);
   const userIds = [...new Set(enrollments.map((row) => row.student.userId).filter((id): id is string => !!id))];
 
@@ -225,6 +236,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
       status: enrollment.status,
       isPreEnrollment: enrollment.isPreEnrollment,
       confirmed: enrollment.enrollmentConfirmedAt != null || !enrollment.isPreEnrollment,
+      certificateEligible: enrollment.certificateEligible,
       heldSessions: held.length,
       presentCount,
       consecutiveAbsences,

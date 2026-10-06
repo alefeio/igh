@@ -51,6 +51,17 @@ describe("coordenação pedagógica", () => {
     expect(report.indicators.completionRate.value).toBe(25);
   });
 
+  it("conta formados por aptidão a certificado, não só status COMPLETED", () => {
+    const report = buildIndicators([
+      row({ id: "apto", status: "ACTIVE", presentCount: 8, certificateEligible: true }),
+      row({ id: "nao", status: "ACTIVE", presentCount: 7, certificateEligible: false }),
+      row({ id: "concluido", status: "COMPLETED", presentCount: 8, certificateEligible: false }),
+    ]);
+    expect(report.counts.completed).toBe(2);
+    expect(report.indicators.completionRate.value).toBe(67);
+    expect(report.funnel.find((step) => step.key === "completed")?.label).toMatch(/Formados/);
+  });
+
   it("não conta cancelamento administrativo nem transferência como evasão", () => {
     const admin = classifyEnrollment(row({ id: "adm", status: "CANCELLED", recordedReason: "ADMINISTRATIVE", presentCount: 4 }));
     const moved = classifyEnrollment(row({ id: "tr", status: "CANCELLED", recordedReason: "TRANSFER", presentCount: 4 }));

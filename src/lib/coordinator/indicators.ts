@@ -7,6 +7,7 @@ import type {
   RetentionPoint,
   RiskStudent,
 } from "@/lib/coordinator/types";
+import { enrollmentCountsAsFormado } from "@/lib/enrollment-graduation";
 
 function rate(numerator: number, denominator: number, definition: string): Indicator {
   if (denominator <= 0) return { value: null, available: false, definition };
@@ -24,7 +25,12 @@ export function buildIndicators(rows: EnrollmentSignalInput[]) {
   const noShow = academic.filter((row) => row.kind === "NO_SHOW").length;
   const early = academic.filter((row) => row.kind === "EARLY_DROPOUT").length;
   const dropout = academic.filter((row) => row.kind === "DROPOUT").length;
-  const completed = academic.filter((row) => row.kind === "COMPLETED").length;
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  /** Formados = apto a certificado (ou status COMPLETED), não só matrícula concluída. */
+  const completed = academic.filter((row) => {
+    const source = rowById.get(row.id);
+    return source ? enrollmentCountsAsFormado(source) : false;
+  }).length;
   const confirmed = academic.length;
 
   const attendanceRate: Indicator =
@@ -60,7 +66,7 @@ export function buildIndicators(rows: EnrollmentSignalInput[]) {
     { key: "quarter", label: "Chegou a 1/4 das aulas", count: reached(25) },
     { key: "half", label: "Chegou à metade das aulas", count: reached(50) },
     { key: "threeQuarters", label: "Chegou a 3/4 das aulas", count: reached(75) },
-    { key: "completed", label: "Concluiu o curso", count: completed },
+    { key: "completed", label: "Formados (apto a certificado)", count: completed },
   ];
 
   const risk: RiskStudent[] = classified
@@ -95,7 +101,11 @@ export function buildIndicators(rows: EnrollmentSignalInput[]) {
       attendanceRate,
       startedRate: rate(startedRows.length, confirmed, "Quem compareceu ao menos uma vez, entre as matrículas confirmadas."),
       retentionRate: rate(startedRows.length - early - dropout, startedRows.length, "Quem começou e não saiu no começo nem depois de frequentar, entre os que compareceram."),
-      completionRate: rate(completed, startedRows.length, "Matrículas concluídas divididas por quem compareceu ao menos uma vez. Pré-matrícula sem confirmação não entra."),
+      completionRate: rate(
+        completed,
+        startedRows.length,
+        "Formados (aptos a certificado ou matrícula concluída) entre quem compareceu ao menos uma vez. Não depende só do status COMPLETED.",
+      ),
       dropoutRate: rate(early + dropout, startedRows.length, "Saiu no começo ou depois de frequentar, entre quem já tinha começado. Cancelamento sem aula realizada não entra."),
       noShowRate: rate(noShow, confirmed, "Confirmou e não compareceu a nenhuma aula já realizada, entre as matrículas confirmadas."),
     },
