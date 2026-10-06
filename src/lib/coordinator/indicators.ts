@@ -44,23 +44,23 @@ export function buildIndicators(rows: EnrollmentSignalInput[]) {
     startedRows.filter((row) => (row.attendancePercent ?? 0) >= mark).length;
 
   const retention: RetentionPoint[] = [
-    { mark: 0, label: "Início", count: startedRows.length },
+    { mark: 0, label: "No início (já frequentaram)", count: startedRows.length },
     ...COORDINATOR_THRESHOLDS.retentionMarks.map((mark) => ({
       mark,
-      label: mark === 100 ? "Conclusão da frequência" : `${mark}%`,
+      label: mark === 100 ? "Conclusão" : `${mark}%`,
       count: mark === 100 ? completed : reached(mark),
     })),
   ];
 
   const funnel: FunnelStep[] = [
     { key: "pre", label: "Pré-matrícula", count: rows.filter((row) => row.isPreEnrollment).length },
-    { key: "confirmed", label: "Confirmada na coorte", count: confirmed },
-    { key: "started", label: "Compareceu à primeira aula", count: startedRows.length },
-    { key: "active", label: "Ainda na turma", count: occupying.length },
-    { key: "quarter", label: "Chegou a 25% das aulas", count: reached(25) },
-    { key: "half", label: "Chegou a 50% das aulas", count: reached(50) },
-    { key: "threeQuarters", label: "Chegou a 75% das aulas", count: reached(75) },
-    { key: "completed", label: "Concluiu", count: completed },
+    { key: "confirmed", label: "Matrícula confirmada", count: confirmed },
+    { key: "started", label: "Veio à primeira aula", count: startedRows.length },
+    { key: "active", label: "Continua na turma", count: occupying.length },
+    { key: "quarter", label: "Chegou a 1/4 das aulas", count: reached(25) },
+    { key: "half", label: "Chegou à metade das aulas", count: reached(50) },
+    { key: "threeQuarters", label: "Chegou a 3/4 das aulas", count: reached(75) },
+    { key: "completed", label: "Concluiu o curso", count: completed },
   ];
 
   const risk: RiskStudent[] = classified
@@ -93,11 +93,11 @@ export function buildIndicators(rows: EnrollmentSignalInput[]) {
     },
     indicators: {
       attendanceRate,
-      startedRate: rate(startedRows.length, confirmed, "Quem compareceu ao menos uma vez, entre as matrículas confirmadas da coorte."),
-      retentionRate: rate(startedRows.length - early - dropout, startedRows.length, "Quem começou e não saiu por abandono precoce nem por evasão, entre os que compareceram."),
+      startedRate: rate(startedRows.length, confirmed, "Quem compareceu ao menos uma vez, entre as matrículas confirmadas."),
+      retentionRate: rate(startedRows.length - early - dropout, startedRows.length, "Quem começou e não saiu no começo nem depois de frequentar, entre os que compareceram."),
       completionRate: rate(completed, startedRows.length, "Matrículas concluídas divididas por quem compareceu ao menos uma vez. Pré-matrícula sem confirmação não entra."),
-      dropoutRate: rate(early + dropout, startedRows.length, "Abandono precoce mais evasão, entre quem começou a frequentar. Cancelamento sem aula realizada não entra."),
-      noShowRate: rate(noShow, confirmed, "Confirmou e não compareceu a nenhuma aula já realizada, entre as confirmadas da coorte."),
+      dropoutRate: rate(early + dropout, startedRows.length, "Saiu no começo ou depois de frequentar, entre quem já tinha começado. Cancelamento sem aula realizada não entra."),
+      noShowRate: rate(noShow, confirmed, "Confirmou e não compareceu a nenhuma aula já realizada, entre as matrículas confirmadas."),
     },
     funnel,
     retention,

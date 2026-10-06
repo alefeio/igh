@@ -110,7 +110,7 @@ describe("coordenação pedagógica", () => {
       row({ id: "d", status: "COMPLETED", heldSessions: 8, presentCount: 8 }),
       row({ id: "pre", status: "ACTIVE", isPreEnrollment: true, confirmed: false, presentCount: 0 }),
     ]);
-    expect(report.retention[0]).toMatchObject({ label: "Início", count: 4 });
+    expect(report.retention[0]).toMatchObject({ label: "No início (já frequentaram)", count: 4 });
     expect(report.retention.find((point) => point.mark === 25)?.count).toBe(4);
     expect(report.retention.find((point) => point.mark === 50)?.count).toBe(3);
     expect(report.retention.find((point) => point.mark === 75)?.count).toBe(2);
