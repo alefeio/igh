@@ -23,3 +23,12 @@ export const RISK_LEVEL_LABEL = {
   WARNING: "Atenção",
   ATTENTION: "Acompanhar",
 } as const;
+
+/** Termos pedagógicos preferidos na UI da coordenação. */
+export const COORDINATOR_PLAIN_LABEL = {
+  occupation: "Vagas preenchidas",
+  earlyDropout: "Saiu no começo do curso",
+  dropoutAfterAttendance: "Saiu depois de começar a frequentar",
+  confirmedInCohort: "Matrícula confirmada",
+  percentagePoints: "pontos percentuais",
+} as const;

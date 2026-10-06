@@ -7,6 +7,8 @@ import {
   CartesianGrid,
   Cell,
   Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -15,6 +17,9 @@ import {
   YAxis,
 } from "recharts";
 
+import { ChartEmptyState } from "@/components/coordenacao/ChartEmptyState";
+import { COORDINATOR_GLOSSARY } from "@/components/coordenacao/coordinator-copy";
+import { PedagogicalMetricCard } from "@/components/coordenacao/PedagogicalMetricCard";
 import { useCoordinatorFilters } from "@/components/coordenacao/useCoordinatorFilters";
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import type { ApiResponse } from "@/lib/api-types";
@@ -49,11 +54,20 @@ type DashboardPayload = {
   } | null;
   pieByCourse: Point[];
   byDay: Point[];
+  attendancePie: Point[];
+  timeline: { name: string; novas: number; acumulado: number }[];
+  placeColumns: Point[];
   courses: CourseCard[];
   teachers: TeacherCard[];
 };
 
-const COLORS = ["#0066b3", "#1a365d", "#e87500", "#0d9488", "#7c3aed", "#dc2626", "#65a30d", "#ca8a04"];
+const COLORS = ["#0066b3", "#1a365d", "#e87500", "#0d9488", "#65a30d", "#ca8a04", "#64748b", "#dc2626"];
+const ATTENDANCE_COLORS: Record<string, string> = {
+  "Abaixo de 50%": "#dc2626",
+  "50% a 69%": "#ea580c",
+  "70% ou mais": "#059669",
+  "Sem aula lançada": "#94a3b8",
+};
 
 function Tip({
   active,
@@ -73,16 +87,6 @@ function Tip({
           {item.name}: {item.value ?? 0}
         </p>
       ))}
-    </div>
-  );
-}
-
-function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-3">
-      <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{value}</p>
-      <p className="mt-1 text-xs text-[var(--text-muted)]">{hint}</p>
     </div>
   );
 }
@@ -128,13 +132,18 @@ export function CoordenacaoDashboard() {
   const kpis = data?.kpis;
   const courses = data?.courses ?? [];
   const teachers = data?.teachers ?? [];
+  const pieByCourse = data?.pieByCourse ?? [];
+  const byDay = data?.byDay ?? [];
+  const attendancePie = data?.attendancePie ?? [];
+  const timeline = data?.timeline ?? [];
+  const placeColumns = data?.placeColumns ?? [];
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <DashboardHero
         eyebrow="Coordenação"
         title="Matrículas do ciclo"
-        description="Compare cursos, turmas e professores pelas vagas e pelas matrículas, no mesmo recorte de Matrículas."
+        description="Compare cursos, turmas e professores pelas vagas e pelas matrículas — com linguagem simples."
       />
       <div className="flex flex-col gap-3">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -199,16 +208,17 @@ export function CoordenacaoDashboard() {
             </select>
           </label>
           <label className="text-sm text-[var(--text-secondary)]">
-            Vínculo
+            Tipo de turma
             <select
               className="mt-1 h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2"
               value={filters.scope ?? "all"}
               onChange={(event) => update({ scope: event.target.value as "all" | "internal" | "external" })}
             >
-              <option value="all">Internas e externas</option>
-              <option value="internal">Internas</option>
-              <option value="external">Externas</option>
+              <option value="all">Todas</option>
+              <option value="internal">Da IGH</option>
+              <option value="external">Parceiras (externas)</option>
             </select>
+            <span className="mt-1 block text-xs text-[var(--text-muted)]">{COORDINATOR_GLOSSARY.tipoTurma}</span>
           </label>
         </div>
         <div>
@@ -228,42 +238,136 @@ export function CoordenacaoDashboard() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi label="Total" value={String(kpis.total)} hint="Matrículas do ciclo" />
-            <Kpi label="Ativas" value={String(kpis.active)} hint="Ainda na turma" />
-            <Kpi label="Pré-matrículas" value={String(kpis.preEnrollment)} hint="Aguardando confirmação" />
-            <Kpi label="Confirmadas" value={String(kpis.confirmed)} hint={`${kpis.occupancyPercent}% das vagas preenchidas`} />
+            <PedagogicalMetricCard
+              label="Total de matrículas"
+              value={String(kpis.total)}
+              meaning="Todas as matrículas do ciclo neste recorte."
+            />
+            <PedagogicalMetricCard
+              label="Ativas"
+              value={String(kpis.active)}
+              meaning="Ativas = alunos estudando agora (ainda ocupam vaga na turma)."
+              tone="ok"
+            />
+            <PedagogicalMetricCard
+              label="Pré-matrículas"
+              value={String(kpis.preEnrollment)}
+              meaning="Aguardando confirmação — ainda não entram como turma plena."
+              tone={kpis.preEnrollment > 0 ? "warning" : "neutral"}
+            />
+            <PedagogicalMetricCard
+              label="Vagas preenchidas"
+              value={`${kpis.occupancyPercent}%`}
+              meaning={`${kpis.confirmed} confirmadas. ${COORDINATOR_GLOSSARY.vagasPreenchidas}`}
+            />
           </div>
+
+          <SectionCard
+            title="Como está a frequência dos alunos"
+            description="Faixas de presença entre quem ocupa vaga agora. Vermelho só quando a frequência está baixa."
+            variant="elevated"
+          >
+            <div className="h-72">
+              {attendancePie.length === 0 ? (
+                <ChartEmptyState description="Quando houver alunos com frequência lançada, a pizza aparece aqui." />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={attendancePie} dataKey="value" nameKey="name" innerRadius={48} outerRadius={90}>
+                      {attendancePie.map((item) => (
+                        <Cell key={item.name} fill={ATTENDANCE_COLORS[item.name] ?? "#64748b"} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<Tip />} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </SectionCard>
 
           <SectionCard title="Comparação visual" description="Distribuição por curso e por dia de matrícula." variant="elevated">
             <div className="grid gap-6 lg:grid-cols-2">
               <div>
                 <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">Matrículas por curso</h3>
                 <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={data?.pieByCourse ?? []} dataKey="value" nameKey="name" innerRadius={48} outerRadius={90}>
-                        {(data?.pieByCourse ?? []).map((item, index) => (
-                          <Cell key={item.name} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<Tip />} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {pieByCourse.length === 0 ? (
+                    <ChartEmptyState />
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={pieByCourse} dataKey="value" nameKey="name" innerRadius={48} outerRadius={90}>
+                          {pieByCourse.map((item, index) => (
+                            <Cell key={item.name} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<Tip />} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
               <div>
                 <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">Matrículas por dia</h3>
                 <div className="h-72">
+                  {byDay.length === 0 ? (
+                    <ChartEmptyState />
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={byDay}>
+                        <CartesianGrid stroke="var(--card-border)" />
+                        <XAxis dataKey="name" interval={0} angle={-40} textAnchor="end" height={70} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                        <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
+                        <Tooltip content={<Tip />} />
+                        <Bar dataKey="value" name="Matrículas" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Entrada de matrículas ao longo do tempo"
+            description="Novas matrículas por mês e o acumulado do ciclo."
+            variant="elevated"
+          >
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="h-72">
+                {timeline.length === 0 ? (
+                  <ChartEmptyState description="Ainda não há datas de matrícula para montar a linha do tempo." />
+                ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data?.byDay ?? []}>
+                    <LineChart data={timeline}>
                       <CartesianGrid stroke="var(--card-border)" />
-                      <XAxis dataKey="name" interval={0} angle={-40} textAnchor="end" height={70} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                      <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
                       <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
-                      <Tooltip content={<Tip />} />
-                      <Bar dataKey="value" name="Matrículas" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} />
-                    </BarChart>
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="novas" name="Novas no mês" stroke="#0284c7" strokeWidth={2} />
+                      <Line type="monotone" dataKey="acumulado" name="Acumulado" stroke="#0f766e" strokeWidth={2} />
+                    </LineChart>
                   </ResponsiveContainer>
+                )}
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">Onde os alunos estudam</h3>
+                <div className="h-72">
+                  {placeColumns.length === 0 ? (
+                    <ChartEmptyState description="Quando houver local cadastrado nas turmas, o gráfico aparece aqui." />
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={placeColumns} layout="vertical" margin={{ left: 24 }}>
+                        <CartesianGrid stroke="var(--card-border)" />
+                        <XAxis type="number" allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
+                        <YAxis type="category" dataKey="name" width={100} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                        <Tooltip content={<Tip />} />
+                        <Bar dataKey="value" name="Alunos" fill="#64748b" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
             </div>
@@ -271,42 +375,54 @@ export function CoordenacaoDashboard() {
 
           <SectionCard
             title="Vagas por curso e turma"
-            description="Azul é a capacidade. Vermelho é o que já está preenchido. Abaixo, cada turma do curso."
+            description="Cinza é a capacidade (total de vagas). Azul é o preenchido. Vermelho só quando a turma está lotada."
             variant="elevated"
           >
             {courses.length === 0 ? (
               <p className="text-sm text-[var(--text-muted)]">Nenhuma turma neste ciclo.</p>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {courses.map((course) => (
-                  <div key={course.courseName} className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
-                    <h3 className="text-sm font-medium text-[var(--text-primary)]">{course.courseName}</h3>
-                    <p className="mb-2 text-xs text-[var(--text-muted)]">
-                      {course.alunos} de {course.capacidade} vagas preenchidas
-                    </p>
-                    <div className="h-40">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={[{ name: course.courseName, capacidade: course.capacidade, alunos: course.alunos }]}>
-                          <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                          <Tooltip content={<Tip />} />
-                          <Legend />
-                          <Bar dataKey="capacidade" name="Total de vagas" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="alunos" name="Vagas preenchidas" fill="#dc2626" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                {courses.map((course) => {
+                  const lotada = course.capacidade > 0 && course.alunos >= course.capacidade;
+                  return (
+                    <div key={course.courseName} className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4">
+                      <h3 className="text-sm font-medium text-[var(--text-primary)]">{course.courseName}</h3>
+                      <p className="mb-2 text-xs text-[var(--text-muted)]">
+                        {course.alunos} de {course.capacidade} vagas preenchidas
+                        {lotada ? " · turma lotada" : ""}
+                      </p>
+                      <div className="h-40">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={[{ name: course.courseName, capacidade: course.capacidade, alunos: course.alunos }]}>
+                            <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                            <Tooltip content={<Tip />} />
+                            <Legend />
+                            <Bar dataKey="capacidade" name="Total de vagas" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                            <Bar
+                              dataKey="alunos"
+                              name="Vagas preenchidas"
+                              fill={lotada ? "#dc2626" : "#2563eb"}
+                              radius={[4, 4, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <ul className="mt-3 space-y-1 border-t border-[var(--card-border)] pt-3 text-sm text-[var(--text-secondary)]">
+                        {course.turmas.map((turma) => {
+                          const full = turma.capacidade > 0 && turma.alunos >= turma.capacidade;
+                          return (
+                            <li key={turma.id} className="flex justify-between gap-3">
+                              <span>{turma.label}</span>
+                              <strong className={full ? "text-red-600" : "text-[var(--text-primary)]"}>
+                                {turma.alunos}/{turma.capacidade || "—"}
+                              </strong>
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </div>
-                    <ul className="mt-3 space-y-1 border-t border-[var(--card-border)] pt-3 text-sm text-[var(--text-secondary)]">
-                      {course.turmas.map((turma) => (
-                        <li key={turma.id} className="flex justify-between gap-3">
-                          <span>{turma.label}</span>
-                          <strong className={turma.capacidade > 0 && turma.alunos >= turma.capacidade ? "text-red-600" : "text-green-600"}>
-                            {turma.alunos}/{turma.capacidade || "—"}
-                          </strong>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             <p className="mt-4 border-t border-[var(--card-border)] pt-3 text-sm font-medium text-[var(--text-primary)]">
@@ -319,15 +435,19 @@ export function CoordenacaoDashboard() {
 
           <SectionCard title="Por professor" description="Alunos que ocupam vaga, e as turmas de cada professor." variant="elevated">
             <div className="mb-6 h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={teachers.map((teacher) => ({ name: teacher.teacherName, value: teacher.alunos }))}>
-                  <CartesianGrid stroke="var(--card-border)" />
-                  <XAxis dataKey="name" interval={0} angle={-30} textAnchor="end" height={70} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
-                  <Tooltip content={<Tip />} />
-                  <Bar dataKey="value" name="Alunos" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {teachers.length === 0 ? (
+                <ChartEmptyState />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={teachers.map((teacher) => ({ name: teacher.teacherName, value: teacher.alunos }))}>
+                    <CartesianGrid stroke="var(--card-border)" />
+                    <XAxis dataKey="name" interval={0} angle={-30} textAnchor="end" height={70} tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
+                    <Tooltip content={<Tip />} />
+                    <Bar dataKey="value" name="Alunos" fill="var(--igh-primary)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               {teachers.map((teacher) => (
