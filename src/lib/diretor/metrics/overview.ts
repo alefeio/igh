@@ -21,8 +21,7 @@ import type {
 } from "@/lib/diretor/facts/types";
 import type { ScopeResolution } from "@/lib/diretor/load-scope";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
-import { presenceDependentQuality, SOCIAL_PRESENCE_PARTIAL_NOTE } from "@/lib/diretor/metrics/attendance-formulas";
-import { executivePresenceCount } from "@/lib/diretor/metrics/enrollment-formulas";
+import { SOCIAL_PRESENCE_PARTIAL_NOTE } from "@/lib/diretor/metrics/attendance-formulas";
 import { formatPtPercent } from "@/lib/diretor/reports/pdf-bars";
 import { domainLabel } from "@/lib/diretor/ui-labels";
 import { formatCentsBRL } from "@/lib/employees";
@@ -98,70 +97,8 @@ export async function loadOverviewSummaries(opts: {
     if (!qualityNotes.includes(SOCIAL_PRESENCE_PARTIAL_NOTE)) qualityNotes.push(SOCIAL_PRESENCE_PARTIAL_NOTE);
   }
 
-  if (acad) {
-    const pq = presenceDependentQuality(acad.attendanceReliable);
-    const servedExec = executivePresenceCount(acad.servedUnique, acad.attendanceReliable);
-    kpis.push(
-      metricCard("acad.enroll.cycle", acad.enrollmentsInCycle, {
-        quality: "ok",
-        href: "/diretor/academico",
-      }),
-      metricCard("acad.enroll.occupying", acad.occupyingSeats, {
-        quality: "ok",
-        href: "/diretor/academico",
-      }),
-      metricCard("acad.suspension.count", acad.suspensions, {
-        quality: "ok",
-        href: "/diretor/academico",
-      }),
-    );
-    if (acad.attendanceReliable && acad.nearSuspension > 0) {
-      kpis.push(
-        metricCard("acad.absence.near_suspension", acad.nearSuspension, {
-          quality: "ok",
-          href: "/diretor/academico",
-        }),
-      );
-    }
-    if (acad.attendanceReliable && acad.streakThree > 0) {
-      kpis.push(
-        metricCard("acad.absence.streak_three", acad.streakThree, {
-          quality: "ok",
-          href: "/diretor/academico",
-        }),
-      );
-    }
-    const servedLabel =
-      servedExec.value == null
-        ? null
-        : acad.attendanceReliable
-          ? acad.servedUnique
-          : `${acad.servedUnique.toLocaleString("pt-BR")} alunos com presença registrada`;
-    kpis.push(
-      metricCard("ben.served_unique", servedExec.value, {
-        quality: servedExec.quality,
-        unavailableReason: servedExec.unavailableReason,
-        href: "/diretor/academico",
-        formattedValue: typeof servedLabel === "string" ? servedLabel : undefined,
-        currentValue: servedExec.value,
-        explanation:
-          servedExec.value == null
-            ? servedExec.unavailableReason ?? undefined
-            : acad.attendanceReliable
-              ? "Pessoas distintas com pelo menos uma presença em aula no recorte."
-              : `Ao menos ${acad.servedUnique.toLocaleString("pt-BR")} alunos atendidos nos registros disponíveis. Não é alcance institucional definitivo.`,
-      }),
-    );
-    if (acad.completionStartedRate != null) {
-      kpis.push(
-        metricCard("acad.completion.started_rate", acad.completionStartedRate, {
-          quality: pq,
-          href: "/diretor/academico",
-          percentage: acad.completionStartedRate,
-        }),
-      );
-    }
-  }
+  // KPIs acadêmicos (matrículas, frequência, formados) ficam só na Coordenação.
+  // Fatos acadêmicos ainda alimentam alertas/prioridades (com link para /coordenacao/*).
   if (offer?.occupancyPercent != null) {
     kpis.push(
       metricCard("offer.occupancy.current", offer.occupancyPercent, {

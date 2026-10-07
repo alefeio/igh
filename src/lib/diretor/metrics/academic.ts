@@ -33,6 +33,7 @@ import { occupancyPercent as occupancyPct } from "@/lib/diretor/metrics/offer-fo
 import { buildDirectorHref } from "@/lib/diretor/search-params";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
 import type { ScopeResolution } from "@/lib/diretor/load-scope";
+import { enrollmentCountsAsFormado } from "@/lib/enrollment-graduation";
 import { prisma } from "@/lib/prisma";
 
 function pctOrNull(num: number, den: number): number | null {
@@ -143,6 +144,7 @@ async function loadAcademicUncached(
           classGroupId: true,
           status: true,
           enrolledAt: true,
+          certificateEligible: true,
         },
       })
     : [];
@@ -236,7 +238,7 @@ async function loadAcademicUncached(
       startedCount += 1;
       if (closedCgIds.has(e.classGroupId)) {
         startedInClosed += 1;
-        if (e.status === "COMPLETED") completedStartedInClosed += 1;
+        if (enrollmentCountsAsFormado(e)) completedStartedInClosed += 1;
       }
       if (e.status === "CANCELLED") cancelAfterStart += 1;
     }
@@ -298,7 +300,7 @@ async function loadAcademicUncached(
     occupancyPercent: occupancyPct(c.occupied, c.capacity),
   }));
 
-  const hrefAcad = buildDirectorHref("/diretor/academico", filterQs);
+  const hrefAcad = buildDirectorHref("/coordenacao/painel", filterQs);
 
   const pq = presenceDependentQuality(attendanceReliable);
   const completenessNote =

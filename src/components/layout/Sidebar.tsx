@@ -156,12 +156,6 @@ const ITEMS: Item[] = [
     category: "Direção",
   },
   {
-    href: "/diretor/academico",
-    label: "Acadêmico",
-    roles: DIRECTOR_AREA,
-    category: "Direção",
-  },
-  {
     href: "/diretor/oferta-territorios",
     label: "Oferta e Territórios",
     roles: DIRECTOR_AREA,

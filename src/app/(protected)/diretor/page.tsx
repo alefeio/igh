@@ -68,7 +68,7 @@ function OverviewInner() {
       <DashboardHero
         eyebrow="Diretoria — Visão Geral"
         title="Como está a instituição agora?"
-        description="Indicadores e alertas do recorte escolhido. Ciclo acadêmico e competência financeira são filtros independentes."
+        description="Visão executiva (oferta, impacto, financeiro e operações). Frequência, risco, formados e turmas estão no menu Coordenação."
         rightSlot={
           <div className="flex flex-col items-end gap-2">
             <DirectorScopeControls cycles={data?.cycles ?? []} loading={loading} onRefresh={() => void load()} />

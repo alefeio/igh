@@ -27,6 +27,7 @@ import {
 import { resolveDirectorScope } from "@/lib/diretor/load-scope";
 import { resolvePeriod, yearBounds, yearToDateIso, toIsoDateUtc } from "@/lib/diretor/period";
 import type { DerivedAlertDto, MetricValueDto, ResponseMetaDto } from "@/lib/diretor/schemas/common";
+import { enrollmentCountsAsFormado } from "@/lib/enrollment-graduation";
 import { prisma } from "@/lib/prisma";
 
 export type SocialFilters = { from?: string; to?: string; cycleId?: string; poloId?: string; courseId?: string };
@@ -108,6 +109,7 @@ async function loadSocialUncached(
           status: true,
           enrolledAt: true,
           enrollmentConfirmedAt: true,
+          certificateEligible: true,
           certificateIssuedAt: true,
         },
       })
@@ -192,7 +194,7 @@ async function loadSocialUncached(
       set.add(e.studentId);
       terrServed.set(name, set);
     }
-    if (e.status === "COMPLETED" && hasStarted(entry, sessions, attMap, asOf)) completers.add(e.studentId);
+    if (enrollmentCountsAsFormado(e) && hasStarted(entry, sessions, attMap, asOf)) completers.add(e.studentId);
   }
 
   const previouslyServed = new Set<string>();

@@ -54,7 +54,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       period: pack.academic.periodLabel,
       impact: "Próxima falta consecutiva sem justificativa leva à suspensão.",
       suggestedDecision: "Orientar a coordenação a realizar contato preventivo.",
-      href: "/diretor/academico",
+      href: "/coordenacao/risco",
       source: "frequência nas aulas",
       status: "Acompanhamento operacional ainda não registrado.",
     });
@@ -73,7 +73,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       period: pack.academic.periodLabel,
       impact: "Estoque atual. Não afirma que a suspensão tenha sido causada por três faltas.",
       suggestedDecision: "Priorizar o acompanhamento operacional das matrículas suspensas antes da próxima aula.",
-      href: "/diretor/academico",
+      href: "/coordenacao/risco",
       source: "cadastro de matrículas",
       status: "Acompanhamento operacional ainda não registrado.",
     });
@@ -93,7 +93,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       impact: "Evidência de frequência, independente do status cadastral.",
       suggestedDecision:
         "Priorizar o acompanhamento antes da próxima aula, pois uma nova falta poderá cancelar a matrícula.",
-      href: "/diretor/academico",
+      href: "/coordenacao/risco",
       source: "frequência nas aulas",
       status: "Acompanhamento operacional ainda não registrado.",
     });
@@ -112,7 +112,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       period: pack.academic.periodLabel,
       impact: "Inconsistência de processamento ou de qualidade dos dados.",
       suggestedDecision: "Pedir à coordenação a conferência do processamento automático de frequência.",
-      href: "/diretor/academico",
+      href: "/coordenacao/risco",
       source: "frequência e status da matrícula",
       status: "Acompanhamento operacional ainda não registrado.",
     });
@@ -131,7 +131,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       period: pack.academic.periodLabel,
       impact: "Estoque no recorte de turmas, não um fluxo datado do período.",
       suggestedDecision: "Acompanhar o estoque até existir histórico de status.",
-      href: "/diretor/academico",
+      href: "/coordenacao/evasao",
       source: "cadastro de matrículas",
       status: "Acompanhamento operacional ainda não registrado.",
     });
@@ -150,7 +150,7 @@ export function alertsFromExecutiveFacts(pack: ExecutiveFactsPack): DerivedAlert
       period: pack.academic.periodLabel,
       impact: "Inferência pela chamada; não é motivo estruturado.",
       suggestedDecision: "Não tratar como causa estruturada até o histórico da Fase 2A.",
-      href: "/diretor/academico",
+      href: "/coordenacao/evasao",
       source: "frequência e status da matrícula",
       status: "Acompanhamento operacional ainda não registrado.",
     });
