@@ -9,6 +9,7 @@ import {
   CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT,
   countConsecutiveUnjustifiedAbsenceStreak,
 } from "@/lib/enrollment-attendance-streak";
+import { enrollmentCountsAsFormado } from "@/lib/enrollment-graduation";
 import { formatCycleLabel } from "@/lib/gamification-cycle";
 import { prisma } from "@/lib/prisma";
 import {
@@ -938,15 +939,7 @@ export async function getDirectorDashboardData(opts: {
     inscritos += insc;
     suspensos += susp;
     cancelados += canc;
-    if (cg.status === "ENCERRADA") {
-      formados += rows.filter(
-        (e) =>
-          e.status === "COMPLETED" ||
-          ((e.status === "ACTIVE" || e.status === "SUSPENDED") && e.certificateEligible),
-      ).length;
-    } else {
-      formados += rows.filter((e) => e.status === "COMPLETED").length;
-    }
+    formados += rows.filter((e) => enrollmentCountsAsFormado(e)).length;
 
     const occ = pct(insc, cg.capacity);
     if (insc === 0) turmasSemInscritos += 1;
@@ -1017,7 +1010,7 @@ export async function getDirectorDashboardData(opts: {
     const insc = rows.filter((e) => e.status === "ACTIVE" || e.status === "SUSPENDED").length;
     const susp = rows.filter((e) => e.status === "SUSPENDED").length;
     const canc = rows.filter((e) => e.status === "CANCELLED").length;
-    const form = rows.filter((e) => e.status === "COMPLETED").length;
+    const form = rows.filter((e) => enrollmentCountsAsFormado(e)).length;
     const ev = rows.filter((e) => evasionIds.has(e.id)).length;
     cur.turmas += 1;
     cur.capacidade += cg.capacity;
@@ -1098,7 +1091,7 @@ export async function getDirectorDashboardData(opts: {
       const ens = enrollments.filter((e) => ids.has(e.classGroupId));
       const unicos = new Set(ens.map((e) => e.studentId)).size;
       const insc = ens.filter((e) => e.status === "ACTIVE" || e.status === "SUSPENDED").length;
-      const form = ens.filter((e) => e.status === "COMPLETED").length;
+      const form = ens.filter((e) => enrollmentCountsAsFormado(e)).length;
       const freqs: number[] = [];
       for (const e of ens) {
         if (e.status !== "ACTIVE" && e.status !== "SUSPENDED") continue;

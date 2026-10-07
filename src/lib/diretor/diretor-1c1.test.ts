@@ -164,7 +164,6 @@ describe("Diretor 1C.1 — matrícula, ocupação e faltas", () => {
     const files = [
       "src/app/(protected)/diretor/page.tsx",
       "src/app/(protected)/diretor/prioridades/page.tsx",
-      "src/app/(protected)/diretor/academico/page.tsx",
       "src/app/(protected)/diretor/oferta-territorios/page.tsx",
       "src/app/(protected)/diretor/impacto-social/page.tsx",
       "src/app/(protected)/diretor/relatorios/page.tsx",

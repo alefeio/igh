@@ -38,9 +38,14 @@ export async function GET() {
             "Taxas sobre aulas já liberadas, até a data de atualização dos dados, após a entrada do aluno. Chamada sem lançamento não vira falta automática. Abaixo de 90% de completude a leitura é provisória.",
         },
         {
-          term: "Conclusão",
+          term: "Formados / conclusão",
           definition:
-            "Entre quem iniciou ( ≥1 presença ) em turmas ENCERRADAS. Não usa todas as matrículas como denominador principal.",
+            "Alunos aptos a certificado (ou matrícula concluída) entre quem iniciou (≥1 presença) em turmas ENCERRADAS. Detalhe operacional: menu Coordenação.",
+        },
+        {
+          term: "Direção × Coordenação",
+          definition:
+            "A Direção cobre oferta, impacto, financeiro, projetos e operações. Frequência, risco, formados e turmas ficam no menu Coordenação (acesso completo do Diretor).",
         },
         {
           term: "Ocupação atual",

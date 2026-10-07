@@ -19,6 +19,7 @@ import type { SessionLike } from "@/lib/diretor/eligible-sessions";
 import { assessSessionQuality } from "@/lib/diretor/eligible-sessions";
 import type { AcademicExecutiveFacts } from "@/lib/diretor/facts/types";
 import type { ScopeResolution } from "@/lib/diretor/load-scope";
+import { enrollmentCountsAsFormado } from "@/lib/enrollment-graduation";
 import { prisma } from "@/lib/prisma";
 
 function pctOrNull(num: number, den: number): number | null {
@@ -68,6 +69,7 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
         classGroupId: true,
         status: true,
         enrolledAt: true,
+        certificateEligible: true,
       },
     }),
     prisma.classSession.findMany({
@@ -159,7 +161,7 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
       const entry = directorEnrollmentEntry(e);
       if (!hasStarted(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf)) continue;
       startedInClosed += 1;
-      if (e.status === "COMPLETED") completedStarted += 1;
+      if (enrollmentCountsAsFormado(e)) completedStarted += 1;
     }
     completionStartedRate = pctOrNull(completedStarted, startedInClosed);
   }

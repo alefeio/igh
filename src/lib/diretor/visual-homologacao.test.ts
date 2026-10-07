@@ -34,7 +34,6 @@ describe("homologação visual 1C — contratos", () => {
   it("páginas não expõem jargão técnico pedido na homologação", () => {
     const files = [
       "src/app/(protected)/diretor/page.tsx",
-      "src/app/(protected)/diretor/academico/page.tsx",
       "src/app/(protected)/diretor/financeiro/page.tsx",
       "src/app/(protected)/diretor/relatorios/page.tsx",
       "src/app/(protected)/diretor/impacto-social/page.tsx",
@@ -48,6 +47,7 @@ describe("homologação visual 1C — contratos", () => {
     expect(page("src/app/(protected)/diretor/relatorios/page.tsx")).toContain("BRAND.legalName");
     expect(blob).not.toMatch(/\bd0_30\b/);
     expect(blob).not.toMatch(/Falha parcial: academic/);
+    expect(page("src/app/(protected)/diretor/academico/page.tsx")).toContain('redirect("/coordenacao/painel")');
   });
 
   it("gráficos financeiros usam reais e rótulos humanos", () => {
@@ -60,16 +60,15 @@ describe("homologação visual 1C — contratos", () => {
     expect(centsToReais(550000)).toBe(5500);
   });
 
-  it("atendidos canônicos usam a mesma função nos três loaders", () => {
-    const ov = page("src/lib/diretor/metrics/overview.ts");
+  it("atendidos canônicos usam a mesma função nos loaders acadêmico e social", () => {
     const acad = page("src/lib/diretor/facts/academic.ts");
     const acadFull = page("src/lib/diretor/metrics/academic.ts");
     const social = page("src/lib/diretor/metrics/social.ts");
-    expect(ov).toContain('metricCard("ben.served_unique", servedExec.value');
     expect(acad).toContain("countServedUniqueStudents");
     expect(acadFull).toContain("countServedUniqueStudents");
     expect(social).toContain("countServedUniqueStudents");
     expect(social).toContain('metricCard("ben.served_unique"');
+    expect(page("src/lib/diretor/metrics/overview.ts")).not.toContain('metricCard("ben.served_unique"');
   });
 
   it("não início reconcilia matrículas − iniciaram", () => {
@@ -81,12 +80,9 @@ describe("homologação visual 1C — contratos", () => {
   it("frequência abaixo do limiar não é confiável para uso executivo", () => {
     expect(isExecutiveAttendanceReliable(64.6)).toBe(false);
     expect(isExecutiveAttendanceReliable(90)).toBe(true);
-    const acad = page("src/app/(protected)/diretor/academico/page.tsx");
-    expect(acad).toContain("Frequência provisória");
-    expect(acad).toContain("Situação da jornada no recorte");
-    expect(acad).not.toMatch(/title="Funil/);
-    expect(acad).not.toContain("Pré-matrículas atuais");
-    expect(acad).toContain('etapa: "Matrículas no ciclo"');
+    expect(page("src/lib/diretor/metrics/academic.ts")).toContain("isExecutiveAttendanceReliable");
+    expect(page("src/components/layout/Sidebar.tsx")).not.toMatch(/href: "\/diretor\/academico"/);
+    expect(page("src/components/layout/Sidebar.tsx")).toMatch(/href: "\/coordenacao\/painel"/);
   });
 
   it(
