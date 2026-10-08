@@ -28,6 +28,68 @@ export function formatDaysShortPtBr(days: string[]): string {
   return `${labels.slice(0, -1).join(", ")} e ${labels[labels.length - 1]}`;
 }
 
+const DAY_FULL_PT: Record<string, string> = {
+  SEG: "segunda",
+  TER: "terça",
+  QUA: "quarta",
+  QUI: "quinta",
+  SEX: "sexta",
+  SAB: "sábado",
+  DOM: "domingo",
+};
+
+/** Dias por extenso, ordenados (ex.: terça e quinta). */
+export function formatDaysFullPt(days: string[] | undefined | null): string {
+  const raw = Array.isArray(days) ? days : [];
+  const unique = Array.from(
+    new Set(raw.map((d) => String(d ?? "").trim().toUpperCase()).filter(Boolean)),
+  );
+  if (unique.length === 0) return "";
+  const idx = (d: string) => {
+    const i = DAY_ORDER.indexOf(d as (typeof DAY_ORDER)[number]);
+    return i >= 0 ? i : 999;
+  };
+  const labels = [...unique]
+    .sort((a, b) => idx(a) - idx(b) || a.localeCompare(b, "pt-BR"))
+    .map((d) => DAY_FULL_PT[d] ?? d.toLowerCase());
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} e ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")} e ${labels[labels.length - 1]}`;
+}
+
+/** Mensagem do professor para convidar o aluno ao grupo de WhatsApp da turma. */
+export function buildClassWhatsappInviteMessage(params: {
+  teacherName: string;
+  courseName: string;
+  startDateLabel: string;
+  startTime: string;
+  daysOfWeek: string[];
+  groupUrl: string;
+}): string {
+  const time = params.startTime.trim().slice(0, 5);
+  const days = formatDaysFullPt(params.daysOfWeek);
+  const schedule = days
+    ? `que começará dia ${params.startDateLabel} às ${time} horas, toda ${days}`
+    : `que começará dia ${params.startDateLabel} às ${time} horas`;
+  return `Olá! Sou o professor ${params.teacherName.trim()} do curso de ${params.courseName.trim()} do Instituto Gustavo Hessel. Estou entrando em contato para confirmar sua participação em nosso curso, ${schedule}. Por favor, confirme se irá participar e, caso tenha alguma dúvida, pode me perguntar. Segue o link do grupo de WhatsApp da turma: ${params.groupUrl.trim()}. Muito obrigado!`;
+}
+
+/** Aceita o link de convite do grupo (https://chat.whatsapp.com/...). Vazio limpa o campo. */
+export function normalizeWhatsappGroupUrl(raw: string | null | undefined): { ok: true; value: string | null } | { ok: false; message: string } {
+  const trimmed = raw?.trim() ?? "";
+  if (!trimmed) return { ok: true, value: null };
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return { ok: false, message: "Informe um link válido do grupo de WhatsApp." };
+  }
+  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "chat.whatsapp.com" || url.pathname.length < 2) {
+    return { ok: false, message: "Use o link de convite do grupo (https://chat.whatsapp.com/…)." };
+  }
+  return { ok: true, value: url.toString() };
+}
+
 /** Dias ordenados em abreviação maiúscula (ex.: SEG, QUA) — selects de matrícula/reserva. */
 export function formatDaysOrderedPt(days: string[] | undefined | null): string {
   const raw = Array.isArray(days) ? days : [];

@@ -114,6 +114,7 @@ export async function sendEnrollmentWelcomeForStudent(args: {
     endTime: classGroup.endTime,
     location: classGroup.location,
     confirmUrl,
+    whatsappGroupUrl: classGroup.whatsappGroupUrl,
   });
 
   const emailResult = await sendEmailAndRecord({

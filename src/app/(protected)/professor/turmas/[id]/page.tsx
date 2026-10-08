@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/Modal";
 import type { ApiResponse } from "@/lib/api-types";
 import { isForumPostEmpty } from "@/lib/forum-question-content";
 import { buildStudentsVcfFile, classGroupVcfFileName, studentVcfContactLabel } from "@/lib/student-vcf";
+import { buildClassWhatsappInviteMessage } from "@/lib/turma-display";
 import { AlertCircle, Cake, Copy, Download, Link2, Mail, Presentation, RefreshCw, Upload } from "lucide-react";
 
 type ClassGroup = {
@@ -29,6 +30,9 @@ type ClassGroup = {
   status: string;
   enrollmentsCount: number;
   capacity: number;
+  daysOfWeek?: string[];
+  whatsappGroupUrl?: string | null;
+  teacherName?: string;
 };
 
 type Enrollment = {
@@ -178,15 +182,10 @@ function whatsappChatUrl(phone: string): string | null {
   return full ? `https://wa.me/${full}` : null;
 }
 
-/** Abre o chat com mensagem pronta — o WhatsApp não permite adicionar a um grupo só por link. */
-function whatsappGroupInviteChatUrl(
-  phone: string,
-  studentName: string,
-  courseName: string,
-): string | null {
+/** Abre o chat com a mensagem de convite e o link do grupo. */
+function whatsappGroupInviteChatUrl(phone: string, text: string): string | null {
   const full = whatsappDigits(phone);
   if (!full) return null;
-  const text = `Olá, ${studentName}! Bem-vindo(a) à turma de ${courseName}. Vou adicioná-lo(a) ao grupo do WhatsApp da turma — por favor aceite o convite quando aparecer.`;
   return `https://wa.me/${full}?text=${encodeURIComponent(text)}`;
 }
 
@@ -234,6 +233,8 @@ export default function ProfessorTurmaDetailPage() {
   } | null>(null);
   const [exportingVcf, setExportingVcf] = useState(false);
   const [sendingWelcomeEmails, setSendingWelcomeEmails] = useState(false);
+  const [whatsappGroupDraft, setWhatsappGroupDraft] = useState("");
+  const [savingWhatsappGroup, setSavingWhatsappGroup] = useState(false);
 
   type InviteInfo = {
     path: string | null;
@@ -260,6 +261,32 @@ export default function ProfessorTurmaDetailPage() {
   useEffect(() => {
     setOrigin(typeof window !== "undefined" ? window.location.origin : "");
   }, []);
+
+  useEffect(() => {
+    setWhatsappGroupDraft(classGroup?.whatsappGroupUrl ?? "");
+  }, [classGroup?.whatsappGroupUrl]);
+
+  async function saveWhatsappGroupUrl() {
+    setSavingWhatsappGroup(true);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ whatsappGroupUrl: whatsappGroupDraft }),
+      });
+      const json = (await res.json()) as ApiResponse<{ whatsappGroupUrl: string | null }>;
+      if (!res.ok || !json.ok) {
+        toast.push("error", !json.ok ? json.error.message : "Não foi possível salvar o link.");
+        return;
+      }
+      setClassGroup((current) =>
+        current ? { ...current, whatsappGroupUrl: json.data.whatsappGroupUrl } : current,
+      );
+      toast.push("success", json.data.whatsappGroupUrl ? "Link do grupo salvo." : "Link do grupo removido.");
+    } finally {
+      setSavingWhatsappGroup(false);
+    }
+  }
 
   type ProfLessonQuestion = {
     id: string;
@@ -1078,6 +1105,33 @@ export default function ProfessorTurmaDetailPage() {
                 Quem abrir o link preenche um formulário mínimo e entra como matrícula ativa (ocupa vaga).
               </p>
             </div>
+            <div className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2">
+              <p className="text-xs font-medium text-[var(--text-secondary)]">Grupo de WhatsApp da turma</p>
+              <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
+                Cole o link de convite (chat.whatsapp.com). Ele vai no e-mail de confirmação da matrícula e na mensagem de «Convidar ao grupo».
+              </p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="url"
+                  value={whatsappGroupDraft}
+                  onChange={(event) => setWhatsappGroupDraft(event.target.value)}
+                  readOnly={viewOnly}
+                  placeholder="https://chat.whatsapp.com/…"
+                  className="h-9 min-w-0 flex-1 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2 text-sm text-[var(--text-primary)]"
+                />
+                {!viewOnly ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={savingWhatsappGroup}
+                    onClick={() => void saveWhatsappGroupUrl()}
+                  >
+                    {savingWhatsappGroup ? "Salvando…" : "Salvar link"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
           </div>
           {visibleEnrollments.length === 0 && cancelledByRecent.length === 0 ? (
             <p className="p-4 text-sm text-[var(--text-muted)]">Nenhum aluno matriculado.</p>
@@ -1088,22 +1142,26 @@ export default function ProfessorTurmaDetailPage() {
               ) : (
             <>
               <p className="border-b border-[var(--card-border)] px-4 py-2 text-xs text-[var(--text-muted)]">
-                Ordenados do mais recente ao mais antigo. Clique no celular para abrir o WhatsApp; «Convidar
-                ao grupo» envia uma mensagem pronta — depois adicione o aluno ao grupo no app (o WhatsApp não
-                permite adicionar só por link). Certificado: ativa com 70% de presença; você pode liberar ou
-                bloquear manualmente.
+                Ordenados do mais recente ao mais antigo. Clique no celular para abrir o WhatsApp. «Convidar
+                ao grupo» abre uma mensagem com os dados da turma e o link para o aluno entrar. Certificado:
+                ativa com 70% de presença; você pode liberar ou bloquear manualmente.
               </p>
               <ul className="divide-y divide-[var(--card-border)]">
               {enrollmentsByRecent.map((e) => {
                 const waChat = e.studentPhone ? whatsappChatUrl(e.studentPhone) : null;
+                const groupUrl = classGroup.whatsappGroupUrl?.trim() || "";
+                const inviteText = groupUrl
+                  ? buildClassWhatsappInviteMessage({
+                      teacherName: classGroup.teacherName || user.name,
+                      courseName: classGroup.courseName,
+                      startDateLabel: formatDate(classGroup.startDate),
+                      startTime: classGroup.startTime,
+                      daysOfWeek: classGroup.daysOfWeek ?? [],
+                      groupUrl,
+                    })
+                  : "";
                 const waGroup =
-                  e.studentPhone && classGroup
-                    ? whatsappGroupInviteChatUrl(
-                        e.studentPhone,
-                        e.studentName,
-                        classGroup.courseName,
-                      )
-                    : null;
+                  e.studentPhone && inviteText ? whatsappGroupInviteChatUrl(e.studentPhone, inviteText) : null;
                 return (
                 <li key={e.id} className="flex flex-col gap-3 px-4 py-3">
                   <div className="flex w-full flex-wrap items-start justify-between gap-2">
@@ -1211,11 +1269,18 @@ export default function ProfessorTurmaDetailPage() {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="font-medium text-[var(--igh-primary)] underline-offset-2 hover:underline"
-                              title="Abre o WhatsApp com mensagem pronta. Depois adicione o aluno ao grupo no app (o WhatsApp não permite adicionar só por link)."
+                              title="Abre o WhatsApp com a mensagem de confirmação e o link do grupo da turma."
                             >
                               Convidar ao grupo
                             </a>
-                          ) : null}
+                          ) : (
+                            <span
+                              className="text-[var(--text-muted)]"
+                              title="Salve o link do grupo de WhatsApp da turma para enviar o convite."
+                            >
+                              Convidar ao grupo
+                            </span>
+                          )}
                         </p>
                       )}
                     </div>
