@@ -105,16 +105,39 @@ function formatPhoneDisplay(raw: string | null | undefined): string {
   return raw;
 }
 
+/** wa.me; assume Brasil (55) quando o número tem 10 ou 11 dígitos. */
+function whatsappChatUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const d = raw.replace(/\D/g, "");
+  if (d.length < 10) return null;
+  const full =
+    d.length === 10 || d.length === 11 ? `55${d}` : d.startsWith("55") && d.length >= 12 ? d : `55${d.slice(-11)}`;
+  return `https://wa.me/${full}`;
+}
+
+function PhoneWhatsAppLink({ raw }: { raw: string | null | undefined }) {
+  const label = formatPhoneDisplay(raw);
+  const href = whatsappChatUrl(raw);
+  if (!href || label === "—") return <span>{label}</span>;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium text-[var(--igh-primary)] underline hover:no-underline"
+      title="Abrir conversa no WhatsApp"
+    >
+      {label}
+    </a>
+  );
+}
+
 function participantName(row: RegistrationRow): string {
   return row.user?.name ?? row.guestName ?? "—";
 }
 
 function participantEmail(row: RegistrationRow): string {
   return row.user?.email ?? row.guestEmail ?? "—";
-}
-
-function participantPhone(row: RegistrationRow): string {
-  return formatPhoneDisplay(row.user?.whatsapp ?? row.guestPhone);
 }
 
 function groupKey(holidayId: string, occurrenceDate: string) {
@@ -1020,7 +1043,7 @@ export function HolidayEventRegistrationsPanel({
                               <Td className="text-[var(--text-secondary)]">
                                 <div className="flex flex-col gap-0.5 text-xs">
                                   <span>{participantEmail(row)}</span>
-                                  <span>{participantPhone(row)}</span>
+                                  <PhoneWhatsAppLink raw={row.user?.whatsapp ?? row.guestPhone} />
                                   {row.guestCpf ? <span>CPF: {row.guestCpf}</span> : null}
                                 </div>
                               </Td>
