@@ -1,14 +1,17 @@
+import { createAuditLog } from "@/lib/audit";
+import { requireRole } from "@/lib/auth";
 import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
+import { enrollmentNeedsWelcomeEmail } from "@/lib/enrollment-welcome-pending";
 import {
   findEnrollmentIdsWithWelcomeEmail,
   sendEnrollmentWelcomeForStudent,
 } from "@/lib/enrollment-welcome-email";
-import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { prisma } from "@/lib/prisma";
 
 /**
- * Envia e-mail de cadastro na turma para alunos ACTIVE/SUSPENDED que ainda não receberam.
+ * Envia e-mail de cadastro na turma para alunos ACTIVE/SUSPENDED que ainda não receberam,
+ * inclusive pré-matrícula (a mesma regra do botão na página da turma).
  */
 export async function POST(
   _request: Request,
@@ -33,19 +36,28 @@ export async function POST(
     where: {
       classGroupId,
       status: { in: ["ACTIVE", "SUSPENDED"] },
-      isPreEnrollment: false,
       student: { deletedAt: null },
     },
     select: {
       id: true,
       studentId: true,
-      student: { select: { email: true, name: true } },
+      status: true,
+      isPreEnrollment: true,
+      student: { select: { email: true, name: true, deletedAt: true } },
     },
   });
 
   const alreadySent = await findEnrollmentIdsWithWelcomeEmail(enrollments.map((e) => e.id));
-  const pending = enrollments.filter(
-    (e) => Boolean(e.student.email?.trim()) && !alreadySent.has(e.id),
+  const pending = enrollments.filter((e) =>
+    enrollmentNeedsWelcomeEmail(
+      {
+        id: e.id,
+        status: e.status,
+        email: e.student.email,
+        studentDeleted: e.student.deletedAt != null,
+      },
+      alreadySent,
+    ),
   );
 
   if (pending.length === 0) {
@@ -64,6 +76,19 @@ export async function POST(
 
   for (const e of pending) {
     try {
+      if (e.isPreEnrollment) {
+        await prisma.enrollment.update({
+          where: { id: e.id },
+          data: { isPreEnrollment: false },
+        });
+        await createAuditLog({
+          entityType: "Enrollment",
+          entityId: e.id,
+          action: "UPDATE",
+          diff: { isPreEnrollment: false, triggeredBy: "teacher_welcome_email" },
+          performedByUserId: user.id,
+        });
+      }
       const result = await sendEnrollmentWelcomeForStudent({
         studentId: e.studentId,
         enrollmentId: e.id,
@@ -71,7 +96,15 @@ export async function POST(
         emailType: "welcome_student",
         auditExtra: { triggeredBy: "teacher" },
       });
-      if (result.skipped) continue;
+      if (result.skipped) {
+        failed += 1;
+        errors.push({
+          enrollmentId: e.id,
+          studentName: e.student.name,
+          reason: "O envio foi ignorado para esta matrícula.",
+        });
+        continue;
+      }
       if (result.emailSent || result.queued) sent += 1;
       else {
         failed += 1;

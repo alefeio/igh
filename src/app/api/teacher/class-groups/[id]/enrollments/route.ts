@@ -1,5 +1,6 @@
 import { getEnrollmentAttendanceSummaries } from "@/lib/enrollment-attendance-summary";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
+import { enrollmentNeedsWelcomeEmail } from "@/lib/enrollment-welcome-pending";
 import { findEnrollmentIdsWithWelcomeEmail } from "@/lib/enrollment-welcome-email";
 import { prisma } from "@/lib/prisma";
 import { jsonOk } from "@/lib/http";
@@ -44,6 +45,7 @@ export async function GET(
           cpf: true,
           phone: true,
           birthDate: true,
+          deletedAt: true,
           street: true,
           number: true,
           city: true,
@@ -114,8 +116,16 @@ export async function GET(
           ? `${bd.getUTCFullYear()}-${String(bd.getUTCMonth() + 1).padStart(2, "0")}-${String(bd.getUTCDate()).padStart(2, "0")}`
           : null;
       const attendance = summaries.get(e.id);
-      const hasEmail = Boolean(st.email?.trim());
       const welcomeEmailSent = welcomeEmailIds.has(e.id);
+      const welcomeEmailPending = enrollmentNeedsWelcomeEmail(
+        {
+          id: e.id,
+          status: e.status,
+          email: st.email,
+          studentDeleted: st.deletedAt != null,
+        },
+        welcomeEmailIds,
+      );
       return {
         id: e.id,
         enrolledAt: e.enrolledAt,
@@ -131,7 +141,7 @@ export async function GET(
         /** Já recebeu (ou enfileirou) o e-mail de cadastro nesta turma. */
         welcomeEmailSent,
         /** Tem e-mail no cadastro e ainda não recebeu o de boas-vindas da turma. */
-        welcomeEmailPending: hasEmail && !welcomeEmailSent,
+        welcomeEmailPending,
         /** Presenças em aulas da turma (até hoje) / total de aulas elegíveis. */
         attendancePresentCount: attendance?.presentCount ?? 0,
         attendanceTotalSessions: attendance?.totalSessions ?? 0,
