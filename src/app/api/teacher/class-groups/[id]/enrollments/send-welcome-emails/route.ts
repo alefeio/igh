@@ -41,6 +41,7 @@ export async function POST(
     select: {
       id: true,
       studentId: true,
+      status: true,
       isPreEnrollment: true,
       student: { select: { email: true, name: true, deletedAt: true } },
     },
