@@ -619,6 +619,8 @@ model ClassGroup {
   location              String?
   /// * Token público para o link de inscrição enviado pelo professor (/turma/[token]).
   enrollmentInviteToken String?              @unique
+  /// * Link de convite do grupo de WhatsApp da turma (chat.whatsapp.com).
+  whatsappGroupUrl      String?
   /// * Local do polo (quando definido, a turma pertence ao polo daquele local).
   poloLocationId        String?
   /// * Usuário (admin/master) que criou a turma.

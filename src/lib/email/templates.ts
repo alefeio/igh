@@ -309,8 +309,9 @@ export function templateStudentWelcome(params: {
   endTime: string;
   location: string | null;
   confirmUrl: string;
+  whatsappGroupUrl?: string | null;
 }): { subject: string; html: string } {
-  const { name, email, tempPassword, courseName, startDate, daysOfWeek, startTime, endTime, location, confirmUrl } = params;
+  const { name, email, tempPassword, courseName, startDate, daysOfWeek, startTime, endTime, location, confirmUrl, whatsappGroupUrl } = params;
   const loginUrl = getAppUrl("/login");
   const firstName = name.trim().split(/\s+/)[0] || name;
   const accessBlock = tempPassword
@@ -343,6 +344,15 @@ export function templateStudentWelcome(params: {
           </table>
         </td></tr>
       </table>
+
+      ${
+        whatsappGroupUrl
+          ? `<p style="margin: 0 0 12px; font-size: 15px; color: #374151;">Entre no grupo de WhatsApp da turma para receber os avisos:</p>
+      <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding: 0 0 24px;">
+        <a href="${escapeHtml(whatsappGroupUrl)}" style="display: inline-block; background: #128C7E; color: #fff !important; padding: 12px 22px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">Entrar no grupo do WhatsApp</a>
+      </td></tr></table>`
+          : ""
+      }
 
       <p style="margin: 0 0 20px; font-size: 15px; color: #374151;">Para ativar sua inscrição, confirme que leu e aceita os termos de uso clicando no botão abaixo:</p>
       <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding: 8px 0 24px;">
