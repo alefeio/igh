@@ -108,6 +108,60 @@ function formatPhoneDisplay(raw: string | null | undefined): string {
   return raw;
 }
 
+/** wa.me; assume Brasil (55) quando o número tem 10 ou 11 dígitos. */
+function whatsappChatUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const d = raw.replace(/\D/g, "");
+  if (d.length < 10) return null;
+  const full =
+    d.length === 10 || d.length === 11 ? `55${d}` : d.startsWith("55") && d.length >= 12 ? d : `55${d.slice(-11)}`;
+  return `https://wa.me/${full}`;
+}
+
+function RegistrationMeta({
+  reg,
+  emptyLabel,
+}: {
+  reg: CheckinRegistration;
+  emptyLabel?: string;
+}) {
+  const phoneLabel = formatPhoneDisplay(reg.phone);
+  const href = whatsappChatUrl(reg.phone);
+  const hasAny = Boolean(reg.checkinCode || phoneLabel || reg.email);
+  if (!hasAny) {
+    return emptyLabel ? <p className="mt-0.5 text-xs text-[var(--text-muted)]">{emptyLabel}</p> : null;
+  }
+  return (
+    <p className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-[var(--text-muted)]">
+      {reg.checkinCode ? <span>Código {reg.checkinCode}</span> : null}
+      {phoneLabel ? (
+        <>
+          {reg.checkinCode ? <span aria-hidden>·</span> : null}
+          {href ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--igh-primary)] underline hover:no-underline"
+              title="Abrir conversa no WhatsApp"
+            >
+              {phoneLabel}
+            </a>
+          ) : (
+            <span>{phoneLabel}</span>
+          )}
+        </>
+      ) : null}
+      {reg.email ? (
+        <>
+          {reg.checkinCode || phoneLabel ? <span aria-hidden>·</span> : null}
+          <span className="min-w-0 truncate">{reg.email}</span>
+        </>
+      ) : null}
+    </p>
+  );
+}
+
 async function parseApiJson<T>(res: Response): Promise<ApiResponse<T> | null> {
   const text = await res.text();
   if (!text.trim()) return null;
@@ -746,15 +800,7 @@ export function HolidayEventCheckinClient({
                           {reg.studentLink ? <Badge tone="green">Aluno</Badge> : null}
                           {reg.isGuest && !reg.studentLink ? <Badge tone="zinc">Convidado</Badge> : null}
                         </p>
-                        <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
-                          {[
-                            reg.checkinCode ? `Código ${reg.checkinCode}` : null,
-                            formatPhoneDisplay(reg.phone) || null,
-                            reg.email,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") || "Sem contato informado"}
-                        </p>
+                        <RegistrationMeta reg={reg} emptyLabel="Sem contato informado" />
                         {reg.referrerName ? (
                           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                             Indicado por {reg.referrerName}
@@ -823,15 +869,7 @@ export function HolidayEventCheckinClient({
                               ) : null}
                               {reg.studentLink ? <Badge tone="green">Aluno</Badge> : null}
                             </p>
-                            <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
-                              {[
-                                reg.checkinCode ? `Código ${reg.checkinCode}` : null,
-                                formatPhoneDisplay(reg.phone) || null,
-                                reg.email,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </p>
+                            <RegistrationMeta reg={reg} />
                             {reg.certificateUrl ? (
                               <p className="mt-1 text-xs text-[var(--text-muted)]">
                                 Certificado:{" "}
