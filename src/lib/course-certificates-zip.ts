@@ -21,7 +21,10 @@ import {
   cycleCertificatePdfFileName,
   shouldAcceptNextCertificate,
 } from "@/lib/certificate-zip-chunk";
-import { classGroupCertificateEnrollmentWhere } from "@/lib/certificate-zip-enrollment";
+import {
+  classGroupCertificateEnrollmentWhere,
+  cycleCertificateEnrollmentWhere,
+} from "@/lib/certificate-zip-enrollment";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { prisma } from "@/lib/prisma";
 
@@ -356,15 +359,6 @@ export async function buildClassGroupCertificatesZip(
   return { zipBytes, errors, fileCount, expectedCount: enrollments.length };
 }
 
-function cycleEligibleEnrollmentWhere(cycleId: string) {
-  return {
-    certificateEligible: true,
-    isPreEnrollment: false,
-    status: { in: [...ENROLLMENT_STATUSES] },
-    classGroup: { cycleId, status: { not: "CANCELADA" as const } },
-  };
-}
-
 /**
  * Um lote do ZIP do ciclo, pequeno o bastante para a resposta da função.
  * `nextOffset` é o índice do próximo aluno apto; quando chega em `total`, acabou.
@@ -389,7 +383,7 @@ export async function buildCycleCertificatesZipChunk(
     await prepareCertificateEligibilityForClassGroups(classGroups.map((cg) => cg.id));
   }
 
-  const where = cycleEligibleEnrollmentWhere(cycleId);
+  const where = cycleCertificateEnrollmentWhere(cycleId);
   const total = await prisma.enrollment.count({ where });
   const rows = await prisma.enrollment.findMany({
     where,
