@@ -344,7 +344,29 @@ export type CourseCompletionCertificateInput = {
 export type GenerateCertificateOptions = {
   /** Padrão: frente e verso. `front` gera só a partir do template de frente. */
   pages?: CertificateZipPages;
+  /**
+   * Em lote: embute só os glifos usados. O desenho permanece o mesmo e o PDF fica menor,
+   * para vários arquivos caberem no limite de download.
+   */
+  compact?: boolean;
 };
+
+async function embedCertificateFonts(pdfDoc: PDFDocument, compact: boolean) {
+  const regular = readFontRegular();
+  const bold = readFontBold();
+  try {
+    return {
+      font: await pdfDoc.embedFont(regular, { subset: compact }),
+      fontBold: await pdfDoc.embedFont(bold, { subset: compact }),
+    };
+  } catch (error) {
+    if (!compact) throw error;
+    return {
+      font: await pdfDoc.embedFont(regular, { subset: false }),
+      fontBold: await pdfDoc.embedFont(bold, { subset: false }),
+    };
+  }
+}
 
 /**
  * Gera o PDF do certificado a partir dos templates separados
@@ -355,22 +377,20 @@ export async function generateCourseCompletionCertificatePdfBytes(
   options?: GenerateCertificateOptions,
 ): Promise<Uint8Array> {
   const pagesMode: CertificateZipPages = options?.pages === "front" ? "front" : "both";
+  const compact = options?.compact === true;
 
   const frontBytes = readFrontTemplate();
-  const fontRegularBytes = readFontRegular();
-  const fontBoldBytes = readFontBold();
 
   if (pagesMode === "front") {
     const pdfDoc = await PDFDocument.load(frontBytes);
     pdfDoc.registerFontkit(fontkit);
-    const font = await pdfDoc.embedFont(fontRegularBytes, { subset: false });
-    const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: false });
+    const { font, fontBold } = await embedCertificateFonts(pdfDoc, compact);
     const frontPages = pdfDoc.getPages();
     if (frontPages.length < 1) {
       throw new Error("Template de frente do certificado inválido.");
     }
     drawFrontPage(frontPages[0]!, font, fontBold, input);
-    return pdfDoc.save();
+    return pdfDoc.save({ useObjectStreams: true });
   }
 
   const backBytes = readBackTemplate();
@@ -387,13 +407,12 @@ export async function generateCourseCompletionCertificatePdfBytes(
   pdfDoc.addPage(frontPage);
   pdfDoc.addPage(backPage);
 
-  const font = await pdfDoc.embedFont(fontRegularBytes, { subset: false });
-  const fontBold = await pdfDoc.embedFont(fontBoldBytes, { subset: false });
+  const { font, fontBold } = await embedCertificateFonts(pdfDoc, compact);
   const [front, back] = pdfDoc.getPages();
   drawFrontPage(front!, font, fontBold, input);
   await drawBackPage(pdfDoc, back!, font, fontBold, input);
 
-  return pdfDoc.save();
+  return pdfDoc.save({ useObjectStreams: true });
 }
 
 export async function generateAndUploadCourseCompletionCertificate(params: {
