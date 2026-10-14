@@ -6,7 +6,10 @@ import {
   certificateSignoffTitleLines,
   sortCertificateSignoffNames,
 } from "@/lib/certificate-signoff-list-pdf";
-import { classGroupCertificateEnrollmentWhere } from "@/lib/certificate-zip-enrollment";
+import {
+  classGroupCertificateEnrollmentWhere,
+  cycleCertificateEnrollmentWhere,
+} from "@/lib/certificate-zip-enrollment";
 
 describe("listagem de assinatura do certificado", () => {
   it("monta o título com ciclo, turma e curso", () => {
@@ -77,6 +80,14 @@ describe("filtro do ZIP de certificados da turma", () => {
       classGroupId: "turma-1",
       certificateEligible: true,
       status: { notIn: ["CANCELLED", "CANCELED"] },
+    });
+  });
+
+  it("o ZIP do ciclo usa a mesma regra da turma", () => {
+    expect(cycleCertificateEnrollmentWhere("ciclo-1")).toEqual({
+      certificateEligible: true,
+      status: { notIn: ["CANCELLED", "CANCELED"] },
+      classGroup: { cycleId: "ciclo-1", status: { not: "CANCELADA" } },
     });
   });
 });
