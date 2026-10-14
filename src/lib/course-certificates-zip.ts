@@ -15,6 +15,12 @@ import {
   type CourseCompletionCertificateInput,
 } from "@/lib/course-completion-certificate";
 import { resolveCertificateIssuePlace } from "@/lib/certificate-issue-place";
+import {
+  CYCLE_CERTIFICATE_ZIP_MAX_BYTES,
+  CYCLE_CERTIFICATE_ZIP_MAX_FILES,
+  cycleCertificatePdfFileName,
+  shouldAcceptNextCertificate,
+} from "@/lib/certificate-zip-chunk";
 import { classGroupCertificateEnrollmentWhere } from "@/lib/certificate-zip-enrollment";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { prisma } from "@/lib/prisma";
@@ -120,11 +126,12 @@ async function generateCertificateForZipRow(
   row: EnrollmentRow,
   shared: SharedCourseCertificateContext,
   pages: CertificateZipPages,
+  options?: { compact?: boolean },
 ): Promise<{ pdfBytes: Uint8Array; studentName: string }> {
   const studentName = row.student.name?.trim() || "Aluno";
 
-  // Cache só cobre frente+verso; modo "front" precisa regenerar.
-  if (pages === "both" && row.certificateUrl) {
+  // Cache só cobre frente+verso em tamanho cheio. O lote compacto regenera para caber no download.
+  if (!options?.compact && pages === "both" && row.certificateUrl) {
     const cached = await fetchCachedCertificatePdf(row.certificateUrl);
     if (cached) return { pdfBytes: cached, studentName };
   }
@@ -149,7 +156,10 @@ async function generateCertificateForZipRow(
     issueCityState: shared.issueCityState,
   };
 
-  const pdfBytes = await generateCourseCompletionCertificatePdfBytes(input, { pages });
+  const pdfBytes = await generateCourseCompletionCertificatePdfBytes(input, {
+    pages,
+    compact: options?.compact === true,
+  });
   return { pdfBytes, studentName };
 }
 
@@ -344,6 +354,134 @@ export async function buildClassGroupCertificatesZip(
   appendFailuresFile(zip, errors, enrollments.length, fileCount);
   const zipBytes = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
   return { zipBytes, errors, fileCount, expectedCount: enrollments.length };
+}
+
+function cycleEligibleEnrollmentWhere(cycleId: string) {
+  return {
+    certificateEligible: true,
+    isPreEnrollment: false,
+    status: { in: [...ENROLLMENT_STATUSES] },
+    classGroup: { cycleId, status: { not: "CANCELADA" as const } },
+  };
+}
+
+/**
+ * Um lote do ZIP do ciclo, pequeno o bastante para a resposta da função.
+ * `nextOffset` é o índice do próximo aluno apto; quando chega em `total`, acabou.
+ */
+export async function buildCycleCertificatesZipChunk(
+  cycleId: string,
+  pages: CertificateZipPages,
+  offset: number,
+): Promise<{
+  zipBytes: Uint8Array;
+  errors: string[];
+  fileCount: number;
+  total: number;
+  nextOffset: number;
+}> {
+  const safeOffset = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+  if (safeOffset === 0) {
+    const classGroups = await prisma.classGroup.findMany({
+      where: { cycleId, status: { not: "CANCELADA" } },
+      select: { id: true },
+    });
+    await prepareCertificateEligibilityForClassGroups(classGroups.map((cg) => cg.id));
+  }
+
+  const where = cycleEligibleEnrollmentWhere(cycleId);
+  const total = await prisma.enrollment.count({ where });
+  const rows = await prisma.enrollment.findMany({
+    where,
+    select: {
+      id: true,
+      classGroupId: true,
+      certificateUrl: true,
+      certificateIssuedAt: true,
+      status: true,
+      updatedAt: true,
+      student: { select: { name: true } },
+      classGroup: { select: { course: { select: { name: true } } } },
+    },
+    orderBy: [
+      { classGroup: { course: { name: "asc" } } },
+      { classGroup: { startDate: "asc" } },
+      { student: { name: "asc" } },
+      { id: "asc" },
+    ],
+    skip: safeOffset,
+    take: CYCLE_CERTIFICATE_ZIP_MAX_FILES + 1,
+  });
+
+  const zip = new JSZip();
+  const errors: string[] = [];
+  const sharedCache = new Map<string, SharedCourseCertificateContext>();
+  let includedBytes = 0;
+  let fileCount = 0;
+  let consumed = 0;
+
+  for (const row of rows) {
+    let pdfBytes: Uint8Array;
+    try {
+      let shared = sharedCache.get(row.classGroupId);
+      if (!shared) {
+        shared = await loadSharedCourseCertificateContext(row.classGroupId);
+        sharedCache.set(row.classGroupId, shared);
+      }
+      const generated = await generateCertificateForZipRow(row, shared, pages, { compact: true });
+      pdfBytes = generated.pdfBytes;
+    } catch (e) {
+      const name = row.student.name || row.id;
+      errors.push(`${name}: ${e instanceof Error ? e.message : "falha"}`);
+      consumed += 1;
+      continue;
+    }
+
+    if (
+      !shouldAcceptNextCertificate({
+        includedBytes,
+        includedCount: fileCount,
+        nextBytes: pdfBytes.byteLength,
+        maxBytes: CYCLE_CERTIFICATE_ZIP_MAX_BYTES,
+        maxCount: CYCLE_CERTIFICATE_ZIP_MAX_FILES,
+      })
+    ) {
+      break;
+    }
+
+    const folder = slugPart(row.classGroup.course.name, "curso");
+    const fileName = cycleCertificatePdfFileName(row.student.name || "Aluno", row.id);
+    zip.file(`${folder}/${fileName}`, pdfBytes);
+    includedBytes += pdfBytes.byteLength;
+    fileCount += 1;
+    consumed += 1;
+  }
+
+  if (errors.length > 0) {
+    const lines = [
+      `Falhas neste lote (a partir do aluno ${safeOffset + 1}):`,
+      ...errors.map((err) => `- ${err}`),
+      "",
+    ];
+    zip.file(`falhas-${safeOffset}.txt`, lines.join("\n"));
+  }
+
+  const zipBytes =
+    fileCount > 0 || errors.length > 0
+      ? await zip.generateAsync({
+          type: "uint8array",
+          compression: "DEFLATE",
+          compressionOptions: { level: 6 },
+        })
+      : new Uint8Array();
+
+  return {
+    zipBytes,
+    errors,
+    fileCount,
+    total,
+    nextOffset: Math.min(total, safeOffset + consumed),
+  };
 }
 
 /** ZIP externo com um ZIP interno por curso (ciclo). */
@@ -585,7 +723,7 @@ export function zipResponse(
   zipBytes: Uint8Array,
   zipName: string,
   errors: string[],
-  meta?: { fileCount?: number; expectedCount?: number },
+  meta?: { fileCount?: number; expectedCount?: number; nextOffset?: number; total?: number },
 ): Response {
   return new Response(Buffer.from(zipBytes), {
     status: 200,
@@ -597,6 +735,10 @@ export function zipResponse(
       ...(meta?.expectedCount != null
         ? { "X-Certificate-Expected-Count": String(meta.expectedCount) }
         : {}),
+      ...(meta?.nextOffset != null
+        ? { "X-Certificate-Next-Offset": String(meta.nextOffset) }
+        : {}),
+      ...(meta?.total != null ? { "X-Certificate-Total": String(meta.total) } : {}),
       ...(errors.length ? { "X-Certificate-Errors": String(errors.length) } : {}),
     },
   });

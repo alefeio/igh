@@ -1,5 +1,6 @@
 "use client";
 
+import JSZip from "jszip";
 import { ChevronDown, MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -280,6 +281,7 @@ export default function ClassGroupsPage() {
   const [cycleSaving, setCycleSaving] = useState(false);
   const [downloadingCertsId, setDownloadingCertsId] = useState<string | null>(null);
   const [downloadingCycleCertsId, setDownloadingCycleCertsId] = useState<string | null>(null);
+  const [cycleCertsLabel, setCycleCertsLabel] = useState<string | null>(null);
   const [downloadingCycleReportId, setDownloadingCycleReportId] = useState<string | null>(null);
   const [cycleReportMenuId, setCycleReportMenuId] = useState<string | null>(null);
   const [downloadingSlipsId, setDownloadingSlipsId] = useState<string | null>(null);
@@ -811,6 +813,86 @@ export default function ClassGroupsPage() {
     }
   }
 
+  async function downloadCycleCertificates(c: Cycle) {
+    if (downloadingCycleCertsId) return;
+    setCycleReportMenuId(null);
+    setDownloadingCycleCertsId(c.id);
+    setCycleCertsLabel("Gerando…");
+    const merged = new JSZip();
+    let offset = 0;
+    let total = 0;
+    let downloaded = 0;
+    let errorCount = 0;
+    try {
+      for (let part = 0; part < 400; part += 1) {
+        const res = await fetch(
+          `/api/cycles/${c.id}/certificates-zip?${certificatePagesQuery(certificatePagesMode)}&offset=${offset}`,
+          { credentials: "include" },
+        );
+        if (!res.ok) {
+          const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+          const message = apiErrorMessage(json, "Falha ao baixar certificados do ciclo.");
+          if (Object.keys(merged.files).length === 0) {
+            toast.push("error", message);
+            return;
+          }
+          toast.push("error", `${message} O que já foi gerado será baixado.`);
+          break;
+        }
+        const next = Number(res.headers.get("X-Certificate-Next-Offset"));
+        const chunkTotal = Number(res.headers.get("X-Certificate-Total"));
+        const count = Number(res.headers.get("X-Certificate-File-Count") ?? "0");
+        const errors = Number(res.headers.get("X-Certificate-Errors") ?? "0");
+        if (Number.isFinite(chunkTotal)) total = chunkTotal;
+        if (Number.isFinite(count) && count > 0) downloaded += count;
+        if (Number.isFinite(errors) && errors > 0) errorCount += errors;
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength > 0) {
+          const chunkZip = await JSZip.loadAsync(buf);
+          for (const entry of Object.values(chunkZip.files)) {
+            if (entry.dir) continue;
+            merged.file(entry.name, await entry.async("uint8array"));
+          }
+        }
+        const done = Number.isFinite(next) ? next : downloaded;
+        setCycleCertsLabel(total > 0 ? `Gerando ${Math.min(done, total)}/${total}…` : "Gerando…");
+        if (!Number.isFinite(next) || next <= offset || (total > 0 && next >= total)) break;
+        offset = next;
+      }
+      const hasFiles = Object.values(merged.files).some((entry) => !entry.dir);
+      if (!hasFiles || downloaded === 0) {
+        toast.push("error", "Nenhum certificado foi gerado neste ciclo.");
+        return;
+      }
+      setCycleCertsLabel("Preparando o arquivo…");
+      const blob = await merged.generateAsync({ type: "blob", compression: "DEFLATE" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `certificados-ciclo-${c.cycle}-${c.year}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      if (errorCount > 0 || (total > 0 && downloaded < total)) {
+        toast.push(
+          "error",
+          `ZIP baixado com ${downloaded} de ${total || downloaded} certificados. Veja os arquivos falhas-*.txt dentro do ZIP.`,
+        );
+      } else {
+        toast.push(
+          "success",
+          `Download iniciado: ${downloaded} certificado(s), em uma pasta por curso.`,
+        );
+      }
+    } catch {
+      toast.push("error", "Falha ao baixar certificados do ciclo.");
+    } finally {
+      setDownloadingCycleCertsId(null);
+      setCycleCertsLabel(null);
+    }
+  }
+
   async function downloadClassGroupCertificates(cg: ClassGroup) {
     if (downloadingCertsId) return;
     setDownloadingCertsId(cg.id);
@@ -1305,43 +1387,12 @@ export default function ClassGroupsPage() {
                     <Button
                       variant="secondary"
                       disabled={downloadingCycleCertsId != null || downloadingCycleReportId != null}
-                      title="Baixar ZIP com certificados (um arquivo .zip por curso)"
-                      onClick={async () => {
-                        if (downloadingCycleCertsId) return;
-                        setCycleReportMenuId(null);
-                        setDownloadingCycleCertsId(c.id);
-                        try {
-                          const res = await fetch(
-                            `/api/cycles/${c.id}/certificates-zip?${certificatePagesQuery(certificatePagesMode)}`,
-                            {
-                            credentials: "include",
-                          },
-                          );
-                          if (!res.ok) {
-                            const json = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
-                            toast.push(
-                              "error",
-                              apiErrorMessage(json, "Falha ao baixar certificados do ciclo."),
-                            );
-                            return;
-                          }
-                          await downloadBlobResponse(
-                            res,
-                            `certificados-ciclo-${c.cycle}-${c.year}.zip`,
-                          );
-                          const feedback = certificateZipToastMessage(
-                            res,
-                            "Download iniciado: o ZIP contém um arquivo .zip por curso e o resumo-cursos.txt. Só entram alunos com Certificado = Sim.",
-                          );
-                          toast.push(feedback.tone, feedback.message);
-                        } catch {
-                          toast.push("error", "Falha ao baixar certificados do ciclo.");
-                        } finally {
-                          setDownloadingCycleCertsId(null);
-                        }
-                      }}
+                      title="Baixar ZIP com os certificados do ciclo (uma pasta por curso). Lotes grandes são gerados em partes e reunidos num arquivo só."
+                      onClick={() => void downloadCycleCertificates(c)}
                     >
-                      {downloadingCycleCertsId === c.id ? "Gerando ZIP…" : "Baixar certificados"}
+                      {downloadingCycleCertsId === c.id
+                        ? cycleCertsLabel || "Gerando ZIP…"
+                        : "Baixar certificados"}
                     </Button>
                     {canMutate ? (
                       <>
