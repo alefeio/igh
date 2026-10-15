@@ -7,7 +7,6 @@ import {
   poloCoordinatorOwnsClassGroup,
   poloCoordinatorOwnsEnrollment,
 } from "@/lib/polo-coordinator-scope";
-import { tryPromoteWaitlistAfterSeatFreed } from "@/lib/enrollment-waitlist";
 import { sendEnrollmentCancellationEmail, sendEnrollmentSuspensionEmail } from "@/lib/enrollment-suspension-email";
 import { processEmailOutboxBatch } from "@/lib/email/outbox";
 import { classGroupAllowsStaffEnrollment } from "@/lib/class-group-scope";
@@ -312,7 +311,6 @@ export async function PATCH(
     enrollmentOccupiesSeat(existing.status) &&
     updated.status === "CANCELLED"
   ) {
-    await tryPromoteWaitlistAfterSeatFreed(updated.classGroupId, user.id);
     await sendEnrollmentCancellationEmail({
       enrollmentId: updated.id,
       performedByUserId: user.id,
@@ -381,9 +379,6 @@ export async function DELETE(
     return jsonErr("NOT_FOUND", "Matrícula não encontrada.", 404);
   }
 
-  const freedSeat = enrollmentOccupiesSeat(enrollment.status);
-  const classGroupId = enrollment.classGroupId;
-
   await prisma.enrollment.delete({ where: { id } });
 
   await createAuditLog({
@@ -393,10 +388,6 @@ export async function DELETE(
     diff: { deleted: enrollment },
     performedByUserId: user.id,
   });
-
-  if (freedSeat) {
-    await tryPromoteWaitlistAfterSeatFreed(classGroupId, user.id);
-  }
 
   return jsonOk({ deleted: true });
 }

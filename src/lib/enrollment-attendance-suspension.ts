@@ -10,9 +10,6 @@ import {
   isUnjustifiedAbsence,
 } from "@/lib/enrollment-attendance-streak";
 import { sendEnrollmentCancellationEmail, sendEnrollmentSuspensionEmail } from "@/lib/enrollment-suspension-email";
-import { sendEnrollmentWelcomeForStudent } from "@/lib/enrollment-welcome-email";
-import { tryPromoteWaitlistAfterSeatFreed } from "@/lib/enrollment-waitlist";
-import { notifyTeachersOfWaitlistEnrollment } from "@/lib/waitlist-teacher-notifications";
 import { prisma } from "@/lib/prisma";
 
 export {
@@ -114,21 +111,6 @@ export async function applyAttendanceSuspensionRules(params: {
       });
       cancelledIds.push(enrollment.id);
 
-      // Promoção da fila imediatamente após liberar a vaga — não pode depender de audit/e-mail.
-      // (Antes ficava no mesmo try do audit/`after`; falha no audit impedia a promoção.)
-      let waitlist: { promoted: boolean; enrollmentId?: string; studentId?: string } = {
-        promoted: false,
-      };
-      try {
-        waitlist = await tryPromoteWaitlistAfterSeatFreed(
-          params.classGroupId,
-          params.performedByUserId,
-          { skipNotifications: true },
-        );
-      } catch (e) {
-        console.error("[attendance] promoção da fila após cancelamento", enrollment.id, e);
-      }
-
       try {
         await createAuditLog({
           entityType: "Enrollment",
@@ -139,8 +121,6 @@ export async function applyAttendanceSuspensionRules(params: {
             reason: `${CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT} faltas consecutivas sem justificativa`,
             consecutiveUnjustifiedAbsences: streak,
             studentName: enrollment.student.name,
-            waitlistPromoted: waitlist.promoted,
-            waitlistEnrollmentId: waitlist.enrollmentId ?? null,
           },
         });
       } catch (e) {
@@ -156,28 +136,6 @@ export async function applyAttendanceSuspensionRules(params: {
                 performedByUserId: params.performedByUserId,
                 cause: "attendance",
               });
-              if (waitlist.promoted && waitlist.enrollmentId && waitlist.studentId) {
-                await sendEnrollmentWelcomeForStudent({
-                  studentId: waitlist.studentId,
-                  enrollmentId: waitlist.enrollmentId,
-                  performedByUserId: params.performedByUserId,
-                  emailType: "welcome_student_waitlist",
-                  auditExtra: { fromWaitlist: true },
-                });
-                try {
-                  await notifyTeachersOfWaitlistEnrollment(waitlist.enrollmentId);
-                } catch (e) {
-                  console.error("[attendance] notificar professor após waitlist", e);
-                }
-              } else {
-                const { notifyWaitlistStudentsOfAlternateSeat } = await import(
-                  "@/lib/waitlist-alternate-seat"
-                );
-                await notifyWaitlistStudentsOfAlternateSeat(
-                  params.classGroupId,
-                  params.performedByUserId,
-                );
-              }
             } catch (e) {
               console.error("[attendance] e-mails após cancelamento", enrollment.id, e);
             }

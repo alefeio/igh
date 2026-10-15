@@ -467,7 +467,7 @@ export function InscrevaForm() {
           toast.push(
             "success",
             waitCount === 1
-              ? "Reserva na lista de espera registrada. Você será matriculado automaticamente quando houver vaga."
+              ? "Reserva na lista de espera registrada. O professor inclui você na turma quando houver vaga."
               : `${waitCount} reservas na lista de espera registradas.`,
           );
         } else if (enrollCount > 0 && waitCount === 0) {
@@ -534,6 +534,7 @@ export function InscrevaForm() {
       ALREADY_ACCEPTED: "Você já aceitou esta vaga.",
       CLASS_CLOSED: "Esta turma não está mais disponível.",
       NOT_FOUND: "Link de oferta inválido ou expirado.",
+      MANUAL: "A inclusão na turma é feita pelo professor, quando houver vaga.",
     };
     return (
       <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
@@ -573,8 +574,8 @@ export function InscrevaForm() {
                 {isWaitlist ? (
                   <>
                     Pronto, <strong>{studentName}</strong>. Você entrou na lista de espera
-                    {turmas.length === 1 ? "" : ` de ${turmas.length} turmas`}. Quando houver vaga, você será
-                    matriculado automaticamente e receberá um e-mail com as informações de acesso.
+                    {turmas.length === 1 ? "" : ` de ${turmas.length} turmas`}. Quando houver vaga, o
+                    professor pode incluir você na turma. Você recebe um e-mail com as informações de acesso.
                   </>
                 ) : turmas.length === 1 ? (
                   <>
@@ -675,8 +676,8 @@ export function InscrevaForm() {
             <p className={hintClass}>
               Selecione até {slotsLeftInPrimaryCycle > 0 ? slotsLeftInPrimaryCycle : maxPerCycle} turma(s)
               {student ? " restantes neste ciclo" : " por envio"}, sem sobreposição de dia e horário.
-              Turmas lotadas entram na lista de espera: quando surgir vaga, a matrícula é feita
-              automaticamente com e-mail de acesso.
+              Turmas lotadas entram na lista de espera. Quando surgir vaga, o professor inclui o aluno
+              na turma.
             </p>
             <div className="mt-5">
               <ClassGroupPicker

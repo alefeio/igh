@@ -161,17 +161,10 @@ export async function DELETE(
     return jsonErr("NOT_FOUND", "Matrícula não encontrada ou já cancelada.", 404);
   }
 
-  const wasActive = enrollment.status === "ACTIVE";
-
   await prisma.enrollment.update({
     where: { id: enrollmentId },
     data: { status: "CANCELLED" },
   });
-
-  if (wasActive) {
-    const { tryPromoteWaitlistAfterSeatFreed } = await import("@/lib/enrollment-waitlist");
-    await tryPromoteWaitlistAfterSeatFreed(enrollment.classGroupId, user.id);
-  }
 
   const { sendEnrollmentCancellationEmail } = await import("@/lib/enrollment-suspension-email");
   const { processEmailOutboxBatch } = await import("@/lib/email/outbox");

@@ -170,7 +170,7 @@ export function EnrollmentWaitlistPanel({
       }
       toast.push(
         "success",
-        "Cadastro de reserva criado. O aluno será matriculado automaticamente quando houver vaga.",
+        "Cadastro de reserva criado. O professor inclui o aluno na turma quando houver vaga.",
       );
       setOpen(false);
       setReferrer(null);
@@ -209,7 +209,7 @@ export function EnrollmentWaitlistPanel({
               ? "Carregando reservas…"
               : items.length === 0
                 ? "Nenhuma reserva aguardando vaga."
-                : `${items.length} reserva(s) na fila. A primeira de cada turma é matriculada automaticamente quando uma vaga é liberada.`}
+                : `${items.length} reserva(s) na fila, na ordem de cadastro. A matrícula não é automática.`}
           </p>
           <Button type="button" onClick={openCreate}>
             Cadastro de reserva
@@ -274,8 +274,8 @@ export function EnrollmentWaitlistPanel({
       <Modal open={open} title="Cadastro de reserva" onClose={() => setOpen(false)}>
         <form onSubmit={submit} className="flex flex-col gap-4">
           <p className="text-sm text-[var(--text-muted)]">
-            Para turmas sem vagas. O aluno precisa estar cadastrado. Ao cancelar ou excluir uma
-            matrícula, o primeiro da fila é matriculado e recebe o e-mail de acesso.
+            Para turmas sem vagas. O aluno precisa estar cadastrado. O professor inclui quem está
+            na lista quando houver vaga.
           </p>
           <div className="flex items-center justify-between gap-2">
             <label className="text-sm font-medium">Aluno</label>

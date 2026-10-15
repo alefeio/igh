@@ -9,81 +9,90 @@ import { ENROLLMENT_STATUSES_OCCUPYING_SEAT } from "@/lib/enrollment-seat";
 export type WaitlistStatus = "WAITING" | "CONVERTED" | "CANCELLED";
 export { sendEnrollmentWelcomeForStudent } from "@/lib/enrollment-welcome-email";
 
+export type EnrollFromWaitlistResult =
+  | { ok: true; enrollmentId: string; studentId: string }
+  | { ok: false; code: "NOT_FOUND" | "FULL" | "CLOSED" | "ALREADY_ENROLLED"; message: string };
+
 /**
- * Se houver vaga e reserva WAITING, promove o primeiro da fila (FIFO) a matrícula ACTIVE
- * e dispara o e-mail de acesso.
+ * Inclui um aluno específico da lista de espera na turma, se ainda houver vaga.
+ * Não percorre a fila sozinho: quem chama escolhe a reserva.
  */
-export async function promoteNextWaitlistForClassGroup(
-  classGroupId: string,
-  performedByUserId?: string | null,
-  opts?: { skipNotifications?: boolean },
-): Promise<{ promoted: boolean; enrollmentId?: string; studentId?: string }> {
+export async function enrollStudentFromWaitlist(params: {
+  classGroupId: string;
+  waitlistId: string;
+  performedByUserId?: string | null;
+}): Promise<EnrollFromWaitlistResult> {
   const classGroup = await prisma.classGroup.findUnique({
-    where: { id: classGroupId },
+    where: { id: params.classGroupId },
     select: { id: true, capacity: true, status: true },
   });
-  if (!classGroup) return { promoted: false };
+  if (!classGroup) {
+    return { ok: false, code: "NOT_FOUND", message: "Turma não encontrada." };
+  }
   if (["ENCERRADA", "CANCELADA"].includes(classGroup.status)) {
-    return { promoted: false };
+    return { ok: false, code: "CLOSED", message: "Esta turma não aceita novas matrículas." };
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const occupiedCount = await tx.enrollment.count({
-      where: { classGroupId, status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] } },
+    const entry = await tx.enrollmentWaitlist.findFirst({
+      where: { id: params.waitlistId, classGroupId: params.classGroupId, status: "WAITING" },
+      select: { id: true, studentId: true },
     });
-    if (occupiedCount >= classGroup.capacity) {
-      return null;
-    }
+    if (!entry) return { error: "NOT_FOUND" as const };
 
-    // Tenta o próximo WAITING válido (pula quem já ocupe vaga nesta turma).
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const next = await tx.enrollmentWaitlist.findFirst({
-        where: { classGroupId, status: "WAITING" },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, studentId: true },
-      });
-      if (!next) return null;
+    const occupiedCount = await tx.enrollment.count({
+      where: {
+        classGroupId: params.classGroupId,
+        status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
+      },
+    });
+    if (occupiedCount >= classGroup.capacity) return { error: "FULL" as const };
 
-      const alreadyActive = await tx.enrollment.findFirst({
-        where: {
-          studentId: next.studentId,
-          classGroupId,
-          status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
-        },
-        select: { id: true },
-      });
-      if (alreadyActive) {
-        await tx.enrollmentWaitlist.update({
-          where: { id: next.id },
-          data: { status: "CANCELLED" },
-        });
-        continue;
-      }
-
-      const enrollment = await tx.enrollment.create({
-        data: {
-          studentId: next.studentId,
-          classGroupId,
-          status: "ACTIVE",
-          isPreEnrollment: false,
-        },
-      });
-
+    const alreadyActive = await tx.enrollment.findFirst({
+      where: {
+        studentId: entry.studentId,
+        classGroupId: params.classGroupId,
+        status: { in: [...ENROLLMENT_STATUSES_OCCUPYING_SEAT] },
+      },
+      select: { id: true },
+    });
+    if (alreadyActive) {
       await tx.enrollmentWaitlist.update({
-        where: { id: next.id },
-        data: {
-          status: "CONVERTED",
-          convertedEnrollmentId: enrollment.id,
-        },
+        where: { id: entry.id },
+        data: { status: "CANCELLED" },
       });
-
-      return { enrollmentId: enrollment.id, studentId: next.studentId, waitlistId: next.id };
+      return { error: "ALREADY_ENROLLED" as const };
     }
 
-    return null;
+    const enrollment = await tx.enrollment.create({
+      data: {
+        studentId: entry.studentId,
+        classGroupId: params.classGroupId,
+        status: "ACTIVE",
+        isPreEnrollment: false,
+      },
+    });
+
+    await tx.enrollmentWaitlist.update({
+      where: { id: entry.id },
+      data: {
+        status: "CONVERTED",
+        convertedEnrollmentId: enrollment.id,
+      },
+    });
+
+    return { enrollmentId: enrollment.id, studentId: entry.studentId, waitlistId: entry.id };
   });
 
-  if (!result) return { promoted: false };
+  if ("error" in result) {
+    if (result.error === "FULL") {
+      return { ok: false, code: "FULL", message: "Não há vaga nesta turma." };
+    }
+    if (result.error === "ALREADY_ENROLLED") {
+      return { ok: false, code: "ALREADY_ENROLLED", message: "Este aluno já está na turma." };
+    }
+    return { ok: false, code: "NOT_FOUND", message: "Reserva não encontrada nesta turma." };
+  }
 
   try {
     await createAuditLog({
@@ -94,64 +103,32 @@ export async function promoteNextWaitlistForClassGroup(
         fromWaitlist: true,
         waitlistId: result.waitlistId,
         studentId: result.studentId,
-        classGroupId,
+        classGroupId: params.classGroupId,
+        manual: true,
       },
-      performedByUserId: performedByUserId ?? undefined,
+      performedByUserId: params.performedByUserId ?? undefined,
     });
   } catch (e) {
-    // Matrícula já foi criada na transação; não reverter o sucesso da promoção.
-    console.error("[waitlist] audit após promoção", result.enrollmentId, e);
+    console.error("[waitlist] audit após inclusão manual", result.enrollmentId, e);
   }
 
-  if (!opts?.skipNotifications) {
-    try {
-      await sendEnrollmentWelcomeForStudent({
-        studentId: result.studentId,
-        enrollmentId: result.enrollmentId,
-        performedByUserId,
-        emailType: "welcome_student_waitlist",
-        auditExtra: { fromWaitlist: true },
-      });
-    } catch (e) {
-      console.error("[waitlist] e-mail de boas-vindas após promoção", result.enrollmentId, e);
-    }
-
-    try {
-      await notifyTeachersOfWaitlistEnrollment(result.enrollmentId);
-    } catch (e) {
-      console.error("[waitlist] falha ao notificar professor", result.enrollmentId, e);
-    }
-  }
-
-  return {
-    promoted: true,
-    enrollmentId: result.enrollmentId,
-    studentId: result.studentId,
-  };
-}
-
-/** Após liberar vaga (cancelamento/exclusão), tenta promover a próxima reserva.
- * Se não houver fila nesta turma, oferece a vaga a quem espera em outras turmas
- * do mesmo curso/ciclo. */
-export async function tryPromoteWaitlistAfterSeatFreed(
-  classGroupId: string,
-  performedByUserId?: string | null,
-  opts?: { skipNotifications?: boolean },
-): Promise<{ promoted: boolean; enrollmentId?: string; studentId?: string }> {
   try {
-    const result = await promoteNextWaitlistForClassGroup(classGroupId, performedByUserId, {
-      skipNotifications: opts?.skipNotifications,
+    await sendEnrollmentWelcomeForStudent({
+      studentId: result.studentId,
+      enrollmentId: result.enrollmentId,
+      performedByUserId: params.performedByUserId,
+      emailType: "welcome_student_waitlist",
+      auditExtra: { fromWaitlist: true, manual: true },
     });
-    if (result.promoted) return result;
-    if (!opts?.skipNotifications) {
-      const { notifyWaitlistStudentsOfAlternateSeat } = await import(
-        "@/lib/waitlist-alternate-seat"
-      );
-      await notifyWaitlistStudentsOfAlternateSeat(classGroupId, performedByUserId);
-    }
-    return { promoted: false };
   } catch (e) {
-    console.error("[waitlist] falha ao promover reserva / ofertar vaga", classGroupId, e);
-    return { promoted: false };
+    console.error("[waitlist] e-mail de boas-vindas após inclusão manual", result.enrollmentId, e);
   }
+
+  try {
+    await notifyTeachersOfWaitlistEnrollment(result.enrollmentId);
+  } catch (e) {
+    console.error("[waitlist] falha ao notificar professor", result.enrollmentId, e);
+  }
+
+  return { ok: true, enrollmentId: result.enrollmentId, studentId: result.studentId };
 }
