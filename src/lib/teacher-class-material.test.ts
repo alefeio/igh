@@ -5,6 +5,7 @@ import {
   assertPublicHttpsUrl,
   contentDisposition,
   officePresentationEmbedUrl,
+  teacherMaterialClassLabel,
   teacherMaterialKind,
 } from "@/lib/teacher-class-material";
 
@@ -29,6 +30,12 @@ describe("material do professor", () => {
     expect(assertPublicHttpsUrl("https://apimg.com.br/igh/aula.pdf")).toBe(
       "https://apimg.com.br/igh/aula.pdf"
     );
+  });
+
+  it("identifica a turma de outro professor pelos dias e pelo horário", () => {
+    expect(
+      teacherMaterialClassLabel({ daysOfWeek: ["QUI", "TER"], startTime: "19:00", endTime: "21:00" })
+    ).toBe("ter e qui · 19:00–21:00");
   });
 
   it("força download no cabeçalho quando pedido", () => {

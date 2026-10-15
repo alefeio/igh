@@ -62,10 +62,12 @@ function presentationSrc(classGroupId: string, material: MaterialItem): string {
 function MaterialViewer({
   classGroupId,
   material,
+  ownerLabel,
   onClose,
 }: {
   classGroupId: string;
   material: MaterialItem;
+  ownerLabel?: string;
   onClose: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -129,7 +131,9 @@ function MaterialViewer({
       <header className="flex flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2 sm:px-4">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{material.fileName}</p>
-          <p className="text-xs text-zinc-400">{kindLabel(material.kind)} · apresentação</p>
+          <p className="text-xs text-zinc-400">
+            {[ownerLabel, `${kindLabel(material.kind)} · apresentação`].filter(Boolean).join(" · ")}
+          </p>
         </div>
         <button
           type="button"
@@ -174,6 +178,112 @@ function MaterialViewer({
   );
 }
 
+function groupColleagueMaterials(items: MaterialItem[]): { ownerName: string; items: MaterialItem[] }[] {
+  const groups: { ownerName: string; items: MaterialItem[] }[] = [];
+  for (const item of items) {
+    const ownerName = item.ownerName.trim() || "Professor";
+    const current = groups[groups.length - 1];
+    if (current && current.ownerName === ownerName) current.items.push(item);
+    else groups.push({ ownerName, items: [item] });
+  }
+  return groups;
+}
+
+function MaterialList({
+  materials,
+  classGroupId,
+  allowRemove,
+  removingId,
+  showClassLabel,
+  onOpen,
+  onRemove,
+}: {
+  materials: MaterialItem[];
+  classGroupId: string;
+  allowRemove: boolean;
+  removingId: string | null;
+  showClassLabel: boolean;
+  onOpen: (material: MaterialItem) => void;
+  onRemove: (material: MaterialItem) => void;
+}) {
+  return (
+    <ul className="divide-y divide-[var(--card-border)] rounded-lg border border-[var(--card-border)]">
+      {materials.map((material) => {
+        const canPresent = material.kind === "pdf" || material.kind === "ppt";
+        const meta = [
+          showClassLabel ? material.classLabel : "",
+          kindLabel(material.kind),
+          formatBytes(material.sizeBytes),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const summary = (
+          <>
+            <KindIcon kind={material.kind} />
+            <span className="min-w-0">
+              <span className={`block truncate text-sm font-medium ${canPresent ? "text-[var(--igh-primary)]" : "text-[var(--text-primary)]"}`}>
+                {material.fileName}
+              </span>
+              <span className="mt-0.5 block text-xs text-[var(--text-muted)]">
+                {meta}
+                {material.createdAt
+                  ? ` · ${new Date(material.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`
+                  : ""}
+              </span>
+            </span>
+          </>
+        );
+        return (
+          <li key={material.id} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
+            {canPresent ? (
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-left"
+                onClick={() => onOpen(material)}
+              >
+                {summary}
+              </button>
+            ) : (
+              <div className="flex min-w-0 flex-1 items-start gap-3">{summary}</div>
+            )}
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              {canPresent && (
+                <button
+                  type="button"
+                  onClick={() => onOpen(material)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-[var(--igh-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-95"
+                >
+                  <Maximize2 className="h-3.5 w-3.5" aria-hidden />
+                  Abrir
+                </button>
+              )}
+              <a
+                href={fileHref(classGroupId, material.id, true)}
+                download={material.fileName}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--card-border)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                Baixar
+              </a>
+              {allowRemove && (
+                <button
+                  type="button"
+                  onClick={() => onRemove(material)}
+                  disabled={removingId === material.id}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--card-border)] px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-[var(--igh-surface)] disabled:opacity-50 dark:text-red-400"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  {removingId === material.id ? "Removendo…" : "Remover"}
+                </button>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function TeacherClassMaterials({
   classGroupId,
   readOnly,
@@ -184,23 +294,28 @@ export function TeacherClassMaterials({
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
+  const [colleagues, setColleagues] = useState<MaterialItem[]>([]);
+  const [panel, setPanel] = useState<"meus" | "outros">("meus");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<MaterialItem | null>(null);
+  const [viewing, setViewing] = useState<{ material: MaterialItem; shared: boolean } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/teacher/class-groups/${classGroupId}/materials`);
-      const json = await readApiJson<{ materials: MaterialItem[] }>(res);
+      const json = await readApiJson<{ materials: MaterialItem[]; colleagues: MaterialItem[] }>(res);
       if (!res.ok || !json.ok) {
         setMaterials([]);
+        setColleagues([]);
         return;
       }
       setMaterials(json.data.materials);
+      setColleagues(json.data.colleagues ?? []);
     } catch {
       setMaterials([]);
+      setColleagues([]);
     } finally {
       setLoading(false);
     }
@@ -285,7 +400,7 @@ export function TeacherClassMaterials({
         return;
       }
       setMaterials((current) => current.filter((item) => item.id !== material.id));
-      if (viewing?.id === material.id) setViewing(null);
+      if (viewing?.material.id === material.id) setViewing(null);
       toast.push("success", "Material removido.");
     } finally {
       setRemovingId(null);
@@ -296,7 +411,10 @@ export function TeacherClassMaterials({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setPanel("meus");
+          setOpen(true);
+        }}
         data-tour="pt-material"
         className="inline-flex items-center gap-2 rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
       >
@@ -311,117 +429,119 @@ export function TeacherClassMaterials({
 
       <Modal open={open} onClose={() => setOpen(false)} title="Material do Professor">
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-[var(--text-muted)]">
-            Anexe PowerPoint, PDF ou outro arquivo para usar durante a aula. PDF e PowerPoint abrem em
-            apresentação neste navegador.
-          </p>
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Materiais da turma">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panel === "meus"}
+              onClick={() => setPanel("meus")}
+              className={`rounded-lg px-3 py-2 text-sm font-medium ${
+                panel === "meus"
+                  ? "bg-[var(--igh-primary)] text-white"
+                  : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+              }`}
+            >
+              Meus materiais
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panel === "outros"}
+              onClick={() => setPanel("outros")}
+              className={`rounded-lg px-3 py-2 text-sm font-medium ${
+                panel === "outros"
+                  ? "bg-[var(--igh-primary)] text-white"
+                  : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+              }`}
+            >
+              Outros professores
+              {colleagues.length > 0 ? ` (${colleagues.length})` : ""}
+            </button>
+          </div>
 
-          {!readOnly && (
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--igh-primary)]/40 bg-[var(--igh-primary)]/10 px-4 py-2 text-sm font-semibold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/15">
-                <input
-                  type="file"
-                  multiple
-                  className="sr-only"
-                  disabled={uploading}
-                  onChange={(event) => {
-                    void handleFiles(event.target.files);
-                    event.target.value = "";
-                  }}
+          {panel === "meus" ? (
+            <>
+              <p className="text-sm text-[var(--text-muted)]">
+                Anexe PowerPoint, PDF ou outro arquivo para usar durante a aula. PDF e PowerPoint abrem em
+                apresentação neste navegador.
+              </p>
+              {!readOnly && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--igh-primary)]/40 bg-[var(--igh-primary)]/10 px-4 py-2 text-sm font-semibold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/15">
+                    <input
+                      type="file"
+                      multiple
+                      className="sr-only"
+                      disabled={uploading}
+                      onChange={(event) => {
+                        void handleFiles(event.target.files);
+                        event.target.value = "";
+                      }}
+                    />
+                    {uploading ? "Enviando…" : "Anexar arquivo"}
+                  </label>
+                  <span className="text-xs text-[var(--text-muted)]">Até 80 MB por arquivo.</span>
+                </div>
+              )}
+              {loading ? (
+                <p className="text-sm text-[var(--text-muted)]">Carregando materiais…</p>
+              ) : materials.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-[var(--card-border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+                  {readOnly
+                    ? "Nenhum material anexado pelo professor."
+                    : "Nenhum material anexado ainda. Envie o PowerPoint ou o PDF da aula."}
+                </p>
+              ) : (
+                <MaterialList
+                  materials={materials}
+                  classGroupId={classGroupId}
+                  allowRemove={!readOnly}
+                  removingId={removingId}
+                  showClassLabel={false}
+                  onOpen={(material) => setViewing({ material, shared: false })}
+                  onRemove={(material) => void removeMaterial(material)}
                 />
-                {uploading ? "Enviando…" : "Anexar arquivo"}
-              </label>
-              <span className="text-xs text-[var(--text-muted)]">Até 80 MB por arquivo.</span>
-            </div>
-          )}
-
-          {loading ? (
-            <p className="text-sm text-[var(--text-muted)]">Carregando materiais…</p>
-          ) : materials.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-[var(--card-border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-              {readOnly
-                ? "Nenhum material anexado pelo professor."
-                : "Nenhum material anexado ainda. Envie o PowerPoint ou o PDF da aula."}
-            </p>
+              )}
+            </>
           ) : (
-            <ul className="divide-y divide-[var(--card-border)] rounded-lg border border-[var(--card-border)]">
-              {materials.map((material) => {
-                const canPresent = material.kind === "pdf" || material.kind === "ppt";
-                const meta = [kindLabel(material.kind), formatBytes(material.sizeBytes)]
-                  .filter(Boolean)
-                  .join(" · ");
-                const summary = (
-                  <>
-                    <KindIcon kind={material.kind} />
-                    <span className="min-w-0">
-                      <span className={`block truncate text-sm font-medium ${canPresent ? "text-[var(--igh-primary)]" : "text-[var(--text-primary)]"}`}>
-                        {material.fileName}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-[var(--text-muted)]">
-                        {meta}
-                        {material.createdAt
-                          ? ` · ${new Date(material.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`
-                          : ""}
-                      </span>
-                    </span>
-                  </>
-                );
-                return (
-                  <li key={material.id} className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
-                    {canPresent ? (
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-left"
-                        onClick={() => setViewing(material)}
-                      >
-                        {summary}
-                      </button>
-                    ) : (
-                      <div className="flex min-w-0 flex-1 items-start gap-3">{summary}</div>
-                    )}
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                      {canPresent && (
-                        <button
-                          type="button"
-                          onClick={() => setViewing(material)}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--igh-primary)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-95"
-                        >
-                          <Maximize2 className="h-3.5 w-3.5" aria-hidden />
-                          Abrir
-                        </button>
-                      )}
-                      <a
-                        href={fileHref(classGroupId, material.id, true)}
-                        download={material.fileName}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-[var(--card-border)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--igh-surface)]"
-                      >
-                        <Download className="h-3.5 w-3.5" aria-hidden />
-                        Baixar
-                      </a>
-                      {!readOnly && (
-                        <button
-                          type="button"
-                          onClick={() => void removeMaterial(material)}
-                          disabled={removingId === material.id}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--card-border)] px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-[var(--igh-surface)] disabled:opacity-50 dark:text-red-400"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                          {removingId === material.id ? "Removendo…" : "Remover"}
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <p className="text-sm text-[var(--text-muted)]">
+                Materiais de professores que lecionam outras turmas deste curso. Dá para abrir, expandir e baixar.
+              </p>
+              {loading ? (
+                <p className="text-sm text-[var(--text-muted)]">Carregando materiais…</p>
+              ) : colleagues.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-[var(--card-border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+                  Nenhum outro professor anexou material neste curso.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {groupColleagueMaterials(colleagues).map((group) => (
+                    <section key={group.ownerName} className="flex flex-col gap-2">
+                      <h3 className="text-sm font-semibold text-[var(--text-primary)]">{group.ownerName}</h3>
+                      <MaterialList
+                        materials={group.items}
+                        classGroupId={classGroupId}
+                        allowRemove={false}
+                        removingId={null}
+                        showClassLabel
+                        onOpen={(material) => setViewing({ material, shared: true })}
+                        onRemove={() => undefined}
+                      />
+                    </section>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </Modal>
 
-      {viewing && (viewing.kind === "pdf" || viewing.kind === "ppt") && (
+      {viewing && (viewing.material.kind === "pdf" || viewing.material.kind === "ppt") && (
         <MaterialViewer
           classGroupId={classGroupId}
-          material={viewing}
+          material={viewing.material}
+          ownerLabel={viewing.shared ? viewing.material.ownerName : undefined}
           onClose={() => setViewing(null)}
         />
       )}
