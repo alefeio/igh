@@ -22,7 +22,9 @@ import {
   shouldAcceptNextCertificate,
 } from "@/lib/certificate-zip-chunk";
 import {
+  certificateZipStatusWhere,
   classGroupCertificateEnrollmentWhere,
+  classGroupsCertificateEnrollmentWhere,
   cycleCertificateEnrollmentWhere,
 } from "@/lib/certificate-zip-enrollment";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
@@ -39,8 +41,6 @@ type EnrollmentRow = {
   status?: string;
   updatedAt?: Date;
 };
-
-const ENROLLMENT_STATUSES = ["ACTIVE", "COMPLETED", "SUSPENDED"] as const;
 
 /** Quantos PDFs gerar em paralelo no ZIP (equilíbrio entre latência e memória). */
 const CERTIFICATE_ZIP_CONCURRENCY = 3;
@@ -297,8 +297,7 @@ async function prepareCertificateEligibilityForClassGroups(classGroupIds: string
   const allEnrollments = await prisma.enrollment.findMany({
     where: {
       classGroupId: { in: classGroupIds },
-      status: { in: [...ENROLLMENT_STATUSES] },
-      isPreEnrollment: false,
+      status: certificateZipStatusWhere(),
     },
     select: { id: true },
   });
@@ -500,8 +499,7 @@ export async function buildCycleCertificatesZipBundle(
   const enrollments = await prisma.enrollment.findMany({
     where: {
       classGroupId: { in: classGroupIds },
-      status: { in: [...ENROLLMENT_STATUSES] },
-      isPreEnrollment: false,
+      status: certificateZipStatusWhere(),
     },
     select: {
       id: true,
@@ -651,12 +649,7 @@ export async function buildMultiClassGroupCertificatesZipBundle(
   await prepareCertificateEligibilityForClassGroups(ids);
 
   const enrollments = await prisma.enrollment.findMany({
-    where: {
-      classGroupId: { in: ids },
-      status: { in: [...ENROLLMENT_STATUSES] },
-      isPreEnrollment: false,
-      certificateEligible: true,
-    },
+    where: classGroupsCertificateEnrollmentWhere(ids),
     select: {
       id: true,
       classGroupId: true,
