@@ -6,6 +6,11 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { Button } from "@/components/ui/Button";
 import type { ApiResponse } from "@/lib/api-types";
+import {
+  exportedRowsLookComplete,
+  renderBackupPreamble,
+  type BackupTableCount,
+} from "@/lib/backup-sql";
 import { isMasterOrGeneralAdmin } from "@/lib/rbac";
 
 /** Abaixo do limite ~4.5 MB da Vercel; lotes menores evitam timeout da function. */
@@ -108,38 +113,104 @@ export default function BackupPage() {
   const isMaster = isMasterOrGeneralAdmin(user);
   const toast = useToast();
   const [backupLoading, setBackupLoading] = useState(false);
+  const [backupProgress, setBackupProgress] = useState<string | null>(null);
   const [restoreLoading, setRestoreLoading] = useState(false);
   const [restoreProgress, setRestoreProgress] = useState<string | null>(null);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
 
   async function handleBackup() {
     setBackupLoading(true);
+    setBackupProgress("Contando registros…");
     try {
-      const res = await fetch("/api/master/backup");
-      if (!res.ok) {
-        const json = (await res.json()) as ApiResponse<unknown>;
+      const metaRes = await fetch("/api/master/backup?part=meta");
+      const metaJson = await readResponseJson<
+        ApiResponse<{ generatedAt: string; tables: BackupTableCount[]; totalRows: number }>
+      >(metaRes);
+      if (!metaJson || !metaRes.ok || !metaJson.ok) {
         const msg =
-          json && !("ok" in json && json.ok) && "error" in json
-            ? (json as { error: { message: string } }).error.message
+          metaJson && !metaJson.ok && "error" in metaJson
+            ? metaJson.error.message
             : "Falha ao gerar backup.";
         toast.push("error", msg);
         return;
       }
-      const blob = await res.blob();
-      const disposition = res.headers.get("Content-Disposition");
-      const match = disposition?.match(/filename="?([^";]+)"?/);
-      const filename = match?.[1] ?? "backup.sql";
+
+      const { generatedAt, tables, totalRows } = metaJson.data;
+      const parts: string[] = [renderBackupPreamble({ generatedAt, tables })];
+      let exported = 0;
+
+      for (let index = 0; index < tables.length; index++) {
+        const table = tables[index]!;
+        if (table.rowCount === 0) continue;
+        let cursor: string | null = null;
+        let tableRows = 0;
+        for (;;) {
+          setBackupProgress(
+            `Tabela ${index + 1} de ${tables.length} · ${table.name} · ${tableRows.toLocaleString("pt-BR")} de ${table.rowCount.toLocaleString("pt-BR")}`,
+          );
+          const params = new URLSearchParams({ part: "chunk", table: table.name });
+          if (cursor) params.set("cursor", cursor);
+          const res = await fetch(`/api/master/backup?${params.toString()}`);
+          const json = await readResponseJson<
+            ApiResponse<{ sql: string; rows: number; done: boolean; nextCursor: string | null }>
+          >(res);
+          if (!json || !res.ok || !json.ok) {
+            const msg =
+              json && !json.ok && "error" in json
+                ? json.error.message
+                : `Falha ao exportar ${table.name}.`;
+            toast.push("error", msg);
+            return;
+          }
+          const chunk = json.data;
+          if (!chunk.done && chunk.rows <= 0) {
+            toast.push("error", `Backup interrompido na tabela ${table.name}. O arquivo não foi salvo.`);
+            return;
+          }
+          if (chunk.sql) parts.push(chunk.sql);
+          tableRows += chunk.rows;
+          exported += chunk.rows;
+          if (chunk.done) break;
+          if (!chunk.nextCursor || chunk.nextCursor === cursor) {
+            toast.push("error", `Backup interrompido na tabela ${table.name}. O arquivo não foi salvo.`);
+            return;
+          }
+          cursor = chunk.nextCursor;
+        }
+        if (!exportedRowsLookComplete(tableRows, table.rowCount)) {
+          toast.push(
+            "error",
+            `A tabela ${table.name} exportou ${tableRows.toLocaleString("pt-BR")} de ${table.rowCount.toLocaleString("pt-BR")} registros. O arquivo não foi salvo.`,
+          );
+          return;
+        }
+      }
+
+      parts.push(`-- backup-complete rows=${exported}\n`);
+      const sql = parts.join("\n");
+      if (!sql.includes("Backup gerado por Prisma") || !sql.includes("-- backup-complete")) {
+        toast.push("error", "O backup ficou incompleto e não foi salvo.");
+        return;
+      }
+      const blob = new Blob([sql], { type: "application/sql" });
+      const filename = `backup-${generatedAt.slice(0, 19).replace(/[:-]/g, "")}.sql`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-      toast.push("success", "Backup baixado com sucesso.");
+      const mb = blob.size / (1024 * 1024);
+      const sizeLabel = mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(blob.size / 1024))} KB`;
+      toast.push(
+        "success",
+        `Backup baixado (${sizeLabel}, ${exported.toLocaleString("pt-BR")} de ${totalRows.toLocaleString("pt-BR")} registros).`,
+      );
     } catch (e) {
       toast.push("error", e instanceof Error ? e.message : "Erro ao gerar backup.");
     } finally {
       setBackupLoading(false);
+      setBackupProgress(null);
     }
   }
 
@@ -229,14 +300,16 @@ export default function BackupPage() {
           variant="elevated"
         >
           <p className="text-xs text-[var(--text-muted)]">
-            Tenta <strong>pg_dump</strong> quando disponível no servidor. Se não estiver instalado (comum em
-            Windows ou em deploy serverless), o sistema gera o mesmo arquivo automaticamente via Prisma,
-            incluindo todas as tabelas do banco.
+            O arquivo é montado em partes, com todas as tabelas e registros do schema public. O download só
+            começa depois que a contagem de cada tabela fecha. Pode levar alguns minutos.
           </p>
           <div className="mt-4">
             <Button type="button" variant="primary" onClick={handleBackup} disabled={backupLoading}>
               {backupLoading ? "Gerando backup..." : "Baixar backup do banco"}
             </Button>
+            {backupProgress ? (
+              <p className="mt-3 text-xs font-medium text-[var(--igh-primary)]">{backupProgress}</p>
+            ) : null}
           </div>
         </SectionCard>
 

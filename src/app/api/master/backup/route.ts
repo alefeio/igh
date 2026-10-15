@@ -1,108 +1,58 @@
-import { spawn } from "node:child_process";
 import { requireRole } from "@/lib/auth";
-import { getDatabaseConnectionString } from "@/lib/database-url";
-import { generateBackupSql } from "@/lib/backup-prisma";
-import { jsonErr } from "@/lib/http";
+import {
+  getBackupManifest,
+  readBackupChunk,
+} from "@/lib/backup-prisma";
+import { BackupInputError, decodeBackupCursor, encodeBackupCursor } from "@/lib/backup-sql";
+import { jsonErr, jsonOk } from "@/lib/http";
+
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
+const noStore = { headers: { "Cache-Control": "no-store" } };
 
 /**
- * Backup completo do banco (apenas MASTER).
- * Tenta pg_dump; se não estiver instalado (ENOENT), usa fallback via Prisma (dados em SQL).
+ * Backup completo do schema public (apenas MASTER).
+ * O arquivo é montado no navegador em partes, porque um único response da Vercel
+ * corta dumps grandes e a página acabava salvando um arquivo incompleto.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireRole("MASTER");
   } catch {
     return jsonErr("FORBIDDEN", "Apenas perfis autorizados podem fazer backup.", 403);
   }
 
-  const connectionString = getDatabaseConnectionString();
-  const filename = `backup-${new Date().toISOString().slice(0, 19).replace(/[:-]/g, "")}.sql`;
+  const part = new URL(request.url).searchParams.get("part") ?? "";
 
-  return new Promise<Response>((resolve) => {
-    const outChunks: Buffer[] = [];
-    const errChunks: Buffer[] = [];
-    const child = spawn("pg_dump", [connectionString, "-F", "p", "--no-owner", "--no-acl"], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    child.stdout.on("data", (chunk: Buffer) => outChunks.push(chunk));
-    child.stderr.on("data", (chunk: Buffer) => errChunks.push(chunk));
-
-    child.on("error", async (err: NodeJS.ErrnoException) => {
-      if (err?.code === "ENOENT") {
-        try {
-          const sql = await generateBackupSql();
-          const body = Buffer.from(sql, "utf8");
-          resolve(
-            new Response(body, {
-              status: 200,
-              headers: {
-                "Content-Type": "application/sql",
-                "Content-Disposition": `attachment; filename="${filename}"`,
-                "Content-Length": String(body.length),
-              },
-            })
-          );
-        } catch (fallbackErr) {
-          resolve(
-            jsonErr(
-              "BACKUP_ERROR",
-              "pg_dump não encontrado e backup alternativo falhou: " +
-                (fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)),
-              503
-            )
-          );
-        }
-        return;
+  try {
+    if (part === "meta") {
+      return jsonOk(await getBackupManifest(), noStore);
+    }
+    if (part === "chunk") {
+      const table = new URL(request.url).searchParams.get("table") ?? "";
+      const cursorRaw = new URL(request.url).searchParams.get("cursor");
+      const cursor = cursorRaw ? decodeBackupCursor(cursorRaw) : null;
+      const chunk = await readBackupChunk(table, cursor);
+      if (!chunk.done && !chunk.nextCursor) {
+        throw new Error(`Backup da tabela ${table} não avançou.`);
       }
-      resolve(
-        jsonErr(
-          "BACKUP_ERROR",
-          "Não foi possível executar o backup. Verifique se o pg_dump está instalado e no PATH (ex.: PostgreSQL client tools). " +
-            (err?.message ?? ""),
-          503
-        )
+      return jsonOk(
+        {
+          sql: chunk.sql,
+          rows: chunk.rows,
+          done: chunk.done,
+          nextCursor: chunk.nextCursor ? encodeBackupCursor(chunk.nextCursor) : null,
+        },
+        noStore,
       );
-    });
-
-    child.on("close", async (code) => {
-      if (code !== 0) {
-        const errMsg = Buffer.concat(errChunks).toString("utf8").trim() || "pg_dump falhou.";
-        try {
-          const sql = await generateBackupSql();
-          const body = Buffer.from(sql, "utf8");
-          resolve(
-            new Response(body, {
-              status: 200,
-              headers: {
-                "Content-Type": "application/sql",
-                "Content-Disposition": `attachment; filename="${filename}"`,
-                "Content-Length": String(body.length),
-              },
-            })
-          );
-        } catch {
-          resolve(
-            jsonErr(
-              "BACKUP_ERROR",
-              `pg_dump falhou (${errMsg}). Backup alternativo também falhou. Verifique POSTGRES_URL/DATABASE_URL e a conexão com o banco.`,
-              503
-            )
-          );
-        }
-        return;
-      }
-      const body = Buffer.concat(outChunks);
-      resolve(
-        new Response(body, {
-          status: 200,
-          headers: {
-            "Content-Type": "application/sql",
-            "Content-Disposition": `attachment; filename="${filename}"`,
-            "Content-Length": String(body.length),
-          },
-        })
-      );
-    });
-  });
+    }
+    return jsonErr("VALIDATION_ERROR", "Informe part=meta ou part=chunk.", 400);
+  } catch (error) {
+    if (error instanceof BackupInputError) {
+      return jsonErr("VALIDATION_ERROR", error.message, 400);
+    }
+    console.error("[backup]", part, error instanceof Error ? error.message : error);
+    return jsonErr("BACKUP_ERROR", "Falha ao gerar o backup. Tente de novo.", 500);
+  }
 }
