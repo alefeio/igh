@@ -123,8 +123,8 @@ export default async function CursoSlugPage({ params }: Props) {
         )}
         {!course.hasOpenClassGroups && course.hasWaitlistClassGroups && (
           <p className="mb-6 rounded-lg border border-[var(--igh-border)] bg-[var(--igh-surface)] px-4 py-3 text-sm text-[var(--igh-muted)]">
-            As turmas deste curso estão lotadas no momento. Você pode entrar na lista de espera e será
-            avisado quando houver vaga.
+            As turmas deste curso estão lotadas no momento. Você pode entrar na lista de espera. O
+            professor inclui os alunos quando houver vaga.
           </p>
         )}
 

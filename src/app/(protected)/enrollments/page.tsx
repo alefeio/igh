@@ -1487,7 +1487,7 @@ export default function EnrollmentsPage() {
       <DashboardHero
         eyebrow="Matrículas"
         title="Matrículas"
-        description="Análise por status, turma e data. Crie matrículas ou reservas (lista de espera) para turmas lotadas. Ao cancelar/excluir uma matrícula, a primeira reserva é promovida automaticamente com e-mail de acesso."
+        description="Análise por status, turma e data. Crie matrículas ou reservas (lista de espera) para turmas lotadas. Quem está na lista entra na turma quando o professor incluir, se houver vaga."
         rightSlot={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
             <div className="flex flex-wrap justify-end gap-2">

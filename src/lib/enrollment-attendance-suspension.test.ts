@@ -8,25 +8,13 @@ vi.mock("next/server", () => ({
 }));
 
 const createAuditLog = vi.fn();
-const tryPromoteWaitlistAfterSeatFreed = vi.fn();
 const sendEnrollmentCancellationEmail = vi.fn();
 const sendEnrollmentSuspensionEmail = vi.fn();
-const sendEnrollmentWelcomeForStudent = vi.fn();
-const notifyTeachersOfWaitlistEnrollment = vi.fn();
 
 vi.mock("@/lib/audit", () => ({ createAuditLog: (...args: unknown[]) => createAuditLog(...args) }));
-vi.mock("@/lib/enrollment-waitlist", () => ({
-  tryPromoteWaitlistAfterSeatFreed: (...args: unknown[]) => tryPromoteWaitlistAfterSeatFreed(...args),
-}));
 vi.mock("@/lib/enrollment-suspension-email", () => ({
   sendEnrollmentCancellationEmail: (...args: unknown[]) => sendEnrollmentCancellationEmail(...args),
   sendEnrollmentSuspensionEmail: (...args: unknown[]) => sendEnrollmentSuspensionEmail(...args),
-}));
-vi.mock("@/lib/enrollment-welcome-email", () => ({
-  sendEnrollmentWelcomeForStudent: (...args: unknown[]) => sendEnrollmentWelcomeForStudent(...args),
-}));
-vi.mock("@/lib/waitlist-teacher-notifications", () => ({
-  notifyTeachersOfWaitlistEnrollment: (...args: unknown[]) => notifyTeachersOfWaitlistEnrollment(...args),
 }));
 
 const enrollmentFindFirst = vi.fn();
@@ -49,22 +37,15 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-describe("applyAttendanceSuspensionRules — 4ª falta e fila", () => {
+describe("applyAttendanceSuspensionRules — 4ª falta", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createAuditLog.mockResolvedValue({});
-    tryPromoteWaitlistAfterSeatFreed.mockResolvedValue({
-      promoted: true,
-      enrollmentId: "enr-wait",
-      studentId: "stu-wait",
-    });
     sendEnrollmentCancellationEmail.mockResolvedValue({ sent: true });
-    sendEnrollmentWelcomeForStudent.mockResolvedValue({ emailSent: true, hadEmail: true });
-    notifyTeachersOfWaitlistEnrollment.mockResolvedValue(undefined);
     enrollmentUpdate.mockResolvedValue({});
   });
 
-  it("cancela matrícula suspensa e promove a fila mesmo se o audit falhar", async () => {
+  it("cancela matrícula suspensa sem matricular a lista de espera", async () => {
     enrollmentFindFirst.mockResolvedValue({
       id: "enr-susp",
       status: "SUSPENDED",
@@ -104,9 +85,6 @@ describe("applyAttendanceSuspensionRules — 4ª falta e fila", () => {
     expect(enrollmentUpdate).toHaveBeenCalledWith({
       where: { id: "enr-susp" },
       data: { status: "CANCELLED" },
-    });
-    expect(tryPromoteWaitlistAfterSeatFreed).toHaveBeenCalledWith("cg-1", "user-1", {
-      skipNotifications: true,
     });
     consoleError.mockRestore();
   });

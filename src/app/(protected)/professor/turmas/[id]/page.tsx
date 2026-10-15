@@ -222,7 +222,7 @@ export default function ProfessorTurmaDetailPage() {
   const [exerciseByEnrollment, setExerciseByEnrollment] = useState<ExerciseByEnrollment[]>([]);
   const [lessonProgressByEnrollment, setLessonProgressByEnrollment] = useState<LessonProgressByEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"alunos" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
+  const [tab, setTab] = useState<"alunos" | "espera" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
   const [togglingCertificateId, setTogglingCertificateId] = useState<string | null>(null);
   const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
   const [updatingEnrollmentId, setUpdatingEnrollmentId] = useState<string | null>(null);
@@ -320,6 +320,59 @@ export default function ProfessorTurmaDetailPage() {
     const json = (await res.json()) as ApiResponse<{ enrollments: Enrollment[] }>;
     if (res.ok && json?.ok) setEnrollments(json.data.enrollments);
   }, [id]);
+
+  type WaitlistEntry = {
+    id: string;
+    createdAt: string;
+    studentName: string;
+    studentEmail: string | null;
+    studentPhone: string | null;
+  };
+  type WaitlistPayload = {
+    entries: WaitlistEntry[];
+    seatsRemaining: number;
+    canEnroll: boolean;
+    capacity: number;
+    occupiedSeats: number;
+  };
+  const [waitlist, setWaitlist] = useState<WaitlistPayload | null>(null);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [enrollingWaitlistId, setEnrollingWaitlistId] = useState<string | null>(null);
+
+  const loadWaitlist = useCallback(async () => {
+    setWaitlistLoading(true);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${id}/waitlist`);
+      const json = (await res.json()) as ApiResponse<{ waitlist: WaitlistPayload }>;
+      if (res.ok && json?.ok) setWaitlist(json.data.waitlist);
+      else setWaitlist(null);
+    } finally {
+      setWaitlistLoading(false);
+    }
+  }, [id]);
+
+  async function enrollFromWaitlist(entry: WaitlistEntry) {
+    if (!waitlist?.canEnroll) return;
+    if (!confirm(`Incluir ${entry.studentName} nesta turma?`)) return;
+    setEnrollingWaitlistId(entry.id);
+    try {
+      const res = await fetch(`/api/teacher/class-groups/${id}/waitlist/${entry.id}`, { method: "POST" });
+      const json = (await res.json()) as ApiResponse<{ enrollmentId: string }>;
+      if (!res.ok || !json?.ok) {
+        const msg =
+          json && !json.ok && "error" in json ? json.error.message : "Não foi possível incluir o aluno.";
+        toast.push("error", msg);
+        await loadWaitlist();
+        return;
+      }
+      toast.push("success", `${entry.studentName} entrou na turma.`);
+      await Promise.all([loadWaitlist(), loadEnrollments(), loadClassGroup(), loadInvite()]);
+    } catch {
+      toast.push("error", "Não foi possível incluir o aluno.");
+    } finally {
+      setEnrollingWaitlistId(null);
+    }
+  }
 
   const loadInvite = useCallback(async () => {
     setInviteLoading(true);
@@ -737,6 +790,7 @@ export default function ProfessorTurmaDetailPage() {
           loadSessions(),
           loadExerciseAnswers(),
           loadInvite(),
+          loadWaitlist(),
         ]);
       } finally {
         if (!cancelled) setLoading(false);
@@ -746,7 +800,7 @@ export default function ProfessorTurmaDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadClassGroup, loadEnrollments, loadSessions, loadExerciseAnswers, loadInvite]);
+  }, [loadClassGroup, loadEnrollments, loadSessions, loadExerciseAnswers, loadInvite, loadWaitlist]);
 
   useEffect(() => {
     if (tab === "aulas") loadLessonProgress();
@@ -755,6 +809,10 @@ export default function ProfessorTurmaDetailPage() {
   useEffect(() => {
     if (tab === "duvidas") void loadLessonQuestions();
   }, [tab, loadLessonQuestions]);
+
+  useEffect(() => {
+    if (tab === "espera") void loadWaitlist();
+  }, [tab, loadWaitlist]);
 
   const handleSendTeacherReply = async (questionId: string) => {
     const content = replyDrafts[questionId] ?? "";
@@ -839,7 +897,7 @@ export default function ProfessorTurmaDetailPage() {
         target: "[data-tour=\"pt-tabs\"]",
         title: "Abas da turma",
         content:
-          "Use as abas para alternar entre: lista de alunos, exercícios realizados, progresso nas aulas, frequência (presenças) e dúvidas dos alunos no fórum das aulas.",
+          "Use as abas para alternar entre: lista de alunos, lista de espera, exercícios realizados, progresso nas aulas, frequência (presenças) e dúvidas dos alunos no fórum das aulas.",
       },
       {
         target: "[data-tour=\"pt-tab-alunos\"]",
@@ -947,6 +1005,19 @@ export default function ProfessorTurmaDetailPage() {
           data-tour="pt-tab-alunos"
         >
           Lista de alunos
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("espera")}
+          className={`rounded-lg px-3 py-2 text-sm font-medium ${
+            tab === "espera"
+              ? "bg-[var(--igh-primary)] text-white"
+              : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+          }`}
+          data-tour="pt-tab-espera"
+        >
+          Lista de espera
+          {waitlist && waitlist.entries.length > 0 ? ` (${waitlist.entries.length})` : ""}
         </button>
         <button
           type="button"
@@ -1400,7 +1471,7 @@ export default function ProfessorTurmaDetailPage() {
                               e,
                               "CANCELLED",
                               "Cancelar matrícula",
-                              `Cancelar a matrícula de ${e.studentName}? Se houver aluno na lista de espera, a vaga poderá ser preenchida automaticamente.`,
+                              `Cancelar a matrícula de ${e.studentName}? A vaga fica livre para você incluir alguém da lista de espera.`,
                             )
                           }
                           className="text-rose-700 hover:text-rose-800 dark:text-rose-300"
@@ -1528,6 +1599,85 @@ export default function ProfessorTurmaDetailPage() {
                 </div>
               ) : null}
             </>
+          )}
+        </section>
+      )}
+
+      {tab === "espera" && (
+        <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] overflow-hidden">
+          <div className="border-b border-[var(--card-border)] bg-[var(--igh-surface)] px-4 py-3">
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Lista de espera</h2>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              {waitlist
+                ? waitlist.seatsRemaining > 0
+                  ? `${waitlist.seatsRemaining} vaga${waitlist.seatsRemaining === 1 ? "" : "s"} (${waitlist.occupiedSeats}/${waitlist.capacity}). A inclusão não é automática.`
+                  : `Sem vaga (${waitlist.occupiedSeats}/${waitlist.capacity}). O botão de incluir aparece quando houver vaga.`
+                : "Alunos na ordem em que entraram na lista."}
+            </p>
+          </div>
+          {waitlistLoading && !waitlist ? (
+            <p className="p-4 text-sm text-[var(--text-muted)]">Carregando lista de espera…</p>
+          ) : !waitlist || waitlist.entries.length === 0 ? (
+            <p className="p-4 text-sm text-[var(--text-muted)]">Nenhum aluno na lista de espera desta turma.</p>
+          ) : (
+            <ul className="divide-y divide-[var(--card-border)]">
+              {waitlist.entries.map((entry, index) => {
+                const waChat = entry.studentPhone ? whatsappChatUrl(entry.studentPhone) : null;
+                const mailto = entry.studentEmail ? `mailto:${entry.studentEmail}` : null;
+                return (
+                  <li key={entry.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-medium text-[var(--text-primary)]">
+                        <span className="mr-2 text-xs font-semibold text-[var(--text-muted)]">{index + 1}.</span>
+                        {entry.studentName}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                        Cadastro: {formatDateTime(entry.createdAt)}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-[var(--text-secondary)]">
+                          {entry.studentPhone ? formatPhoneBr(entry.studentPhone) : "Sem telefone"}
+                        </span>
+                        {waChat ? (
+                          <a
+                            href={waChat}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--igh-primary)] hover:bg-[var(--card-bg)]"
+                          >
+                            WhatsApp
+                          </a>
+                        ) : null}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="max-w-full truncate text-xs text-[var(--text-secondary)]">
+                          {entry.studentEmail ?? "Sem e-mail"}
+                        </span>
+                        {mailto ? (
+                          <a
+                            href={mailto}
+                            className="inline-flex items-center gap-1 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--igh-primary)] hover:bg-[var(--card-bg)]"
+                          >
+                            <Mail className="h-3.5 w-3.5" aria-hidden />
+                            Enviar e-mail
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                    {!viewOnly && waitlist.canEnroll ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={enrollingWaitlistId === entry.id}
+                        onClick={() => void enrollFromWaitlist(entry)}
+                      >
+                        {enrollingWaitlistId === entry.id ? "Incluindo…" : "Incluir na turma"}
+                      </Button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
       )}
