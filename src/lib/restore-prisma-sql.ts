@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 
-/** Detecta dump gerado por `generateBackupSql` (sem pg_dump). */
+/** Detecta dump gerado pelo backup em partes desta aplicação (sem pg_dump). */
 export function isPrismaFallbackBackup(sql: string): boolean {
   return sql.includes("Backup gerado por Prisma");
 }
