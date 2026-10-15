@@ -24,10 +24,17 @@ export async function GET(
     if ("error" in access) return access.error;
 
     const material = await prisma.classGroupTeacherMaterial.findFirst({
-      where: { id: materialId, classGroupId },
-      select: { fileName: true, url: true, mimeType: true },
+      where: { id: materialId },
+      select: {
+        fileName: true,
+        url: true,
+        mimeType: true,
+        classGroup: { select: { courseId: true } },
+      },
     });
-    if (!material) return jsonErr("NOT_FOUND", "Material não encontrado.", 404);
+    if (!material || material.classGroup.courseId !== access.classGroup.courseId) {
+      return jsonErr("NOT_FOUND", "Material não encontrado.", 404);
+    }
 
     const kind = teacherMaterialKind(material.fileName, material.mimeType);
     const download =

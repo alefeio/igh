@@ -1,3 +1,5 @@
+import { formatDaysShortPtBr } from "@/lib/turma-display";
+
 export const MAX_TEACHER_MATERIAL_BYTES = 80 * 1024 * 1024;
 
 export type TeacherMaterialKind = "pdf" | "ppt" | "other";
@@ -141,16 +143,34 @@ export type TeacherMaterialDto = {
   sizeBytes: number | null;
   createdAt: string;
   kind: TeacherMaterialKind;
+  /** Professor a quem o arquivo pertence. */
+  ownerName: string;
+  /** Dias e horário da turma de origem. */
+  classLabel: string;
 };
 
-export function toTeacherMaterialDto(row: {
-  id: string;
-  fileName: string;
-  url: string;
-  mimeType: string | null;
-  sizeBytes: number | null;
-  createdAt: Date;
-}): TeacherMaterialDto {
+/** Rótulo curto da turma (dias e horário) para identificar o material de outro professor. */
+export function teacherMaterialClassLabel(input: {
+  daysOfWeek: string[];
+  startTime: string | null;
+  endTime: string | null;
+}): string {
+  const days = formatDaysShortPtBr(input.daysOfWeek ?? []);
+  const time = input.startTime && input.endTime ? `${input.startTime}–${input.endTime}` : "";
+  return [days === "—" ? "" : days, time].filter(Boolean).join(" · ");
+}
+
+export function toTeacherMaterialDto(
+  row: {
+    id: string;
+    fileName: string;
+    url: string;
+    mimeType: string | null;
+    sizeBytes: number | null;
+    createdAt: Date;
+  },
+  extra?: { ownerName?: string; classLabel?: string }
+): TeacherMaterialDto {
   return {
     id: row.id,
     fileName: row.fileName,
@@ -159,5 +179,7 @@ export function toTeacherMaterialDto(row: {
     sizeBytes: row.sizeBytes,
     createdAt: row.createdAt.toISOString(),
     kind: teacherMaterialKind(row.fileName, row.mimeType),
+    ownerName: extra?.ownerName?.trim() || "",
+    classLabel: extra?.classLabel?.trim() || "",
   };
 }
