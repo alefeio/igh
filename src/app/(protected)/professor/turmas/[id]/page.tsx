@@ -7,6 +7,7 @@ import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/Das
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { AttendanceGrid } from "@/components/professor/AttendanceGrid";
+import { TeacherClassMaterials } from "@/components/professor/TeacherClassMaterials";
 import { EnrollmentFollowUp, type EnrollmentHistoryItem } from "@/components/professor/EnrollmentFollowUp";
 import { ForumPostBody } from "@/components/forum/ForumPostBody";
 import { ForumPostComposer } from "@/components/forum/ForumPostComposer";
@@ -820,7 +821,13 @@ export default function ProfessorTurmaDetailPage() {
         target: "[data-tour=\"pt-header\"]",
         title: "Detalhes da turma",
         content:
-          "Aqui aparecem o nome do curso, a quantidade de alunos e a data/horário de início. Use Modo apresentação para abrir slides e material da aula em sala.",
+          "Aqui aparecem o nome do curso, a quantidade de alunos e a data/horário de início. Use Material do Professor para anexar arquivos da aula e Modo apresentação para abrir os slides em sala.",
+      },
+      {
+        target: "[data-tour=\"pt-material\"]",
+        title: "Material do Professor",
+        content:
+          "Anexe PowerPoint, PDF ou outros arquivos para usar na aula. PDF e PowerPoint abrem em apresentação neste navegador, com botões para expandir e baixar.",
       },
       {
         target: "[data-tour=\"pt-apresentar\"]",
@@ -915,14 +922,17 @@ export default function ProfessorTurmaDetailPage() {
             {classGroup.startTime && classGroup.endTime && ` · ${classGroup.startTime} – ${classGroup.endTime}`}
           </p>
         </div>
-        <Link
-          href={`/professor/turmas/${id}/apresentar`}
-          className="inline-flex items-center gap-2 rounded-md border border-[var(--igh-primary)]/40 bg-[var(--igh-primary)]/10 px-4 py-2.5 text-sm font-semibold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/15"
-          data-tour="pt-apresentar"
-        >
-          <Presentation className="h-4 w-4 shrink-0" aria-hidden />
-          Modo apresentação
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <TeacherClassMaterials classGroupId={id} readOnly={viewOnly} />
+          <Link
+            href={`/professor/turmas/${id}/apresentar`}
+            className="inline-flex items-center gap-2 rounded-md border border-[var(--igh-primary)]/40 bg-[var(--igh-primary)]/10 px-4 py-2.5 text-sm font-semibold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/15"
+            data-tour="pt-apresentar"
+          >
+            <Presentation className="h-4 w-4 shrink-0" aria-hidden />
+            Modo apresentação
+          </Link>
+        </div>
       </header>
 
       <nav className="flex flex-wrap gap-2 border-b border-[var(--card-border)] pb-2" data-tour="pt-tabs">

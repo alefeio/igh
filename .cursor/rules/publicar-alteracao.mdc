@@ -9,11 +9,12 @@ Quando uma alteração de produto estiver pronta e o usuário não tiver pedido 
 
 1. Partir da `main` atualizada (`git fetch origin`). Se `origin/main` tiver commits novos, revisar o diff antes de integrar. Não reescrever histórico.
 2. Criar uma branch nova. Não commitar direto na `main`.
-3. Commitar só o que pertence à alteração. Não incluir segredo, `.env` ou migration que o pedido não autorizou.
-4. Enviar a branch e abrir pull request para `main`.
-5. Esperar os checks do IGH e do INAC. Não fazer merge com check obrigatório falhando.
-6. Merge pelo fluxo do repositório: `gh pr merge --merge --admin --delete-branch`.
-7. Acompanhar os deploys de produção dos dois projetos no commit do merge. Os dois precisam ficar concluídos no mesmo hash.
-8. Informar a URL do PR, o hash do merge e o estado dos dois deploys.
+3. Commitar só o que pertence à alteração. Não incluir segredo nem `.env`.
+4. Se a alteração trouxer migration do Prisma, rode `npx prisma migrate deploy` no banco IGH e no banco INAC (`APP_DIRECT_URL_INAC`) antes do push. Não imprima URL nem senha. Não rode seed nem migration que esta alteração não tenha criado.
+5. Enviar a branch e abrir pull request para `main`.
+6. Esperar os checks do IGH e do INAC. Não fazer merge com check obrigatório falhando.
+7. Merge pelo fluxo do repositório: `gh pr merge --merge --admin --delete-branch`.
+8. Acompanhar os deploys de produção dos dois projetos no commit do merge. Os dois precisam ficar concluídos no mesmo hash.
+9. Informar a URL do PR, o hash do merge e o estado dos dois deploys.
 
-Não fazer migration, seed nem alteração de banco de produção, a menos que o pedido autorize. Se o usuário disser para não publicar, parar no ponto que ele indicar.
+Se o usuário disser para não publicar, parar no ponto que ele indicar.

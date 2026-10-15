@@ -137,6 +137,8 @@ model User {
   mealTicketMonthsCreated            MealTicketMonth[]               @relation("MealTicketMonthCreatedBy")
   /// * Turmas criadas por este usuário (admin/master).
   classGroupsCreated                 ClassGroup[]                    @relation("ClassGroupCreatedBy")
+  /// * Materiais de aula anexados por este usuário na turma.
+  classGroupTeacherMaterialsUploaded ClassGroupTeacherMaterial[]     @relation("ClassGroupTeacherMaterialUploadedBy")
   /// * Cursos criados por este usuário (admin/master).
   coursesCreated                     Course[]                        @relation("CourseCreatedBy")
   /// * Contatos registrados em pré-inscrições do próximo ciclo.
@@ -642,6 +644,8 @@ model ClassGroup {
   waitlistSeatOffers    WaitlistSeatOffer[]
   exams                 ClassGroupExam[]
   coordinatorInterventions CoordinatorIntervention[]
+  /// * Arquivos de apoio do professor para conduzir a aula (não aparecem para o aluno).
+  teacherMaterials      ClassGroupTeacherMaterial[]
 
   @@index([poloLocationId])
   @@index([createdByUserId])
@@ -657,6 +661,24 @@ model ClassGroupTeacher {
 
   @@unique([classGroupId, teacherId])
   @@index([teacherId])
+}
+
+/// * Material de apoio do professor para conduzir a aula desta turma (PDF, PowerPoint ou outro arquivo).
+model ClassGroupTeacherMaterial {
+  id               String     @id @default(uuid())
+  classGroupId     String
+  fileName         String
+  url              String
+  publicId         String?
+  mimeType         String?
+  sizeBytes        Int?
+  uploadedByUserId String?
+  createdAt        DateTime   @default(now())
+  classGroup       ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  uploadedByUser   User?      @relation("ClassGroupTeacherMaterialUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([classGroupId, createdAt])
+  @@index([uploadedByUserId])
 }
 
 enum ClassGroupExamStatus {
