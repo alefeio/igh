@@ -8,6 +8,7 @@ import {
 } from "@/lib/certificate-signoff-list-pdf";
 import {
   classGroupCertificateEnrollmentWhere,
+  classGroupsCertificateEnrollmentWhere,
   cycleCertificateEnrollmentWhere,
 } from "@/lib/certificate-zip-enrollment";
 
@@ -78,6 +79,14 @@ describe("filtro do ZIP de certificados da turma", () => {
   it("inclui todo aluno habilitado, inclusive pré-matrícula, e exclui cancelados", () => {
     expect(classGroupCertificateEnrollmentWhere("turma-1")).toEqual({
       classGroupId: "turma-1",
+      certificateEligible: true,
+      status: { notIn: ["CANCELLED", "CANCELED"] },
+    });
+  });
+
+  it("a listagem de várias turmas usa a mesma regra", () => {
+    expect(classGroupsCertificateEnrollmentWhere(["turma-1", "turma-2"])).toEqual({
+      classGroupId: { in: ["turma-1", "turma-2"] },
       certificateEligible: true,
       status: { notIn: ["CANCELLED", "CANCELED"] },
     });
