@@ -528,6 +528,7 @@ model CourseLesson {
   lessonNotes        EnrollmentLessonNote[]
   lessonPassages     EnrollmentLessonPassage[]
   lessonProgress     EnrollmentLessonProgress[]
+  teacherClassMaterials ClassGroupTeacherMaterial[]
 
   @@unique([moduleId, order])
 }
@@ -673,12 +674,16 @@ model ClassGroupTeacherMaterial {
   mimeType         String?
   sizeBytes        Int?
   uploadedByUserId String?
+  /// * Aula do curso a que o arquivo se refere. Em branco nos materiais antigos e quando o professor não informa.
+  lessonId         String?
   createdAt        DateTime   @default(now())
-  classGroup       ClassGroup @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
-  uploadedByUser   User?      @relation("ClassGroupTeacherMaterialUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  classGroup       ClassGroup    @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  uploadedByUser   User?         @relation("ClassGroupTeacherMaterialUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  lesson           CourseLesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
 
   @@index([classGroupId, createdAt])
   @@index([uploadedByUserId])
+  @@index([lessonId])
 }
 
 enum ClassGroupExamStatus {

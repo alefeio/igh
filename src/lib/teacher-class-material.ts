@@ -149,6 +149,8 @@ export type TeacherMaterialDto = {
   classLabel: string;
   /** Arquivo anexado na turma que está aberta. */
   fromThisClass: boolean;
+  /** Aula do curso. Vazio quando o professor não informou. */
+  lessonLabel: string;
 };
 
 /** Rótulo curto da turma (dias e horário) para identificar o material de outro professor. */
@@ -162,6 +164,34 @@ export function teacherMaterialClassLabel(input: {
   return [days === "—" ? "" : days, time].filter(Boolean).join(" · ");
 }
 
+export function teacherMaterialLessonLabel(input: {
+  moduleTitle?: string | null;
+  lessonTitle?: string | null;
+} | null | undefined): string {
+  const lesson = input?.lessonTitle?.trim() ?? "";
+  if (!lesson) return "";
+  const moduleTitle = input?.moduleTitle?.trim() ?? "";
+  return moduleTitle ? `${moduleTitle} — ${lesson}` : lesson;
+}
+
+/**
+ * Material do professor que está vendo a turma.
+ * Quem enviou o arquivo manda. Sem autor, a turma aberta e a turma do próprio professor contam como dele.
+ * Os demais materiais do curso são de outros professores.
+ */
+export function isViewerTeacherMaterial(input: {
+  uploadedByUserId: string | null;
+  classGroupId: string;
+  currentClassGroupId: string;
+  viewerUserId: string | null;
+  primaryTeacherUserId: string | null;
+}): boolean {
+  if (!input.viewerUserId) return input.classGroupId === input.currentClassGroupId;
+  if (input.uploadedByUserId) return input.uploadedByUserId === input.viewerUserId;
+  if (input.classGroupId === input.currentClassGroupId) return true;
+  return input.primaryTeacherUserId === input.viewerUserId;
+}
+
 export function toTeacherMaterialDto(
   row: {
     id: string;
@@ -171,7 +201,7 @@ export function toTeacherMaterialDto(
     sizeBytes: number | null;
     createdAt: Date;
   },
-  extra?: { ownerName?: string; classLabel?: string; fromThisClass?: boolean }
+  extra?: { ownerName?: string; classLabel?: string; fromThisClass?: boolean; lessonLabel?: string }
 ): TeacherMaterialDto {
   return {
     id: row.id,
@@ -184,5 +214,6 @@ export function toTeacherMaterialDto(
     ownerName: extra?.ownerName?.trim() || "",
     classLabel: extra?.classLabel?.trim() || "",
     fromThisClass: extra?.fromThisClass === true,
+    lessonLabel: extra?.lessonLabel?.trim() || "",
   };
 }
