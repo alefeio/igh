@@ -4,9 +4,11 @@ import {
   MaterialUrlError,
   assertPublicHttpsUrl,
   contentDisposition,
+  isViewerTeacherMaterial,
   officePresentationEmbedUrl,
   teacherMaterialClassLabel,
   teacherMaterialKind,
+  teacherMaterialLessonLabel,
   toTeacherMaterialDto,
 } from "@/lib/teacher-class-material";
 
@@ -50,6 +52,69 @@ describe("material do professor", () => {
     };
     expect(toTeacherMaterialDto(row, { fromThisClass: true }).fromThisClass).toBe(true);
     expect(toTeacherMaterialDto(row).fromThisClass).toBe(false);
+    expect(toTeacherMaterialDto(row).lessonLabel).toBe("");
+    expect(
+      toTeacherMaterialDto(row, { lessonLabel: "Módulo 1 — Introdução" }).lessonLabel
+    ).toBe("Módulo 1 — Introdução");
+  });
+
+  it("monta o rótulo da aula com o módulo", () => {
+    expect(teacherMaterialLessonLabel(null)).toBe("");
+    expect(teacherMaterialLessonLabel({ lessonTitle: "  " })).toBe("");
+    expect(teacherMaterialLessonLabel({ lessonTitle: "Introdução" })).toBe("Introdução");
+    expect(
+      teacherMaterialLessonLabel({ moduleTitle: "Módulo 1", lessonTitle: "Introdução" })
+    ).toBe("Módulo 1 — Introdução");
+  });
+
+  it("separa o material do professor que está vendo do material dos demais", () => {
+    const base = {
+      classGroupId: "turma-a",
+      currentClassGroupId: "turma-a",
+      viewerUserId: "prof-1",
+      primaryTeacherUserId: "prof-1",
+    };
+    expect(isViewerTeacherMaterial({ ...base, uploadedByUserId: "prof-1" })).toBe(true);
+    expect(isViewerTeacherMaterial({ ...base, uploadedByUserId: "prof-2" })).toBe(false);
+    expect(
+      isViewerTeacherMaterial({
+        ...base,
+        uploadedByUserId: "prof-1",
+        classGroupId: "turma-b",
+      })
+    ).toBe(true);
+    expect(
+      isViewerTeacherMaterial({
+        ...base,
+        uploadedByUserId: "prof-2",
+        classGroupId: "turma-b",
+        primaryTeacherUserId: "prof-1",
+      })
+    ).toBe(false);
+    expect(isViewerTeacherMaterial({ ...base, uploadedByUserId: null })).toBe(true);
+    expect(
+      isViewerTeacherMaterial({
+        ...base,
+        uploadedByUserId: null,
+        classGroupId: "turma-b",
+        primaryTeacherUserId: "prof-2",
+      })
+    ).toBe(false);
+    expect(
+      isViewerTeacherMaterial({
+        ...base,
+        viewerUserId: null,
+        uploadedByUserId: "prof-2",
+      })
+    ).toBe(true);
+    expect(
+      isViewerTeacherMaterial({
+        ...base,
+        viewerUserId: null,
+        uploadedByUserId: "prof-1",
+        classGroupId: "turma-b",
+      })
+    ).toBe(false);
   });
 
   it("força download no cabeçalho quando pedido", () => {

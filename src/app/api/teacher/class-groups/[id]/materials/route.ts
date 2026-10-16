@@ -4,12 +4,13 @@ import { authErrorResponse } from "@/lib/api-auth-guard";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { assertResolvedPublicHttps } from "@/lib/teacher-class-material-fetch";
-import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import {
   MaterialUrlError,
   MAX_TEACHER_MATERIAL_BYTES,
+  isViewerTeacherMaterial,
   sanitizeMaterialFileName,
   teacherMaterialClassLabel,
+  teacherMaterialLessonLabel,
   toTeacherMaterialDto,
   type TeacherMaterialDto,
 } from "@/lib/teacher-class-material";
@@ -23,6 +24,10 @@ const createSchema = z.object({
   publicId: z.string().trim().max(300).optional(),
   mimeType: z.string().trim().max(150).optional(),
   sizeBytes: z.number().int().nonnegative().max(MAX_TEACHER_MATERIAL_BYTES).optional(),
+  lessonId: z.preprocess(
+    (value) => (value === "" ? null : value),
+    z.string().uuid().nullable().optional(),
+  ),
 });
 
 const materialSelect = {
@@ -33,13 +38,20 @@ const materialSelect = {
   mimeType: true,
   sizeBytes: true,
   createdAt: true,
+  uploadedByUserId: true,
   uploadedByUser: { select: { name: true } },
+  lesson: {
+    select: {
+      title: true,
+      module: { select: { title: true } },
+    },
+  },
   classGroup: {
     select: {
       daysOfWeek: true,
       startTime: true,
       endTime: true,
-      teacher: { select: { name: true } },
+      teacher: { select: { name: true, userId: true } },
     },
   },
 } as const;
@@ -54,11 +66,12 @@ function mapMaterial(
     sizeBytes: number | null;
     createdAt: Date;
     uploadedByUser: { name: string } | null;
+    lesson: { title: string; module: { title: string } } | null;
     classGroup: {
       daysOfWeek: string[];
       startTime: string;
       endTime: string;
-      teacher: { name: string };
+      teacher: { name: string; userId: string | null };
     };
   },
   currentClassGroupId: string,
@@ -67,6 +80,9 @@ function mapMaterial(
     ownerName: row.uploadedByUser?.name?.trim() || row.classGroup.teacher.name,
     classLabel: teacherMaterialClassLabel(row.classGroup),
     fromThisClass: row.classGroupId === currentClassGroupId,
+    lessonLabel: teacherMaterialLessonLabel(
+      row.lesson ? { moduleTitle: row.lesson.module.title, lessonTitle: row.lesson.title } : null,
+    ),
   });
 }
 
@@ -77,32 +93,29 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if ("error" in access) return access.error;
 
     const courseId = access.classGroup.courseId;
-    const ownClassGroups = access.teacher
-      ? { courseId, ...classGroupTeacherAccessWhere(access.teacher.id) }
-      : { id: classGroupId };
-    const colleagueClassGroups = access.teacher
-      ? {
-          courseId,
-          id: { not: classGroupId },
-          NOT: classGroupTeacherAccessWhere(access.teacher.id),
-        }
-      : {
-          courseId,
-          id: { not: classGroupId },
-        };
-
-    const [ownRows, colleagueRows] = await Promise.all([
+    const viewerUserId = access.teacher ? access.user.id : null;
+    const [rows, lessonRows] = await Promise.all([
       prisma.classGroupTeacherMaterial.findMany({
-        where: { classGroup: ownClassGroups },
+        where: { classGroup: { courseId } },
         orderBy: { createdAt: "desc" },
         select: materialSelect,
       }),
-      prisma.classGroupTeacherMaterial.findMany({
-        where: { classGroup: colleagueClassGroups },
-        orderBy: { createdAt: "desc" },
-        select: materialSelect,
+      prisma.courseLesson.findMany({
+        where: { module: { courseId } },
+        orderBy: [{ module: { order: "asc" } }, { order: "asc" }],
+        select: { id: true, title: true, module: { select: { title: true } } },
       }),
     ]);
+    const ownRows = rows.filter((row) =>
+      isViewerTeacherMaterial({
+        uploadedByUserId: row.uploadedByUserId,
+        classGroupId: row.classGroupId,
+        currentClassGroupId: classGroupId,
+        viewerUserId,
+        primaryTeacherUserId: row.classGroup.teacher.userId,
+      }),
+    );
+    const colleagueRows = rows.filter((row) => !ownRows.includes(row));
 
     const colleagues = colleagueRows
       .map((row) => mapMaterial(row, classGroupId))
@@ -117,7 +130,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
           Number(b.fromThisClass) - Number(a.fromThisClass) || b.createdAt.localeCompare(a.createdAt)
       );
 
-    return jsonOk({ materials, colleagues });
+    return jsonOk({
+      materials,
+      colleagues,
+      lessons: lessonRows.map((lesson) => ({
+        id: lesson.id,
+        label: teacherMaterialLessonLabel({ moduleTitle: lesson.module.title, lessonTitle: lesson.title }),
+      })),
+    });
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;
@@ -145,6 +165,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return jsonErr("VALIDATION_ERROR", message, 400);
     }
 
+    const lessonId = parsed.data.lessonId ?? null;
+    if (lessonId) {
+      const lesson = await prisma.courseLesson.findFirst({
+        where: { id: lessonId, module: { courseId: access.classGroup.courseId } },
+        select: { id: true },
+      });
+      if (!lesson) return jsonErr("VALIDATION_ERROR", "Aula não encontrada neste curso.", 400);
+    }
+
     const created = await prisma.classGroupTeacherMaterial.create({
       data: {
         classGroupId,
@@ -154,6 +183,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         mimeType: parsed.data.mimeType || null,
         sizeBytes: parsed.data.sizeBytes ?? null,
         uploadedByUserId: access.user.id,
+        lessonId,
       },
       select: materialSelect,
     });

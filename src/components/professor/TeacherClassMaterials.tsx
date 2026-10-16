@@ -211,6 +211,7 @@ function MaterialList({
       {materials.map((material) => {
         const canPresent = material.kind === "pdf" || material.kind === "ppt";
         const meta = [
+          material.lessonLabel,
           showClassLabel || !material.fromThisClass ? material.classLabel : "",
           kindLabel(material.kind),
           formatBytes(material.sizeBytes),
@@ -295,6 +296,8 @@ export function TeacherClassMaterials({
   const [open, setOpen] = useState(false);
   const [materials, setMaterials] = useState<MaterialItem[]>([]);
   const [colleagues, setColleagues] = useState<MaterialItem[]>([]);
+  const [lessons, setLessons] = useState<{ id: string; label: string }[]>([]);
+  const [lessonId, setLessonId] = useState("");
   const [panel, setPanel] = useState<"meus" | "outros">("meus");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -305,17 +308,24 @@ export function TeacherClassMaterials({
     setLoading(true);
     try {
       const res = await fetch(`/api/teacher/class-groups/${classGroupId}/materials`);
-      const json = await readApiJson<{ materials: MaterialItem[]; colleagues: MaterialItem[] }>(res);
+      const json = await readApiJson<{
+        materials: MaterialItem[];
+        colleagues: MaterialItem[];
+        lessons: { id: string; label: string }[];
+      }>(res);
       if (!res.ok || !json.ok) {
         setMaterials([]);
         setColleagues([]);
+        setLessons([]);
         return;
       }
       setMaterials(json.data.materials);
       setColleagues(json.data.colleagues ?? []);
+      setLessons(json.data.lessons ?? []);
     } catch {
       setMaterials([]);
       setColleagues([]);
+      setLessons([]);
     } finally {
       setLoading(false);
     }
@@ -355,6 +365,7 @@ export function TeacherClassMaterials({
           publicId: parsed.publicId || undefined,
           mimeType: file.type || undefined,
           sizeBytes: file.size,
+          lessonId: lessonId || null,
         }),
       });
       const persistJson = await readApiJson<{ material: MaterialItem }>(persistRes);
@@ -363,7 +374,7 @@ export function TeacherClassMaterials({
       }
       setMaterials((current) => [persistJson.data.material, ...current.filter((item) => item.id !== persistJson.data.material.id)]);
     },
-    [classGroupId]
+    [classGroupId, lessonId]
   );
 
   const handleFiles = async (list: FileList | null) => {
@@ -464,9 +475,25 @@ export function TeacherClassMaterials({
               <p className="text-sm text-[var(--text-muted)]">
                 Anexe PowerPoint, PDF ou outro arquivo para usar durante a aula. PDF e PowerPoint abrem em
                 apresentação neste navegador. Arquivos que você anexou em outras turmas deste curso também
-                aparecem aqui, com o dia e o horário da turma.
+                aparecem aqui. Indique a aula do arquivo; pode deixar em branco.
               </p>
               {!readOnly && (
+                <div className="flex flex-col gap-3">
+                  <label className="flex flex-col gap-1 text-sm font-medium text-[var(--text-primary)]">
+                    Aula
+                    <select
+                      value={lessonId}
+                      onChange={(event) => setLessonId(event.target.value)}
+                      className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm font-normal text-[var(--text-primary)]"
+                    >
+                      <option value="">Não informar</option>
+                      {lessons.map((lesson) => (
+                        <option key={lesson.id} value={lesson.id}>
+                          {lesson.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--igh-primary)]/40 bg-[var(--igh-primary)]/10 px-4 py-2 text-sm font-semibold text-[var(--igh-primary)] hover:bg-[var(--igh-primary)]/15">
                     <input
@@ -482,6 +509,7 @@ export function TeacherClassMaterials({
                     {uploading ? "Enviando…" : "Anexar arquivo"}
                   </label>
                   <span className="text-xs text-[var(--text-muted)]">Até 80 MB por arquivo.</span>
+                </div>
                 </div>
               )}
               {loading ? (
@@ -507,7 +535,7 @@ export function TeacherClassMaterials({
           ) : (
             <>
               <p className="text-sm text-[var(--text-muted)]">
-                Materiais de professores que lecionam outras turmas deste curso. Dá para abrir, expandir e baixar.
+                Materiais de outros professores deste curso, em qualquer turma. Dá para abrir, expandir e baixar.
               </p>
               {loading ? (
                 <p className="text-sm text-[var(--text-muted)]">Carregando materiais…</p>
