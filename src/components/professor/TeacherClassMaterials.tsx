@@ -211,7 +211,7 @@ function MaterialList({
       {materials.map((material) => {
         const canPresent = material.kind === "pdf" || material.kind === "ppt";
         const meta = [
-          showClassLabel ? material.classLabel : "",
+          showClassLabel || !material.fromThisClass ? material.classLabel : "",
           kindLabel(material.kind),
           formatBytes(material.sizeBytes),
         ]
@@ -265,7 +265,7 @@ function MaterialList({
                 <Download className="h-3.5 w-3.5" aria-hidden />
                 Baixar
               </a>
-              {allowRemove && (
+              {allowRemove && material.fromThisClass && (
                 <button
                   type="button"
                   onClick={() => onRemove(material)}
@@ -463,7 +463,8 @@ export function TeacherClassMaterials({
             <>
               <p className="text-sm text-[var(--text-muted)]">
                 Anexe PowerPoint, PDF ou outro arquivo para usar durante a aula. PDF e PowerPoint abrem em
-                apresentação neste navegador.
+                apresentação neste navegador. Arquivos que você anexou em outras turmas deste curso também
+                aparecem aqui, com o dia e o horário da turma.
               </p>
               {!readOnly && (
                 <div className="flex flex-wrap items-center gap-3">

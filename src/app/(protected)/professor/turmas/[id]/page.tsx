@@ -885,7 +885,7 @@ export default function ProfessorTurmaDetailPage() {
         target: "[data-tour=\"pt-material\"]",
         title: "Material do Professor",
         content:
-          "Anexe PowerPoint, PDF ou outros arquivos para usar na aula. PDF e PowerPoint abrem em apresentação neste navegador. Na aba Outros professores você consulta o material de colegas do mesmo curso, com o nome de quem anexou.",
+          "Anexe PowerPoint, PDF ou outros arquivos para usar na aula. PDF e PowerPoint abrem em apresentação neste navegador. Meus materiais também mostra o que você anexou nas outras turmas deste curso. Na aba Outros professores você consulta o material de colegas, com o nome de quem anexou.",
       },
       {
         target: "[data-tour=\"pt-apresentar\"]",

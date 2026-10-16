@@ -27,6 +27,7 @@ const createSchema = z.object({
 
 const materialSelect = {
   id: true,
+  classGroupId: true,
   fileName: true,
   url: true,
   mimeType: true,
@@ -43,24 +44,29 @@ const materialSelect = {
   },
 } as const;
 
-function mapMaterial(row: {
-  id: string;
-  fileName: string;
-  url: string;
-  mimeType: string | null;
-  sizeBytes: number | null;
-  createdAt: Date;
-  uploadedByUser: { name: string } | null;
-  classGroup: {
-    daysOfWeek: string[];
-    startTime: string;
-    endTime: string;
-    teacher: { name: string };
-  };
-}): TeacherMaterialDto {
+function mapMaterial(
+  row: {
+    id: string;
+    classGroupId: string;
+    fileName: string;
+    url: string;
+    mimeType: string | null;
+    sizeBytes: number | null;
+    createdAt: Date;
+    uploadedByUser: { name: string } | null;
+    classGroup: {
+      daysOfWeek: string[];
+      startTime: string;
+      endTime: string;
+      teacher: { name: string };
+    };
+  },
+  currentClassGroupId: string,
+): TeacherMaterialDto {
   return toTeacherMaterialDto(row, {
     ownerName: row.uploadedByUser?.name?.trim() || row.classGroup.teacher.name,
     classLabel: teacherMaterialClassLabel(row.classGroup),
+    fromThisClass: row.classGroupId === currentClassGroupId,
   });
 }
 
@@ -70,20 +76,24 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const access = await requireReadableClassGroup(classGroupId);
     if ("error" in access) return access.error;
 
+    const courseId = access.classGroup.courseId;
+    const ownClassGroups = access.teacher
+      ? { courseId, ...classGroupTeacherAccessWhere(access.teacher.id) }
+      : { id: classGroupId };
     const colleagueClassGroups = access.teacher
       ? {
-          courseId: access.classGroup.courseId,
+          courseId,
           id: { not: classGroupId },
           NOT: classGroupTeacherAccessWhere(access.teacher.id),
         }
       : {
-          courseId: access.classGroup.courseId,
+          courseId,
           id: { not: classGroupId },
         };
 
     const [ownRows, colleagueRows] = await Promise.all([
       prisma.classGroupTeacherMaterial.findMany({
-        where: { classGroupId },
+        where: { classGroup: ownClassGroups },
         orderBy: { createdAt: "desc" },
         select: materialSelect,
       }),
@@ -95,13 +105,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     ]);
 
     const colleagues = colleagueRows
-      .map(mapMaterial)
+      .map((row) => mapMaterial(row, classGroupId))
       .sort(
         (a, b) =>
           a.ownerName.localeCompare(b.ownerName, "pt-BR") || b.createdAt.localeCompare(a.createdAt)
       );
+    const materials = ownRows
+      .map((row) => mapMaterial(row, classGroupId))
+      .sort(
+        (a, b) =>
+          Number(b.fromThisClass) - Number(a.fromThisClass) || b.createdAt.localeCompare(a.createdAt)
+      );
 
-    return jsonOk({ materials: ownRows.map(mapMaterial), colleagues });
+    return jsonOk({ materials, colleagues });
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;
@@ -142,7 +158,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       select: materialSelect,
     });
 
-    return jsonOk({ material: mapMaterial(created) });
+    return jsonOk({ material: mapMaterial(created, classGroupId) });
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;

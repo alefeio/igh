@@ -7,6 +7,7 @@ import {
   officePresentationEmbedUrl,
   teacherMaterialClassLabel,
   teacherMaterialKind,
+  toTeacherMaterialDto,
 } from "@/lib/teacher-class-material";
 
 describe("material do professor", () => {
@@ -36,6 +37,19 @@ describe("material do professor", () => {
     expect(
       teacherMaterialClassLabel({ daysOfWeek: ["QUI", "TER"], startTime: "19:00", endTime: "21:00" })
     ).toBe("ter e qui · 19:00–21:00");
+  });
+
+  it("marca se o arquivo é da turma aberta", () => {
+    const row = {
+      id: "m1",
+      fileName: "aula.pdf",
+      url: "https://apimg.com.br/aula.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 10,
+      createdAt: new Date("2026-10-16T12:00:00.000Z"),
+    };
+    expect(toTeacherMaterialDto(row, { fromThisClass: true }).fromThisClass).toBe(true);
+    expect(toTeacherMaterialDto(row).fromThisClass).toBe(false);
   });
 
   it("força download no cabeçalho quando pedido", () => {
