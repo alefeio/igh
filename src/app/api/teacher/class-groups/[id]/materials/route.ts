@@ -71,7 +71,7 @@ function mapMaterial(
       daysOfWeek: string[];
       startTime: string;
       endTime: string;
-      teacher: { name: string; userId: string };
+      teacher: { name: string; userId: string | null };
     };
   },
   currentClassGroupId: string,
