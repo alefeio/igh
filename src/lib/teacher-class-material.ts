@@ -147,6 +147,8 @@ export type TeacherMaterialDto = {
   ownerName: string;
   /** Dias e horário da turma de origem. */
   classLabel: string;
+  /** Arquivo anexado na turma que está aberta. */
+  fromThisClass: boolean;
 };
 
 /** Rótulo curto da turma (dias e horário) para identificar o material de outro professor. */
@@ -169,7 +171,7 @@ export function toTeacherMaterialDto(
     sizeBytes: number | null;
     createdAt: Date;
   },
-  extra?: { ownerName?: string; classLabel?: string }
+  extra?: { ownerName?: string; classLabel?: string; fromThisClass?: boolean }
 ): TeacherMaterialDto {
   return {
     id: row.id,
@@ -181,5 +183,6 @@ export function toTeacherMaterialDto(
     kind: teacherMaterialKind(row.fileName, row.mimeType),
     ownerName: extra?.ownerName?.trim() || "",
     classLabel: extra?.classLabel?.trim() || "",
+    fromThisClass: extra?.fromThisClass === true,
   };
 }
