@@ -15,7 +15,15 @@ type EvaluationPayload = {
   } | null;
 };
 
-export function StudentTeacherEvaluation({ enrollmentId }: { enrollmentId: string }) {
+export function StudentTeacherEvaluation({
+  enrollmentId,
+  variant = "page",
+  onSubmitted,
+}: {
+  enrollmentId: string;
+  variant?: "page" | "modal";
+  onSubmitted?: () => void;
+}) {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,9 +63,9 @@ export function StudentTeacherEvaluation({ enrollmentId }: { enrollmentId: strin
   }, [enrollmentId, toast]);
 
   useEffect(() => {
-    if (loading || window.location.hash !== "#avaliar-professor") return;
+    if (variant !== "page" || loading || window.location.hash !== "#avaliar-professor") return;
     document.getElementById("avaliar-professor")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [loading]);
+  }, [loading, variant]);
 
   async function submit() {
     if (rating < 1 || saving) return;
@@ -76,21 +84,20 @@ export function StudentTeacherEvaluation({ enrollmentId }: { enrollmentId: strin
       setSaved(true);
       setTeacherName(json.data.teacher.name);
       toast.push("success", saved ? "Avaliação atualizada." : "Avaliação enviada.");
+      onSubmitted?.();
     } finally {
       setSaving(false);
     }
   }
 
-  return (
-    <section
-      id="avaliar-professor"
-      className="scroll-mt-24 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
-      aria-labelledby="avaliar-professor-heading"
-    >
-      <h2 id="avaliar-professor-heading" className="text-base font-semibold text-[var(--text-primary)]">
-        Avalie o professor
-      </h2>
-      <p className="mt-1 text-sm text-[var(--text-muted)]">
+  const form = (
+    <>
+      {variant === "page" ? (
+        <h2 id="avaliar-professor-heading" className="text-base font-semibold text-[var(--text-primary)]">
+          Avalie o professor
+        </h2>
+      ) : null}
+      <p className={variant === "page" ? "mt-1 text-sm text-[var(--text-muted)]" : "text-sm text-[var(--text-muted)]"}>
         {teacherName ? `Como foi a experiência com ${teacherName}? ` : ""}
         A nota vai de 1 a 5. O comentário é opcional.
       </p>
@@ -162,6 +169,18 @@ export function StudentTeacherEvaluation({ enrollmentId }: { enrollmentId: strin
           </div>
         </div>
       )}
+    </>
+  );
+
+  if (variant === "modal") return form;
+
+  return (
+    <section
+      id="avaliar-professor"
+      className="scroll-mt-24 rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4 sm:p-5"
+      aria-labelledby="avaliar-professor-heading"
+    >
+      {form}
     </section>
   );
 }

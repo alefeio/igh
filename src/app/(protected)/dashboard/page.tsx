@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import { StudentEnrollmentSuspensionBanner } from "@/components/student/StudentEnrollmentSuspensionBanner";
+import { StudentTeacherEvaluationPrompt } from "@/components/student/StudentTeacherEvaluationPrompt";
 import { StudentEnrollmentCtaBanner, StudentNextCycleInterestBanner } from "@/components/student/StudentEnrollmentCtaBanner";
 import { DirectorDashboard } from "@/components/director/DirectorDashboard";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
@@ -957,6 +958,7 @@ function DashboardStudent({
 
   return (
     <div className="flex min-w-0 flex-col gap-8 sm:gap-10">
+      {hasEnrollment ? <StudentTeacherEvaluationPrompt /> : null}
       {hasWelcomeBanner ? (
         <div className="min-w-0" data-tour="dashboard-welcome-banner">
           <TabletBannerViewer mode="embedded" banners={welcomeBanners} className="w-full" />

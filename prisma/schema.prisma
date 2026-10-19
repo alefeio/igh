@@ -1135,6 +1135,8 @@ model Enrollment {
   convertedFromWaitlist     EnrollmentWaitlist?
   /// * Avaliação do professor desta turma, uma por matrícula.
   teacherEvaluation         TeacherClassEvaluation?
+  /// * Quando preenchido, o aluno pediu para não ver de novo o aviso de avaliação desta turma no painel.
+  teacherEvaluationReminderDismissedAt DateTime?
 }
 
 /// * Avaliação do aluno sobre o professor da turma. O nome fica oculto quando o envio é anônimo.

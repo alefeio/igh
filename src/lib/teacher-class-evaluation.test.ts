@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  enrollmentNeedsTeacherEvaluationPrompt,
   parseTeacherClassEvaluationBody,
   teacherEvaluationAuthorLabel,
 } from "@/lib/teacher-class-evaluation";
@@ -26,6 +27,19 @@ describe("avaliação do professor", () => {
   it("recusa nota fora de 1 a 5", () => {
     expect(parseTeacherClassEvaluationBody({ rating: 0, anonymous: false }).ok).toBe(false);
     expect(parseTeacherClassEvaluationBody({ rating: 6, anonymous: true }).ok).toBe(false);
+  });
+
+  it("abre o aviso só quando falta a avaliação e o aluno não dispensou", () => {
+    expect(enrollmentNeedsTeacherEvaluationPrompt({ hasEvaluation: false, reminderDismissedAt: null })).toBe(true);
+    expect(
+      enrollmentNeedsTeacherEvaluationPrompt({ hasEvaluation: true, reminderDismissedAt: null }),
+    ).toBe(false);
+    expect(
+      enrollmentNeedsTeacherEvaluationPrompt({
+        hasEvaluation: false,
+        reminderDismissedAt: "2026-10-19T12:00:00.000Z",
+      }),
+    ).toBe(false);
   });
 
   it("esconde o nome do professor e mostra para a coordenação", () => {
