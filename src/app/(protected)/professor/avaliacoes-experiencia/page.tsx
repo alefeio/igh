@@ -1,4 +1,5 @@
 import { PlatformExperienceEvaluationsClient } from "@/components/platform-experience/PlatformExperienceEvaluationsClient";
+import { TeacherClassEvaluationsPanel } from "@/components/professor/TeacherClassEvaluationsPanel";
 
 export default function ProfessorAvaliacoesExperienciaPage() {
   return (
@@ -10,6 +11,7 @@ export default function ProfessorAvaliacoesExperienciaPage() {
         pageTitle="Avaliações dos meus alunos"
         pageDescription="Apenas avaliações enviadas por alunos com matrícula ativa em alguma turma sua. A coluna Turma mostra curso, local, dias e horário das turmas ativas do aluno. “Com.” é abreviação de Comentário."
       />
+      <TeacherClassEvaluationsPanel apiUrl="/api/teacher/class-evaluations" showTeacherName={false} />
     </div>
   );
 }

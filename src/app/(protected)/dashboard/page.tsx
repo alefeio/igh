@@ -646,15 +646,17 @@ function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
   const href = isSuspended ? `/minhas-turmas/${enrollment.id}` : `/minhas-turmas/${enrollment.id}/conteudo`;
 
   return (
-    <Link
-      href={href}
-      className={`group flex flex-col rounded-2xl border bg-[var(--card-bg)] p-5 shadow-sm ring-1 ring-black/[0.02] transition duration-300 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2 dark:ring-white/[0.03] ${
+    <article
+      className={`group flex flex-col rounded-2xl border bg-[var(--card-bg)] shadow-sm ring-1 ring-black/[0.02] transition duration-300 dark:ring-white/[0.03] ${
         isSuspended
           ? "border-amber-300/80 hover:border-amber-400 hover:shadow-md"
           : "border-[var(--card-border)] hover:-translate-y-1 hover:border-[var(--igh-primary)]/45 hover:shadow-lg hover:shadow-[var(--igh-primary)]/10"
       }`}
     >
-      <div className="flex flex-1 flex-col gap-3">
+      <Link
+        href={href}
+        className="flex flex-1 flex-col gap-3 p-5 focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+      >
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-start gap-3">
             <div
@@ -716,8 +718,17 @@ function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
         <p className={`mt-auto text-sm font-medium ${isSuspended ? "text-amber-800 dark:text-amber-200" : "text-[var(--igh-primary)]"}`}>
           {isSuspended ? "Ver detalhes da turma" : isComplete ? "Curso concluído" : hasProgress ? "Abrir conteúdo" : "Começar o curso"}
         </p>
+      </Link>
+      <div className="border-t border-[var(--card-border)] px-5 py-3">
+        <Link
+          href={`/minhas-turmas/${enrollment.id}#avaliar-professor`}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--igh-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+        >
+          <Star className="h-4 w-4 text-amber-500" aria-hidden />
+          Avaliar o professor
+        </Link>
       </div>
-    </Link>
+    </article>
   );
 }
 

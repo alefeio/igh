@@ -459,6 +459,7 @@ model Teacher {
   examsCreated                  ClassGroupExam[]             @relation("ExamCreatedByTeacher")
   holidayEventsResponsibleFor   Holiday[]                    @relation("HolidayResponsibleTeacher")
   holidayEventAttendancesMarked HolidayEventRegistration[]   @relation("HolidayEventAttendanceMarkedByTeacher")
+  classEvaluations              TeacherClassEvaluation[]
   user                          User?                        @relation(fields: [userId], references: [id])
 }
 
@@ -1132,6 +1133,26 @@ model Enrollment {
   examAttempts              ClassGroupExamAttempt[]
   /// * Reserva convertida nesta matrícula (se houver).
   convertedFromWaitlist     EnrollmentWaitlist?
+  /// * Avaliação do professor desta turma, uma por matrícula.
+  teacherEvaluation         TeacherClassEvaluation?
+}
+
+/// * Avaliação do aluno sobre o professor da turma. O nome fica oculto quando o envio é anônimo.
+model TeacherClassEvaluation {
+  id           String   @id @default(uuid())
+  enrollmentId String   @unique
+  teacherId    String
+  /// * Nota de 1 a 5.
+  rating       Int
+  comment      String?
+  /// * Quando verdadeiro, a listagem mostra "Anônimo" no lugar do nome do aluno.
+  anonymous    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  teacher      Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId, createdAt])
 }
 
 enum EnrollmentHistoryKind {
