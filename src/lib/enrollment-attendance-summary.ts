@@ -1,12 +1,15 @@
 import "server-only";
 
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
+import { splitAbsenceCounts } from "@/lib/enrollment-frequency-label";
 import { prisma } from "@/lib/prisma";
 
 export type EnrollmentAttendanceSummary = {
   presentCount: number;
   totalSessions: number;
   percent: number | null;
+  justifiedAbsenceCount: number;
+  unjustifiedAbsenceCount: number;
 };
 
 /**
@@ -48,28 +51,45 @@ export async function getEnrollmentAttendanceSummaries(
 
   const allSessionIds = sessions.map((s) => s.id);
   const presentByEnrollment = new Map<string, number>();
+  const absenceByEnrollment = new Map<string, { justifiedAbsenceCount: number; unjustifiedAbsenceCount: number }>();
   if (allSessionIds.length > 0) {
-    const grouped = await prisma.sessionAttendance.groupBy({
-      by: ["enrollmentId"],
-      where: {
-        enrollmentId: { in: uniqueIds },
-        classSessionId: { in: allSessionIds },
-        present: true,
-      },
-      _count: { id: true },
-    });
+    const [grouped, absences] = await Promise.all([
+      prisma.sessionAttendance.groupBy({
+        by: ["enrollmentId"],
+        where: {
+          enrollmentId: { in: uniqueIds },
+          classSessionId: { in: allSessionIds },
+          present: true,
+        },
+        _count: { id: true },
+      }),
+      prisma.sessionAttendance.findMany({
+        where: {
+          enrollmentId: { in: uniqueIds },
+          classSessionId: { in: allSessionIds },
+          present: false,
+        },
+        select: { enrollmentId: true, absenceJustification: true },
+      }),
+    ]);
     for (const row of grouped) {
       presentByEnrollment.set(row.enrollmentId, row._count.id);
+    }
+    for (const [enrollmentId, counts] of splitAbsenceCounts(absences)) {
+      absenceByEnrollment.set(enrollmentId, counts);
     }
   }
 
   for (const e of enrollments) {
     const totalSessions = totalByClassGroup.get(e.classGroupId) ?? 0;
     const presentCount = presentByEnrollment.get(e.id) ?? 0;
+    const absences = absenceByEnrollment.get(e.id);
     result.set(e.id, {
       presentCount,
       totalSessions,
       percent: totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : null,
+      justifiedAbsenceCount: absences?.justifiedAbsenceCount ?? 0,
+      unjustifiedAbsenceCount: absences?.unjustifiedAbsenceCount ?? 0,
     });
   }
 

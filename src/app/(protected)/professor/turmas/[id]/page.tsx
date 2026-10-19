@@ -7,6 +7,7 @@ import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/Das
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
 import { AttendanceGrid } from "@/components/professor/AttendanceGrid";
+import { EnrollmentFrequencyLabel } from "@/components/professor/EnrollmentFrequencyLabel";
 import { TeacherClassMaterials } from "@/components/professor/TeacherClassMaterials";
 import { EnrollmentFollowUp, type EnrollmentHistoryItem } from "@/components/professor/EnrollmentFollowUp";
 import { ForumPostBody } from "@/components/forum/ForumPostBody";
@@ -48,6 +49,10 @@ type Enrollment = {
   attendancePresentCount?: number;
   attendanceTotalSessions?: number;
   attendancePercent?: number | null;
+  /** Faltas lançadas com justificativa. */
+  attendanceJustifiedAbsenceCount?: number;
+  /** Faltas lançadas sem justificativa. */
+  attendanceUnjustifiedAbsenceCount?: number;
   /** Apto a receber certificado (≥70% presença ou liberado pelo professor). */
   certificateEligible?: boolean;
   /** Entrou na turma via cadastro de reserva (lista de espera). */
@@ -1367,10 +1372,13 @@ export default function ProfessorTurmaDetailPage() {
                     </div>
                     </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
-                    <span className="text-xs font-medium tabular-nums text-[var(--text-secondary)]">
-                      Frequência: {e.attendancePresentCount ?? 0}/{e.attendanceTotalSessions ?? 0}
-                      {e.attendancePercent != null ? ` (${e.attendancePercent}%)` : ""}
-                    </span>
+                    <EnrollmentFrequencyLabel
+                      presentCount={e.attendancePresentCount ?? 0}
+                      totalSessions={e.attendanceTotalSessions ?? 0}
+                      percent={e.attendancePercent ?? null}
+                      justifiedAbsenceCount={e.attendanceJustifiedAbsenceCount ?? 0}
+                      unjustifiedAbsenceCount={e.attendanceUnjustifiedAbsenceCount ?? 0}
+                    />
                     <div className="inline-flex flex-wrap items-center justify-end gap-2 text-xs text-[var(--text-primary)]">
                       <label className={`inline-flex items-center gap-2 ${viewOnly ? "cursor-default" : "cursor-pointer"}`}>
                         <span className="text-[var(--text-muted)]">Certificado</span>
@@ -1558,10 +1566,14 @@ export default function ProfessorTurmaDetailPage() {
                                   )}
                                 </p>
                               ) : null}
-                              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                                Frequência: {e.attendancePresentCount ?? 0}/{e.attendanceTotalSessions ?? 0}
-                                {e.attendancePercent != null ? ` (${e.attendancePercent}%)` : ""}
-                              </p>
+                              <EnrollmentFrequencyLabel
+                                align="start"
+                                presentCount={e.attendancePresentCount ?? 0}
+                                totalSessions={e.attendanceTotalSessions ?? 0}
+                                percent={e.attendancePercent ?? null}
+                                justifiedAbsenceCount={e.attendanceJustifiedAbsenceCount ?? 0}
+                                unjustifiedAbsenceCount={e.attendanceUnjustifiedAbsenceCount ?? 0}
+                              />
                             </div>
                           </div>
                           {!viewOnly ? (
