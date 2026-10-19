@@ -146,6 +146,8 @@ export async function GET(
         attendancePresentCount: attendance?.presentCount ?? 0,
         attendanceTotalSessions: attendance?.totalSessions ?? 0,
         attendancePercent: attendance?.percent ?? null,
+        attendanceJustifiedAbsenceCount: attendance?.justifiedAbsenceCount ?? 0,
+        attendanceUnjustifiedAbsenceCount: attendance?.unjustifiedAbsenceCount ?? 0,
         documentationAlert: docsMissing ? (dataComplete ? "yellow" : "red") : null,
         history: e.historyEntries.map((entry) => ({
           id: entry.id,
