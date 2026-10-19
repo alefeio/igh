@@ -4,6 +4,7 @@ import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
 import { enrollmentNeedsTeacherEvaluationPrompt } from "@/lib/teacher-class-evaluation";
+import { enrollmentIdsWithRecordedPresence } from "@/lib/teacher-evaluation-presence";
 
 export const dynamic = "force-dynamic";
 
@@ -41,11 +42,13 @@ export async function GET() {
       },
     });
 
+    const withPresence = await enrollmentIdsWithRecordedPresence(rows.map((row) => row.id));
     const items = rows
       .filter((row) =>
         enrollmentNeedsTeacherEvaluationPrompt({
           hasEvaluation: row.teacherEvaluation != null,
           reminderDismissedAt: row.teacherEvaluationReminderDismissedAt,
+          hasRecordedPresence: withPresence.has(row.id),
         }),
       )
       .map((row) => ({
@@ -68,15 +71,22 @@ export async function POST() {
     const loaded = await loadStudent(user.id);
     if ("error" in loaded) return loaded.error;
 
-    await prisma.enrollment.updateMany({
+    const pending = await prisma.enrollment.findMany({
       where: {
         studentId: loaded.student.id,
         status: { in: [...STUDENT_VISIBLE_ENROLLMENT_STATUSES] },
         teacherEvaluationReminderDismissedAt: null,
         teacherEvaluation: { is: null },
       },
-      data: { teacherEvaluationReminderDismissedAt: new Date() },
+      select: { id: true },
     });
+    const withPresence = await enrollmentIdsWithRecordedPresence(pending.map((row) => row.id));
+    if (withPresence.size > 0) {
+      await prisma.enrollment.updateMany({
+        where: { id: { in: [...withPresence] } },
+        data: { teacherEvaluationReminderDismissedAt: new Date() },
+      });
+    }
 
     return jsonOk({ dismissed: true });
   } catch (e) {

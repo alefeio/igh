@@ -29,15 +29,33 @@ describe("avaliação do professor", () => {
     expect(parseTeacherClassEvaluationBody({ rating: 6, anonymous: true }).ok).toBe(false);
   });
 
-  it("abre o aviso só quando falta a avaliação e o aluno não dispensou", () => {
-    expect(enrollmentNeedsTeacherEvaluationPrompt({ hasEvaluation: false, reminderDismissedAt: null })).toBe(true);
+  it("abre o aviso só com presença registrada, sem avaliação e sem dispensa", () => {
     expect(
-      enrollmentNeedsTeacherEvaluationPrompt({ hasEvaluation: true, reminderDismissedAt: null }),
+      enrollmentNeedsTeacherEvaluationPrompt({
+        hasEvaluation: false,
+        reminderDismissedAt: null,
+        hasRecordedPresence: true,
+      }),
+    ).toBe(true);
+    expect(
+      enrollmentNeedsTeacherEvaluationPrompt({
+        hasEvaluation: false,
+        reminderDismissedAt: null,
+        hasRecordedPresence: false,
+      }),
+    ).toBe(false);
+    expect(
+      enrollmentNeedsTeacherEvaluationPrompt({
+        hasEvaluation: true,
+        reminderDismissedAt: null,
+        hasRecordedPresence: true,
+      }),
     ).toBe(false);
     expect(
       enrollmentNeedsTeacherEvaluationPrompt({
         hasEvaluation: false,
         reminderDismissedAt: "2026-10-19T12:00:00.000Z",
+        hasRecordedPresence: true,
       }),
     ).toBe(false);
   });

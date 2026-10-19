@@ -43,6 +43,7 @@ type EnrollmentDetail = {
   certificateUrl: string | null;
   certificateFileName: string | null;
   certificateEligibility?: CertificateEligibility;
+  canEvaluateTeacher?: boolean;
   sessions: Array<{
     id: string;
     sessionDate: string;
@@ -289,7 +290,7 @@ export default function MinhasTurmasDetailPage() {
             </div>
           </section>
 
-          <StudentTeacherEvaluation enrollmentId={e.id} />
+          {e.canEvaluateTeacher ? <StudentTeacherEvaluation enrollmentId={e.id} /> : null}
 
           <section aria-labelledby="cert-heading">
             <h2 id="cert-heading" className="text-base font-semibold text-[var(--text-primary)]">
