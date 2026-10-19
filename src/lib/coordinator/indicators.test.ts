@@ -40,7 +40,13 @@ describe("coordenação pedagógica", () => {
       row({ id: "noshow", status: "CANCELLED", heldSessions: 4, presentCount: 0 }),
       row({ id: "cedo", status: "CANCELLED", heldSessions: 8, presentCount: 1 }),
       row({ id: "saiu", status: "CANCELLED", heldSessions: 8, presentCount: 5 }),
-      row({ id: "fim", status: "COMPLETED", presentCount: 8 }),
+      row({
+        id: "fim",
+        status: "COMPLETED",
+        presentCount: 8,
+        certificateEligible: true,
+        classClosed: true,
+      }),
       row({ id: "ativo", status: "ACTIVE", presentCount: 7, consecutiveAbsences: 0 }),
     ]);
     expect(report.counts.noShow).toBe(1);
@@ -48,17 +54,18 @@ describe("coordenação pedagógica", () => {
     expect(report.counts.dropout).toBe(1);
     expect(report.counts.completed).toBe(1);
     expect(report.indicators.dropoutRate.value).toBe(50);
-    expect(report.indicators.completionRate.value).toBe(25);
+    expect(report.indicators.completionRate.value).toBe(100);
   });
 
-  it("conta formados por aptidão a certificado, não só status COMPLETED", () => {
+  it("conta formados só com certificado e turma encerrada", () => {
     const report = buildIndicators([
-      row({ id: "apto", status: "ACTIVE", presentCount: 8, certificateEligible: true }),
-      row({ id: "nao", status: "ACTIVE", presentCount: 7, certificateEligible: false }),
-      row({ id: "concluido", status: "COMPLETED", presentCount: 8, certificateEligible: false }),
+      row({ id: "apto", status: "ACTIVE", presentCount: 8, certificateEligible: true, classClosed: true }),
+      row({ id: "aberto", status: "ACTIVE", presentCount: 8, certificateEligible: true, classClosed: false }),
+      row({ id: "nao", status: "ACTIVE", presentCount: 7, certificateEligible: false, classClosed: true }),
+      row({ id: "concluido", status: "COMPLETED", presentCount: 8, certificateEligible: false, classClosed: true }),
     ]);
-    expect(report.counts.completed).toBe(2);
-    expect(report.indicators.completionRate.value).toBe(67);
+    expect(report.counts.completed).toBe(1);
+    expect(report.indicators.completionRate.value).toBe(33);
     expect(report.funnel.find((step) => step.key === "completed")?.label).toMatch(/Formados/);
   });
 
@@ -118,7 +125,14 @@ describe("coordenação pedagógica", () => {
       row({ id: "a", status: "ACTIVE", heldSessions: 8, presentCount: 2 }),
       row({ id: "b", status: "ACTIVE", heldSessions: 8, presentCount: 4 }),
       row({ id: "c", status: "ACTIVE", heldSessions: 8, presentCount: 6 }),
-      row({ id: "d", status: "COMPLETED", heldSessions: 8, presentCount: 8 }),
+      row({
+        id: "d",
+        status: "COMPLETED",
+        heldSessions: 8,
+        presentCount: 8,
+        certificateEligible: true,
+        classClosed: true,
+      }),
       row({ id: "pre", status: "ACTIVE", isPreEnrollment: true, confirmed: false, presentCount: 0 }),
     ]);
     expect(report.retention[0]).toMatchObject({ label: "No início (já frequentaram)", count: 4 });

@@ -20,6 +20,7 @@ export type VacancyClassGroup = {
     } | null;
   } | null;
   course: { id: string; name: string };
+  status?: string | null;
 };
 
 export type EnrollmentVacancyRow = {
@@ -37,6 +38,8 @@ export type EnrollmentVacancyRow = {
   teacher: string;
   enrolled: number;
   graduated: number;
+  /** Falso enquanto a turma não está encerrada: a coluna Formados não deve mostrar número. */
+  classEncerrada: boolean;
   capacity: number;
   active: number;
   cancelled: number;
@@ -165,7 +168,8 @@ export function buildEnrollmentVacancyRows(
         coordinatorName: locationMeta.coordinatorName,
         teacher: classGroupTeacherLabel(cg),
         enrolled: turma.count,
-        graduated: turma.completed,
+        graduated: cg.status === "ENCERRADA" ? turma.completed : 0,
+        classEncerrada: cg.status === "ENCERRADA",
         capacity,
         active: turma.active,
         cancelled: turma.cancelled,
@@ -216,6 +220,20 @@ export function groupVacancyRowsByLocation(rows: EnrollmentVacancyRow[]): Vacanc
   );
 }
 
+export function vacancyGraduatedCell(row: {
+  graduated: number;
+  classEncerrada: boolean;
+}): number | string {
+  return row.classEncerrada ? row.graduated : "—";
+}
+
+export function vacancyScopeGraduatedLabel(
+  rows: { classEncerrada: boolean }[],
+  graduated: number,
+): string {
+  return rows.some((row) => row.classEncerrada) ? String(graduated) : "—";
+}
+
 /** Planilha no formato do documento de referência (blocos por local). */
 export function buildVacancyLocationSheetRows(sections: VacancyLocationSection[]): unknown[][] {
   const out: unknown[][] = [];
@@ -230,7 +248,7 @@ export function buildVacancyLocationSheetRows(sections: VacancyLocationSection[]
         row.turmaLabel,
         row.teacher,
         row.enrolled,
-        row.graduated,
+        vacancyGraduatedCell(row),
       ]);
     }
     out.push([
@@ -244,7 +262,14 @@ export function buildVacancyLocationSheetRows(sections: VacancyLocationSection[]
 export function summarizeVacanciesByCourse(rows: EnrollmentVacancyRow[]) {
   const map = new Map<
     string,
-    { courseName: string; enrolled: number; graduated: number; capacity: number; classes: number }
+    {
+      courseName: string;
+      enrolled: number;
+      graduated: number;
+      capacity: number;
+      classes: number;
+      closedClasses: number;
+    }
   >();
   for (const row of rows) {
     const current = map.get(row.courseName) ?? {
@@ -253,11 +278,13 @@ export function summarizeVacanciesByCourse(rows: EnrollmentVacancyRow[]) {
       graduated: 0,
       capacity: 0,
       classes: 0,
+      closedClasses: 0,
     };
     current.enrolled += row.enrolled;
-    current.graduated += row.graduated;
+    current.graduated += row.classEncerrada ? row.graduated : 0;
     current.capacity += row.capacity;
     current.classes += 1;
+    if (row.classEncerrada) current.closedClasses += 1;
     map.set(row.courseName, current);
   }
   return [...map.values()].sort((a, b) => a.courseName.localeCompare(b.courseName, "pt-BR"));

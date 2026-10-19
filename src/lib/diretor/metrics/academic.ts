@@ -238,7 +238,15 @@ async function loadAcademicUncached(
       startedCount += 1;
       if (closedCgIds.has(e.classGroupId)) {
         startedInClosed += 1;
-        if (enrollmentCountsAsFormado(e)) completedStartedInClosed += 1;
+        if (
+          enrollmentCountsAsFormado({
+            status: e.status,
+            certificateEligible: e.certificateEligible,
+            classGroupStatus: cgById.get(e.classGroupId)?.status,
+          })
+        ) {
+          completedStartedInClosed += 1;
+        }
       }
       if (e.status === "CANCELLED") cancelAfterStart += 1;
     }

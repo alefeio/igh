@@ -7,6 +7,8 @@ import {
   summarizeVacanciesByCourse,
   summarizeVacanciesByLocation,
   summarizeVacanciesByTeacher,
+  vacancyGraduatedCell,
+  vacancyScopeGraduatedLabel,
 } from "@/lib/enrollment-vacancy-report";
 
 const TITLE_FONT: Partial<ExcelJS.Font> = {
@@ -139,6 +141,7 @@ export async function buildEnrollmentExcelBlob(params: {
 
   const enrolledTotal = vacancyRows.reduce((s, r) => s + r.enrolled, 0);
   const graduatedTotal = vacancyRows.reduce((s, r) => s + r.graduated, 0);
+  const formadosVisiveis = vacancyRows.some((row) => row.classEncerrada);
   const capacityTotal = vacancyRows.reduce((s, r) => s + r.capacity, 0);
   const occupancy = capacityTotal > 0 ? Math.round((enrolledTotal / capacityTotal) * 100) : null;
 
@@ -158,7 +161,7 @@ export async function buildEnrollmentExcelBlob(params: {
     cell.border = THIN_BORDER;
     cell.alignment = { horizontal: "center" };
   });
-  [enrolledTotal, graduatedTotal, capacityTotal, occupancy ?? "—"].forEach((value, i) => {
+  [enrolledTotal, formadosVisiveis ? graduatedTotal : "—", capacityTotal, occupancy ?? "—"].forEach((value, i) => {
     const cell = wsResumo.getCell(4, i + 1);
     cell.value = value;
     cell.font = { ...BODY_FONT, bold: true, size: 16 };
@@ -177,7 +180,7 @@ export async function buildEnrollmentExcelBlob(params: {
       row.classes,
       row.capacity,
       row.enrolled,
-      row.graduated,
+      row.closedClasses > 0 ? row.graduated : "—",
       row.capacity > 0 ? Math.round((row.enrolled / row.capacity) * 100) : null,
     ]),
     7,
@@ -221,7 +224,7 @@ export async function buildEnrollmentExcelBlob(params: {
         row.coordinatorName ?? "",
         row.teacher,
         row.enrolled,
-        row.graduated,
+        vacancyGraduatedCell(row),
         row.capacity || null,
         row.occupancyPercent,
         row.active,
@@ -266,7 +269,7 @@ export async function buildEnrollmentExcelBlob(params: {
           row.turmaLabel,
           row.teacher,
           row.enrolled,
-          row.graduated,
+          vacancyGraduatedCell(row),
         ].forEach((value, col) => {
           const cell = dataRow.getCell(col + 1);
           cell.value = value;
@@ -278,7 +281,7 @@ export async function buildEnrollmentExcelBlob(params: {
 
       wsLocal.mergeCells(rowIdx, 1, rowIdx, 7);
       const sub = wsLocal.getCell(rowIdx, 1);
-      sub.value = `Subtotal: ${section.subtotal.enrolled} matriculados | Capacidade: ${section.subtotal.capacity} | Vagas disponíveis: ${section.subtotal.available} | Formados: ${section.subtotal.graduated}`;
+      sub.value = `Subtotal: ${section.subtotal.enrolled} matriculados | Capacidade: ${section.subtotal.capacity} | Vagas disponíveis: ${section.subtotal.available} | Formados: ${vacancyScopeGraduatedLabel(section.rows, section.subtotal.graduated)}`;
       sub.font = { ...BODY_FONT, italic: true };
       rowIdx += 2;
     }
@@ -316,7 +319,7 @@ export async function buildEnrollmentExcelBlob(params: {
       title: "Indicadores do recorte",
       metrics: [
         { label: "Matriculados", value: String(enrolledTotal) },
-        { label: "Formados", value: String(graduatedTotal) },
+        { label: "Formados", value: formadosVisiveis ? String(graduatedTotal) : "—" },
         { label: "Capacidade", value: String(capacityTotal) },
         { label: "Ocupação", value: occupancy != null ? `${occupancy}%` : "—" },
       ],
@@ -375,7 +378,12 @@ export async function buildEnrollmentExcelBlob(params: {
     wsCharts,
     "TabelaDadosGraficosCurso",
     ["Curso", "Matriculados", "Formados", "Capacidade"],
-    byCourse.map((row) => [row.courseName, row.enrolled, row.graduated, row.capacity]),
+    byCourse.map((row) => [
+      row.courseName,
+      row.enrolled,
+      row.closedClasses > 0 ? row.graduated : "—",
+      row.capacity,
+    ]),
     dataStart + 1,
   );
 

@@ -40,7 +40,7 @@ export async function GET() {
         {
           term: "Formados / conclusão",
           definition:
-            "Alunos aptos a certificado (ou matrícula concluída) entre quem iniciou (≥1 presença) em turmas ENCERRADAS. Detalhe operacional: menu Coordenação.",
+            "Alunos com certificado em turma encerrada, entre quem iniciou (≥1 presença). Enquanto a turma não encerra, formados não aparecem. Detalhe operacional: menu Coordenação.",
         },
         {
           term: "Direção × Coordenação",

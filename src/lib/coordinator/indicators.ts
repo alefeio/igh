@@ -26,11 +26,12 @@ export function buildIndicators(rows: EnrollmentSignalInput[]) {
   const early = academic.filter((row) => row.kind === "EARLY_DROPOUT").length;
   const dropout = academic.filter((row) => row.kind === "DROPOUT").length;
   const rowById = new Map(rows.map((row) => [row.id, row]));
-  /** Formados = apto a certificado (ou status COMPLETED), não só matrícula concluída. */
+  /** Formados = certificado e turma encerrada. */
   const completed = academic.filter((row) => {
     const source = rowById.get(row.id);
     return source ? enrollmentCountsAsFormado(source) : false;
   }).length;
+  const startedInClosed = startedRows.filter((row) => rowById.get(row.id)?.classClosed === true);
   const confirmed = academic.length;
 
   const attendanceRate: Indicator =
@@ -66,7 +67,7 @@ export function buildIndicators(rows: EnrollmentSignalInput[]) {
     { key: "quarter", label: "Chegou a 1/4 das aulas", count: reached(25) },
     { key: "half", label: "Chegou à metade das aulas", count: reached(50) },
     { key: "threeQuarters", label: "Chegou a 3/4 das aulas", count: reached(75) },
-    { key: "completed", label: "Formados (apto a certificado)", count: completed },
+    { key: "completed", label: "Formados (turma encerrada e certificado)", count: completed },
   ];
 
   const risk: RiskStudent[] = classified
@@ -103,8 +104,8 @@ export function buildIndicators(rows: EnrollmentSignalInput[]) {
       retentionRate: rate(startedRows.length - early - dropout, startedRows.length, "Quem começou e não saiu no começo nem depois de frequentar, entre os que compareceram."),
       completionRate: rate(
         completed,
-        startedRows.length,
-        "Formados (aptos a certificado ou matrícula concluída) entre quem compareceu ao menos uma vez. Não depende só do status COMPLETED.",
+        startedInClosed.length,
+        "Formados (certificado e turma encerrada) entre quem compareceu ao menos uma vez em turma encerrada. Sem turma encerrada, o indicador não aparece.",
       ),
       dropoutRate: rate(early + dropout, startedRows.length, "Saiu no começo ou depois de frequentar, entre quem já tinha começado. Cancelamento sem aula realizada não entra."),
       noShowRate: rate(noShow, confirmed, "Confirmou e não compareceu a nenhuma aula já realizada, entre as matrículas confirmadas."),

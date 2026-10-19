@@ -7,6 +7,7 @@ import {
   summarizeVacanciesByCourse,
   summarizeVacanciesByLocation,
   summarizeVacanciesByTeacher,
+  vacancyScopeGraduatedLabel,
 } from "@/lib/enrollment-vacancy-report";
 
 const MARGIN = 36;
@@ -123,7 +124,7 @@ export async function buildEnrollmentPdfBlob(params: {
     y -= 16;
     page.drawText(
       toPdfText(
-        "Matriculados = alunos que ocupam vaga agora. Formados = aptos a certificado ou concluidos.",
+        "Matriculados = alunos que ocupam vaga agora. Formados = certificado e turma encerrada.",
       ),
       { x: MARGIN, y, size: 9, font, color: gray },
     );
@@ -131,7 +132,7 @@ export async function buildEnrollmentPdfBlob(params: {
 
     const cards: Array<{ label: string; value: string }> = [
       { label: "Matriculados", value: String(enrolledTotal) },
-      { label: "Formados", value: String(graduatedTotal) },
+      { label: "Formados", value: vacancyRows.some((row) => row.classEncerrada) ? String(graduatedTotal) : "—" },
       { label: "Capacidade", value: String(capacityTotal) },
       { label: "Ocupacao", value: occupancy != null ? `${occupancy}%` : "—" },
       { label: "Vagas livres", value: String(available) },
@@ -200,7 +201,11 @@ export async function buildEnrollmentPdfBlob(params: {
     y -= 16;
     for (const row of byCourse.slice(0, 8)) {
       page.drawText(
-        toPdfText(`${row.courseName}: ${row.enrolled} matriculados · ${row.graduated} formados`),
+        toPdfText(
+          row.closedClasses > 0
+            ? `${row.courseName}: ${row.enrolled} matriculados · ${row.graduated} formados`
+            : `${row.courseName}: ${row.enrolled} matriculados`,
+        ),
         { x: MARGIN, y, size: 9, font, color: black },
       );
       y -= 13;
@@ -239,7 +244,7 @@ export async function buildEnrollmentPdfBlob(params: {
     title: "Indicadores do recorte",
     metrics: [
       { label: "Matriculados", value: String(enrolledTotal) },
-      { label: "Formados", value: String(graduatedTotal) },
+      { label: "Formados", value: vacancyRows.some((row) => row.classEncerrada) ? String(graduatedTotal) : "—" },
       { label: "Capacidade", value: String(capacityTotal) },
       { label: "Ocupacao", value: occupancy != null ? `${occupancy}%` : "—" },
     ],
@@ -321,7 +326,7 @@ export async function buildEnrollmentPdfBlob(params: {
       y -= 14;
       page.drawText(
         toPdfText(
-          `Matriculados ${section.subtotal.enrolled} · Formados ${section.subtotal.graduated} · Capacidade ${section.subtotal.capacity} · Livres ${section.subtotal.available}`,
+          `Matriculados ${section.subtotal.enrolled} · Formados ${vacancyScopeGraduatedLabel(section.rows, section.subtotal.graduated)} · Capacidade ${section.subtotal.capacity} · Livres ${section.subtotal.available}`,
         ),
         { x: MARGIN, y, size: 9, font, color: gray },
       );

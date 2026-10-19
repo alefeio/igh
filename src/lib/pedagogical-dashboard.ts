@@ -302,8 +302,8 @@ export async function getPedagogicalDashboard(
           hint: "Sem frequência lançada neste filtro.",
           suffix: "%",
         }),
-        metric("formados", "Formados (turma encerrada + apto)", 0, {
-          hint: "Só conta alunos aptos a certificado em turmas ENCERRADAS.",
+        metric("formados", "Formados (turma encerrada + apto)", null, {
+          hint: "Sem turma encerrada neste filtro — formados não são exibidos.",
         }),
       ],
       byStatus: [],
@@ -396,7 +396,7 @@ export async function getPedagogicalDashboard(
     const inscritos = rows.filter((e) => enrollmentOccupiesSeat(e.status)).length;
     totalInscritos += inscritos;
     totalCapacity += cg.capacity;
-    totalBaseFormacao += inscritos;
+    if (cg.status === "ENCERRADA") totalBaseFormacao += inscritos;
 
     for (const e of rows) {
       if (enrollmentOccupiesSeat(e.status)) studentIds.add(e.studentId);
@@ -468,7 +468,7 @@ export async function getPedagogicalDashboard(
       "Frequência média indisponível: não há lançamentos de presença nas matrículas deste filtro (ou ainda não há aulas passadas).",
     );
   }
-  if (totalBaseFormacao === 0) {
+  if (totalInscritos === 0) {
     notes.push("Não há alunos ocupando vaga (ACTIVE/SUSPENDED) neste filtro.");
   }
   const encerradas = classGroupsRaw.filter((c) => c.status === "ENCERRADA").length;
@@ -513,17 +513,19 @@ export async function getPedagogicalDashboard(
           : "Média das frequências % das matrículas com vaga (aulas ≤ hoje, não canceladas).",
       suffix: "%",
     }),
-    metric("formados", "Formados", totalFormados, {
+    metric("formados", "Formados", encerradas === 0 ? null : totalFormados, {
       hint:
         encerradas === 0
-          ? "Nenhuma turma encerrada no filtro — formados = 0 por definição."
+          ? "Nenhuma turma encerrada no filtro — a informação de formados só aparece com a turma encerrada."
           : "Alunos aptos a certificado em turmas ENCERRADAS.",
     }),
-    metric("taxaFormados", "Taxa de formados", taxaFormados, {
+    metric("taxaFormados", "Taxa de formados", encerradas === 0 ? null : taxaFormados, {
       hint:
-        taxaFormados == null
-          ? "Sem base (sem inscritos) para taxa de formados."
-          : "Formados ÷ (ACTIVE + SUSPENDED) no filtro.",
+        encerradas === 0
+          ? "Sem turma encerrada no filtro — a taxa de formados não aparece."
+          : taxaFormados == null
+            ? "Sem inscritos em turma encerrada para calcular a taxa de formados."
+            : "Formados ÷ (ACTIVE + SUSPENDED) nas turmas encerradas.",
       suffix: "%",
     }),
     metric("certificadosEmitidos", "Certificados emitidos", certificatesIssued, {

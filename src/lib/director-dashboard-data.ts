@@ -42,7 +42,8 @@ export type DirectorKpis = {
   suspensos: number;
   cancelados: number;
   evasao: number;
-  formados: number;
+  /** Nulo quando nenhuma turma do recorte está encerrada. */
+  formados: number | null;
   frequenciaMediaPercent: number | null;
   /** Sessões já ocorridas (média por turma com inscritos). */
   sessoesPassadasMedia: number | null;
@@ -75,7 +76,7 @@ export type DirectorTerritoryRow = {
 export type DirectorStudentsBlock = {
   totalHistorico: number;
   unicosNoRecorte: number;
-  formadosMatriculas: number;
+  formadosMatriculas: number | null;
   frequenciaMediaPercent: number | null;
   comMaisDeUmCurso: number;
   porCiclo: Array<{
@@ -83,7 +84,7 @@ export type DirectorStudentsBlock = {
     label: string;
     unicos: number;
     inscritos: number;
-    formados: number;
+    formados: number | null;
     frequenciaMediaPercent: number | null;
   }>;
 };
@@ -939,7 +940,13 @@ export async function getDirectorDashboardData(opts: {
     inscritos += insc;
     suspensos += susp;
     cancelados += canc;
-    formados += rows.filter((e) => enrollmentCountsAsFormado(e)).length;
+    formados += rows.filter((e) =>
+      enrollmentCountsAsFormado({
+        status: e.status,
+        certificateEligible: e.certificateEligible,
+        classGroupStatus: cg.status,
+      }),
+    ).length;
 
     const occ = pct(insc, cg.capacity);
     if (insc === 0) turmasSemInscritos += 1;
@@ -970,7 +977,7 @@ export async function getDirectorDashboardData(opts: {
     suspensos,
     cancelados,
     evasao: evasionIds.size,
-    formados,
+    formados: classGroups.some((group) => group.status === "ENCERRADA") ? formados : null,
     frequenciaMediaPercent: avg(freqAll),
     sessoesPassadasMedia: avg(sessionsPerCg),
   };
@@ -1010,7 +1017,13 @@ export async function getDirectorDashboardData(opts: {
     const insc = rows.filter((e) => e.status === "ACTIVE" || e.status === "SUSPENDED").length;
     const susp = rows.filter((e) => e.status === "SUSPENDED").length;
     const canc = rows.filter((e) => e.status === "CANCELLED").length;
-    const form = rows.filter((e) => enrollmentCountsAsFormado(e)).length;
+    const form = rows.filter((e) =>
+      enrollmentCountsAsFormado({
+        status: e.status,
+        certificateEligible: e.certificateEligible,
+        classGroupStatus: cg.status,
+      }),
+    ).length;
     const ev = rows.filter((e) => evasionIds.has(e.id)).length;
     cur.turmas += 1;
     cur.capacidade += cg.capacity;
@@ -1091,7 +1104,17 @@ export async function getDirectorDashboardData(opts: {
       const ens = enrollments.filter((e) => ids.has(e.classGroupId));
       const unicos = new Set(ens.map((e) => e.studentId)).size;
       const insc = ens.filter((e) => e.status === "ACTIVE" || e.status === "SUSPENDED").length;
-      const form = ens.filter((e) => enrollmentCountsAsFormado(e)).length;
+      const cicloEncerrado = cgs.some((group) => group.status === "ENCERRADA");
+      const form = cicloEncerrado
+        ? ens.filter((e) => {
+            const group = cgs.find((item) => item.id === e.classGroupId);
+            return enrollmentCountsAsFormado({
+              status: e.status,
+              certificateEligible: e.certificateEligible,
+              classGroupStatus: group?.status,
+            });
+          }).length
+        : null;
       const freqs: number[] = [];
       for (const e of ens) {
         if (e.status !== "ACTIVE" && e.status !== "SUSPENDED") continue;
@@ -1112,7 +1135,7 @@ export async function getDirectorDashboardData(opts: {
   const students: DirectorStudentsBlock = {
     totalHistorico,
     unicosNoRecorte,
-    formadosMatriculas: formados,
+    formadosMatriculas: classGroups.some((group) => group.status === "ENCERRADA") ? formados : null,
     frequenciaMediaPercent: kpis.frequenciaMediaPercent,
     comMaisDeUmCurso,
     porCiclo,

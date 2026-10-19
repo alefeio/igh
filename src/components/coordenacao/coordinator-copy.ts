@@ -29,7 +29,7 @@ export const COORDINATOR_GLOSSARY = {
   alunosEmRisco: "Alunos que ainda estão na turma e apresentaram sinais de atenção (faltas, baixa frequência, etc.).",
   evasao: "Entre quem já começou a frequentar, quantos saíram do curso.",
   conclusao:
-    "Formados: alunos aptos a certificado (presença suficiente ou marcação do professor), não só quem tem status de matrícula concluída.",
+    "Formados: alunos com certificado em turma já encerrada. Enquanto a turma não encerra, esse número não aparece.",
 } as const;
 
 /** Substitui jargão técnico por linguagem pedagógica nos rótulos de gráficos. */
@@ -48,9 +48,10 @@ export function plainFunnelLabel(label: string): string {
     "Chegou à metade das aulas": "Chegou à metade das aulas",
     "Chegou a 75% das aulas": "Chegou a 3/4 das aulas",
     "Chegou a 3/4 das aulas": "Chegou a 3/4 das aulas",
-    Concluiu: "Formados (apto a certificado)",
-    "Concluiu o curso": "Formados (apto a certificado)",
-    "Formados (apto a certificado)": "Formados (apto a certificado)",
+    Concluiu: "Formados (turma encerrada e certificado)",
+    "Concluiu o curso": "Formados (turma encerrada e certificado)",
+    "Formados (apto a certificado)": "Formados (turma encerrada e certificado)",
+    "Formados (turma encerrada e certificado)": "Formados (turma encerrada e certificado)",
   };
   return map[label] ?? label;
 }
@@ -119,8 +120,8 @@ export function buildPanelInsight(
   if (counts.completed > 0) {
     bullets.push(
       counts.completed === 1
-        ? "1 aluno já está formado (apto a certificado)."
-        : `${counts.completed} alunos já estão formados (aptos a certificado).`,
+        ? "1 aluno formado (certificado e turma encerrada)."
+        : `${counts.completed} alunos formados (certificado e turma encerrada).`,
     );
   }
 

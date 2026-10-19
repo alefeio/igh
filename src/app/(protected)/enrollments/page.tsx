@@ -844,7 +844,15 @@ export default function EnrollmentsPage() {
       const statusCount = statusByClassGroup.get(id) ?? { active: 0, cancelled: 0, completed: 0 };
       if (enrollment.status === "ACTIVE") statusCount.active += 1;
       else if (enrollment.status === "CANCELLED") statusCount.cancelled += 1;
-      if (enrollmentCountsAsFormado(enrollment)) statusCount.completed += 1;
+      if (
+        enrollmentCountsAsFormado({
+          status: enrollment.status,
+          certificateEligible: enrollment.certificateEligible,
+          classGroupStatus: enrollment.classGroup.status,
+        })
+      ) {
+        statusCount.completed += 1;
+      }
       statusByClassGroup.set(id, statusCount);
     }
 
@@ -1985,7 +1993,9 @@ export default function EnrollmentsPage() {
                 {vacancyByCourseChart.length > 0 && (
                   <div className="mb-4 h-[260px] w-full min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
                     <h3 className="mb-2 text-sm font-medium text-[var(--text-secondary)]">
-                      Matriculados e formados por curso
+                      {vacancyRows.some((row) => row.classEncerrada)
+                        ? "Matriculados e formados por curso"
+                        : "Matriculados por curso"}
                     </h3>
                     <ResponsiveContainer width="100%" height="90%">
                       <BarChart data={vacancyByCourseChart} margin={{ top: 8, right: 8, left: 0, bottom: 24 }}>
@@ -2007,7 +2017,9 @@ export default function EnrollmentsPage() {
                         />
                         <Legend wrapperStyle={{ fontSize: "11px" }} />
                         <Bar dataKey="matriculados" fill="#2563eb" radius={[4, 4, 0, 0]} name="Matriculados" />
-                        <Bar dataKey="formados" fill="#059669" radius={[4, 4, 0, 0]} name="Formados" />
+                        {vacancyRows.some((row) => row.classEncerrada) ? (
+                          <Bar dataKey="formados" fill="#059669" radius={[4, 4, 0, 0]} name="Formados" />
+                        ) : null}
                         <Bar dataKey="capacidade" fill="#94a3b8" radius={[4, 4, 0, 0]} name="Capacidade" />
                       </BarChart>
                     </ResponsiveContainer>
@@ -2062,7 +2074,7 @@ export default function EnrollmentsPage() {
                                   <td className="px-2 py-1.5">{row.turmaLabel}</td>
                                   <td className="px-2 py-1.5">{row.teacher}</td>
                                   <td className="px-2 py-1.5">{row.enrolled}</td>
-                                  <td className="px-2 py-1.5">{row.graduated}</td>
+                                  <td className="px-2 py-1.5">{row.classEncerrada ? row.graduated : "—"}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2074,14 +2086,17 @@ export default function EnrollmentsPage() {
                 )}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {courseChartsData.map(
-                    ({ courseId, courseName, totalCapacidade, totalAlunos, totalFormados, chartData, turmas }) => (
+                    ({ courseId, courseName, totalCapacidade, totalAlunos, totalFormados, chartData, turmas }) => {
+                      const cursoEncerrado = turmas.some((turma) => turma.classGroup.status === "ENCERRADA");
+                      return (
                     <div
                       key={courseId}
                       className="rounded-lg border border-[var(--card-border)] bg-[var(--igh-surface)] p-4"
                     >
                       <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-2">{courseName}</h3>
                       <p className="mb-2 text-xs text-[var(--text-muted)]">
-                        {totalAlunos} de {totalCapacidade} vagas preenchidas · {totalFormados} formados
+                        {totalAlunos} de {totalCapacidade} vagas preenchidas
+                        {cursoEncerrado ? ` · ${totalFormados} formados` : ""}
                       </p>
                       <div className="h-[180px] w-full min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
@@ -2150,7 +2165,8 @@ export default function EnrollmentsPage() {
                                       {count} / {cap || "—"}
                                     </strong>{" "}
                                     <span className="text-[var(--text-muted)]">
-                                      ({active} ativas | {cancelled} canceladas | {completed} formados/aptos)
+                                      ({active} ativas | {cancelled} canceladas
+                                      {cg.status === "ENCERRADA" ? ` | ${completed} formados` : ""})
                                     </span>
                                   </span>
                                   <button
@@ -2171,7 +2187,8 @@ export default function EnrollmentsPage() {
                         </ul>
                       )}
                     </div>
-                    ),
+                      );
+                    },
                   )}
                 </div>
                 <div className="mt-4 border-t border-[var(--card-border)] pt-3">

@@ -61,6 +61,7 @@ export type CycleCourseReportRow = {
   ocupacaoPercent: number | null;
   suspensos: number;
   formados: number;
+  turmasEncerradas: number;
   baseFormacao: number;
   taxaFormadosPercent: number | null;
   frequenciaMediaPercent: number | null;
@@ -239,7 +240,7 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
       cancelados,
       baseFormacao,
       formados,
-      taxaFormadosPercent: pct(formados, baseFormacao),
+      taxaFormadosPercent: isEncerrada ? pct(formados, baseFormacao) : null,
       frequenciaMediaPercent: avg(freqPercents),
       sessoes,
       startDate: formatDateOnly(cg.startDate),
@@ -256,6 +257,7 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
       inscritos: number;
       suspensos: number;
       formados: number;
+      turmasEncerradas: number;
       baseFormacao: number;
       freqSamples: number[];
     }
@@ -270,6 +272,7 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
       inscritos: 0,
       suspensos: 0,
       formados: 0,
+      turmasEncerradas: 0,
       baseFormacao: 0,
       freqSamples: [],
     };
@@ -277,8 +280,11 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
     bucket.capacity += row.capacity;
     bucket.inscritos += row.inscritos;
     bucket.suspensos += row.suspensos;
-    bucket.formados += row.formados;
-    bucket.baseFormacao += row.baseFormacao;
+    if (row.status === "ENCERRADA") {
+      bucket.formados += row.formados;
+      bucket.turmasEncerradas += 1;
+      bucket.baseFormacao += row.baseFormacao;
+    }
     if (row.frequenciaMediaPercent != null) {
       bucket.freqSamples.push(row.frequenciaMediaPercent);
     }
@@ -295,8 +301,9 @@ export async function buildCycleClassGroupsReport(cycleId: string): Promise<{
       ocupacaoPercent: pct(b.inscritos, b.capacity),
       suspensos: b.suspensos,
       formados: b.formados,
+      turmasEncerradas: b.turmasEncerradas,
       baseFormacao: b.baseFormacao,
-      taxaFormadosPercent: pct(b.formados, b.baseFormacao),
+      taxaFormadosPercent: b.turmasEncerradas > 0 ? pct(b.formados, b.baseFormacao) : null,
       frequenciaMediaPercent: avg(b.freqSamples),
     }));
 
@@ -488,8 +495,8 @@ export async function buildCycleClassGroupsReportXlsx(params: {
     setNum(row.getCell(11), r.suspensos, "0");
     setNum(row.getCell(12), r.cancelados, "0");
     setNum(row.getCell(13), r.baseFormacao, "0");
-    setNum(row.getCell(14), r.formados, "0");
-    setNum(row.getCell(15), r.taxaFormadosPercent, "0.0");
+    setNum(row.getCell(14), r.status === "ENCERRADA" ? r.formados : null, "0");
+    setNum(row.getCell(15), r.status === "ENCERRADA" ? r.taxaFormadosPercent : null, "0.0");
     setNum(row.getCell(16), r.frequenciaMediaPercent, "0.0");
     setNum(row.getCell(17), r.sessoes, "0");
     row.getCell(18).value = r.startDate || "—";
@@ -548,9 +555,9 @@ export async function buildCycleClassGroupsReportXlsx(params: {
     setNum(row.getCell(4), r.inscritos, "0");
     setNum(row.getCell(5), r.ocupacaoPercent, "0.0");
     setNum(row.getCell(6), r.suspensos, "0");
-    setNum(row.getCell(7), r.formados, "0");
+    setNum(row.getCell(7), r.turmasEncerradas > 0 ? r.formados : null, "0");
     setNum(row.getCell(8), r.baseFormacao, "0");
-    setNum(row.getCell(9), r.taxaFormadosPercent, "0.0");
+    setNum(row.getCell(9), r.turmasEncerradas > 0 ? r.taxaFormadosPercent : null, "0.0");
     setNum(row.getCell(10), r.frequenciaMediaPercent, "0.0");
     styleDataRow(row, courseHeaders.length, idx % 2 === 1);
   });
@@ -845,8 +852,8 @@ export async function buildCycleClassGroupsReportPdf(params: {
         String(r.inscritos),
         fmtPct(r.ocupacaoPercent),
         String(r.suspensos),
-        String(r.formados),
-        fmtPct(r.taxaFormadosPercent),
+        r.turmasEncerradas > 0 ? String(r.formados) : "—",
+        r.turmasEncerradas > 0 ? fmtPct(r.taxaFormadosPercent) : "—",
         fmtPct(r.frequenciaMediaPercent),
       ],
       idx % 2 === 1,
@@ -911,8 +918,8 @@ export async function buildCycleClassGroupsReportPdf(params: {
         fmtPct(r.ocupacaoPercent),
         String(r.suspensos),
         String(r.cancelados),
-        String(r.formados),
-        fmtPct(r.taxaFormadosPercent),
+        r.status === "ENCERRADA" ? String(r.formados) : "—",
+        r.status === "ENCERRADA" ? fmtPct(r.taxaFormadosPercent) : "—",
         fmtPct(r.frequenciaMediaPercent),
         r.startDate || "-",
         r.endDate || "-",
