@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { StudentEnrollmentSuspensionBanner } from "@/components/student/StudentEnrollmentSuspensionBanner";
+import { StudentTeacherEvaluation } from "@/components/student/StudentTeacherEvaluation";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
@@ -287,6 +288,8 @@ export default function MinhasTurmasDetailPage() {
               </div>
             </div>
           </section>
+
+          <StudentTeacherEvaluation enrollmentId={e.id} />
 
           <section aria-labelledby="cert-heading">
             <h2 id="cert-heading" className="text-base font-semibold text-[var(--text-primary)]">

@@ -1,4 +1,5 @@
 import { PlatformExperienceEvaluationsClient } from "@/components/platform-experience/PlatformExperienceEvaluationsClient";
+import { TeacherClassEvaluationsPanel } from "@/components/professor/TeacherClassEvaluationsPanel";
 
 export default function AdminAvaliacoesExperienciaPage() {
   return (
@@ -11,6 +12,7 @@ export default function AdminAvaliacoesExperienciaPage() {
         pageTitle="Avaliações de experiência"
         pageDescription="Notas de 1 a 10 em plataforma, aulas e professor, além de comentários e indicações enviados pelos alunos. A coluna Turma resume curso, local, dias (ex.: ter e qui) e horário das turmas ativas do aluno. “Com.” é abreviação de Comentário. Apenas o usuário Master pode excluir avaliações. Visível para administradores."
       />
+      <TeacherClassEvaluationsPanel apiUrl="/api/admin/class-evaluations" showTeacherName />
     </div>
   );
 }
