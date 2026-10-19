@@ -720,15 +720,17 @@ function CourseCard({ enrollment }: { enrollment: StudentEnrollmentSummary }) {
           {isSuspended ? "Ver detalhes da turma" : isComplete ? "Curso concluído" : hasProgress ? "Abrir conteúdo" : "Começar o curso"}
         </p>
       </Link>
-      <div className="border-t border-[var(--card-border)] px-5 py-3">
-        <Link
-          href={`/minhas-turmas/${enrollment.id}#avaliar-professor`}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--igh-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
-        >
-          <Star className="h-4 w-4 text-amber-500" aria-hidden />
-          Avaliar o professor
-        </Link>
-      </div>
+      {enrollment.canEvaluateTeacher ? (
+        <div className="border-t border-[var(--card-border)] px-5 py-3">
+          <Link
+            href={`/minhas-turmas/${enrollment.id}#avaliar-professor`}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--igh-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[var(--igh-primary)] focus-visible:ring-offset-2"
+          >
+            <Star className="h-4 w-4 text-amber-500" aria-hidden />
+            Avaliar o professor
+          </Link>
+        </div>
+      ) : null}
     </article>
   );
 }

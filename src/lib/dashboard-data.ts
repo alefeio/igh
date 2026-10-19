@@ -7,6 +7,7 @@ import {
   countFirstForumParticipations,
 } from "@/lib/gamification-scoring-rules";
 import { prisma } from "@/lib/prisma";
+import { enrollmentIdsWithRecordedPresence } from "@/lib/teacher-evaluation-presence";
 import type { SessionUser } from "@/lib/auth";
 import { applyClassGroupAutomaticStatusUpdatesCached } from "@/lib/class-group-auto-status";
 import {
@@ -224,6 +225,8 @@ export type StudentEnrollmentSummary = {
   exerciseTotalAttempts: number;
   /** Sessões com presença (até hoje). */
   attendancePresentCount: number;
+  /** Avaliação do professor só depois da primeira presença em aula não cancelada. */
+  canEvaluateTeacher: boolean;
   /** Fóruns (aulas) com 1ª participação pontuável. */
   forumQuestionsCount: number;
   /** Sempre 0 na pontuação (compatibilidade); 1ª participação já está em forumQuestionsCount. */
@@ -430,6 +433,7 @@ export async function loadStudentDashboardMetrics(
   );
   const { byEnrollment: exerciseByEnrollmentId } = aggregateFirstExerciseAnswers(exerciseAnswers);
   const attendanceMap = new Map(attendanceByEnrollment.map((r) => [r.enrollmentId, r._count.id]));
+  const teacherEvaluationPresence = await enrollmentIdsWithRecordedPresence(enrollmentIds);
   const forumParticipationsByEnrollment = countFirstForumParticipations(
     forumQuestionsByEnrollment,
     forumRepliesByEnrollment.map((r) => ({
@@ -460,6 +464,7 @@ export async function loadStudentDashboardMetrics(
       exerciseCorrectAttempts: ex.correct,
       exerciseTotalAttempts: ex.attempts,
       attendancePresentCount: attendanceMap.get(e.id) ?? 0,
+      canEvaluateTeacher: teacherEvaluationPresence.has(e.id),
       // Só 1ª participação por fórum; replies=0 para não somar 2× na pontuação da UI.
       forumQuestionsCount: forumParticipations,
       forumRepliesCount: 0,

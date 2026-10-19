@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
 import { parseTeacherClassEvaluationBody } from "@/lib/teacher-class-evaluation";
+import { enrollmentIdsWithRecordedPresence } from "@/lib/teacher-evaluation-presence";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,11 @@ async function loadOwnedEnrollment(enrollmentId: string, userId: string) {
   return { enrollment };
 }
 
-function toPayload(enrollment: {
+const PRESENCE_REQUIRED_MESSAGE =
+  "A avaliação fica disponível depois da primeira presença registrada em aula.";
+
+function toPayload(
+  enrollment: {
   teacherEvaluation: {
     rating: number;
     comment: string | null;
@@ -51,6 +56,7 @@ function toPayload(enrollment: {
   const saved = enrollment.teacherEvaluation;
   const teacher = saved?.teacher ?? enrollment.classGroup.teacher;
   return {
+    available: true,
     teacher: { id: teacher.id, name: teacher.name },
     evaluation: saved
       ? {
@@ -69,6 +75,10 @@ export async function GET(_request: Request, context: { params: Promise<{ enroll
     const { enrollmentId } = await context.params;
     const loaded = await loadOwnedEnrollment(enrollmentId, user.id);
     if ("error" in loaded) return loaded.error;
+    const withPresence = await enrollmentIdsWithRecordedPresence([loaded.enrollment.id]);
+    if (!withPresence.has(loaded.enrollment.id)) {
+      return jsonOk({ available: false, teacher: null, evaluation: null });
+    }
     return jsonOk(toPayload(loaded.enrollment));
   } catch (e) {
     const auth = authErrorResponse(e);
@@ -86,6 +96,11 @@ export async function PUT(request: Request, context: { params: Promise<{ enrollm
 
     const parsed = parseTeacherClassEvaluationBody(await request.json().catch(() => null));
     if (!parsed.ok) return jsonErr("VALIDATION_ERROR", parsed.message, 400);
+
+    const withPresence = await enrollmentIdsWithRecordedPresence([loaded.enrollment.id]);
+    if (!withPresence.has(loaded.enrollment.id)) {
+      return jsonErr("VALIDATION_ERROR", PRESENCE_REQUIRED_MESSAGE, 400);
+    }
 
     const existing = loaded.enrollment.teacherEvaluation;
     if (existing) {

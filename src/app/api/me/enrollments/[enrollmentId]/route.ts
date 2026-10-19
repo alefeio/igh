@@ -6,6 +6,7 @@ import { getModulesWithLessonsByCourseId } from "@/lib/course-modules";
 import { ensureLessonReleasedNotifications } from "@/lib/lesson-release-notifications";
 import { STUDENT_VISIBLE_ENROLLMENT_STATUSES } from "@/lib/student-enrollment-access";
 import { ensureClassSessionsLiberatedForStudent } from "@/lib/student-lesson-liberation";
+import { enrollmentIdsWithRecordedPresence } from "@/lib/teacher-evaluation-presence";
 
 function getTodayUtcDate(): Date {
   const now = new Date();
@@ -91,6 +92,7 @@ export async function GET(
   const modules = await getModulesWithLessonsByCourseId(course.id);
   const orderedLessonTitles = modules.flatMap((m) => m.lessons.map((l) => l.title));
   const certificateEligibility = await getCourseCertificateEligibility(enrollmentId);
+  const withPresence = await enrollmentIdsWithRecordedPresence([enrollmentId]);
 
   return jsonOk({
     enrollment: {
@@ -114,6 +116,7 @@ export async function GET(
       certificateUrl: enrollmentWithUpdatedSessions.certificateUrl,
       certificateFileName: enrollmentWithUpdatedSessions.certificateFileName,
       certificateEligibility,
+      canEvaluateTeacher: withPresence.has(enrollmentId),
       sessions: g2.sessions.map((s, index) => ({
         id: s.id,
         sessionDate: s.sessionDate,

@@ -6,7 +6,8 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import type { ApiResponse } from "@/lib/api-types";
 
 type EvaluationPayload = {
-  teacher: { id: string; name: string };
+  available?: boolean;
+  teacher: { id: string; name: string } | null;
   evaluation: {
     rating: number;
     comment: string;
@@ -32,6 +33,7 @@ export function StudentTeacherEvaluation({
   const [comment, setComment] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [available, setAvailable] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +47,12 @@ export function StudentTeacherEvaluation({
           toast.push("error", !json.ok ? json.error.message : "Não foi possível carregar a avaliação.");
           return;
         }
-        setTeacherName(json.data.teacher.name);
+        if (json.data.available === false) {
+          setAvailable(false);
+          return;
+        }
+        setAvailable(true);
+        setTeacherName(json.data.teacher?.name ?? "");
         if (json.data.evaluation) {
           setRating(json.data.evaluation.rating);
           setComment(json.data.evaluation.comment);
@@ -82,13 +89,15 @@ export function StudentTeacherEvaluation({
         return;
       }
       setSaved(true);
-      setTeacherName(json.data.teacher.name);
+      setTeacherName(json.data.teacher?.name ?? teacherName);
       toast.push("success", saved ? "Avaliação atualizada." : "Avaliação enviada.");
       onSubmitted?.();
     } finally {
       setSaving(false);
     }
   }
+
+  if (!loading && !available) return null;
 
   const form = (
     <>
