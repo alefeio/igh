@@ -28,8 +28,9 @@ describe("avaliação do professor", () => {
     expect(parseTeacherClassEvaluationBody({ rating: 6, anonymous: true }).ok).toBe(false);
   });
 
-  it("esconde o nome quando a avaliação é anônima", () => {
+  it("esconde o nome do professor e mostra para a coordenação", () => {
     expect(teacherEvaluationAuthorLabel(true, "Maria Souza")).toBe("Anônimo");
+    expect(teacherEvaluationAuthorLabel(true, "Maria Souza", { revealIdentity: true })).toBe("Maria Souza");
     expect(teacherEvaluationAuthorLabel(false, " Maria Souza ")).toBe("Maria Souza");
     expect(teacherEvaluationAuthorLabel(false, "  ")).toBe("Aluno");
   });

@@ -17,6 +17,7 @@ import {
 } from "recharts";
 
 import { ChartEmptyState } from "@/components/coordenacao/ChartEmptyState";
+import { TeacherClassEvaluationsPanel } from "@/components/professor/TeacherClassEvaluationsPanel";
 import {
   COORDINATOR_GLOSSARY,
   buildJourneySlices,
@@ -720,6 +721,14 @@ export function CoordenacaoPainel({
             </ul>
           )}
         </SectionCard>
+      )}
+
+      {view === "experiencia" && (
+        <TeacherClassEvaluationsPanel
+          apiUrl="/api/coordenacao/avaliacoes-professor"
+          showTeacherName
+          revealIdentity
+        />
       )}
 
       {view === "historico" && (

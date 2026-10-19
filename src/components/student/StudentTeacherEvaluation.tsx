@@ -91,10 +91,8 @@ export function StudentTeacherEvaluation({ enrollmentId }: { enrollmentId: strin
         Avalie o professor
       </h2>
       <p className="mt-1 text-sm text-[var(--text-muted)]">
-        {teacherName
-          ? `Como foi a experiência com ${teacherName}? A nota vai de 1 a 5.`
-          : "A nota vai de 1 a 5."}{" "}
-        No envio anônimo, o professor vê a nota e o comentário sem o seu nome.
+        {teacherName ? `Como foi a experiência com ${teacherName}? ` : ""}
+        A nota vai de 1 a 5. O comentário é opcional.
       </p>
       {loading ? (
         <p className="mt-4 text-sm text-[var(--text-muted)]">Carregando avaliação…</p>
@@ -144,7 +142,13 @@ export function StudentTeacherEvaluation({ enrollmentId }: { enrollmentId: strin
               checked={anonymous}
               onChange={(event) => setAnonymous(event.target.checked)}
             />
-            <span>Enviar de forma anônima</span>
+            <span>
+              <span className="font-medium">Enviar de forma anônima para o professor</span>
+              <span className="mt-1 block font-normal text-[var(--text-muted)]">
+                Se marcar esta opção, o professor não saberá que esta mensagem é sua. O coordenador saberá a sua
+                identidade para tomar as providências necessárias.
+              </span>
+            </span>
           </label>
           <div>
             <button

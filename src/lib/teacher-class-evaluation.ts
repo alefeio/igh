@@ -34,9 +34,16 @@ export function parseTeacherClassEvaluationBody(
   return { ok: true, value: { rating, comment, anonymous: raw.anonymous } };
 }
 
-/** Nome exibido na listagem. Avaliação anônima não revela o aluno. */
-export function teacherEvaluationAuthorLabel(anonymous: boolean, studentName: string | null | undefined): string {
-  if (anonymous) return "Anônimo";
-  const name = studentName?.trim();
-  return name || "Aluno";
+/**
+ * Nome exibido na listagem.
+ * Anônimo esconde o aluno do professor. A coordenação recebe o nome mesmo nesse caso.
+ */
+export function teacherEvaluationAuthorLabel(
+  anonymous: boolean,
+  studentName: string | null | undefined,
+  options?: { revealIdentity?: boolean },
+): string {
+  const name = studentName?.trim() || "Aluno";
+  if (anonymous && !options?.revealIdentity) return "Anônimo";
+  return name;
 }

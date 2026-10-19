@@ -19,9 +19,11 @@ type EvaluationItem = {
 export function TeacherClassEvaluationsPanel({
   apiUrl,
   showTeacherName,
+  revealIdentity = false,
 }: {
   apiUrl: string;
   showTeacherName: boolean;
+  revealIdentity?: boolean;
 }) {
   const [items, setItems] = useState<EvaluationItem[] | null>(null);
   const [error, setError] = useState("");
@@ -57,7 +59,9 @@ export function TeacherClassEvaluationsPanel({
         Avaliações do professor
       </h2>
       <p className="mt-1 text-sm text-[var(--text-muted)]">
-        Notas de 1 a 5 enviadas na página da turma. Avaliações anônimas aparecem sem o nome do aluno.
+        {revealIdentity
+          ? "Notas de 1 a 5 enviadas na página da turma. Quando o aluno marca anônimo, o professor não vê quem enviou. A coordenação continua vendo o nome."
+          : "Notas de 1 a 5 enviadas na página da turma. Se o aluno marcou anônimo, o nome não aparece aqui."}
       </p>
       {items == null ? (
         <p className="mt-4 text-sm text-[var(--text-muted)]">Carregando avaliações…</p>
@@ -79,7 +83,7 @@ export function TeacherClassEvaluationsPanel({
               <p className="mt-1 text-xs text-[var(--text-muted)]">
                 {showTeacherName && item.teacherName ? `${item.teacherName} · ` : ""}
                 {item.authorLabel} · {new Date(item.createdAt).toLocaleDateString("pt-BR")}
-                {item.anonymous ? " · anônima" : ""}
+                {item.anonymous ? (revealIdentity ? " · anônima para o professor" : " · anônima") : ""}
               </p>
               {item.comment ? <p className="mt-2 text-sm text-[var(--text-secondary)]">{item.comment}</p> : null}
             </li>
