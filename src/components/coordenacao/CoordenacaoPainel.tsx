@@ -484,8 +484,8 @@ export function CoordenacaoPainel({
           </div>
           <p className="mt-3 text-sm text-[var(--text-secondary)]">
             Não compareceram: {payload.counts.noShow}. Saiu no começo do curso: {payload.counts.earlyDropout}. Saiu
-            depois de começar a frequentar: {payload.counts.dropout}. Formados (apto a certificado):{" "}
-            {payload.counts.completed}.
+            depois de começar a frequentar: {payload.counts.dropout}. Formados (turma encerrada e certificado):{" "}
+            {payload.definitions.completionRate.available ? payload.counts.completed : "sem dado"}.
           </p>
           {!payload.reasonsAvailable ? (
             <p className="mt-2 text-sm text-[var(--text-muted)]">Motivos de saída ainda não registrados neste recorte.</p>

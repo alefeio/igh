@@ -293,7 +293,11 @@ export function DirectorDashboard({ userName }: { userName: string }) {
             <StatTile
               label="Turmas"
               value={data.kpis.turmas}
-              sublabel={`${data.kpis.turmasEmAndamento} em andamento · ${data.kpis.formados} formados`}
+              sublabel={
+                data.kpis.formados == null
+                  ? `${data.kpis.turmasEmAndamento} em andamento`
+                  : `${data.kpis.turmasEmAndamento} em andamento · ${data.kpis.formados} formados`
+              }
             />
           </div>
 
@@ -451,7 +455,11 @@ export function DirectorDashboard({ userName }: { userName: string }) {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <StatTile label="Total histórico" value={data.students.totalHistorico} icon={Users} />
               <StatTile label="Únicos no recorte" value={data.students.unicosNoRecorte} />
-              <StatTile label="Formados (matrículas)" value={data.students.formadosMatriculas} />
+              <StatTile
+                label="Formados (matrículas)"
+                value={data.students.formadosMatriculas == null ? "—" : data.students.formadosMatriculas}
+                sublabel={data.students.formadosMatriculas == null ? "Só com turma encerrada" : undefined}
+              />
               <StatTile
                 label="Freq. média"
                 value={

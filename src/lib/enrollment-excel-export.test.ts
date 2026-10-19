@@ -22,6 +22,7 @@ function sampleRow(partial: Partial<EnrollmentVacancyRow>): EnrollmentVacancyRow
     teacher: "Ana",
     enrolled: 12,
     graduated: 4,
+    classEncerrada: true,
     capacity: 20,
     active: 10,
     cancelled: 1,

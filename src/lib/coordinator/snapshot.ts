@@ -296,7 +296,15 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
       attendance: summary.indicators.attendanceRate,
       atRisk: summary.counts.atRisk,
       dropout: summary.indicators.dropoutRate,
-      completion: summary.indicators.completionRate,
+      completion:
+        group.status === "ENCERRADA"
+          ? summary.indicators.completionRate
+          : {
+              value: null,
+              available: false,
+              definition:
+                "Formados só aparecem quando a turma está encerrada e o aluno está apto a certificado.",
+            },
       progress: progressKnown.length
         ? Math.round(progressKnown.reduce((sum, row) => sum + (row.progressPercent ?? 0), 0) / progressKnown.length)
         : null,

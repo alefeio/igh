@@ -161,7 +161,16 @@ async function loadAcademicFactsUncached(scope: ScopeResolution): Promise<Academ
       const entry = directorEnrollmentEntry(e);
       if (!hasStarted(entry, sessions, attByEnr.get(e.id) ?? new Map(), asOf)) continue;
       startedInClosed += 1;
-      if (enrollmentCountsAsFormado(e)) completedStarted += 1;
+      const group = classGroups.find((item) => item.id === e.classGroupId);
+      if (
+        enrollmentCountsAsFormado({
+          status: e.status,
+          certificateEligible: e.certificateEligible,
+          classGroupStatus: group?.status,
+        })
+      ) {
+        completedStarted += 1;
+      }
     }
     completionStartedRate = pctOrNull(completedStarted, startedInClosed);
   }

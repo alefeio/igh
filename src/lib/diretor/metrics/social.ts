@@ -194,7 +194,17 @@ async function loadSocialUncached(
       set.add(e.studentId);
       terrServed.set(name, set);
     }
-    if (enrollmentCountsAsFormado(e) && hasStarted(entry, sessions, attMap, asOf)) completers.add(e.studentId);
+    const groupForGraduation = cgById.get(e.classGroupId);
+    if (
+      enrollmentCountsAsFormado({
+        status: e.status,
+        certificateEligible: e.certificateEligible,
+        classGroupStatus: groupForGraduation?.status,
+      }) &&
+      hasStarted(entry, sessions, attMap, asOf)
+    ) {
+      completers.add(e.studentId);
+    }
   }
 
   const previouslyServed = new Set<string>();

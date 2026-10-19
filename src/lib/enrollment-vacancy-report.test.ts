@@ -123,6 +123,7 @@ describe("enrollment vacancy report", () => {
                   startTime: "09:00",
                   endTime: "10:15",
                   capacity: 20,
+                  status: "ENCERRADA",
                   location: "Centro",
                   teacher: { name: "Ana" },
                   course: { id: "c1", name: "Informática" },
@@ -147,6 +148,7 @@ describe("enrollment vacancy report", () => {
       teacher: "Ana",
       enrolled: 12,
       graduated: 2,
+      classEncerrada: true,
       capacity: 20,
     });
     expect(summarizeVacanciesByCourse(rows)[0].graduated).toBe(2);
