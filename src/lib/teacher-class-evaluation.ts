@@ -38,6 +38,14 @@ export function parseTeacherClassEvaluationBody(
  * Nome exibido na listagem.
  * Anônimo esconde o aluno do professor. A coordenação recebe o nome mesmo nesse caso.
  */
+/** O aviso do painel abre enquanto a turma não tem avaliação e o aluno não dispensou o lembrete. */
+export function enrollmentNeedsTeacherEvaluationPrompt(input: {
+  hasEvaluation: boolean;
+  reminderDismissedAt: Date | string | null;
+}): boolean {
+  return !input.hasEvaluation && input.reminderDismissedAt == null;
+}
+
 export function teacherEvaluationAuthorLabel(
   anonymous: boolean,
   studentName: string | null | undefined,
