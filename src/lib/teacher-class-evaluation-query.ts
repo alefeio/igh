@@ -26,7 +26,10 @@ const evaluationSelect = {
   },
 } as const;
 
-export async function listTeacherClassEvaluations(teacherId?: string) {
+export async function listTeacherClassEvaluations(
+  teacherId?: string,
+  options?: { revealIdentity?: boolean },
+) {
   const rows = await prisma.teacherClassEvaluation.findMany({
     where: teacherId ? { teacherId } : undefined,
     orderBy: { createdAt: "desc" },
@@ -39,7 +42,7 @@ export async function listTeacherClassEvaluations(teacherId?: string) {
     comment: row.comment ?? "",
     anonymous: row.anonymous,
     createdAt: row.createdAt.toISOString(),
-    authorLabel: teacherEvaluationAuthorLabel(row.anonymous, row.enrollment.student.name),
+    authorLabel: teacherEvaluationAuthorLabel(row.anonymous, row.enrollment.student.name, options),
     courseName: row.enrollment.classGroup.course.name,
     classLabel: teacherMaterialClassLabel(row.enrollment.classGroup),
     teacherName: row.teacher.name,
