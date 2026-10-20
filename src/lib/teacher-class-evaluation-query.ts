@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { teacherMaterialClassLabel } from "@/lib/teacher-class-material";
-import { teacherEvaluationAuthorLabel } from "@/lib/teacher-class-evaluation";
+import { teacherClassEvaluationListWhere, teacherEvaluationAuthorLabel } from "@/lib/teacher-class-evaluation";
 
 const evaluationSelect = {
   id: true,
@@ -28,10 +28,10 @@ const evaluationSelect = {
 
 export async function listTeacherClassEvaluations(
   teacherId?: string,
-  options?: { revealIdentity?: boolean },
+  options?: { revealIdentity?: boolean; includeAnonymous?: boolean },
 ) {
   const rows = await prisma.teacherClassEvaluation.findMany({
-    where: teacherId ? { teacherId } : undefined,
+    where: teacherClassEvaluationListWhere(teacherId, options),
     orderBy: { createdAt: "desc" },
     take: 200,
     select: evaluationSelect,

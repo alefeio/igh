@@ -290,6 +290,7 @@ const ITEMS: Item[] = [
   { href: "/professor/frequencia", label: "Frequência", roles: ["TEACHER"], category: "Professor" },
   { href: "/gamificacao", label: "Gamificação", roles: ["TEACHER"], category: "Professor" },
   { href: "/ranking-alunos", label: "Ranking dos alunos", roles: ["TEACHER"], category: "Professor" },
+  { href: "/professor/experiencia", label: "Experiência do aluno", roles: ["TEACHER"], category: "Professor" },
   { href: "/professor/avaliacoes-experiencia", label: "Avaliações de experiência", roles: ["TEACHER"], category: "Professor" },
 
   /* —— Pedagógico —— */

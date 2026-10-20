@@ -60,8 +60,8 @@ export function TeacherClassEvaluationsPanel({
       </h2>
       <p className="mt-1 text-sm text-[var(--text-muted)]">
         {revealIdentity
-          ? "Notas de 1 a 5 enviadas na página da turma. Quando o aluno marca anônimo, o professor não vê quem enviou. A coordenação continua vendo o nome."
-          : "Notas de 1 a 5 enviadas na página da turma. Se o aluno marcou anônimo, o nome não aparece aqui."}
+          ? "Notas de 1 a 5 enviadas na página da turma. Quando o aluno marca anônimo, o professor não vê a mensagem. A coordenação continua vendo o nome e o texto."
+          : "Notas e mensagens enviadas na página da turma. Avaliações anônimas não aparecem aqui — só a coordenação as vê."}
       </p>
       {items == null ? (
         <p className="mt-4 text-sm text-[var(--text-muted)]">Carregando avaliações…</p>

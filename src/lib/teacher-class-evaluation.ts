@@ -50,6 +50,17 @@ export function enrollmentNeedsTeacherEvaluationPrompt(input: {
   return input.hasRecordedPresence && !input.hasEvaluation && input.reminderDismissedAt == null;
 }
 
+/** Fora da coordenação, a listagem omite mensagens anônimas. */
+export function teacherClassEvaluationListWhere(
+  teacherId?: string,
+  options?: { includeAnonymous?: boolean },
+): { teacherId?: string; anonymous?: false } {
+  return {
+    ...(teacherId ? { teacherId } : {}),
+    ...(options?.includeAnonymous ? {} : { anonymous: false }),
+  };
+}
+
 export function teacherEvaluationAuthorLabel(
   anonymous: boolean,
   studentName: string | null | undefined,
