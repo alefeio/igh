@@ -59,7 +59,10 @@ export async function getEnrollmentAttendanceSummaries(
   }
 
   const allSessionIds = sessions.map((s) => s.id);
-  const marksByEnrollment = new Map<string, { classSessionId: string; present: boolean; absenceJustification: string | null }[]>();
+  const marksByEnrollment = new Map<
+    string,
+    { enrollmentId: string; classSessionId: string; present: boolean; absenceJustification: string | null }[]
+  >();
   if (allSessionIds.length > 0) {
     const marks = await prisma.sessionAttendance.findMany({
       where: {
