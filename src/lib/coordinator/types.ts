@@ -58,6 +58,8 @@ export type EnrollmentSignalInput = {
   scorePercent: number | null;
   classClosed: boolean;
   recordedReason?: DepartureReasonCode | null;
+  /** Instante da matrícula. Aulas anteriores a esse dia não entram na frequência. */
+  enrolledAt?: string | null;
 };
 
 export type ClassifiedEnrollment = {
@@ -90,4 +92,5 @@ export type RiskStudent = {
   level: RiskLevel;
   reasons: string[];
   attendancePercent: number | null;
+  enrolledAt: string | null;
 };

@@ -10,6 +10,7 @@ import {
   countConsecutiveUnjustifiedAbsenceStreak,
 } from "@/lib/enrollment-attendance-streak";
 import { enrollmentCountsAsFormado } from "@/lib/enrollment-graduation";
+import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
 import { formatCycleLabel } from "@/lib/gamification-cycle";
 import { prisma } from "@/lib/prisma";
 import {
@@ -327,14 +328,14 @@ async function findEvasionEnrollmentIds(
   const sessions = await prisma.classSession.findMany({
     where: { classGroupId: { in: classGroupIds }, status: "LIBERADA" },
     orderBy: [{ sessionDate: "desc" }, { startTime: "desc" }],
-    select: { id: true, classGroupId: true },
+    select: { id: true, classGroupId: true, sessionDate: true },
   });
   if (sessions.length === 0) return evasion;
 
-  const sessionsByCg = new Map<string, { id: string }[]>();
+  const sessionsByCg = new Map<string, { id: string; sessionDate: Date }[]>();
   for (const s of sessions) {
     const list = sessionsByCg.get(s.classGroupId) ?? [];
-    list.push({ id: s.id });
+    list.push({ id: s.id, sessionDate: s.sessionDate });
     sessionsByCg.set(s.classGroupId, list);
   }
 
@@ -370,7 +371,9 @@ async function findEvasionEnrollmentIds(
   }
 
   for (const e of candidates) {
-    const sess = sessionsByCg.get(e.classGroupId) ?? [];
+    const sess = (sessionsByCg.get(e.classGroupId) ?? []).filter((session) =>
+      sessionCountsForEnrollment(session.sessionDate, e.enrolledAt),
+    );
     if (sess.length < CONSECUTIVE_UNJUSTIFIED_ABSENCE_CANCEL_LIMIT) continue;
     const bySession = attByEnrollment.get(e.id) ?? new Map();
     const streak = countConsecutiveUnjustifiedAbsenceStreak(sess, bySession);

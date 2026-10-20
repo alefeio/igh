@@ -2,6 +2,7 @@ import "server-only";
 
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
 import { splitAbsenceCounts } from "@/lib/enrollment-frequency-label";
+import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
 import { prisma } from "@/lib/prisma";
 
 export type EnrollmentAttendanceSummary = {
@@ -13,9 +14,9 @@ export type EnrollmentAttendanceSummary = {
 };
 
 /**
- * Presenças do aluno / total de aulas elegíveis da turma.
- * Considera sessões até hoje (calendário Brasil), exceto canceladas — alinhado ao painel de frequência
- * e ao fluxo do aluno/professor (não exige status LIBERADA persistido antes da consulta).
+ * Presenças do aluno / aulas da turma a partir do dia da matrícula.
+ * Sessões anteriores à matrícula não entram no total nem como falta.
+ * Considera sessões até hoje (calendário Brasil), exceto canceladas.
  */
 export async function getEnrollmentAttendanceSummaries(
   enrollmentIds: string[]
@@ -26,7 +27,7 @@ export async function getEnrollmentAttendanceSummaries(
   const uniqueIds = [...new Set(enrollmentIds)];
   const enrollments = await prisma.enrollment.findMany({
     where: { id: { in: uniqueIds } },
-    select: { id: true, classGroupId: true },
+    select: { id: true, classGroupId: true, enrolledAt: true },
   });
 
   const classGroupIds = [...new Set(enrollments.map((e) => e.classGroupId))];
@@ -38,52 +39,51 @@ export async function getEnrollmentAttendanceSummaries(
       status: { not: "CANCELED" },
       sessionDate: { lte: endOfTodayBrazil },
     },
-    select: { id: true, classGroupId: true },
+    select: { id: true, classGroupId: true, sessionDate: true },
   });
 
-  const totalByClassGroup = new Map<string, number>();
-  for (const cgId of classGroupIds) {
-    totalByClassGroup.set(
-      cgId,
-      sessions.filter((s) => s.classGroupId === cgId).length
-    );
+  const sessionsByGroup = new Map<string, typeof sessions>();
+  for (const session of sessions) {
+    const list = sessionsByGroup.get(session.classGroupId) ?? [];
+    list.push(session);
+    sessionsByGroup.set(session.classGroupId, list);
+  }
+
+  const allowedByEnrollment = new Map<string, Set<string>>();
+  for (const enrollment of enrollments) {
+    const allowed = new Set<string>();
+    for (const session of sessionsByGroup.get(enrollment.classGroupId) ?? []) {
+      if (sessionCountsForEnrollment(session.sessionDate, enrollment.enrolledAt)) allowed.add(session.id);
+    }
+    allowedByEnrollment.set(enrollment.id, allowed);
   }
 
   const allSessionIds = sessions.map((s) => s.id);
-  const presentByEnrollment = new Map<string, number>();
-  const absenceByEnrollment = new Map<string, { justifiedAbsenceCount: number; unjustifiedAbsenceCount: number }>();
+  const marksByEnrollment = new Map<
+    string,
+    { enrollmentId: string; classSessionId: string; present: boolean; absenceJustification: string | null }[]
+  >();
   if (allSessionIds.length > 0) {
-    const [grouped, absences] = await Promise.all([
-      prisma.sessionAttendance.groupBy({
-        by: ["enrollmentId"],
-        where: {
-          enrollmentId: { in: uniqueIds },
-          classSessionId: { in: allSessionIds },
-          present: true,
-        },
-        _count: { id: true },
-      }),
-      prisma.sessionAttendance.findMany({
-        where: {
-          enrollmentId: { in: uniqueIds },
-          classSessionId: { in: allSessionIds },
-          present: false,
-        },
-        select: { enrollmentId: true, absenceJustification: true },
-      }),
-    ]);
-    for (const row of grouped) {
-      presentByEnrollment.set(row.enrollmentId, row._count.id);
-    }
-    for (const [enrollmentId, counts] of splitAbsenceCounts(absences)) {
-      absenceByEnrollment.set(enrollmentId, counts);
+    const marks = await prisma.sessionAttendance.findMany({
+      where: {
+        enrollmentId: { in: uniqueIds },
+        classSessionId: { in: allSessionIds },
+      },
+      select: { enrollmentId: true, classSessionId: true, present: true, absenceJustification: true },
+    });
+    for (const mark of marks) {
+      const list = marksByEnrollment.get(mark.enrollmentId) ?? [];
+      list.push(mark);
+      marksByEnrollment.set(mark.enrollmentId, list);
     }
   }
 
   for (const e of enrollments) {
-    const totalSessions = totalByClassGroup.get(e.classGroupId) ?? 0;
-    const presentCount = presentByEnrollment.get(e.id) ?? 0;
-    const absences = absenceByEnrollment.get(e.id);
+    const allowed = allowedByEnrollment.get(e.id) ?? new Set<string>();
+    const marks = (marksByEnrollment.get(e.id) ?? []).filter((mark) => allowed.has(mark.classSessionId));
+    const presentCount = marks.filter((mark) => mark.present).length;
+    const absences = splitAbsenceCounts(marks.filter((mark) => !mark.present)).get(e.id);
+    const totalSessions = allowed.size;
     result.set(e.id, {
       presentCount,
       totalSessions,

@@ -2,6 +2,7 @@ import { classGroupTeacherAccessWhere } from "@/lib/class-group-teachers";
 import { applyAttendanceSuspensionRules } from "@/lib/enrollment-attendance-suspension";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { processEmailOutboxBatch } from "@/lib/email/outbox";
+import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { jsonErr, jsonOk } from "@/lib/http";
@@ -73,6 +74,7 @@ export async function GET(
     select: {
       id: true,
       status: true,
+      enrolledAt: true,
       student: {
         select: {
           id: true,
@@ -97,7 +99,9 @@ export async function GET(
 
   return jsonOk({
     sessionId,
-    attendance: enrollments.map((e) => {
+    attendance: enrollments
+      .filter((e) => sessionCountsForEnrollment(result.session.sessionDate, e.enrolledAt))
+      .map((e) => {
       const st = e.student;
       const hasIdDocument = st.attachments.some((a) => a.type === "ID_DOCUMENT");
       const hasAddressProof = st.attachments.some((a) => a.type === "ADDRESS_PROOF");
@@ -151,13 +155,15 @@ export async function PATCH(
     parsed.push({ enrollmentId: o.enrollmentId, present: o.present, absenceJustification });
   }
 
-  const enrollmentIds = await prisma.enrollment
-    .findMany({
-      where: { classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
-      select: { id: true },
-    })
-    .then((r) => r.map((e) => e.id));
-  const allowed = new Set(enrollmentIds);
+  const enrollmentRows = await prisma.enrollment.findMany({
+    where: { classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
+    select: { id: true, enrolledAt: true },
+  });
+  const allowed = new Set(
+    enrollmentRows
+      .filter((row) => sessionCountsForEnrollment(result.session.sessionDate, row.enrolledAt))
+      .map((row) => row.id),
+  );
 
   const savedRows = parsed.filter((x) => allowed.has(x.enrollmentId));
 
