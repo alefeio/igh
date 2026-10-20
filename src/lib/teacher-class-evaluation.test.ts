@@ -4,6 +4,7 @@ import {
   enrollmentNeedsTeacherEvaluationPrompt,
   parseTeacherClassEvaluationBody,
   teacherEvaluationAuthorLabel,
+  teacherClassEvaluationListWhere,
 } from "@/lib/teacher-class-evaluation";
 
 describe("avaliação do professor", () => {
@@ -65,5 +66,13 @@ describe("avaliação do professor", () => {
     expect(teacherEvaluationAuthorLabel(true, "Maria Souza", { revealIdentity: true })).toBe("Maria Souza");
     expect(teacherEvaluationAuthorLabel(false, " Maria Souza ")).toBe("Maria Souza");
     expect(teacherEvaluationAuthorLabel(false, "  ")).toBe("Aluno");
+  });
+
+  it("esconde avaliação anônima de quem não é a coordenação", () => {
+    expect(teacherClassEvaluationListWhere("teacher-1")).toEqual({
+      teacherId: "teacher-1",
+      anonymous: false,
+    });
+    expect(teacherClassEvaluationListWhere(undefined, { includeAnonymous: true })).toEqual({});
   });
 });

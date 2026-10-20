@@ -7,7 +7,10 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireCoordenacaoViewer();
-    const items = await listTeacherClassEvaluations(undefined, { revealIdentity: true });
+    const items = await listTeacherClassEvaluations(undefined, {
+      revealIdentity: true,
+      includeAnonymous: true,
+    });
     return jsonOk({ items });
   } catch (e) {
     const auth = coordenacaoAuthResponse(e);

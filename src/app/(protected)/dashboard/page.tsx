@@ -620,11 +620,11 @@ function DashboardTeacher({
                 accent: "from-violet-500 to-purple-700",
               },
               {
-                href: "/professor/avaliacoes-experiencia",
-                label: "Avaliações",
-                description: "Feedback dos seus alunos",
-                icon: PieChart,
-                accent: "from-cyan-500 to-blue-600",
+                href: "/professor/experiencia",
+                label: "Experiência do aluno",
+                description: "Mensagens destinadas a você, sem as anônimas",
+                icon: MessageCircle,
+                accent: "from-teal-500 to-emerald-700",
               },
             ]}
           />
