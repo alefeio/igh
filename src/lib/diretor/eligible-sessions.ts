@@ -3,6 +3,8 @@
  * Enums reais (Prisma): SCHEDULED | LIBERADA | CANCELED.
  */
 
+import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
+
 export type ClassSessionStatusCanon = "SCHEDULED" | "LIBERADA" | "CANCELED";
 
 export type SessionLike = {
@@ -99,11 +101,10 @@ export function filterEligibleSessionsForEnrollment(
   dataAsOf: Date,
   order: "asc" | "desc" = "asc",
 ): SessionLike[] {
-  const entryMs = enrollment.enteredAt.getTime();
   const filtered = sessions.filter((s) => {
     if (s.classGroupId !== enrollment.classGroupId) return false;
     if (!isSessionReleasedAndDue(s, dataAsOf)) return false;
-    return sessionInstant(s).getTime() >= entryMs;
+    return sessionCountsForEnrollment(s.sessionDate, enrollment.enteredAt);
   });
   filtered.sort((a, b) => {
     const da = sessionInstant(a).getTime() - sessionInstant(b).getTime();
@@ -128,11 +129,10 @@ export function filterOccurredSessionsForEnrollment(
   dataAsOf: Date,
   order: "asc" | "desc" = "asc",
 ): SessionLike[] {
-  const entryMs = enrollment.enteredAt.getTime();
   const filtered = sessions.filter((s) => {
     if (s.classGroupId !== enrollment.classGroupId) return false;
     if (!isSessionOccurred(s, dataAsOf)) return false;
-    return sessionInstant(s).getTime() >= entryMs;
+    return sessionCountsForEnrollment(s.sessionDate, enrollment.enteredAt);
   });
   filtered.sort((a, b) => {
     const da = sessionInstant(a).getTime() - sessionInstant(b).getTime();

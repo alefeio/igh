@@ -4,6 +4,7 @@ import { observedAttendanceChange } from "@/lib/coordinator/intervention-window"
 import { DEPARTURE_REASON_LABEL } from "@/lib/coordinator/labels";
 import type { DepartureReasonCode } from "@/lib/coordinator/types";
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
+import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
 import { jsonErr, jsonOk } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
@@ -98,7 +99,10 @@ export async function GET(_request: Request, context: Ctx) {
     }),
   ]);
 
-  const sheetSessions = sessions.map((session) => {
+  const relevantSessions = sessions.filter((session) =>
+    sessionCountsForEnrollment(session.sessionDate, enrollment.enrolledAt),
+  );
+  const sheetSessions = relevantSessions.map((session) => {
     const mark = session.sessionAttendances[0];
     return {
       date: session.sessionDate.toISOString(),
@@ -138,7 +142,7 @@ export async function GET(_request: Request, context: Ctx) {
       status: enrollment.status,
       isPreEnrollment: enrollment.isPreEnrollment,
       confirmed: enrollment.enrollmentConfirmedAt != null || !enrollment.isPreEnrollment,
-      heldSessions: sessions.length,
+      heldSessions: relevantSessions.length,
       presentCount,
       consecutiveAbsences: consecutive,
       progressPercent: lessonTotal > 0 ? Math.round((completedLessons / lessonTotal) * 100) : null,

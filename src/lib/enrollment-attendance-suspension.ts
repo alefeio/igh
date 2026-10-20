@@ -10,6 +10,7 @@ import {
   isUnjustifiedAbsence,
 } from "@/lib/enrollment-attendance-streak";
 import { sendEnrollmentCancellationEmail, sendEnrollmentSuspensionEmail } from "@/lib/enrollment-suspension-email";
+import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
 import { prisma } from "@/lib/prisma";
 
 export {
@@ -24,21 +25,31 @@ export async function getConsecutiveUnjustifiedAbsenceStreak(
   enrollmentId: string,
   classGroupId: string
 ): Promise<number> {
-  const sessions = await prisma.classSession.findMany({
-    where: { classGroupId, status: "LIBERADA" },
-    orderBy: [{ sessionDate: "desc" }, { startTime: "desc" }],
-    select: { id: true },
-  });
-  if (sessions.length === 0) return 0;
+  const [enrollment, sessions] = await Promise.all([
+    prisma.enrollment.findUnique({
+      where: { id: enrollmentId },
+      select: { enrolledAt: true },
+    }),
+    prisma.classSession.findMany({
+      where: { classGroupId, status: "LIBERADA" },
+      orderBy: [{ sessionDate: "desc" }, { startTime: "desc" }],
+      select: { id: true, sessionDate: true },
+    }),
+  ]);
+  if (!enrollment || sessions.length === 0) return 0;
+  const eligible = sessions.filter((session) =>
+    sessionCountsForEnrollment(session.sessionDate, enrollment.enrolledAt),
+  );
+  if (eligible.length === 0) return 0;
 
-  const sessionIds = sessions.map((s) => s.id);
+  const sessionIds = eligible.map((s) => s.id);
   const attendances = await prisma.sessionAttendance.findMany({
     where: { enrollmentId, classSessionId: { in: sessionIds } },
     select: { classSessionId: true, present: true, absenceJustification: true },
   });
   const bySession = new Map(attendances.map((a) => [a.classSessionId, a]));
 
-  return countConsecutiveUnjustifiedAbsenceStreak(sessions, bySession);
+  return countConsecutiveUnjustifiedAbsenceStreak(eligible, bySession);
 }
 
 type AttendancePatchRow = {

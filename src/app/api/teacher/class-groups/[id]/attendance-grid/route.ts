@@ -3,6 +3,7 @@ import { requireReadableClassGroup } from "@/lib/teacher-class-group-access";
 import { applyAttendanceSuspensionRules } from "@/lib/enrollment-attendance-suspension";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { attendancePercent, JUSTIFIED_ABSENCE_DEFAULT, markToDb, rowToMark, type AttendanceMark } from "@/lib/attendance-mark";
+import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
 import { trimHistoryBody } from "@/lib/enrollment-history";
 import { notifyEnrollmentHistoryEntries } from "@/lib/enrollment-history-notifications";
 import { processEmailOutboxBatch } from "@/lib/email/outbox";
@@ -54,6 +55,7 @@ export async function GET(
       select: {
         id: true,
         status: true,
+        enrolledAt: true,
         student: { select: { name: true } },
       },
     }),
@@ -95,9 +97,15 @@ export async function GET(
   const rows = enrollments.map((e) => {
     const cells: Record<string, AttendanceMark | null> = {};
     const justifications: Record<string, string> = {};
+    const notEnrolledSessionIds: string[] = [];
     let presentCount = 0;
     let recordedCount = 0;
     for (const s of sessions) {
+      if (!sessionCountsForEnrollment(s.sessionDate, e.enrolledAt)) {
+        cells[s.id] = null;
+        notEnrolledSessionIds.push(s.id);
+        continue;
+      }
       const mark = markByKey.get(`${e.id}:${s.id}`) ?? null;
       cells[s.id] = mark;
       const note = justificationByKey.get(`${e.id}:${s.id}`);
@@ -113,6 +121,7 @@ export async function GET(
       enrollmentStatus: e.status,
       cells,
       justifications,
+      notEnrolledSessionIds,
       presentCount,
       recordedCount,
       frequencyPercent: recordedCount > 0 ? attendancePercent(presentCount, recordedCount) : null,
@@ -188,9 +197,25 @@ export async function PATCH(
     }),
     prisma.enrollment.findMany({
       where: { id: { in: enrollmentIds }, classGroupId, status: { in: ["ACTIVE", "SUSPENDED"] } },
-      select: { id: true },
+      select: { id: true, enrolledAt: true },
     }),
   ]);
+
+  const sessionDateById = new Map(validSessions.map((s) => [s.id, s.sessionDate]));
+  const enrolledAtById = new Map(validEnrollments.map((e) => [e.id, e.enrolledAt]));
+  const beforeEnrollment = updates.filter((u) => {
+    const sessionDate = sessionDateById.get(u.sessionId);
+    const enrolledAt = enrolledAtById.get(u.enrollmentId);
+    if (!sessionDate || !enrolledAt) return false;
+    return !sessionCountsForEnrollment(sessionDate, enrolledAt);
+  });
+  if (beforeEnrollment.length > 0) {
+    return jsonErr(
+      "VALIDATION_ERROR",
+      "Não é possível lançar presença ou falta em aula anterior à matrícula do aluno.",
+      400,
+    );
+  }
 
   const validSessionSet = new Set(validSessions.map((s) => s.id));
   const validEnrollmentSet = new Set(validEnrollments.map((e) => e.id));

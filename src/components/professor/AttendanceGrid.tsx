@@ -29,6 +29,7 @@ type GridRow = {
   presentCount: number;
   recordedCount: number;
   frequencyPercent: number | null;
+  notEnrolledSessionIds?: string[];
 };
 
 type AttendanceGridProps = {
@@ -150,10 +151,16 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange, readOn
     return map;
   }, [rows]);
 
-  const recomputeRowStats = (cells: Record<string, AttendanceMark | null>, sessionIds: string[]) => {
+  const recomputeRowStats = (
+    cells: Record<string, AttendanceMark | null>,
+    sessionIds: string[],
+    notEnrolledSessionIds: string[] = [],
+  ) => {
+    const skipped = new Set(notEnrolledSessionIds);
     let presentCount = 0;
     let recordedCount = 0;
     for (const sid of sessionIds) {
+      if (skipped.has(sid)) continue;
       const mark = cells[sid] ?? null;
       if (mark) {
         recordedCount += 1;
@@ -196,7 +203,7 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange, readOn
       const justifications = { ...(row.justifications ?? {}) };
       if (next === "J" && opts?.justification?.trim()) justifications[sessionId] = opts.justification.trim();
       else if (next !== "J") delete justifications[sessionId];
-      const stats = recomputeRowStats(newCells, sessionIds);
+      const stats = recomputeRowStats(newCells, sessionIds, row.notEnrolledSessionIds ?? []);
       setRows((prev) =>
         prev.map((r) =>
           r.enrollmentId === enrollmentId ? { ...r, cells: newCells, justifications, ...stats } : r
@@ -436,9 +443,19 @@ export function AttendanceGrid({ classGroupId, title, onEnrollmentChange, readOn
                   )}
                 </td>
                 {sessions.map((s) => {
+                  const beforeEnrollment = row.notEnrolledSessionIds?.includes(s.id) === true;
                   const mark = row.cells[s.id] ?? null;
                   const key = `${row.enrollmentId}:${s.id}`;
                   const saving = savingKey === key;
+                  if (beforeEnrollment) {
+                    return (
+                      <td key={s.id} className="px-0.5 py-1 text-center text-xs text-[var(--text-muted)]">
+                        <span title={`${row.studentName} ainda não estava matriculado em ${s.sessionDateLabel}`}>
+                          —
+                        </span>
+                      </td>
+                    );
+                  }
                   return (
                     <td key={s.id} className="px-0.5 py-1 text-center">
                       <div

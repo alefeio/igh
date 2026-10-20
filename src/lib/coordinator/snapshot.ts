@@ -8,6 +8,7 @@ import { COORDINATOR_THRESHOLDS } from "@/lib/coordinator/thresholds";
 import type { DepartureReasonCode, EnrollmentSignalInput } from "@/lib/coordinator/types";
 import { listCycles, resolveCycle } from "@/lib/coordenacao-access";
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
+import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
 import { syncCertificateEligibleFromAttendance } from "@/lib/enrollment-certificate-eligibility-sync";
 import { prisma } from "@/lib/prisma";
 
@@ -98,6 +99,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
         isPreEnrollment: true,
         enrollmentConfirmedAt: true,
         certificateEligible: true,
+        enrolledAt: true,
         studentId: true,
         classGroupId: true,
         student: { select: { id: true, name: true, userId: true } },
@@ -222,9 +224,11 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
 
   const signals: EnrollmentSignalInput[] = enrollments.map((enrollment) => {
     const group = groupById.get(enrollment.classGroupId);
-    const held = sessionsByGroup.get(enrollment.classGroupId) ?? [];
+    const held = (sessionsByGroup.get(enrollment.classGroupId) ?? []).filter((session) =>
+      sessionCountsForEnrollment(session.sessionDate, enrollment.enrolledAt),
+    );
     const marks = attendanceByEnrollment.get(enrollment.id) ?? new Map<string, boolean>();
-    const presentCount = [...marks.values()].filter(Boolean).length;
+    const presentCount = held.filter((session) => marks.get(session.id) === true).length;
     const consecutiveAbsences = countFromSessions(held, marks);
     const lessonTotal = group ? lessonsByCourse.get(group.courseId) ?? 0 : 0;
     const completedLessons = completedByEnrollment.get(enrollment.id) ?? 0;
@@ -245,6 +249,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
       scorePercent: scoreList.length > 0 ? Math.round(scoreList.reduce((sum, value) => sum + value, 0) / scoreList.length) : null,
       classClosed: group?.status === "ENCERRADA",
       recordedReason: (reason as DepartureReasonCode | undefined) ?? null,
+      enrolledAt: enrollment.enrolledAt.toISOString(),
     };
   });
 
@@ -263,10 +268,13 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
   const capacity = groups.reduce((sum, group) => sum + group.capacity, 0);
   const occupied = enrollments.filter((row) => row.status === "ACTIVE" || row.status === "SUSPENDED").length;
 
+  const enrolledAtById = new Map(enrollments.map((row) => [row.id, row.enrolledAt]));
   const weekMap = new Map<string, { present: number; marked: number }>();
   for (const mark of attendance) {
     const session = sessionById.get(mark.classSessionId);
-    if (!session) continue;
+    const enrolledAt = enrolledAtById.get(mark.enrollmentId);
+    if (!session || !enrolledAt) continue;
+    if (!sessionCountsForEnrollment(session.sessionDate, enrolledAt)) continue;
     const key = weekStart(session.sessionDate);
     const current = weekMap.get(key) ?? { present: 0, marked: 0 };
     current.marked += 1;

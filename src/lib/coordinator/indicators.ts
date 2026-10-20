@@ -78,6 +78,7 @@ export function buildIndicators(rows: EnrollmentSignalInput[]) {
       level: row.riskLevel as RiskStudent["level"],
       reasons: row.riskReasons,
       attendancePercent: row.attendancePercent,
+      enrolledAt: rowById.get(row.id)?.enrolledAt ?? null,
     }))
     .sort((a, b) => {
       const rank = { CRITICAL: 0, WARNING: 1, ATTENTION: 2 };

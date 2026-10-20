@@ -97,6 +97,27 @@ describe("sessões elegíveis canônicas", () => {
     expect(eligible.map((x) => x.id)).toEqual(["after"]);
   });
 
+  it("aula do mesmo dia da matrícula conta mesmo se começou antes do horário de entrada", () => {
+    const sessions = [
+      session({
+        id: "same-day",
+        status: "LIBERADA",
+        sessionDate: new Date("2026-08-10T00:00:00.000Z"),
+        startTime: "08:00",
+      }),
+    ];
+    const eligible = filterEligibleSessionsForEnrollment(
+      sessions,
+      {
+        id: "e1",
+        classGroupId: "cg1",
+        enteredAt: new Date("2026-08-10T18:00:00.000Z"),
+      },
+      dataAsOf,
+    );
+    expect(eligible.map((x) => x.id)).toEqual(["same-day"]);
+  });
+
   it("limite exato de dataAsOf: sessão no mesmo instante é elegível", () => {
     const exact = new Date("2026-08-21T09:00:00.000Z");
     const s = session({

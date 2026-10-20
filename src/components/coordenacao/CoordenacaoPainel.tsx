@@ -34,6 +34,7 @@ import { useCoordinatorFilters } from "@/components/coordenacao/useCoordinatorFi
 import { DashboardHero, SectionCard } from "@/components/dashboard/DashboardUI";
 import type { ApiResponse } from "@/lib/api-types";
 import { RISK_LEVEL_LABEL } from "@/lib/coordinator/labels";
+import { formatBrazilDate } from "@/lib/format";
 
 type Indicator = { value: number | null; available: boolean; definition?: string };
 type RiskRow = {
@@ -42,6 +43,7 @@ type RiskRow = {
   level: "CRITICAL" | "WARNING" | "ATTENTION";
   reasons: string[];
   attendancePercent: number | null;
+  enrolledAt?: string | null;
 };
 type Snapshot = {
   cycles: { id: string; label: string; current: boolean }[];
@@ -528,7 +530,7 @@ export function CoordenacaoPainel({
       {payload && (view === "painel" || view === "risco") && (
         <SectionCard
           title="Precisam de atenção"
-          description="Cada linha diz por que a pessoa aparece aqui. Abra a ficha para agir."
+          description="Cada linha diz por que a pessoa aparece aqui, com a data da matrícula. Aula anterior a essa data não conta como falta."
           variant="elevated"
         >
           {payload.risk.length === 0 ? (
@@ -539,6 +541,7 @@ export function CoordenacaoPainel({
                 <li key={student.enrollmentId} className="rounded-lg border border-[var(--card-border)] px-3 py-3">
                   <p className="font-medium text-[var(--text-primary)]">
                     {student.studentName} · {RISK_LEVEL_LABEL[student.level]}
+                    {student.enrolledAt ? ` · matrícula ${formatBrazilDate(student.enrolledAt)}` : ""}
                     {student.attendancePercent != null ? ` · frequência ${student.attendancePercent}%` : ""}
                   </p>
                   <ul className="mt-1 list-disc pl-5 text-sm text-[var(--text-secondary)]">
