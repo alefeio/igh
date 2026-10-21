@@ -18,6 +18,7 @@ import {
 
 import { ChartEmptyState } from "@/components/coordenacao/ChartEmptyState";
 import { TeacherClassEvaluationsPanel } from "@/components/professor/TeacherClassEvaluationsPanel";
+import { TeacherEvaluationRankingSection } from "@/components/professor/TeacherEvaluationRankingSection";
 import {
   COORDINATOR_GLOSSARY,
   buildJourneySlices,
@@ -300,6 +301,7 @@ export function CoordenacaoPainel({
         }
         description="Primeiro o que precisa de atenção; depois os detalhes da jornada dos alunos."
       />
+      {view === "experiencia" ? <TeacherEvaluationRankingSection /> : null}
       <div className="flex flex-col gap-3">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <label className="text-sm text-[var(--text-secondary)]">

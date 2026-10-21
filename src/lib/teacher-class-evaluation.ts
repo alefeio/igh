@@ -69,3 +69,72 @@ export function teacherEvaluationAuthorLabel(
   if (anonymous && !options?.revealIdentity) return "Anônimo";
   return name;
 }
+
+export type PublicTeacherEvaluationRanking = {
+  teacherId: string;
+  teacherName: string;
+  averageRating: number;
+  evaluationCount: number;
+  latest: {
+    rating: number;
+    comment: string;
+    authorLabel: string;
+    courseName: string;
+    classLabel: string;
+    at: string;
+  };
+};
+
+/** Ranking pela média das avaliações públicas. A primeira de cada professor, já ordenada da mais recente, é a última pública. */
+export function buildPublicTeacherEvaluationRanking(
+  rows: {
+    teacherId: string;
+    teacherName: string;
+    rating: number;
+    comment: string;
+    at: string;
+    authorLabel: string;
+    courseName: string;
+    classLabel: string;
+  }[],
+): PublicTeacherEvaluationRanking[] {
+  const byTeacher = new Map<string, PublicTeacherEvaluationRanking & { ratingSum: number }>();
+  const ordered = [...rows].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  for (const row of ordered) {
+    const current = byTeacher.get(row.teacherId);
+    if (!current) {
+      byTeacher.set(row.teacherId, {
+        teacherId: row.teacherId,
+        teacherName: row.teacherName.trim() || "Professor",
+        averageRating: row.rating,
+        evaluationCount: 1,
+        ratingSum: row.rating,
+        latest: {
+          rating: row.rating,
+          comment: row.comment.trim(),
+          authorLabel: row.authorLabel,
+          courseName: row.courseName,
+          classLabel: row.classLabel,
+          at: row.at,
+        },
+      });
+      continue;
+    }
+    current.evaluationCount += 1;
+    current.ratingSum += row.rating;
+  }
+  return [...byTeacher.values()]
+    .map((row) => ({
+      teacherId: row.teacherId,
+      teacherName: row.teacherName,
+      averageRating: Math.round((row.ratingSum / row.evaluationCount) * 10) / 10,
+      evaluationCount: row.evaluationCount,
+      latest: row.latest,
+    }))
+    .sort(
+      (a, b) =>
+        b.averageRating - a.averageRating ||
+        b.evaluationCount - a.evaluationCount ||
+        a.teacherName.localeCompare(b.teacherName, "pt-BR"),
+    );
+}
