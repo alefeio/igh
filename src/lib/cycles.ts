@@ -21,6 +21,19 @@ export function pickCurrentCycle<T extends CycleLike>(cycles: readonly T[]): T |
 }
 
 /**
+ * Ciclos das turmas em Nova matrícula, reserva e Editar matrícula (equipe pedagógica).
+ * Ciclos anteriores ocultos ficam de fora. O último ciclo permanece, mesmo oculto no site.
+ */
+export function cycleIdsForStaffEnrollmentModals(
+  cycles: readonly (CycleLike & { isVisibleForEnrollments: boolean })[],
+): string[] {
+  const ids = new Set(cycles.filter((c) => c.isVisibleForEnrollments).map((c) => c.id));
+  const latest = pickCurrentCycle(cycles);
+  if (latest) ids.add(latest.id);
+  return [...ids];
+}
+
+/**
  * Garante um ciclo utilizável em bases novas.
  * Não sobrescreve nem conflita com um ciclo 1/2026 já criado com outro id
  * (@@unique([cycle, year])).

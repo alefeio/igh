@@ -31,6 +31,7 @@ import { ReferrerPicker, type ReferrerOption } from "@/components/site/ReferrerP
 import type { ApiResponse } from "@/lib/api-types";
 import { formatClassGroupTurmaLine, formatDaysOrderedPt, formatEnrollmentClassGroupOptionLabel } from "@/lib/turma-display";
 import { isExactMaster, isMasterOrGeneralAdmin } from "@/lib/rbac";
+import { cycleIdsForStaffEnrollmentModals } from "@/lib/cycles";
 import { enrollmentCountsAsFormado } from "@/lib/enrollment-graduation";
 import { enrollmentOccupiesSeat } from "@/lib/enrollment-seat";
 
@@ -618,9 +619,9 @@ export default function EnrollmentsPage() {
     // Coordenador de polo / professor: API já escopa; qualquer ciclo das turmas acessíveis.
     if (isPoloCoordinator) return cycles.map((c) => c.id);
     if (isTeacher) return filterCycles.map((c) => c.id);
-    // Demais perfis: só ciclos visíveis para matrículas (sem ciclos anteriores).
-    return visibleCycleIds;
-  }, [visibleCycleIds, isPoloCoordinator, isTeacher, cycles, filterCycles]);
+    // Equipe pedagógica: ciclos visíveis no site e o último ciclo, mesmo oculto.
+    return cycleIdsForStaffEnrollmentModals(cycles);
+  }, [isPoloCoordinator, isTeacher, cycles, filterCycles]);
 
   const classGroupsForModal = useMemo(() => {
     // Professor / coordenador de polo: API já escopa; não aplica filtro de ciclo visível.
