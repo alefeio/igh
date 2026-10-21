@@ -76,6 +76,10 @@ export function StudentTeacherEvaluation({
 
   async function submit() {
     if (rating < 1 || saving) return;
+    if (!comment.trim()) {
+      toast.push("error", "Escreva um comentário antes de enviar.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/me/enrollments/${enrollmentId}/teacher-evaluation`, {
@@ -108,7 +112,7 @@ export function StudentTeacherEvaluation({
       ) : null}
       <p className={variant === "page" ? "mt-1 text-sm text-[var(--text-muted)]" : "text-sm text-[var(--text-muted)]"}>
         {teacherName ? `Como foi a experiência com ${teacherName}? ` : ""}
-        A nota vai de 1 a 5. O comentário é opcional.
+        A nota vai de 1 a 5. O comentário é obrigatório.
       </p>
       {loading ? (
         <p className="mt-4 text-sm text-[var(--text-muted)]">Carregando avaliação…</p>
@@ -147,7 +151,8 @@ export function StudentTeacherEvaluation({
               onChange={(event) => setComment(event.target.value)}
               maxLength={2000}
               rows={4}
-              placeholder="Opcional"
+              required
+              placeholder="Conte como foi a experiência com o professor"
               className="rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-2 text-sm font-normal text-[var(--text-primary)]"
             />
           </label>
@@ -169,7 +174,7 @@ export function StudentTeacherEvaluation({
           <div>
             <button
               type="button"
-              disabled={rating < 1 || saving}
+              disabled={rating < 1 || !comment.trim() || saving}
               onClick={() => void submit()}
               className="rounded-lg bg-[var(--igh-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
