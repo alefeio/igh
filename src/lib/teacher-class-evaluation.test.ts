@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildPublicTeacherEvaluationRanking,
   enrollmentNeedsTeacherEvaluationPrompt,
   parseTeacherClassEvaluationBody,
   teacherEvaluationAuthorLabel,
@@ -75,5 +76,48 @@ describe("avaliação do professor", () => {
       anonymous: false,
     });
     expect(teacherClassEvaluationListWhere(undefined, { includeAnonymous: true })).toEqual({});
+  });
+});
+
+describe("ranking público dos professores", () => {
+  it("ordena pela média e guarda a avaliação pública mais recente", () => {
+    const ranking = buildPublicTeacherEvaluationRanking([
+      {
+        teacherId: "a",
+        teacherName: "Ana",
+        rating: 5,
+        comment: "Antiga",
+        at: "2026-10-01T12:00:00.000Z",
+        authorLabel: "João",
+        courseName: "Informática",
+        classLabel: "seg · 19:00–21:00",
+      },
+      {
+        teacherId: "b",
+        teacherName: "Bruno",
+        rating: 4,
+        comment: "Boa aula",
+        at: "2026-10-02T12:00:00.000Z",
+        authorLabel: "Maria",
+        courseName: "Inglês",
+        classLabel: "",
+      },
+      {
+        teacherId: "a",
+        teacherName: "Ana",
+        rating: 3,
+        comment: "Recente",
+        at: "2026-10-20T12:00:00.000Z",
+        authorLabel: "Paula",
+        courseName: "Informática",
+        classLabel: "qua · 19:00–21:00",
+      },
+    ]);
+    expect(ranking.map((row) => row.teacherName)).toEqual(["Ana", "Bruno"]);
+    expect(ranking[0]).toMatchObject({
+      averageRating: 4,
+      evaluationCount: 2,
+      latest: { rating: 3, comment: "Recente", authorLabel: "Paula" },
+    });
   });
 });

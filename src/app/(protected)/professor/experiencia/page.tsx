@@ -1,5 +1,6 @@
 import { DashboardHero } from "@/components/dashboard/DashboardUI";
 import { TeacherClassEvaluationsPanel } from "@/components/professor/TeacherClassEvaluationsPanel";
+import { TeacherEvaluationRankingSection } from "@/components/professor/TeacherEvaluationRankingSection";
 
 export default function ProfessorExperienciaPage() {
   return (
@@ -9,6 +10,7 @@ export default function ProfessorExperienciaPage() {
         title="Experiência do aluno"
         description="Mensagens e notas enviadas para você na página da turma. Avaliações anônimas ficam só com a coordenação."
       />
+      <TeacherEvaluationRankingSection />
       <TeacherClassEvaluationsPanel apiUrl="/api/teacher/class-evaluations" showTeacherName={false} />
     </div>
   );
