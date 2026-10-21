@@ -2,7 +2,7 @@ export const TEACHER_EVALUATION_COMMENT_MAX = 2000;
 
 export type TeacherClassEvaluationInput = {
   rating: number;
-  comment: string | null;
+  comment: string;
   anonymous: boolean;
 };
 
@@ -20,16 +20,15 @@ export function parseTeacherClassEvaluationBody(
   if (raw.anonymous !== true && raw.anonymous !== false) {
     return { ok: false, message: "Informe se a avaliação é anônima." };
   }
-  let comment: string | null = null;
-  if (raw.comment != null) {
-    if (typeof raw.comment !== "string") {
-      return { ok: false, message: "O comentário precisa ser um texto." };
-    }
-    const trimmed = raw.comment.trim();
-    if (trimmed.length > TEACHER_EVALUATION_COMMENT_MAX) {
-      return { ok: false, message: "O comentário passou do limite de 2000 caracteres." };
-    }
-    comment = trimmed || null;
+  if (raw.comment != null && typeof raw.comment !== "string") {
+    return { ok: false, message: "O comentário precisa ser um texto." };
+  }
+  const comment = typeof raw.comment === "string" ? raw.comment.trim() : "";
+  if (!comment) {
+    return { ok: false, message: "Escreva um comentário antes de enviar." };
+  }
+  if (comment.length > TEACHER_EVALUATION_COMMENT_MAX) {
+    return { ok: false, message: "O comentário passou do limite de 2000 caracteres." };
   }
   return { ok: true, value: { rating, comment, anonymous: raw.anonymous } };
 }

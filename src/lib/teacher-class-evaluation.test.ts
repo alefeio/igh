@@ -20,9 +20,10 @@ describe("avaliação do professor", () => {
     });
   });
 
-  it("permite comentário em branco", () => {
+  it("recusa comentário em branco", () => {
     const parsed = parseTeacherClassEvaluationBody({ rating: "5", comment: "   ", anonymous: false });
-    expect(parsed.ok && parsed.value.comment).toBeNull();
+    expect(parsed.ok).toBe(false);
+    expect(parseTeacherClassEvaluationBody({ rating: 5, anonymous: false }).ok).toBe(false);
   });
 
   it("recusa nota fora de 1 a 5", () => {
