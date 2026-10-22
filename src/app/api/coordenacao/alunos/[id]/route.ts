@@ -2,6 +2,7 @@ import { coordenacaoAuthResponse, requireCoordenacaoViewer } from "@/lib/coorden
 import { buildStudentSheet } from "@/lib/coordinator/student-sheet";
 import { observedAttendanceChange } from "@/lib/coordinator/intervention-window";
 import { DEPARTURE_REASON_LABEL } from "@/lib/coordinator/labels";
+import { ENROLLMENT_HISTORY_KIND_LABEL, type EnrollmentHistoryKindValue } from "@/lib/enrollment-history";
 import type { DepartureReasonCode } from "@/lib/coordinator/types";
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
 import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
@@ -170,7 +171,10 @@ export async function GET(_request: Request, context: Ctx) {
       { at: enrollment.enrolledAt.toISOString(), label: "Matrícula" },
       ...(enrollment.enrollmentConfirmedAt ? [{ at: enrollment.enrollmentConfirmedAt.toISOString(), label: "Confirmação" }] : []),
       ...(firstPresent ? [{ at: firstPresent, label: "Primeira presença" }] : []),
-      ...enrollment.historyEntries.map((entry) => ({ at: entry.createdAt.toISOString(), label: `${entry.kind}: ${entry.body}` })),
+      ...enrollment.historyEntries.map((entry) => ({
+        at: entry.createdAt.toISOString(),
+        label: `${ENROLLMENT_HISTORY_KIND_LABEL[entry.kind as EnrollmentHistoryKindValue] ?? entry.kind}: ${entry.body}`,
+      })),
       ...enrollment.departures.map((entry) => ({
         at: entry.recordedAt.toISOString(),
         label: `Saída registrada: ${DEPARTURE_REASON_LABEL[entry.reason]}`,
@@ -191,6 +195,14 @@ export async function GET(_request: Request, context: Ctx) {
     cycleLabel: `Ciclo ${enrollment.classGroup.cycle.cycle}/${enrollment.classGroup.cycle.year}`,
     contact: { phone: enrollment.student.phone, email: enrollment.student.email },
     departures: enrollment.departures,
+    occurrences: enrollment.historyEntries
+      .filter((entry) => entry.kind === "OCORRENCIA")
+      .map((entry) => ({
+        id: entry.id,
+        body: entry.body,
+        createdAt: entry.createdAt.toISOString(),
+        authorName: entry.author.name,
+      })),
     interventions: interventions.map((item) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
