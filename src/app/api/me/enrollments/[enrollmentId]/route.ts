@@ -169,6 +169,19 @@ export async function DELETE(
     data: { status: "CANCELLED" },
   });
 
+  try {
+    await prisma.enrollmentHistoryEntry.create({
+      data: {
+        enrollmentId,
+        authorId: user.id,
+        kind: "CANCELAMENTO",
+        body: "Matrícula cancelada pelo aluno.",
+      },
+    });
+  } catch (error) {
+    console.error("[enrollment] histórico de cancelamento do aluno", enrollmentId, error);
+  }
+
   const { sendEnrollmentCancellationEmail } = await import("@/lib/enrollment-suspension-email");
   const { processEmailOutboxBatch } = await import("@/lib/email/outbox");
   await sendEnrollmentCancellationEmail({

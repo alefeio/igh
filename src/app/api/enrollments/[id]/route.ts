@@ -306,6 +306,21 @@ export async function PATCH(
     performedByUserId: user.id,
   });
 
+  if (existing.status !== "CANCELLED" && updated.status === "CANCELLED") {
+    try {
+      await prisma.enrollmentHistoryEntry.create({
+        data: {
+          enrollmentId: updated.id,
+          authorId: user.id,
+          kind: "CANCELAMENTO",
+          body: "Matrícula cancelada.",
+        },
+      });
+    } catch (error) {
+      console.error("[enrollment] histórico de cancelamento", updated.id, error);
+    }
+  }
+
   if (
     parsed.data.status === "CANCELLED" &&
     enrollmentOccupiesSeat(existing.status) &&
