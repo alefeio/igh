@@ -3,6 +3,7 @@ export const ENROLLMENT_HISTORY_KINDS = [
   "CANCELAMENTO",
   "QUARTA_FALTA",
   "BUSCA_ATIVA",
+  "OCORRENCIA",
 ] as const;
 
 export type EnrollmentHistoryKindValue = (typeof ENROLLMENT_HISTORY_KINDS)[number];
@@ -12,6 +13,7 @@ export const ENROLLMENT_HISTORY_KIND_LABEL: Record<EnrollmentHistoryKindValue, s
   CANCELAMENTO: "Cancelamento",
   QUARTA_FALTA: "4ª falta sem cancelamento",
   BUSCA_ATIVA: "Busca ativa",
+  OCORRENCIA: "Ocorrência",
 };
 
 export const ENROLLMENT_HISTORY_BODY_MAX = 2000;

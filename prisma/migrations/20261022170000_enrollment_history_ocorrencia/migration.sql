@@ -1,0 +1,1 @@
+ALTER TYPE "EnrollmentHistoryKind" ADD VALUE 'OCORRENCIA';

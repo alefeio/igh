@@ -505,6 +505,40 @@ export function CoordenacaoPainel({
         </SectionCard>
       )}
 
+      {payload && view === "frequencia" ? (
+        <SectionCard
+          title="Turmas deste recorte"
+          description="Abra a lista da turma para ver frequência, participação, falar no WhatsApp e registrar uma ocorrência."
+          variant="elevated"
+        >
+          {payload.classes.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">Nenhuma turma neste recorte.</p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {payload.classes.map((row) => (
+                <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--card-border)] px-3 py-3">
+                  <div>
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {row.course}
+                      {row.teachers.length > 0 ? ` · ${row.teachers.join(", ")}` : ""}
+                    </p>
+                    <p className="text-sm text-[var(--text-secondary)]">
+                      {row.enrolled} inscritos · frequência {showValue(row.attendance)}
+                    </p>
+                  </div>
+                  <Link
+                    className="rounded-md bg-[var(--igh-primary)] px-3 py-2 text-sm font-medium text-white"
+                    href={`/coordenacao/turmas/${row.id}/alunos`}
+                  >
+                    Lista de alunos
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+      ) : null}
+
       {payload && (view === "painel" || view === "frequencia") && (
         <SectionCard
           title="Frequência ao longo das semanas"

@@ -1162,6 +1162,7 @@ enum EnrollmentHistoryKind {
   CANCELAMENTO
   QUARTA_FALTA
   BUSCA_ATIVA
+  OCORRENCIA
 }
 
 enum EnrollmentDepartureReason {
