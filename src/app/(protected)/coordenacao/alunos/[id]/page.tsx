@@ -33,7 +33,9 @@ type Payload = {
 
 function textDate(value: string | null) {
   if (!value) return "não registrada";
-  return new Date(value).toLocaleDateString("pt-BR");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "não registrada";
+  return date.toLocaleDateString("pt-BR");
 }
 
 function percent(value: number | null) {

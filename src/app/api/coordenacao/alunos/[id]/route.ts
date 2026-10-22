@@ -2,7 +2,7 @@ import { coordenacaoAuthResponse, requireCoordenacaoViewer } from "@/lib/coorden
 import { buildStudentSheet } from "@/lib/coordinator/student-sheet";
 import { observedAttendanceChange } from "@/lib/coordinator/intervention-window";
 import { DEPARTURE_REASON_LABEL } from "@/lib/coordinator/labels";
-import { ENROLLMENT_HISTORY_KIND_LABEL, type EnrollmentHistoryKindValue } from "@/lib/enrollment-history";
+import { cancellationTimelineItem, formatHistoryTimelineLabel } from "@/lib/enrollment-timeline";
 import type { DepartureReasonCode } from "@/lib/coordinator/types";
 import { getEndOfTodayBrazil } from "@/lib/brazil-today";
 import { sessionCountsForEnrollment } from "@/lib/enrollment-session-window";
@@ -43,8 +43,8 @@ export async function GET(_request: Request, context: Ctx) {
         },
       },
       historyEntries: {
-        orderBy: { createdAt: "asc" },
-        take: 40,
+        orderBy: { createdAt: "desc" },
+        take: 100,
         select: { id: true, kind: true, body: true, createdAt: true, author: { select: { name: true } } },
       },
       departures: {
@@ -57,7 +57,7 @@ export async function GET(_request: Request, context: Ctx) {
 
   const now = new Date();
   const endOfToday = getEndOfTodayBrazil();
-  const [sessions, progress, exercises, exams, lessonTotal, interventions] = await Promise.all([
+  const [sessions, progress, exercises, exams, lessonTotal, interventions, cancellationAudits] = await Promise.all([
     prisma.classSession.findMany({
       where: { classGroupId: enrollment.classGroupId, status: { not: "CANCELED" }, sessionDate: { lte: endOfToday } },
       orderBy: { sessionDate: "asc" },
@@ -97,6 +97,15 @@ export async function GET(_request: Request, context: Ctx) {
         dueAt: true,
         owner: { select: { name: true } },
       },
+    }),
+    prisma.auditLog.findMany({
+      where: {
+        entityType: "Enrollment",
+        entityId: id,
+        action: { in: ["UPDATE", "AUTO_CANCEL_ATTENDANCE", "EMAIL_SENT"] },
+      },
+      orderBy: { createdAt: "asc" },
+      select: { action: true, diffJson: true, createdAt: true },
     }),
   ]);
 
@@ -173,8 +182,16 @@ export async function GET(_request: Request, context: Ctx) {
       ...(firstPresent ? [{ at: firstPresent, label: "Primeira presença" }] : []),
       ...enrollment.historyEntries.map((entry) => ({
         at: entry.createdAt.toISOString(),
-        label: `${ENROLLMENT_HISTORY_KIND_LABEL[entry.kind as EnrollmentHistoryKindValue] ?? entry.kind}: ${entry.body}`,
+        label: formatHistoryTimelineLabel(entry.kind, entry.body),
       })),
+      ...(() => {
+        const cancellation = cancellationTimelineItem({
+          status: enrollment.status,
+          historyKinds: enrollment.historyEntries.map((entry) => entry.kind),
+          audits: cancellationAudits,
+        });
+        return cancellation ? [cancellation] : [];
+      })(),
       ...enrollment.departures.map((entry) => ({
         at: entry.recordedAt.toISOString(),
         label: `Saída registrada: ${DEPARTURE_REASON_LABEL[entry.reason]}`,
