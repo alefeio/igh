@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export function Modal({
   open,
@@ -19,13 +19,28 @@ export function Modal({
   /** Classe z-index do overlay (ex.: z-[110] quando o banner legal usa z-[100]). */
   overlayClassName?: string;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") { e.preventDefault(); onCloseRef.current(); }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!dialogRef.current.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
-    if (open) window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+    window.addEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); previousFocus?.focus(); };
+  }, [open]);
 
   if (!open) return null;
 
@@ -34,6 +49,7 @@ export function Modal({
 
   return (
     <div
+      ref={dialogRef}
       className={`fixed inset-0 overflow-y-auto bg-black/40 p-2 sm:p-4 ${overlayClassName}`}
       onClick={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
@@ -45,6 +61,7 @@ export function Modal({
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card-bg)] px-3 py-3 sm:px-4">
             <div id="modal-title" className="min-w-0 flex-1 truncate text-sm font-semibold pr-2 text-[var(--text-primary)]">{title}</div>
             <button
+              ref={closeRef}
               className="cursor-pointer shrink-0 rounded-md px-2 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--igh-surface)] touch-manipulation"
               onClick={onClose}
               type="button"
