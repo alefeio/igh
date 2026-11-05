@@ -26,7 +26,7 @@ function memoryStorage() {
 }
 
 describe("filtros persistentes da coordenação", () => {
-  it("sem filtro salvo usa o ciclo atual como padrão da página", () => {
+  it("sem filtro salvo deixa o ciclo em Todos", () => {
     const resolved = resolveCoordinatorFilters(
       { cycleId: false, courseId: false, classGroupId: false, teacherId: false, scope: false },
       {},
@@ -34,6 +34,7 @@ describe("filtros persistentes da coordenação", () => {
     );
     expect(resolved.cycleId).toBeUndefined();
     expect(isDefaultCoordinatorContext(resolved, "ciclo-atual")).toBe(true);
+    expect(isDefaultCoordinatorContext({ cycleId: "ciclo-atual" }, "ciclo-atual")).toBe(false);
   });
 
   it("selecionar outro ciclo persiste e a navegação seguinte o lê", () => {
@@ -88,7 +89,7 @@ describe("filtros persistentes da coordenação", () => {
     expect(sanitized.classGroupId).toBeUndefined();
   });
 
-  it("limpar filtros remove a persistência e volta ao ciclo atual", () => {
+  it("limpar filtros remove a persistência e volta a Todos nos filtros", () => {
     const storage = memoryStorage();
     writePersistedCoordinatorFilters(storage, { cycleId: "ciclo-2" });
     clearPersistedCoordinatorFilters(storage);

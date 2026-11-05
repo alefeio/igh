@@ -155,9 +155,8 @@ export function coordinatorFiltersToSearchParams(filters: CoordinatorPersistedFi
 
 export function isDefaultCoordinatorContext(
   filters: CoordinatorPersistedFilters,
-  currentCycleId: string | null,
+  _currentCycleId?: string | null,
 ): boolean {
   const scope = filters.scope ?? "all";
-  const cycleIsDefault = !filters.cycleId || (currentCycleId != null && filters.cycleId === currentCycleId);
-  return cycleIsDefault && !filters.courseId && !filters.classGroupId && !filters.teacherId && scope === "all";
+  return !filters.cycleId && !filters.courseId && !filters.classGroupId && !filters.teacherId && scope === "all";
 }

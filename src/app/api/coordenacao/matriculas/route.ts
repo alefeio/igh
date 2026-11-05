@@ -78,14 +78,20 @@ export async function GET(request: Request) {
   }
 
   const query = parseCoordinatorQuery(new URL(request.url));
-  const [cycles, cycle] = await Promise.all([listCycles(), resolveCycle(query.cycleId)]);
-  if (!cycle) {
+  const cycles = await listCycles();
+  const cycle = query.cycleId ? await resolveCycle(query.cycleId) : null;
+  if (query.cycleId && !cycle) {
+    return jsonOk({ cycles: [], cycle: null, kpis: null, filters: { courses: [], teachers: [], classGroups: [] } });
+  }
+  if (cycles.length === 0) {
     return jsonOk({ cycles: [], cycle: null, kpis: null, filters: { courses: [], teachers: [], classGroups: [] } });
   }
 
+  const cycleWhere = cycle ? { cycleId: cycle.id } : {};
+
   const optionGroups = await prisma.classGroup.findMany({
     where: {
-      cycleId: cycle.id,
+      ...cycleWhere,
       ...(query.scope === "external" ? { isExternal: true } : {}),
       ...(query.scope === "internal" ? { isExternal: false } : {}),
     },
@@ -100,7 +106,7 @@ export async function GET(request: Request) {
 
   const groups = await prisma.classGroup.findMany({
     where: {
-      cycleId: cycle.id,
+      ...cycleWhere,
       ...(query.courseId ? { courseId: query.courseId } : {}),
       ...(query.classGroupId ? { id: query.classGroupId } : {}),
       ...(query.teacherId ? { teacherId: query.teacherId } : {}),
@@ -133,7 +139,7 @@ export async function GET(request: Request) {
         label: `Ciclo ${item.cycle}/${item.year}`,
         current: item.isVisibleForEnrollments,
       })),
-      cycle: { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` },
+      cycle: cycle ? { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` } : null,
       filters,
       kpis: {
         total: 0,
@@ -300,7 +306,7 @@ export async function GET(request: Request) {
       label: `Ciclo ${item.cycle}/${item.year}`,
       current: item.isVisibleForEnrollments,
     })),
-    cycle: { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` },
+    cycle: cycle ? { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` } : null,
     filters,
     kpis: {
       total,

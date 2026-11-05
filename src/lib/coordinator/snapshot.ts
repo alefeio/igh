@@ -26,17 +26,23 @@ function daysSince(date: Date | null, now: Date): number | null {
 }
 
 export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?: { includeDetail?: boolean }) {
-  const [cycles, cycle] = await Promise.all([listCycles(), resolveCycle(query.cycleId)]);
-  if (!cycle) {
+  const cycles = await listCycles();
+  const cycle = query.cycleId ? await resolveCycle(query.cycleId) : null;
+  if (query.cycleId && !cycle) {
     return { cycles: [], cycle: null, payload: null };
   }
+  if (cycles.length === 0) {
+    return { cycles: [], cycle: null, payload: null };
+  }
+
+  const cycleWhere = cycle ? { cycleId: cycle.id } : {};
 
   const optionGroups =
     options?.includeDetail === false
       ? null
       : await prisma.classGroup.findMany({
           where: {
-            cycleId: cycle.id,
+            ...cycleWhere,
             ...(query.scope === "external" ? { isExternal: true } : {}),
             ...(query.scope === "internal" ? { isExternal: false } : {}),
           },
@@ -51,7 +57,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
 
   const groups = await prisma.classGroup.findMany({
     where: {
-      cycleId: cycle.id,
+      ...cycleWhere,
       ...(query.courseId ? { courseId: query.courseId } : {}),
       ...(query.classGroupId ? { id: query.classGroupId } : {}),
       ...(query.teacherId ? { teacherId: query.teacherId } : {}),
@@ -79,7 +85,7 @@ export async function loadCoordinatorSnapshot(query: CoordinatorQuery, options?:
     label: `Ciclo ${item.cycle}/${item.year}`,
     current: item.isVisibleForEnrollments,
   }));
-  const cycleMeta = { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` };
+  const cycleMeta = cycle ? { id: cycle.id, label: `Ciclo ${cycle.cycle}/${cycle.year}` } : null;
   if (groupIds.length === 0) {
     return {
       cycles: cyclesMeta,
