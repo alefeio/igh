@@ -2,14 +2,16 @@ import { authErrorResponse } from "@/lib/api-auth-guard";
 import { requireRole } from "@/lib/auth";
 import { COORDENACAO_ROLES } from "@/lib/coordenacao-access";
 import { jsonErr, jsonOk } from "@/lib/http";
+import { parseTeacherEvaluationListFilter } from "@/lib/teacher-class-evaluation";
 import { listPublicTeacherEvaluationRanking } from "@/lib/teacher-class-evaluation-query";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireRole(["TEACHER", ...COORDENACAO_ROLES]);
-    const ranking = await listPublicTeacherEvaluationRanking();
+    const filter = parseTeacherEvaluationListFilter(new URL(request.url).searchParams);
+    const ranking = await listPublicTeacherEvaluationRanking(filter);
     return jsonOk({ ranking });
   } catch (error) {
     const auth = authErrorResponse(error);

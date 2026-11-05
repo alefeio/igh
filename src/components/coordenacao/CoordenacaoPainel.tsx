@@ -276,6 +276,17 @@ export function CoordenacaoPainel({
   const showPriority =
     payload && (view === "painel" || view === "frequencia" || view === "risco" || view === "evasao");
 
+  const experienceQueryString = useMemo(() => {
+    const params = new URLSearchParams();
+    const cycleId = filters.cycleId || data?.cycle?.id;
+    if (cycleId) params.set("cycleId", cycleId);
+    if (filters.courseId) params.set("courseId", filters.courseId);
+    if (filters.teacherId) params.set("teacherId", filters.teacherId);
+    if (filters.classGroupId) params.set("classGroupId", filters.classGroupId);
+    if (filters.scope && filters.scope !== "all") params.set("scope", filters.scope);
+    return params.toString();
+  }, [filters.cycleId, filters.courseId, filters.teacherId, filters.classGroupId, filters.scope, data?.cycle?.id]);
+
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <DashboardHero
@@ -301,7 +312,6 @@ export function CoordenacaoPainel({
         }
         description="Primeiro o que precisa de atenção; depois os detalhes da jornada dos alunos."
       />
-      {view === "experiencia" ? <TeacherEvaluationRankingSection /> : null}
       <div className="flex flex-col gap-3">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <label className="text-sm text-[var(--text-secondary)]">
@@ -378,7 +388,7 @@ export function CoordenacaoPainel({
             <span className="mt-1 block text-xs text-[var(--text-muted)]">{COORDINATOR_GLOSSARY.tipoTurma}</span>
           </label>
         </div>
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             className="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
@@ -387,8 +397,25 @@ export function CoordenacaoPainel({
           >
             Limpar filtros
           </button>
+          {view === "experiencia" ? (
+            <>
+              <a
+                className="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)]"
+                href={`/api/coordenacao/avaliacoes-professor/export?${experienceQueryString}`}
+              >
+                Exportar CSV
+              </a>
+              <a
+                className="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)]"
+                href={`/api/coordenacao/avaliacoes-professor/export-pdf?${experienceQueryString}`}
+              >
+                Exportar PDF
+              </a>
+            </>
+          ) : null}
         </div>
       </div>
+      {view === "experiencia" ? <TeacherEvaluationRankingSection queryString={experienceQueryString} /> : null}
       {loading ? <p className="text-sm text-[var(--text-muted)]">Carregando…</p> : null}
 
       {showPriority && insight ? (
@@ -767,6 +794,9 @@ export function CoordenacaoPainel({
           apiUrl="/api/coordenacao/avaliacoes-professor"
           showTeacherName
           revealIdentity
+          queryString={experienceQueryString}
+          paginate
+          pageSize={10}
         />
       )}
 
