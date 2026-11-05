@@ -49,14 +49,62 @@ export function enrollmentNeedsTeacherEvaluationPrompt(input: {
   return input.hasRecordedPresence && !input.hasEvaluation && input.reminderDismissedAt == null;
 }
 
+export type TeacherEvaluationScopeFilter = "all" | "internal" | "external";
+
+/** Mesmos recortes do painel da coordenação (ciclo, curso, professor, turma, tipo). */
+export type TeacherEvaluationListFilter = {
+  cycleId?: string | null;
+  courseId?: string | null;
+  classGroupId?: string | null;
+  teacherId?: string | null;
+  scope?: TeacherEvaluationScopeFilter | null;
+};
+
+/** Filtro da matrícula/turma. Alinha com `loadCoordinatorSnapshot`. */
+export function teacherEvaluationClassGroupWhere(filter: TeacherEvaluationListFilter = {}) {
+  const classGroup: {
+    cycleId?: string;
+    courseId?: string;
+    id?: string;
+    teacherId?: string;
+    isExternal?: boolean;
+  } = {};
+  if (filter.cycleId) classGroup.cycleId = filter.cycleId;
+  if (filter.courseId) classGroup.courseId = filter.courseId;
+  if (filter.classGroupId) classGroup.id = filter.classGroupId;
+  if (filter.teacherId) classGroup.teacherId = filter.teacherId;
+  if (filter.scope === "external") classGroup.isExternal = true;
+  if (filter.scope === "internal") classGroup.isExternal = false;
+  if (Object.keys(classGroup).length === 0) return {};
+  return { enrollment: { classGroup } };
+}
+
+export function parseTeacherEvaluationListFilter(
+  params: URLSearchParams | { get(name: string): string | null },
+): TeacherEvaluationListFilter {
+  const scopeRaw = params.get("scope");
+  return {
+    cycleId: params.get("cycleId"),
+    courseId: params.get("courseId"),
+    classGroupId: params.get("classGroupId"),
+    teacherId: params.get("teacherId"),
+    scope: scopeRaw === "internal" || scopeRaw === "external" ? scopeRaw : "all",
+  };
+}
+
 /** Fora da coordenação, a listagem omite mensagens anônimas. */
 export function teacherClassEvaluationListWhere(
   teacherId?: string,
-  options?: { includeAnonymous?: boolean },
-): { teacherId?: string; anonymous?: false } {
+  options?: { includeAnonymous?: boolean; filter?: TeacherEvaluationListFilter },
+): {
+  teacherId?: string;
+  anonymous?: false;
+  enrollment?: { classGroup: { cycleId?: string; courseId?: string; id?: string; teacherId?: string; isExternal?: boolean } };
+} {
   return {
     ...(teacherId ? { teacherId } : {}),
     ...(options?.includeAnonymous ? {} : { anonymous: false }),
+    ...teacherEvaluationClassGroupWhere(options?.filter),
   };
 }
 

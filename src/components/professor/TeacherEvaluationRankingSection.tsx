@@ -11,7 +11,7 @@ function formatAverage(value: number): string {
   return value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
-export function TeacherEvaluationRankingSection() {
+export function TeacherEvaluationRankingSection({ queryString = "" }: { queryString?: string }) {
   const [rows, setRows] = useState<PublicTeacherEvaluationRanking[] | null>(null);
   const [error, setError] = useState("");
 
@@ -19,7 +19,10 @@ export function TeacherEvaluationRankingSection() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/avaliacoes-professor/ranking");
+        const url = queryString
+          ? `/api/avaliacoes-professor/ranking?${queryString}`
+          : "/api/avaliacoes-professor/ranking";
+        const res = await fetch(url);
         const json = (await res.json()) as ApiResponse<{ ranking: PublicTeacherEvaluationRanking[] }>;
         if (cancelled) return;
         if (!res.ok || !json.ok) {
@@ -38,12 +41,12 @@ export function TeacherEvaluationRankingSection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [queryString]);
 
   return (
     <SectionCard
       title="Ranking dos professores"
-      description="Média das avaliações públicas, da maior para a menor. Em cada professor, a última avaliação pública e a nota."
+      description="Média das avaliações públicas, da maior para a menor. Em cada professor, a última avaliação pública e a nota. Segue o mesmo recorte dos filtros."
       variant="elevated"
     >
       {rows == null ? (
@@ -51,7 +54,7 @@ export function TeacherEvaluationRankingSection() {
       ) : error ? (
         <p className="text-sm text-red-700">{error}</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-[var(--text-muted)]">Nenhuma avaliação pública ainda.</p>
+        <p className="text-sm text-[var(--text-muted)]">Nenhuma avaliação pública neste recorte.</p>
       ) : (
         <ol className="flex flex-col gap-3">
           {rows.map((row, index) => (

@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requireStaffRead();
-    const items = await listTeacherClassEvaluations();
-    return jsonOk({ items });
+    const result = await listTeacherClassEvaluations();
+    return jsonOk({ items: result.items });
   } catch (e) {
     const auth = authErrorResponse(e);
     if (auth) return auth;

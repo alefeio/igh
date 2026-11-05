@@ -4,8 +4,10 @@ import {
   buildPublicTeacherEvaluationRanking,
   enrollmentNeedsTeacherEvaluationPrompt,
   parseTeacherClassEvaluationBody,
+  parseTeacherEvaluationListFilter,
   teacherEvaluationAuthorLabel,
   teacherClassEvaluationListWhere,
+  teacherEvaluationClassGroupWhere,
 } from "@/lib/teacher-class-evaluation";
 
 describe("avaliação do professor", () => {
@@ -76,6 +78,41 @@ describe("avaliação do professor", () => {
       anonymous: false,
     });
     expect(teacherClassEvaluationListWhere(undefined, { includeAnonymous: true })).toEqual({});
+  });
+
+  it("aplica o recorte de turma no mesmo formato do painel", () => {
+    expect(
+      teacherEvaluationClassGroupWhere({
+        cycleId: "c1",
+        courseId: "course-1",
+        teacherId: "t1",
+        classGroupId: "g1",
+        scope: "external",
+      }),
+    ).toEqual({
+      enrollment: {
+        classGroup: {
+          cycleId: "c1",
+          courseId: "course-1",
+          teacherId: "t1",
+          id: "g1",
+          isExternal: true,
+        },
+      },
+    });
+    expect(teacherClassEvaluationListWhere(undefined, {
+      includeAnonymous: true,
+      filter: { cycleId: "c1", scope: "internal" },
+    })).toEqual({
+      enrollment: { classGroup: { cycleId: "c1", isExternal: false } },
+    });
+    expect(parseTeacherEvaluationListFilter(new URLSearchParams("cycleId=c1&scope=external"))).toEqual({
+      cycleId: "c1",
+      courseId: null,
+      classGroupId: null,
+      teacherId: null,
+      scope: "external",
+    });
   });
 });
 

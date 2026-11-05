@@ -7,6 +7,7 @@ import {
   teacherClassEvaluationListWhere,
   teacherEvaluationAuthorLabel,
   type PublicTeacherEvaluationRanking,
+  type TeacherEvaluationListFilter,
 } from "@/lib/teacher-class-evaluation";
 
 const evaluationSelect = {
@@ -31,17 +32,47 @@ const evaluationSelect = {
   },
 } as const;
 
-export async function listTeacherClassEvaluations(
-  teacherId?: string,
-  options?: { revealIdentity?: boolean; includeAnonymous?: boolean },
-) {
-  const rows = await prisma.teacherClassEvaluation.findMany({
-    where: teacherClassEvaluationListWhere(teacherId, options),
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    select: evaluationSelect,
-  });
-  return rows.map((row) => ({
+export type TeacherClassEvaluationListItem = {
+  id: string;
+  rating: number;
+  comment: string;
+  anonymous: boolean;
+  createdAt: string;
+  authorLabel: string;
+  courseName: string;
+  classLabel: string;
+  teacherName: string;
+};
+
+export type TeacherClassEvaluationListResult = {
+  items: TeacherClassEvaluationListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+function mapEvaluationRow(
+  row: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    anonymous: boolean;
+    createdAt: Date;
+    teacher: { name: string };
+    enrollment: {
+      student: { name: string };
+      classGroup: {
+        daysOfWeek: string[];
+        startTime: string;
+        endTime: string;
+        course: { name: string };
+      };
+    };
+  },
+  options?: { revealIdentity?: boolean },
+): TeacherClassEvaluationListItem {
+  return {
     id: row.id,
     rating: row.rating,
     comment: row.comment ?? "",
@@ -51,12 +82,49 @@ export async function listTeacherClassEvaluations(
     courseName: row.enrollment.classGroup.course.name,
     classLabel: teacherMaterialClassLabel(row.enrollment.classGroup),
     teacherName: row.teacher.name,
-  }));
+  };
 }
 
-export async function listPublicTeacherEvaluationRanking(): Promise<PublicTeacherEvaluationRanking[]> {
+export async function listTeacherClassEvaluations(
+  teacherId?: string,
+  options?: {
+    revealIdentity?: boolean;
+    includeAnonymous?: boolean;
+    filter?: TeacherEvaluationListFilter;
+    page?: number;
+    pageSize?: number;
+  },
+): Promise<TeacherClassEvaluationListResult> {
+  const where = teacherClassEvaluationListWhere(teacherId, options);
+  const pageSize = Math.min(100, Math.max(1, options?.pageSize ?? 200));
+  const page = Math.max(1, options?.page ?? 1);
+  const [total, rows] = await Promise.all([
+    prisma.teacherClassEvaluation.count({ where }),
+    prisma.teacherClassEvaluation.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: evaluationSelect,
+    }),
+  ]);
+  return {
+    items: rows.map((row) => mapEvaluationRow(row, options)),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
+export async function listPublicTeacherEvaluationRanking(
+  filter: TeacherEvaluationListFilter = {},
+): Promise<PublicTeacherEvaluationRanking[]> {
   const rows = await prisma.teacherClassEvaluation.findMany({
-    where: { anonymous: false, teacher: { deletedAt: null } },
+    where: {
+      ...teacherClassEvaluationListWhere(undefined, { filter }),
+      teacher: { deletedAt: null },
+    },
     orderBy: { updatedAt: "desc" },
     select: {
       rating: true,
@@ -91,4 +159,19 @@ export async function listPublicTeacherEvaluationRanking(): Promise<PublicTeache
       classLabel: teacherMaterialClassLabel(row.enrollment.classGroup),
     })),
   );
+}
+
+/** Exportação completa do recorte (sem paginação). Ranking público + avaliações da coordenação. */
+export async function loadCoordinatorTeacherEvaluationExport(filter: TeacherEvaluationListFilter) {
+  const [ranking, evaluations] = await Promise.all([
+    listPublicTeacherEvaluationRanking(filter),
+    listTeacherClassEvaluations(undefined, {
+      revealIdentity: true,
+      includeAnonymous: true,
+      filter,
+      page: 1,
+      pageSize: 10000,
+    }),
+  ]);
+  return { ranking, evaluations: evaluations.items, totalEvaluations: evaluations.total };
 }
