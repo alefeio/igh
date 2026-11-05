@@ -151,9 +151,10 @@ export function CoordenacaoDashboard() {
             Ciclo
             <select
               className="mt-1 h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2"
-              value={filters.cycleId || data?.cycle?.id || ""}
-              onChange={(event) => update({ cycleId: event.target.value, classGroupId: undefined })}
+              value={filters.cycleId ?? ""}
+              onChange={(event) => update({ cycleId: event.target.value || undefined, classGroupId: undefined })}
             >
+              <option value="">Todos</option>
               {(data?.cycles ?? []).map((cycle) => (
                 <option key={cycle.id} value={cycle.id}>
                   {cycle.label}

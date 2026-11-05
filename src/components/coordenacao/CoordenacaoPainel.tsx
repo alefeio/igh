@@ -278,14 +278,13 @@ export function CoordenacaoPainel({
 
   const experienceQueryString = useMemo(() => {
     const params = new URLSearchParams();
-    const cycleId = filters.cycleId || data?.cycle?.id;
-    if (cycleId) params.set("cycleId", cycleId);
+    if (filters.cycleId) params.set("cycleId", filters.cycleId);
     if (filters.courseId) params.set("courseId", filters.courseId);
     if (filters.teacherId) params.set("teacherId", filters.teacherId);
     if (filters.classGroupId) params.set("classGroupId", filters.classGroupId);
     if (filters.scope && filters.scope !== "all") params.set("scope", filters.scope);
     return params.toString();
-  }, [filters.cycleId, filters.courseId, filters.teacherId, filters.classGroupId, filters.scope, data?.cycle?.id]);
+  }, [filters.cycleId, filters.courseId, filters.teacherId, filters.classGroupId, filters.scope]);
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -318,9 +317,10 @@ export function CoordenacaoPainel({
             Ciclo
             <select
               className="mt-1 h-10 w-full rounded-md border border-[var(--card-border)] bg-[var(--card-bg)] px-2"
-              value={filters.cycleId || data?.cycle?.id || ""}
-              onChange={(event) => update({ cycleId: event.target.value, classGroupId: undefined })}
+              value={filters.cycleId ?? ""}
+              onChange={(event) => update({ cycleId: event.target.value || undefined, classGroupId: undefined })}
             >
+              <option value="">Todos</option>
               {(data?.cycles ?? []).map((cycle) => (
                 <option key={cycle.id} value={cycle.id}>
                   {cycle.label}
