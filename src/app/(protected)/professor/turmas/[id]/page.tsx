@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { BuscaAtivaPageClient } from "@/app/(protected)/professor/busca-ativa/BuscaAtivaPageClient";
 import { DashboardTutorial, type TutorialStep } from "@/components/dashboard/DashboardTutorial";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useUser } from "@/components/layout/UserProvider";
@@ -17,7 +18,8 @@ import { Modal } from "@/components/ui/Modal";
 import type { ApiResponse } from "@/lib/api-types";
 import { isForumPostEmpty } from "@/lib/forum-question-content";
 import { buildStudentsVcfFile, classGroupVcfFileName, studentVcfContactLabel } from "@/lib/student-vcf";
-import { buildClassWhatsappInviteMessage } from "@/lib/turma-display";
+import { formatDaysFullPt } from "@/lib/turma-display";
+import { MESSAGE_TEMPLATES, renderMessage, whatsappDigits } from "@/lib/busca-ativa";
 import { AlertCircle, Cake, Copy, Download, Link2, Mail, Presentation, RefreshCw, Upload } from "lucide-react";
 
 type ClassGroup = {
@@ -33,6 +35,7 @@ type ClassGroup = {
   enrollmentsCount: number;
   capacity: number;
   daysOfWeek?: string[];
+  location?: string | null;
   whatsappGroupUrl?: string | null;
   teacherName?: string;
 };
@@ -138,6 +141,10 @@ function formatDate(s: string) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+export default function ProfessorTurmaDetailPage() {
+  return <Suspense fallback={<p role="status">Carregando turma…</p>}><ProfessorTurmaDetailPageContent /></Suspense>;
+}
+
 function formatDateTime(s: string) {
   const d = new Date(s);
   return d.toLocaleString("pt-BR", {
@@ -174,15 +181,6 @@ function formatPhoneBr(raw: string): string {
   return raw.trim();
 }
 
-/** Digitos internacionais para wa.me (assume Brasil 55 se 10–11 dígitos). */
-function whatsappDigits(phone: string): string | null {
-  const d = phone.replace(/\D/g, "");
-  if (d.length < 10) return null;
-  if (d.length === 10 || d.length === 11) return `55${d}`;
-  if (d.startsWith("55") && d.length >= 12) return d;
-  return `55${d.slice(-11)}`;
-}
-
 function whatsappChatUrl(phone: string): string | null {
   const full = whatsappDigits(phone);
   return full ? `https://wa.me/${full}` : null;
@@ -215,9 +213,16 @@ function enrollmentStatusBadgeClass(status: string | undefined): string {
   }
 }
 
-export default function ProfessorTurmaDetailPage() {
+type TeacherTab = "alunos" | "espera" | "exercicios" | "aulas" | "frequencia" | "busca-ativa" | "duvidas" | "provas";
+const TEACHER_TABS: TeacherTab[] = ["alunos", "espera", "exercicios", "aulas", "frequencia", "busca-ativa", "duvidas", "provas"];
+
+function ProfessorTurmaDetailPageContent() {
   const params = useParams();
   const id = params.id as string;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("aba");
+  const urlTab: TeacherTab = TEACHER_TABS.includes(requestedTab as TeacherTab) ? requestedTab as TeacherTab : "alunos";
   const toast = useToast();
   const user = useUser();
   const viewOnly = user.role === "ADMIN";
@@ -227,7 +232,25 @@ export default function ProfessorTurmaDetailPage() {
   const [exerciseByEnrollment, setExerciseByEnrollment] = useState<ExerciseByEnrollment[]>([]);
   const [lessonProgressByEnrollment, setLessonProgressByEnrollment] = useState<LessonProgressByEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"alunos" | "espera" | "exercicios" | "aulas" | "frequencia" | "duvidas" | "provas">("alunos");
+  const [tab, setTab] = useState<TeacherTab>(urlTab);
+  const [buscaDraftDirty, setBuscaDraftDirty] = useState(false);
+  useEffect(() => {
+    if (tab === "busca-ativa" && urlTab !== "busca-ativa" && buscaDraftDirty) {
+      if (!window.confirm("Descartar o texto editado da busca ativa?")) {
+        router.replace(`/professor/turmas/${encodeURIComponent(id)}?aba=busca-ativa`);
+        return;
+      }
+      setBuscaDraftDirty(false);
+    }
+    setTab(urlTab);
+  }, [urlTab, tab, buscaDraftDirty, router, id]);
+  function chooseTab(next: TeacherTab) {
+    if (tab === "busca-ativa" && next !== "busca-ativa" && buscaDraftDirty) {
+      if (!window.confirm("Descartar o texto editado da busca ativa?")) return;
+      setBuscaDraftDirty(false);
+    }
+    router.push(`/professor/turmas/${encodeURIComponent(id)}${next === "alunos" ? "" : `?aba=${next}`}`);
+  }
   const [togglingCertificateId, setTogglingCertificateId] = useState<string | null>(null);
   const [downloadingCertificateId, setDownloadingCertificateId] = useState<string | null>(null);
   const [updatingEnrollmentId, setUpdatingEnrollmentId] = useState<string | null>(null);
@@ -974,15 +997,20 @@ export default function ProfessorTurmaDetailPage() {
       />
       <header className="flex flex-wrap items-start justify-between gap-4" data-tour="pt-header">
         <div>
-          <Link href="/professor/turmas" className="text-sm text-[var(--igh-primary)] hover:underline" data-tour="pt-voltar">
+          <Link href="/professor/turmas" className="text-sm text-[var(--igh-primary)] hover:underline" data-tour="pt-voltar" onClick={(event) => { if (buscaDraftDirty && !window.confirm("Descartar o texto editado da busca ativa?")) event.preventDefault(); }}>
             ← {viewOnly ? "Turmas" : "Turmas que leciono"}
           </Link>
           <h1 className="mt-2 text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
             {classGroup.courseName}
           </h1>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {classGroup.enrollmentsCount} alunos · Início {formatDate(classGroup.startDate)}
+            {classGroup.enrollmentsCount} alunos com matrícula ativa ou suspensa · Início {formatDate(classGroup.startDate)}
             {classGroup.startTime && classGroup.endTime && ` · ${classGroup.startTime} – ${classGroup.endTime}`}
+          </p>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            {classGroup.cycleNumber && classGroup.cycleYear ? `Ciclo ${classGroup.cycleNumber}/${classGroup.cycleYear}` : ""}
+            {classGroup.location ? ` · ${classGroup.location}` : ""}
+            {classGroup.daysOfWeek?.length ? ` · ${formatDaysFullPt(classGroup.daysOfWeek)}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1001,7 +1029,7 @@ export default function ProfessorTurmaDetailPage() {
       <nav className="flex flex-wrap gap-2 border-b border-[var(--card-border)] pb-2" data-tour="pt-tabs">
         <button
           type="button"
-          onClick={() => setTab("alunos")}
+          onClick={() => chooseTab("alunos")}
           className={`rounded-lg px-3 py-2 text-sm font-medium ${
             tab === "alunos"
               ? "bg-[var(--igh-primary)] text-white"
@@ -1013,7 +1041,7 @@ export default function ProfessorTurmaDetailPage() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("espera")}
+          onClick={() => chooseTab("espera")}
           className={`rounded-lg px-3 py-2 text-sm font-medium ${
             tab === "espera"
               ? "bg-[var(--igh-primary)] text-white"
@@ -1026,7 +1054,7 @@ export default function ProfessorTurmaDetailPage() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("exercicios")}
+          onClick={() => chooseTab("exercicios")}
           className={`rounded-lg px-3 py-2 text-sm font-medium ${
             tab === "exercicios"
               ? "bg-[var(--igh-primary)] text-white"
@@ -1038,7 +1066,7 @@ export default function ProfessorTurmaDetailPage() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("aulas")}
+          onClick={() => chooseTab("aulas")}
           className={`rounded-lg px-3 py-2 text-sm font-medium ${
             tab === "aulas"
               ? "bg-[var(--igh-primary)] text-white"
@@ -1050,7 +1078,7 @@ export default function ProfessorTurmaDetailPage() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("frequencia")}
+          onClick={() => chooseTab("frequencia")}
           className={`rounded-lg px-3 py-2 text-sm font-medium ${
             tab === "frequencia"
               ? "bg-[var(--igh-primary)] text-white"
@@ -1060,9 +1088,19 @@ export default function ProfessorTurmaDetailPage() {
         >
           Frequência
         </button>
+        {!viewOnly ? <button
+          type="button"
+          onClick={() => chooseTab("busca-ativa")}
+          aria-current={tab === "busca-ativa" ? "page" : undefined}
+          className={`rounded-lg px-3 py-2 text-sm font-medium ${
+            tab === "busca-ativa"
+              ? "bg-[var(--igh-primary)] text-white"
+              : "bg-[var(--card-bg)] text-[var(--text-secondary)] hover:bg-[var(--igh-surface)]"
+          }`}
+        >Busca ativa</button> : null}
         <button
           type="button"
-          onClick={() => setTab("duvidas")}
+          onClick={() => chooseTab("duvidas")}
           className={`rounded-lg px-3 py-2 text-sm font-medium ${
             tab === "duvidas"
               ? "bg-[var(--igh-primary)] text-white"
@@ -1074,7 +1112,7 @@ export default function ProfessorTurmaDetailPage() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("provas")}
+          onClick={() => chooseTab("provas")}
           className={`rounded-lg px-3 py-2 text-sm font-medium ${
             tab === "provas"
               ? "bg-[var(--igh-primary)] text-white"
@@ -1085,6 +1123,10 @@ export default function ProfessorTurmaDetailPage() {
           Provas
         </button>
       </nav>
+
+      {tab === "busca-ativa" && !viewOnly ? (
+        <BuscaAtivaPageClient key={`${user.id}:${id}`} classGroupId={id} initialMode={searchParams.get("mode") === "turma" ? "turma" : "aluno"} initialEnrollmentId={searchParams.get("enrollmentId")} onDraftDirtyChange={setBuscaDraftDirty} />
+      ) : null}
 
       {tab === "alunos" && (
         <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] overflow-hidden">
@@ -1236,15 +1278,18 @@ export default function ProfessorTurmaDetailPage() {
               {enrollmentsByRecent.map((e) => {
                 const waChat = e.studentPhone ? whatsappChatUrl(e.studentPhone) : null;
                 const groupUrl = classGroup.whatsappGroupUrl?.trim() || "";
+                const inviteTemplate = MESSAGE_TEMPLATES.find((item) => item.id === "convite-grupo")!;
                 const inviteText = groupUrl
-                  ? buildClassWhatsappInviteMessage({
-                      teacherName: classGroup.teacherName || user.name,
-                      courseName: classGroup.courseName,
-                      startDateLabel: formatDate(classGroup.startDate),
-                      startTime: classGroup.startTime,
-                      daysOfWeek: classGroup.daysOfWeek ?? [],
-                      groupUrl,
-                    })
+                  ? renderMessage(inviteTemplate, {
+                      alunoPrimeiroNome: e.studentName?.trim().split(/\s+/)[0] ?? "",
+                      professorNome: user.name,
+                      cursoNome: classGroup.courseName,
+                      instituicaoNome: "Instituto Gustavo Hessel",
+                      turmaNome: `${classGroup.courseName} · ${classGroup.cycleNumber && classGroup.cycleYear ? `Ciclo ${classGroup.cycleNumber}/${classGroup.cycleYear}` : `${classGroup.startTime}–${classGroup.endTime}`}`,
+                      diasAula: formatDaysFullPt(classGroup.daysOfWeek),
+                      horarioTurma: `${classGroup.startTime} às ${classGroup.endTime}`,
+                      linkGrupo: groupUrl,
+                    }).text
                   : "";
                 const waGroup =
                   e.studentPhone && inviteText ? whatsappGroupInviteChatUrl(e.studentPhone, inviteText) : null;
