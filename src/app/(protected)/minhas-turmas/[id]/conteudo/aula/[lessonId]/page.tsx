@@ -1391,7 +1391,7 @@ export default function AulaConteudoPage() {
 
   const handleSendQuestion = async () => {
     if (isForumPostEmpty(questionContent, questionImageUrls)) {
-      toast.push("error", "Digite uma mensagem ou adicione fotos.");
+      toast.push("error", "Digite uma mensagem ou adicione um anexo.");
       return;
     }
     setSavingQuestion(true);
@@ -2598,8 +2598,9 @@ export default function AulaConteudoPage() {
                 <div>
                   <h2 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">Fórum desta aula</h2>
                   <p className="mb-3 text-xs text-[var(--text-muted)]">
-                    Envie sua dúvida ou comente sobre a aula. Use formatação de texto (opcional) e anexe até 10 fotos por
-                    publicação. Você pode editar seus próprios comentários. Qualquer aluno pode responder.
+                    Envie sua dúvida ou comente sobre a aula. Use formatação de texto (opcional) e anexe até 10 arquivos por
+                    publicação (fotos, PDF, Word, PowerPoint e outros). Você pode editar seus próprios comentários. Qualquer
+                    aluno pode responder.
                   </p>
                   <div className="mb-4">
                     <ForumPostComposer
