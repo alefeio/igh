@@ -109,7 +109,7 @@ export function StudentLessonForumPanel({
 
   const handleSendQuestion = async () => {
     if (isForumPostEmpty(questionContent, questionImageUrls)) {
-      toast.push("error", "Digite uma mensagem ou adicione fotos.");
+      toast.push("error", "Digite uma mensagem ou adicione um anexo.");
       return;
     }
     if (!enrollmentId) return;
