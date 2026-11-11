@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { BuscaAtivaComposer } from "@/components/professor/BuscaAtivaComposer";
+import type { MessageContext } from "@/lib/busca-ativa";
+import { formatDaysFullPt } from "@/lib/turma-display";
 
 import { useToast } from "@/components/feedback/ToastProvider";
 import { Button } from "@/components/ui/Button";
@@ -51,6 +55,37 @@ export function EnrollmentFollowUp({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<"free" | "model">("free");
+  const [audience, setAudience] = useState<"aluno" | "interno">("aluno");
+  const [context, setContext] = useState<MessageContext | null>(null);
+  const [contextError, setContextError] = useState("");
+  const [contextLoading, setContextLoading] = useState(false);
+
+  async function refreshContext(): Promise<MessageContext | null> {
+    try {
+      const res = await fetch(`/api/teacher/busca-ativa?classGroupId=${encodeURIComponent(classGroupId)}&enrollmentId=${encodeURIComponent(enrollmentId)}`, { cache: "no-store" });
+      const json = await res.json() as ApiResponse<{ enrollments: MessageContext[] }>;
+      if (!res.ok || !json.ok || !json.data.enrollments[0]) {
+        setContextError(json.ok ? "Não foi possível carregar a matrícula." : json.error.message);
+        setContext(null);
+        return null;
+      }
+      setContext(json.data.enrollments[0]); setContextError("");
+      return json.data.enrollments[0];
+    } catch { setContextError("Falha de rede ao carregar os dados."); setContext(null); return null; }
+  }
+
+  useEffect(() => {
+    if (!open || mode !== "model") return;
+    let active = true;
+    setContext(null); setContextLoading(true); setContextError("");
+    void fetch(`/api/teacher/busca-ativa?classGroupId=${encodeURIComponent(classGroupId)}&enrollmentId=${encodeURIComponent(enrollmentId)}`, { cache: "no-store" })
+      .then(async (res) => ({ res, json: await res.json() as ApiResponse<{ enrollments: MessageContext[] }> }))
+      .then(({ res, json }) => { if (!active) return; if (res.ok && json.ok && json.data.enrollments[0]) setContext(json.data.enrollments[0]); else setContextError(json.ok ? "Matrícula indisponível." : json.error.message); })
+      .catch(() => { if (active) setContextError("Falha de rede ao carregar os dados."); })
+      .finally(() => { if (active) setContextLoading(false); });
+    return () => { active = false; };
+  }, [open, mode, classGroupId, enrollmentId]);
 
   const save = async () => {
     const body = text.trim();
@@ -109,7 +144,20 @@ export function EnrollmentFollowUp({
           ))}
         </ul>
       )}
-      <Modal open={open} title={`Histórico de ${studentName}`} size="small" onClose={() => setOpen(false)}>
+      <Modal open={open} title={`Histórico de ${studentName}`} size="large" onClose={() => setOpen(false)}>
+        {mode === "model" ? (context ? <div className="mb-4 rounded-md border border-[var(--card-border)] bg-[var(--igh-surface)] p-3 text-sm"><strong>{context.studentName}</strong><p>{context.courseName} · {context.turmaNome}</p><p>{formatDaysFullPt(context.daysOfWeek) || "Dias não informados"} · {context.startTime && context.endTime ? `${context.startTime} às ${context.endTime}` : "Horário não informado"}</p></div> : contextLoading ? <p className="mb-3 text-sm">Carregando contexto…</p> : contextError ? <p role="alert" className="mb-3 text-sm">{contextError}</p> : null) : null}
+        <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Forma de adicionar informação">
+          <Button type="button" variant={mode === "free" ? "primary" : "secondary"} onClick={() => setMode("free")}>Escrever livremente</Button>
+          <Button type="button" variant={mode === "model" ? "primary" : "secondary"} onClick={() => setMode("model")}>Usar modelo</Button>
+        </div>
+        {mode === "model" ? <>
+          <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Destino do modelo">
+            <Button type="button" variant={audience === "aluno" ? "primary" : "secondary"} onClick={() => setAudience("aluno")}>Mensagem para o aluno</Button>
+            <Button type="button" variant={audience === "interno" ? "primary" : "secondary"} onClick={() => setAudience("interno")}>Registro interno</Button>
+            <Link className="rounded-md border px-3 py-2 text-sm" href={`/professor/turmas/${encodeURIComponent(classGroupId)}?aba=busca-ativa&mode=turma`}>Mensagem para a turma ↗</Link>
+          </div>
+          {contextLoading ? <p>Carregando dados da matrícula…</p> : contextError ? <p role="alert">{contextError}</p> : context ? <BuscaAtivaComposer key={`${context.classGroupId}:${context.enrollmentId}:${audience}`} context={context} audience={audience} refresh={refreshContext} onSaved={() => { setOpen(false); onAdded(); }} /> : null}
+        </> : <>
         <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
           Busca ativa ou outra informação
           <textarea
@@ -128,6 +176,7 @@ export function EnrollmentFollowUp({
             {saving ? "Salvando…" : "Adicionar"}
           </Button>
         </div>
+        </>}
       </Modal>
     </div>
   );
