@@ -50,6 +50,25 @@ const revision = [
 ].join(":");
 const ctx = { params: Promise.resolve({ id: "turma-1", enrollmentId: "matricula-1" }) };
 
+function ownedEnrollment(
+  status: string,
+  { isPreEnrollment = false, deletedAt = null }: { isPreEnrollment?: boolean; deletedAt?: Date | null } = {},
+) {
+  return {
+    id: "matricula-1",
+    status,
+    isPreEnrollment,
+    updatedAt: now,
+    student: { updatedAt: now, deletedAt },
+    classGroup: {
+      updatedAt: now,
+      course: { updatedAt: now },
+      cycle: { updatedAt: now },
+      poloLocation: null,
+    },
+  };
+}
+
 function post(body: object) {
   return POST(
     new Request("http://local/history", {
@@ -69,19 +88,7 @@ beforeEach(() => {
     role: "TEACHER",
   } as never);
   vi.mocked(prisma.teacher.findFirst).mockResolvedValue({ id: "professor-1" } as never);
-  vi.mocked(prisma.enrollment.findFirst).mockResolvedValue({
-    id: "matricula-1",
-    status: "ACTIVE",
-    isPreEnrollment: false,
-    updatedAt: now,
-    student: { updatedAt: now, deletedAt: null },
-    classGroup: {
-      updatedAt: now,
-      course: { updatedAt: now },
-      cycle: { updatedAt: now },
-      poloLocation: null,
-    },
-  } as never);
+  vi.mocked(prisma.enrollment.findFirst).mockResolvedValue(ownedEnrollment("ACTIVE") as never);
 });
 
 describe("registro de busca ativa no histórico existente", () => {
@@ -140,20 +147,8 @@ describe("registro de busca ativa no histórico existente", () => {
     expect(response.status).toBe(404);
     expect(prisma.enrollmentHistoryEntry.create).not.toHaveBeenCalled();
   });
-  it("nega registro estruturado de matrícula cancelada, preservando observação livre", async () => {
-    vi.mocked(prisma.enrollment.findFirst).mockResolvedValue({
-      id: "matricula-1",
-      status: "CANCELLED",
-      isPreEnrollment: false,
-      updatedAt: now,
-      student: { updatedAt: now, deletedAt: null },
-      classGroup: {
-        updatedAt: now,
-        course: { updatedAt: now },
-        cycle: { updatedAt: now },
-        poloLocation: null,
-      },
-    } as never);
+  it("nega registro de busca ativa cancelado e preserva ocorrência administrativa explícita", async () => {
+    vi.mocked(prisma.enrollment.findFirst).mockResolvedValue(ownedEnrollment("CANCELLED") as never);
     const denied = await post({
       body: "Mensagem preparada",
       contactType: "CONTATO_REALIZADO",
@@ -164,13 +159,76 @@ describe("registro de busca ativa no histórico existente", () => {
     expect(prisma.enrollmentHistoryEntry.create).not.toHaveBeenCalled();
     vi.mocked(prisma.enrollmentHistoryEntry.create).mockResolvedValue({
       id: "livre",
-      kind: "BUSCA_ATIVA",
+      kind: "OCORRENCIA",
       body: "Observação administrativa",
       createdAt: now,
       author: { name: "Professor Teste" },
     } as never);
-    const allowed = await post({ body: "Observação administrativa" });
+    const allowed = await post({ body: "Observação administrativa", kind: "OCORRENCIA" });
     expect(allowed.status).toBe(201);
+    expect(vi.mocked(prisma.enrollmentHistoryEntry.create).mock.calls[0][0].data).toEqual({
+      enrollmentId: "matricula-1",
+      authorId: "usuario-1",
+      kind: "OCORRENCIA",
+      body: "Observação administrativa",
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ["ativa", "ACTIVE", false, null],
+    ["suspensa", "SUSPENDED", false, null],
+    ["cancelada", "CANCELLED", false, null],
+    ["pré-matrícula", "ACTIVE", true, null],
+    ["aluno excluído", "ACTIVE", false, now],
+  ])("rejeita POST legado sem tipo para matrícula %s", async (_label, status, isPreEnrollment, deletedAt) => {
+    vi.mocked(prisma.enrollment.findFirst).mockResolvedValue(
+      ownedEnrollment(status, { isPreEnrollment, deletedAt }) as never,
+    );
+    const response = await post({ body: "Mensagem sem tipo" });
+    expect(response.status).toBe(400);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.enrollmentHistoryEntry.create).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["suspensa", ownedEnrollment("SUSPENDED")],
+    ["pré-matrícula", ownedEnrollment("ACTIVE", { isPreEnrollment: true })],
+    ["aluno excluído", ownedEnrollment("ACTIVE", { deletedAt: now })],
+  ])("rejeita registro estruturado para matrícula %s", async (_label, enrollment) => {
+    vi.mocked(prisma.enrollment.findFirst).mockResolvedValue(enrollment as never);
+    const response = await post({
+      body: "Mensagem preparada",
+      contactType: "CONTATO_REALIZADO",
+      requestId,
+      revision,
+    });
+    expect(response.status).toBe(404);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.enrollmentHistoryEntry.create).not.toHaveBeenCalled();
+  });
+  it("rejeita campos de contato em uma observação administrativa", async () => {
+    const response = await post({
+      body: "Observação administrativa",
+      kind: "OCORRENCIA",
+      contactType: "CONTATO_REALIZADO",
+    });
+    expect(response.status).toBe(400);
+    expect(prisma.enrollmentHistoryEntry.create).not.toHaveBeenCalled();
+  });
+  it("revalida a ocorrência dentro da transação se o vínculo mudou", async () => {
+    vi.mocked(prisma.enrollment.findFirst)
+      .mockResolvedValueOnce(ownedEnrollment("CANCELLED") as never)
+      .mockResolvedValueOnce(null);
+    const response = await post({ body: "Observação administrativa", kind: "OCORRENCIA" });
+    expect(response.status).toBe(409);
+    expect(prisma.enrollmentHistoryEntry.create).not.toHaveBeenCalled();
+  });
+  it("não grava ocorrência se o professor perdeu o acesso antes da transação", async () => {
+    vi.mocked(prisma.teacher.findFirst)
+      .mockResolvedValueOnce({ id: "professor-1" } as never)
+      .mockResolvedValueOnce(null);
+    const response = await post({ body: "Observação administrativa", kind: "OCORRENCIA" });
+    expect(response.status).toBe(409);
+    expect(prisma.enrollmentHistoryEntry.create).not.toHaveBeenCalled();
   });
   it("revalida a elegibilidade antes da escrita se a matrícula foi cancelada durante o formulário", async () => {
     const active = {

@@ -65,8 +65,8 @@ export function EnrollmentFollowUp({
     try {
       const res = await fetch(`/api/teacher/busca-ativa?classGroupId=${encodeURIComponent(classGroupId)}&enrollmentId=${encodeURIComponent(enrollmentId)}`, { cache: "no-store" });
       const json = await res.json() as ApiResponse<{ enrollments: MessageContext[] }>;
-      if (!res.ok || !json.ok || !json.data.enrollments[0]) {
-        setContextError(json.ok ? "Não foi possível carregar a matrícula." : json.error.message);
+      if (!res.ok || !json.ok || !json.data.enrollments[0]?.contactEligible) {
+        setContextError(json.ok ? "Esta matrícula permite apenas observações administrativas." : json.error.message);
         setContext(null);
         return null;
       }
@@ -81,7 +81,7 @@ export function EnrollmentFollowUp({
     setContext(null); setContextLoading(true); setContextError("");
     void fetch(`/api/teacher/busca-ativa?classGroupId=${encodeURIComponent(classGroupId)}&enrollmentId=${encodeURIComponent(enrollmentId)}`, { cache: "no-store" })
       .then(async (res) => ({ res, json: await res.json() as ApiResponse<{ enrollments: MessageContext[] }> }))
-      .then(({ res, json }) => { if (!active) return; if (res.ok && json.ok && json.data.enrollments[0]) setContext(json.data.enrollments[0]); else setContextError(json.ok ? "Matrícula indisponível." : json.error.message); })
+      .then(({ res, json }) => { if (!active) return; if (res.ok && json.ok && json.data.enrollments[0]?.contactEligible) setContext(json.data.enrollments[0]); else setContextError(json.ok ? "Esta matrícula permite apenas observações administrativas." : json.error.message); })
       .catch(() => { if (active) setContextError("Falha de rede ao carregar os dados."); })
       .finally(() => { if (active) setContextLoading(false); });
     return () => { active = false; };
@@ -100,7 +100,7 @@ export function EnrollmentFollowUp({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body }),
+          body: JSON.stringify({ body, kind: "OCORRENCIA" }),
         },
       );
       const json = (await res.json().catch(() => null)) as ApiResponse<{ entry: EnrollmentHistoryItem }> | null;
@@ -159,7 +159,7 @@ export function EnrollmentFollowUp({
           {contextLoading ? <p>Carregando dados da matrícula…</p> : contextError ? <p role="alert">{contextError}</p> : context ? <BuscaAtivaComposer key={`${context.classGroupId}:${context.enrollmentId}:${audience}`} context={context} audience={audience} refresh={refreshContext} onSaved={() => { setOpen(false); onAdded(); }} /> : null}
         </> : <>
         <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
-          Busca ativa ou outra informação
+          Observação administrativa
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}

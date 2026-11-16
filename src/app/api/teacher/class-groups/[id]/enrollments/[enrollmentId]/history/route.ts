@@ -67,6 +67,18 @@ export async function POST(request: Request, ctx: Ctx) {
   }
 
   const structured = body?.contactType != null;
+  const administrativeNote = body?.kind === "OCORRENCIA";
+  if (!structured && !administrativeNote)
+    return jsonErr("VALIDATION_ERROR", "Informe a natureza do registro.", 400);
+  if (body?.kind != null && (!administrativeNote || structured))
+    return jsonErr("VALIDATION_ERROR", "Natureza do registro inválida.", 400);
+  if (
+    administrativeNote &&
+    ["requestId", "revision", "templateId", "templateVersion", "result", "channel", "factDate", "note"].some(
+      (key) => body[key] != null,
+    )
+  )
+    return jsonErr("VALIDATION_ERROR", "Observação administrativa não aceita dados de contato.", 400);
   if (structured && /{{[^}]*}}|\bundefined\b|\bnull\b/i.test(text))
     return jsonErr("VALIDATION_ERROR", "Revise os campos não resolvidos da mensagem.", 400);
   let contactType: ContactType | null = null;
@@ -192,61 +204,41 @@ export async function POST(request: Request, ctx: Ctx) {
 
   let created;
   try {
-    if (structured) {
-      const teacherId = "teacherId" in owned ? owned.teacherId : null;
-      if (!teacherId) return jsonErr("FORBIDDEN", "Professor não autorizado.", 403);
-      created = await prisma.$transaction(async (tx) => {
-        // A trava mantém matrícula e aluno estáveis até a gravação do histórico.
-        const locked = await tx.$queryRaw<{ id: string }[]>`
-          SELECT e.id FROM "Enrollment" e
-          JOIN "Student" s ON s.id = e."studentId"
-          WHERE e.id = ${enrollmentId} AND e."classGroupId" = ${classGroupId}
-          FOR UPDATE OF e, s
-        `;
-        if (locked.length === 0) return null;
-        const activeTeacher = await tx.teacher.findFirst({
-          where: { id: teacherId, userId: user.id, deletedAt: null },
-          select: { id: true },
-        });
-        if (!activeTeacher) return null;
-        const current = await tx.enrollment.findFirst({
-          where: {
-            id: enrollmentId,
-            classGroupId,
-            status: "ACTIVE",
-            isPreEnrollment: false,
-            student: { deletedAt: null },
-            classGroup: classGroupTeacherAccessWhere(teacherId),
-          },
-          select: { id: true },
-        });
-        if (!current) return null;
-        return tx.enrollmentHistoryEntry.create({
-          data: {
-            id: requestId!,
-            enrollmentId,
-            authorId: user.id,
-            kind: "BUSCA_ATIVA",
-            body: recordBody,
-          },
-          select: {
-            id: true,
-            kind: true,
-            body: true,
-            createdAt: true,
-            author: { select: { name: true } },
-          },
-        });
+    const teacherId = "teacherId" in owned ? owned.teacherId : null;
+    if (!teacherId) return jsonErr("FORBIDDEN", "Professor não autorizado.", 403);
+    created = await prisma.$transaction(async (tx) => {
+      // A trava mantém matrícula e aluno estáveis até a gravação do histórico.
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT e.id FROM "Enrollment" e
+        JOIN "Student" s ON s.id = e."studentId"
+        WHERE e.id = ${enrollmentId} AND e."classGroupId" = ${classGroupId}
+        FOR UPDATE OF e, s
+      `;
+      if (locked.length === 0) return null;
+      const activeTeacher = await tx.teacher.findFirst({
+        where: { id: teacherId, userId: user.id, deletedAt: null },
+        select: { id: true },
       });
-      if (!created)
-        return jsonErr(
-          "STALE_CONTEXT",
-          "A matrícula não está mais elegível. Atualize a turma.",
-          409,
-        );
-    } else {
-      created = await prisma.enrollmentHistoryEntry.create({
-        data: { enrollmentId, authorId: user.id, kind: "BUSCA_ATIVA", body: recordBody },
+      if (!activeTeacher) return null;
+      const current = await tx.enrollment.findFirst({
+        where: {
+          id: enrollmentId,
+          classGroupId,
+          status: structured ? "ACTIVE" : { in: ["ACTIVE", "SUSPENDED", "CANCELLED"] },
+          ...(structured ? { isPreEnrollment: false, student: { deletedAt: null } } : {}),
+          classGroup: classGroupTeacherAccessWhere(teacherId),
+        },
+        select: { id: true },
+      });
+      if (!current) return null;
+      return tx.enrollmentHistoryEntry.create({
+        data: {
+          ...(structured ? { id: requestId! } : {}),
+          enrollmentId,
+          authorId: user.id,
+          kind: structured ? "BUSCA_ATIVA" : "OCORRENCIA",
+          body: recordBody,
+        },
         select: {
           id: true,
           kind: true,
@@ -255,7 +247,15 @@ export async function POST(request: Request, ctx: Ctx) {
           author: { select: { name: true } },
         },
       });
-    }
+    });
+    if (!created)
+      return jsonErr(
+        "STALE_CONTEXT",
+        structured
+          ? "A matrícula não está mais elegível. Atualize a turma."
+          : "A matrícula ou o acesso à turma mudou. Atualize e tente novamente.",
+        409,
+      );
   } catch (error) {
     if (
       !requestId ||
