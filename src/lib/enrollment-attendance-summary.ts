@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 export type EnrollmentAttendanceSummary = {
   presentCount: number;
+  recordedCount: number;
   totalSessions: number;
   percent: number | null;
   justifiedAbsenceCount: number;
@@ -86,6 +87,7 @@ export async function getEnrollmentAttendanceSummaries(
     const totalSessions = allowed.size;
     result.set(e.id, {
       presentCount,
+      recordedCount: marks.length,
       totalSessions,
       percent: totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : null,
       justifiedAbsenceCount: absences?.justifiedAbsenceCount ?? 0,

@@ -570,7 +570,7 @@ export function Sidebar({
             </h3>
             <ul className="flex list-none flex-col gap-0.5 pl-0">
               {byCategory[cat].map((item) => {
-                const active = pathname === item.href;
+                const active = pathname === item.href || (item.href === "/professor/turmas" && pathname.startsWith("/professor/turmas/"));
                 const tourId = tourIdForHref(item.href);
                 return (
                   <li key={item.href}>
